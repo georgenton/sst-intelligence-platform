@@ -87,9 +87,16 @@ type Finding = {
   recurrence?: {
     previousCount: number;
     windowDays: number;
-    previous: Array<{ id: string; title: string; createdAt: string }>;
+    previous: Array<{
+      id: string;
+      inspectionId: string;
+      title: string;
+      createdAt: string;
+      status: string;
+    }>;
   };
 };
+type CreatedFinding = Finding & { recurrenceWindowDays: number };
 type Analytics = {
   totalInspections: number;
   openFindings: number;
@@ -478,7 +485,7 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
   const api = useApi();
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [created, setCreated] = useState<Finding | null>(null);
+  const [created, setCreated] = useState<CreatedFinding | null>(null);
   const riskValues = useRef({ likelihood: 1, consequence: 1 });
   const inspection = useQuery({
     queryKey: ['inspection', api.organizationId, inspectionId],
@@ -496,7 +503,7 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
   });
   const mutation = useMutation({
     mutationFn: (values: FindingForm) =>
-      api.request<Finding>(`/inspections/${inspectionId}/findings`, {
+      api.request<CreatedFinding>(`/inspections/${inspectionId}/findings`, {
         method: 'POST',
         body: JSON.stringify({
           ...values,
@@ -525,7 +532,10 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
           {created.recurrenceCount > 0 && (
             <div className="recurrence-callout">
               <strong>{label(created.recurrenceStatus)}</strong>
-              <p>{created.recurrenceCount} antecedentes en los últimos 90 días.</p>
+              <p>
+                {created.recurrenceCount} antecedentes en los últimos{' '}
+                {created.recurrenceWindowDays} días.
+              </p>
               {created.recurrenceStatus === 'SYSTEMIC_REVIEW_RECOMMENDED' && (
                 <p>Este aviso indica recurrencia, no confirma una causa raíz.</p>
               )}
@@ -821,11 +831,11 @@ export function FindingDetail({
         eyebrow="Hallazgo"
         title={data.title}
         description={`${FINDING_CATEGORY_LABELS[data.category]} · ${data.workCenter?.name ?? ''}`}
-        actions={
+        actions={data.status !== 'CLOSED' ? (
           <button className="button" onClick={() => setShowAction(!showAction)}>
             Nueva acción
           </button>
-        }
+        ) : null}
       />
       <div className="detail-strip">
         <RiskBadge level={data.initialRiskLevel} />
@@ -860,7 +870,10 @@ export function FindingDetail({
             {data.workCenter?.name} y categoría {FINDING_CATEGORY_LABELS[data.category]}.
           </p>
           {data.recurrence?.previous.map((item) => (
-            <Link key={item.id} href={`/app/inspections/${inspectionId}/findings/${item.id}`}>
+            <Link
+              key={item.id}
+              href={`/app/inspections/${item.inspectionId}/findings/${item.id}`}
+            >
               {item.title} →
             </Link>
           ))}
@@ -933,14 +946,15 @@ export function FindingDetail({
                   {action.assignedTo ? ` · ${action.assignedTo.displayName}` : ''}
                 </p>
               </div>
-              {!['PENDING_VERIFICATION', 'COMPLETED', 'CANCELED'].includes(action.status) && (
+              {data.status !== 'CLOSED' &&
+                !['PENDING_VERIFICATION', 'COMPLETED', 'CANCELED'].includes(action.status) && (
                 <button
                   className="button secondary"
                   onClick={() => completeAction.mutate(action.id)}
                 >
                   Marcar terminada
                 </button>
-              )}
+                )}
             </Card>
           ))
         )}

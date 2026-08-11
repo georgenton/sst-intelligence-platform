@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   analyzeRecurrence,
+  assertCorrectiveActionTransition,
   assertInspectionTransition,
   calculateDemoRisk,
+  canTransitionCorrectiveAction,
   DEMO_RISK_METHOD,
   findingClosureEligibility,
   isCorrectiveActionOverdue,
+  normalizeInspectionSearchText,
   recurrenceStatus,
+  resolveFindingCategoriesFromSearch,
   type RecurrenceCandidate,
 } from './inspections';
 
@@ -56,6 +60,47 @@ describe('inspection transitions', () => {
   ] as const)('rejects %s -> %s', (from, to) =>
     expect(() => assertInspectionTransition(from, to)).toThrow('Invalid inspection transition'),
   );
+});
+
+describe('corrective action transitions', () => {
+  it.each([
+    ['OPEN', 'IN_PROGRESS'],
+    ['OPEN', 'PENDING_VERIFICATION'],
+    ['OPEN', 'CANCELED'],
+    ['IN_PROGRESS', 'PENDING_VERIFICATION'],
+    ['IN_PROGRESS', 'CANCELED'],
+    ['PENDING_VERIFICATION', 'COMPLETED'],
+  ] as const)('allows %s -> %s', (from, to) => {
+    expect(canTransitionCorrectiveAction(from, to)).toBe(true);
+    expect(() => assertCorrectiveActionTransition(from, to)).not.toThrow();
+  });
+
+  it.each([
+    ['OPEN', 'OPEN'],
+    ['OPEN', 'COMPLETED'],
+    ['IN_PROGRESS', 'OPEN'],
+    ['IN_PROGRESS', 'IN_PROGRESS'],
+    ['IN_PROGRESS', 'COMPLETED'],
+    ['PENDING_VERIFICATION', 'OPEN'],
+    ['PENDING_VERIFICATION', 'IN_PROGRESS'],
+    ['PENDING_VERIFICATION', 'PENDING_VERIFICATION'],
+    ['PENDING_VERIFICATION', 'CANCELED'],
+    ['COMPLETED', 'OPEN'],
+    ['COMPLETED', 'IN_PROGRESS'],
+    ['COMPLETED', 'PENDING_VERIFICATION'],
+    ['COMPLETED', 'COMPLETED'],
+    ['COMPLETED', 'CANCELED'],
+    ['CANCELED', 'OPEN'],
+    ['CANCELED', 'IN_PROGRESS'],
+    ['CANCELED', 'PENDING_VERIFICATION'],
+    ['CANCELED', 'COMPLETED'],
+    ['CANCELED', 'CANCELED'],
+  ] as const)('rejects %s -> %s', (from, to) => {
+    expect(canTransitionCorrectiveAction(from, to)).toBe(false);
+    expect(() => assertCorrectiveActionTransition(from, to)).toThrow(
+      'Invalid corrective action transition',
+    );
+  });
 });
 
 describe('finding closure', () => {
@@ -119,5 +164,41 @@ describe('overdue actions', () => {
     expect(isCorrectiveActionOverdue('COMPLETED', yesterday, now)).toBe(false);
     expect(isCorrectiveActionOverdue('CANCELED', yesterday, now)).toBe(false);
     expect(isCorrectiveActionOverdue('OPEN', null, now)).toBe(false);
+  });
+});
+
+describe('inspection search normalization', () => {
+  it.each([
+    ['electrico', 'ELECTRICAL'],
+    ['eléctrico', 'ELECTRICAL'],
+    ['electricidad', 'ELECTRICAL'],
+    ['incendio', 'FIRE'],
+    ['mecanico', 'MECHANICAL'],
+    ['mecánico', 'MECHANICAL'],
+    ['quimico', 'CHEMICAL'],
+    ['químico', 'CHEMICAL'],
+    ['ergonomico', 'ERGONOMIC'],
+    ['ergonómico', 'ERGONOMIC'],
+    ['fisico', 'PHYSICAL'],
+    ['físico', 'PHYSICAL'],
+    ['biologico', 'BIOLOGICAL'],
+    ['biológico', 'BIOLOGICAL'],
+    ['psicosocial', 'PSYCHOSOCIAL'],
+    ['orden', 'HOUSEKEEPING'],
+    ['limpieza', 'HOUSEKEEPING'],
+  ] as const)('resolves %s to %s', (search, category) => {
+    expect(resolveFindingCategoriesFromSearch(search)).toContain(category);
+  });
+
+  it('normalizes case, whitespace and accents', () => {
+    expect(normalizeInspectionSearchText('  ELÉCTRICO  ')).toBe('electrico');
+    expect(resolveFindingCategoriesFromSearch('control de INCENDIO y limpieza')).toEqual([
+      'FIRE',
+      'HOUSEKEEPING',
+    ]);
+  });
+
+  it('does not infer an unrelated category', () => {
+    expect(resolveFindingCategoriesFromSearch('ventilación')).toEqual([]);
   });
 });

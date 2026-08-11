@@ -14,6 +14,12 @@ export const DEMO_RISK_METHOD = {
 
 export type RiskLevel = (typeof DEMO_RISK_METHOD.thresholds)[number]['level'];
 export type InspectionStatus = 'DRAFT' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED';
+export type CorrectiveActionStatus =
+  | 'OPEN'
+  | 'IN_PROGRESS'
+  | 'PENDING_VERIFICATION'
+  | 'COMPLETED'
+  | 'CANCELED';
 export type RecurrenceStatus = 'NONE' | 'REPEATED' | 'SYSTEMIC_REVIEW_RECOMMENDED';
 
 export const FINDING_CATEGORIES = [
@@ -98,6 +104,32 @@ export function assertInspectionTransition(from: InspectionStatus, to: Inspectio
     throw new Error(`Invalid inspection transition: ${from} -> ${to}`);
 }
 
+const CORRECTIVE_ACTION_TRANSITIONS: Record<
+  CorrectiveActionStatus,
+  readonly CorrectiveActionStatus[]
+> = {
+  OPEN: ['IN_PROGRESS', 'PENDING_VERIFICATION', 'CANCELED'],
+  IN_PROGRESS: ['PENDING_VERIFICATION', 'CANCELED'],
+  PENDING_VERIFICATION: ['COMPLETED'],
+  COMPLETED: [],
+  CANCELED: [],
+};
+
+export function canTransitionCorrectiveAction(
+  from: CorrectiveActionStatus,
+  to: CorrectiveActionStatus,
+) {
+  return CORRECTIVE_ACTION_TRANSITIONS[from].includes(to);
+}
+
+export function assertCorrectiveActionTransition(
+  from: CorrectiveActionStatus,
+  to: CorrectiveActionStatus,
+) {
+  if (!canTransitionCorrectiveAction(from, to))
+    throw new Error(`Invalid corrective action transition: ${from} -> ${to}`);
+}
+
 export function findingClosureEligibility(input: {
   actionStatuses: readonly string[];
   hasResidualRisk: boolean;
@@ -143,6 +175,34 @@ export function analyzeRecurrence(
       candidate.createdAt.getTime() <= now.getTime(),
   );
   return { count: previous.length, status: recurrenceStatus(previous.length), windowDays };
+}
+
+export function normalizeInspectionSearchText(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('es')
+    .trim();
+}
+
+const FINDING_CATEGORY_SEARCH_ALIASES: Record<FindingCategory, readonly string[]> = {
+  ELECTRICAL: ['electrico', 'electricidad'],
+  FIRE: ['incendio'],
+  MECHANICAL: ['mecanico'],
+  CHEMICAL: ['quimico'],
+  ERGONOMIC: ['ergonomico'],
+  PHYSICAL: ['fisico'],
+  BIOLOGICAL: ['biologico'],
+  PSYCHOSOCIAL: ['psicosocial'],
+  HOUSEKEEPING: ['orden', 'limpieza'],
+  OTHER: ['otro'],
+};
+
+export function resolveFindingCategoriesFromSearch(value: string): FindingCategory[] {
+  const terms = new Set(normalizeInspectionSearchText(value).split(/[^a-z0-9]+/).filter(Boolean));
+  return FINDING_CATEGORIES.filter((category) =>
+    FINDING_CATEGORY_SEARCH_ALIASES[category].some((alias) => terms.has(alias)),
+  );
 }
 
 export function isCorrectiveActionOverdue(status: string, dueAt: Date | null, now = new Date()) {

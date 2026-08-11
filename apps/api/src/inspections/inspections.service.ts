@@ -6,12 +6,16 @@ import {
 } from '@nestjs/common';
 import type { InspectionStatus, Prisma } from '@prisma/client';
 import {
+  assertCorrectiveActionTransition,
+  assertInspectionTransition,
   calculateDemoRisk,
   FINDING_CATEGORY_LABELS,
   findingClosureEligibility,
   INSPECTION_RECURRENCE_POLICY,
   isCorrectiveActionOverdue,
   recurrenceStatus,
+  resolveFindingCategoriesFromSearch,
+  type CorrectiveActionStatus,
   type FindingCategory,
 } from '@sst/contracts';
 import { AuditService, type AuditEvent } from '../audit/audit.service';
@@ -208,14 +212,14 @@ export class InspectionsService {
     context: Context,
   ) {
     const inspection = await this.requireInspection(organizationId, inspectionId);
-    const valid =
-      (inspection.status === 'DRAFT' && target === 'IN_PROGRESS') ||
-      (inspection.status === 'IN_PROGRESS' && target === 'COMPLETED');
-    if (!valid)
+    try {
+      assertInspectionTransition(inspection.status, target);
+    } catch {
       throw new BadRequestException({
         code: 'INVALID_INSPECTION_TRANSITION',
         message: `No se puede cambiar de ${inspection.status} a ${target}.`,
       });
+    }
     const updated = await this.prisma.inspection.update({
       where: { id: inspectionId },
       data: {
@@ -403,7 +407,7 @@ export class InspectionsService {
               category: finding.category,
               createdAt: { gte: since, lt: finding.createdAt },
             },
-            select: { id: true, title: true, createdAt: true, status: true },
+            select: { id: true, inspectionId: true, title: true, createdAt: true, status: true },
             orderBy: { createdAt: 'desc' },
             take: 10,
           })
@@ -456,7 +460,8 @@ export class InspectionsService {
     input: CreateActionDto,
     context: Context,
   ) {
-    await this.requireFinding(organizationId, inspectionId, findingId);
+    const finding = await this.requireFinding(organizationId, inspectionId, findingId);
+    this.assertFindingAllowsActionMutation(finding.status);
     await this.assertAssignee(organizationId, input.assignedToUserId);
     const action = await this.prisma.$transaction(async (tx) => {
       const created = await tx.correctiveAction.create({
@@ -499,7 +504,10 @@ export class InspectionsService {
     input: UpdateActionDto,
     context: Context,
   ) {
-    await this.requireAction(organizationId, inspectionId, findingId, actionId);
+    const finding = await this.requireFinding(organizationId, inspectionId, findingId);
+    this.assertFindingAllowsActionMutation(finding.status);
+    const current = await this.requireAction(organizationId, inspectionId, findingId, actionId);
+    if (input.status) this.assertActionTransition(current.status, input.status);
     await this.assertAssignee(organizationId, input.assignedToUserId);
     const action = await this.prisma.correctiveAction.update({
       where: { id: actionId },
@@ -559,14 +567,19 @@ export class InspectionsService {
     userId: string,
     context: Context,
   ) {
+    const finding = await this.requireFinding(
+      organization.id,
+      inspectionId,
+      findingId,
+    );
+    this.assertFindingAllowsActionMutation(finding.status);
     const action = await this.requireAction(organization.id, inspectionId, findingId, actionId);
     if (organization.role === 'SST_TECHNICIAN' && action.assignedToUserId !== userId)
       throw new ForbiddenException({
         code: 'ACTION_ASSIGNEE_REQUIRED',
         message: 'El técnico solo puede completar acciones que tenga asignadas.',
       });
-    if (action.status === 'COMPLETED' || action.status === 'CANCELED')
-      throw new BadRequestException('La acción no admite esta transición.');
+    this.assertActionTransition(action.status, 'PENDING_VERIFICATION');
     const updated = await this.prisma.$transaction(async (tx) => {
       const result = await tx.correctiveAction.update({
         where: { id: actionId },
@@ -600,12 +613,14 @@ export class InspectionsService {
     context: Context,
   ) {
     const finding = await this.requireFinding(organizationId, inspectionId, findingId, true);
+    this.assertFindingAllowsActionMutation(finding.status);
     const pending = finding.actions.filter((action) => action.status === 'PENDING_VERIFICATION');
     if (pending.length === 0)
       throw new BadRequestException({
         code: 'NO_ACTION_PENDING_VERIFICATION',
         message: 'No existen acciones pendientes de verificación.',
       });
+    pending.forEach((action) => this.assertActionTransition(action.status, 'COMPLETED'));
     const residual = calculateDemoRisk(input.likelihood, input.consequence);
     const projected = finding.actions.map((action) =>
       action.status === 'PENDING_VERIFICATION' ? 'COMPLETED' : action.status,
@@ -733,14 +748,15 @@ export class InspectionsService {
 
   async search(organizationId: string, query: SearchFindingDto) {
     const text = query.q.trim();
+    const categories = resolveFindingCategoriesFromSearch(text);
     const where: Prisma.InspectionFindingWhereInput = {
       organizationId,
       OR: [
         { title: { contains: text, mode: 'insensitive' } },
         { description: { contains: text, mode: 'insensitive' } },
-        { category: { contains: text, mode: 'insensitive' } },
         { workCenter: { name: { contains: text, mode: 'insensitive' } } },
         { workArea: { name: { contains: text, mode: 'insensitive' } } },
+        ...(categories.length > 0 ? [{ category: { in: categories } }] : []),
       ],
     };
     const [items, total] = await Promise.all([
@@ -976,7 +992,9 @@ export class InspectionsService {
         : undefined,
     });
     if (!finding) throw new NotFoundException('Hallazgo no encontrado.');
-    return finding as typeof finding & { actions: Array<{ id: string; status: string }> };
+    return finding as typeof finding & {
+      actions: Array<{ id: string; status: CorrectiveActionStatus }>;
+    };
   }
 
   private async requireAction(
@@ -1005,6 +1023,26 @@ export class InspectionsService {
       ? configured
       : INSPECTION_RECURRENCE_POLICY.windowDays;
   }
+
+  private assertFindingAllowsActionMutation(status: string) {
+    if (status === 'CLOSED')
+      throw new BadRequestException({
+        code: 'FINDING_CLOSED',
+        message: 'Un hallazgo cerrado no admite cambios en sus acciones.',
+      });
+  }
+
+  private assertActionTransition(from: CorrectiveActionStatus, to: CorrectiveActionStatus) {
+    try {
+      assertCorrectiveActionTransition(from, to);
+    } catch {
+      throw new BadRequestException({
+        code: 'INVALID_CORRECTIVE_ACTION_TRANSITION',
+        message: `No se puede cambiar la acción de ${from} a ${to}.`,
+      });
+    }
+  }
+
   private record(
     organizationId: string,
     actorUserId: string,

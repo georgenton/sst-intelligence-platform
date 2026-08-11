@@ -96,7 +96,7 @@ describe('intelligent inspections integration', () => {
       .send({
         workCenterId: centerA.id,
         workAreaId: areaA.id,
-        title: 'Recorrido eléctrico principal',
+        title: 'Inspection January',
       })
       .expect(201);
     const inspectionId = inspection.body.id as string;
@@ -127,6 +127,20 @@ describe('intelligent inspections integration', () => {
     });
     const findingId = finding.body.id as string;
 
+    for (const q of ['electrico', 'eléctrico']) {
+      await request(app.getHttpServer())
+        .get('/api/v1/inspections/findings/search')
+        .query({ q })
+        .set('Authorization', `Bearer ${ownerA.token}`)
+        .set('x-organization-id', orgA)
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.items).toEqual(
+            expect.arrayContaining([expect.objectContaining({ id: findingId })]),
+          );
+        });
+    }
+
     const action = await request(app.getHttpServer())
       .post(`/api/v1/inspections/${inspectionId}/findings/${findingId}/actions`)
       .set('Authorization', `Bearer ${ownerA.token}`)
@@ -156,6 +170,14 @@ describe('intelligent inspections integration', () => {
       .expect(201)
       .expect(({ body }) => expect(body.status).toBe('PENDING_VERIFICATION'));
     await request(app.getHttpServer())
+      .post(
+        `/api/v1/inspections/${inspectionId}/findings/${findingId}/actions/${actionId}/complete`,
+      )
+      .set('Authorization', `Bearer ${ownerA.token}`)
+      .set('x-organization-id', orgA)
+      .expect(400)
+      .expect(({ body }) => expect(body.code).toBe('INVALID_CORRECTIVE_ACTION_TRANSITION'));
+    await request(app.getHttpServer())
       .post(`/api/v1/inspections/${inspectionId}/findings/${findingId}/verify`)
       .set('Authorization', `Bearer ${ownerA.token}`)
       .set('x-organization-id', orgA)
@@ -170,23 +192,138 @@ describe('intelligent inspections integration', () => {
         }),
       );
 
-    for (const index of [2, 3]) {
-      const recurrent = await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${inspectionId}/findings`)
+    await request(app.getHttpServer())
+      .patch(`/api/v1/inspections/${inspectionId}/findings/${findingId}/actions/${actionId}`)
+      .set('Authorization', `Bearer ${ownerA.token}`)
+      .set('x-organization-id', orgA)
+      .send({ status: 'OPEN' })
+      .expect(400)
+      .expect(({ body }) => expect(body.code).toBe('FINDING_CLOSED'));
+    await request(app.getHttpServer())
+      .post(`/api/v1/inspections/${inspectionId}/findings/${findingId}/actions`)
+      .set('Authorization', `Bearer ${ownerA.token}`)
+      .set('x-organization-id', orgA)
+      .send({ title: 'No debe reabrir', priority: 'LOW' })
+      .expect(400)
+      .expect(({ body }) => expect(body.code).toBe('FINDING_CLOSED'));
+    expect(
+      await prisma.inspectionFinding.findUniqueOrThrow({
+        where: { id: findingId },
+        select: { status: true },
+      }),
+    ).toEqual({ status: 'CLOSED' });
+
+    const terminalFinding = await prisma.inspectionFinding.create({
+      data: {
+        organizationId: orgA,
+        inspectionId,
+        workCenterId: centerA.id,
+        workAreaId: areaA.id,
+        category: 'FIRE',
+        title: 'Hallazgo para acción terminal',
+        description: 'Caso aislado para probar la transición rechazada.',
+        riskMethodKey: 'DEMO_5X5',
+        riskMethodVersion: '1.0.0',
+        initialLikelihood: 1,
+        initialConsequence: 1,
+        initialScore: 1,
+        initialRiskLevel: 'LOW',
+        createdById: ownerA.userId,
+      },
+    });
+    const terminalAction = await prisma.correctiveAction.create({
+      data: {
+        organizationId: orgA,
+        findingId: terminalFinding.id,
+        title: 'Acción ya verificada',
+        status: 'COMPLETED',
+        priority: 'LOW',
+        createdById: ownerA.userId,
+        completedAt: new Date(),
+        verifiedAt: new Date(),
+        verifiedByUserId: ownerA.userId,
+      },
+    });
+    await request(app.getHttpServer())
+      .patch(
+        `/api/v1/inspections/${inspectionId}/findings/${terminalFinding.id}/actions/${terminalAction.id}`,
+      )
+      .set('Authorization', `Bearer ${ownerA.token}`)
+      .set('x-organization-id', orgA)
+      .send({ status: 'OPEN' })
+      .expect(400)
+      .expect(({ body }) => expect(body.code).toBe('INVALID_CORRECTIVE_ACTION_TRANSITION'));
+
+    const createStartedInspection = async (title: string) => {
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/inspections')
         .set('Authorization', `Bearer ${ownerA.token}`)
         .set('x-organization-id', orgA)
-        .send({
-          title: `Hallazgo eléctrico recurrente ${index}`,
-          description: 'Registro para validar recurrencia determinística.',
-          category: 'ELECTRICAL',
-          likelihood: 3,
-          consequence: 4,
-        })
+        .send({ workCenterId: centerA.id, workAreaId: areaA.id, title })
         .expect(201);
-      expect(recurrent.body.recurrenceStatus).toBe(
-        index === 2 ? 'REPEATED' : 'SYSTEMIC_REVIEW_RECOMMENDED',
-      );
-    }
+      const id = created.body.id as string;
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${id}/start`)
+        .set('Authorization', `Bearer ${ownerA.token}`)
+        .set('x-organization-id', orgA)
+        .expect(201);
+      return id;
+    };
+    const februaryInspectionId = await createStartedInspection('Inspection February');
+    const februaryFinding = await request(app.getHttpServer())
+      .post(`/api/v1/inspections/${februaryInspectionId}/findings`)
+      .set('Authorization', `Bearer ${ownerA.token}`)
+      .set('x-organization-id', orgA)
+      .send({
+        title: 'Segundo antecedente controlado',
+        description: 'Registro para validar recurrencia determinística.',
+        category: 'ELECTRICAL',
+        likelihood: 3,
+        consequence: 4,
+      })
+      .expect(201);
+    expect(februaryFinding.body.recurrenceStatus).toBe('REPEATED');
+
+    const marchInspectionId = await createStartedInspection('Inspection March');
+    const marchFinding = await request(app.getHttpServer())
+      .post(`/api/v1/inspections/${marchInspectionId}/findings`)
+      .set('Authorization', `Bearer ${ownerA.token}`)
+      .set('x-organization-id', orgA)
+      .send({
+        title: 'Tercer antecedente controlado',
+        description: 'Registro para validar recurrencia determinística.',
+        category: 'ELECTRICAL',
+        likelihood: 3,
+        consequence: 4,
+      })
+      .expect(201);
+    expect(marchFinding.body.recurrenceStatus).toBe('SYSTEMIC_REVIEW_RECOMMENDED');
+
+    const marchDetail = await request(app.getHttpServer())
+      .get(`/api/v1/inspections/${marchInspectionId}/findings/${marchFinding.body.id as string}`)
+      .set('Authorization', `Bearer ${ownerA.token}`)
+      .set('x-organization-id', orgA)
+      .expect(200);
+    expect(marchDetail.body.recurrence.previous).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: findingId, inspectionId }),
+        expect.objectContaining({
+          id: februaryFinding.body.id,
+          inspectionId: februaryInspectionId,
+        }),
+      ]),
+    );
+    const januaryPrevious = marchDetail.body.recurrence.previous.find(
+      (item: { id: string }) => item.id === findingId,
+    );
+    expect(januaryPrevious).toMatchObject({ id: findingId, inspectionId });
+    await request(app.getHttpServer())
+      .get(
+        `/api/v1/inspections/${januaryPrevious.inspectionId as string}/findings/${januaryPrevious.id as string}`,
+      )
+      .set('Authorization', `Bearer ${ownerA.token}`)
+      .set('x-organization-id', orgA)
+      .expect(200);
     const alerts = await request(app.getHttpServer())
       .get('/api/v1/inspections/alerts')
       .set('Authorization', `Bearer ${ownerA.token}`)
