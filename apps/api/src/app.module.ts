@@ -10,6 +10,7 @@ import { EntitlementsModule } from './catalog/entitlements.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
+import { InspectionsModule } from './inspections/inspections.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { SolutionFinderModule } from './solution-finder/solution-finder.module';
@@ -40,6 +41,7 @@ import { SolutionFinderModule } from './solution-finder/solution-finder.module';
     AiModule,
     SolutionFinderModule,
     DashboardModule,
+    InspectionsModule,
   ],
   controllers: [HealthController],
   providers: [HealthService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

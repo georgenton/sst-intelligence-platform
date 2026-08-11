@@ -94,19 +94,91 @@ enum AiInteractionStatus {
   FAILED
 }
 
+enum InspectionStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+enum FindingStatus {
+  OPEN
+  ACTION_IN_PROGRESS
+  PENDING_VERIFICATION
+  CLOSED
+}
+
+enum RiskLevel {
+  LOW
+  MODERATE
+  HIGH
+  CRITICAL
+}
+
+enum RecurrenceStatus {
+  NONE
+  REPEATED
+  SYSTEMIC_REVIEW_RECOMMENDED
+}
+
+enum CorrectiveActionStatus {
+  OPEN
+  IN_PROGRESS
+  PENDING_VERIFICATION
+  COMPLETED
+  CANCELED
+}
+
+enum ActionPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ActionEvidenceType {
+  NOTE
+  EXTERNAL_LINK
+}
+
+enum InspectionAlertType {
+  RECURRENCE
+  OVERDUE_ACTION
+  HIGH_RESIDUAL_RISK
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
 model User {
-  id                   String                   @id @default(uuid()) @db.Uuid
-  email                String                   @unique
-  passwordHash         String
-  displayName          String
-  createdAt            DateTime                 @default(now())
-  updatedAt            DateTime                 @updatedAt
-  refreshSessions      RefreshSession[]
-  memberships          Membership[]
-  claimedGuidedSessions GuidedFlowSession[]      @relation("ClaimedBy")
-  auditLogs            AuditLog[]                @relation("AuditActor")
-  aiInteractions       AiInteraction[]
-  upgradeRequests      UpgradeRequest[]
+  id                    String              @id @default(uuid()) @db.Uuid
+  email                 String              @unique
+  passwordHash          String
+  displayName           String
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  refreshSessions       RefreshSession[]
+  memberships           Membership[]
+  claimedGuidedSessions GuidedFlowSession[] @relation("ClaimedBy")
+  auditLogs             AuditLog[]          @relation("AuditActor")
+  aiInteractions        AiInteraction[]
+  upgradeRequests       UpgradeRequest[]
+  inspections           Inspection[]        @relation("InspectionInspector")
+  findingsCreated       InspectionFinding[] @relation("FindingCreator")
+  actionsAssigned       CorrectiveAction[]  @relation("ActionAssignee")
+  actionsCreated        CorrectiveAction[]  @relation("ActionCreator")
+  actionsVerified       CorrectiveAction[]  @relation("ActionVerifier")
+  evidenceCreated       ActionEvidence[]    @relation("EvidenceCreator")
+  alertsAcknowledged    InspectionAlert[]   @relation("AlertAcknowledger")
 }
 
 model RefreshSession {
@@ -129,39 +201,196 @@ model RefreshSession {
 }
 
 model Organization {
-  id              String             @id @default(uuid()) @db.Uuid
-  name            String
-  country         String
-  sector          String?
-  status          OrganizationStatus @default(ACTIVE)
-  demoStartedAt   DateTime?
-  demoExpiresAt   DateTime?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-  workCenters     WorkCenter[]
-  memberships     Membership[]
-  invitations     OrganizationInvitation[]
-  modules         OrganizationModule[]
-  subscriptions   Subscription[]
-  usageCounters   UsageCounter[]
-  guidedSessions  GuidedFlowSession[]
-  upgradeRequests UpgradeRequest[]
-  auditLogs       AuditLog[]
-  aiInteractions  AiInteraction[]
+  id                String                   @id @default(uuid()) @db.Uuid
+  name              String
+  country           String
+  sector            String?
+  status            OrganizationStatus       @default(ACTIVE)
+  demoStartedAt     DateTime?
+  demoExpiresAt     DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  workCenters       WorkCenter[]
+  memberships       Membership[]
+  invitations       OrganizationInvitation[]
+  modules           OrganizationModule[]
+  subscriptions     Subscription[]
+  usageCounters     UsageCounter[]
+  guidedSessions    GuidedFlowSession[]
+  upgradeRequests   UpgradeRequest[]
+  auditLogs         AuditLog[]
+  aiInteractions    AiInteraction[]
+  workAreas         WorkArea[]
+  inspections       Inspection[]
+  findings          InspectionFinding[]
+  correctiveActions CorrectiveAction[]
+  actionEvidence    ActionEvidence[]
+  inspectionAlerts  InspectionAlert[]
 }
 
 model WorkCenter {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @db.Uuid
+  id             String              @id @default(uuid()) @db.Uuid
+  organizationId String              @db.Uuid
   name           String
   city           String?
-  isDemo         Boolean      @default(false)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  isDemo         Boolean             @default(false)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workAreas      WorkArea[]
+  inspections    Inspection[]
+  findings       InspectionFinding[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
+}
+
+model WorkArea {
+  id             String              @id @default(uuid()) @db.Uuid
+  organizationId String              @db.Uuid
+  workCenterId   String              @db.Uuid
+  name           String
+  isActive       Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workCenter     WorkCenter          @relation(fields: [workCenterId], references: [id], onDelete: Cascade)
+  inspections    Inspection[]
+  findings       InspectionFinding[]
+
+  @@unique([organizationId, workCenterId, name])
+  @@index([organizationId, isActive])
+  @@index([organizationId, workCenterId])
+}
+
+model Inspection {
+  id              String              @id @default(uuid()) @db.Uuid
+  organizationId  String              @db.Uuid
+  workCenterId    String              @db.Uuid
+  workAreaId      String?             @db.Uuid
+  title           String
+  description     String?
+  inspectorUserId String              @db.Uuid
+  status          InspectionStatus    @default(DRAFT)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  scheduledFor    DateTime?
+  isDemo          Boolean             @default(false)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workCenter      WorkCenter          @relation(fields: [workCenterId], references: [id])
+  workArea        WorkArea?           @relation(fields: [workAreaId], references: [id])
+  inspector       User                @relation("InspectionInspector", fields: [inspectorUserId], references: [id])
+  findings        InspectionFinding[]
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, workCenterId])
+  @@index([organizationId, inspectorUserId])
+}
+
+model InspectionFinding {
+  id                  String             @id @default(uuid()) @db.Uuid
+  organizationId      String             @db.Uuid
+  inspectionId        String             @db.Uuid
+  workCenterId        String             @db.Uuid
+  workAreaId          String?            @db.Uuid
+  category            String
+  title               String
+  description         String
+  status              FindingStatus      @default(OPEN)
+  riskMethodKey       String
+  riskMethodVersion   String
+  initialLikelihood   Int
+  initialConsequence  Int
+  initialScore        Int
+  initialRiskLevel    RiskLevel
+  residualLikelihood  Int?
+  residualConsequence Int?
+  residualScore       Int?
+  residualRiskLevel   RiskLevel?
+  recurrenceCount     Int                @default(0)
+  recurrenceStatus    RecurrenceStatus   @default(NONE)
+  createdById         String             @db.Uuid
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  closedAt            DateTime?
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inspection          Inspection         @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  workCenter          WorkCenter         @relation(fields: [workCenterId], references: [id])
+  workArea            WorkArea?          @relation(fields: [workAreaId], references: [id])
+  createdBy           User               @relation("FindingCreator", fields: [createdById], references: [id])
+  actions             CorrectiveAction[]
+  alerts              InspectionAlert[]
+
+  @@index([organizationId, inspectionId])
+  @@index([organizationId, workCenterId, category, createdAt])
+  @@index([organizationId, status, initialRiskLevel])
+  @@index([organizationId, recurrenceStatus])
+}
+
+model CorrectiveAction {
+  id               String                 @id @default(uuid()) @db.Uuid
+  organizationId   String                 @db.Uuid
+  findingId        String                 @db.Uuid
+  title            String
+  description      String?
+  assignedToUserId String?                @db.Uuid
+  status           CorrectiveActionStatus @default(OPEN)
+  priority         ActionPriority         @default(MEDIUM)
+  dueAt            DateTime?
+  completedAt      DateTime?
+  verifiedAt       DateTime?
+  verifiedByUserId String?                @db.Uuid
+  createdById      String                 @db.Uuid
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  finding          InspectionFinding      @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  assignedTo       User?                  @relation("ActionAssignee", fields: [assignedToUserId], references: [id])
+  verifiedBy       User?                  @relation("ActionVerifier", fields: [verifiedByUserId], references: [id])
+  createdBy        User                   @relation("ActionCreator", fields: [createdById], references: [id])
+  evidence         ActionEvidence[]
+
+  @@index([organizationId, findingId])
+  @@index([organizationId, status, dueAt])
+  @@index([organizationId, assignedToUserId])
+}
+
+model ActionEvidence {
+  id                 String             @id @default(uuid()) @db.Uuid
+  organizationId     String             @db.Uuid
+  correctiveActionId String             @db.Uuid
+  type               ActionEvidenceType
+  note               String?
+  externalUrl        String?
+  createdById        String             @db.Uuid
+  createdAt          DateTime           @default(now())
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  correctiveAction   CorrectiveAction   @relation(fields: [correctiveActionId], references: [id], onDelete: Cascade)
+  createdBy          User               @relation("EvidenceCreator", fields: [createdById], references: [id])
+
+  @@index([organizationId, correctiveActionId])
+}
+
+model InspectionAlert {
+  id               String              @id @default(uuid()) @db.Uuid
+  organizationId   String              @db.Uuid
+  findingId        String              @db.Uuid
+  type             InspectionAlertType
+  severity         AlertSeverity
+  status           AlertStatus         @default(OPEN)
+  message          String
+  createdAt        DateTime            @default(now())
+  acknowledgedAt   DateTime?
+  acknowledgedById String?             @db.Uuid
+  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  finding          InspectionFinding   @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  acknowledgedBy   User?               @relation("AlertAcknowledger", fields: [acknowledgedById], references: [id])
+
+  @@unique([findingId, type])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, type])
 }
 
 model Membership {
@@ -195,16 +424,16 @@ model OrganizationInvitation {
 }
 
 model ModuleDefinition {
-  id                   String               @id @default(uuid()) @db.Uuid
-  key                  ModuleKey            @unique
-  name                 String
-  description          String
-  objective            String
-  demoContent          Json
-  sortOrder            Int
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  organizationModules  OrganizationModule[]
+  id                  String               @id @default(uuid()) @db.Uuid
+  key                 ModuleKey            @unique
+  name                String
+  description         String
+  objective           String
+  demoContent         Json
+  sortOrder           Int
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  organizationModules OrganizationModule[]
 }
 
 model OrganizationModule {
@@ -219,22 +448,22 @@ model OrganizationModule {
   createdAt      DateTime                 @default(now())
   updatedAt      DateTime                 @updatedAt
   organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  module         ModuleDefinition          @relation(fields: [moduleId], references: [id])
+  module         ModuleDefinition         @relation(fields: [moduleId], references: [id])
 
   @@unique([organizationId, moduleId])
   @@index([organizationId, status])
 }
 
 model Plan {
-  id           String        @id @default(uuid()) @db.Uuid
-  key          PlanKey       @unique
-  name         String
-  description  String
-  sortOrder    Int
-  planFeatures PlanFeature[]
+  id            String         @id @default(uuid()) @db.Uuid
+  key           PlanKey        @unique
+  name          String
+  description   String
+  sortOrder     Int
+  planFeatures  PlanFeature[]
   subscriptions Subscription[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
 model FeatureDefinition {
@@ -301,21 +530,21 @@ model GuidedFlowDefinition {
 }
 
 model GuidedFlowSession {
-  id              String              @id @default(uuid()) @db.Uuid
-  definitionId    String              @db.Uuid
+  id              String                  @id @default(uuid()) @db.Uuid
+  definitionId    String                  @db.Uuid
   publicTokenHash String
-  status          GuidedSessionStatus @default(IN_PROGRESS)
-  currentStep     Int                 @default(1)
-  answers         Json                @default("{}")
+  status          GuidedSessionStatus     @default(IN_PROGRESS)
+  currentStep     Int                     @default(1)
+  answers         Json                    @default("{}")
   expiresAt       DateTime
-  claimedByUserId String?             @db.Uuid
-  organizationId  String?             @db.Uuid
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  claimedByUserId String?                 @db.Uuid
+  organizationId  String?                 @db.Uuid
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
   completedAt     DateTime?
-  definition      GuidedFlowDefinition @relation(fields: [definitionId], references: [id])
-  claimedBy       User?                @relation("ClaimedBy", fields: [claimedByUserId], references: [id])
-  organization    Organization?        @relation(fields: [organizationId], references: [id])
+  definition      GuidedFlowDefinition    @relation(fields: [definitionId], references: [id])
+  claimedBy       User?                   @relation("ClaimedBy", fields: [claimedByUserId], references: [id])
+  organization    Organization?           @relation(fields: [organizationId], references: [id])
   recommendation  SolutionRecommendation?
 
   @@index([status, expiresAt])

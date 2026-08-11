@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import {
+  calculateDemoRisk,
   calculateRecommendation,
   recommendationSchema,
   solutionAnswersSchema,
@@ -280,13 +281,105 @@ export class SolutionFinderService {
           });
         }
       }
-      await tx.workCenter.upsert({
+      const guayaquil = await tx.workCenter.upsert({
         where: {
-          organizationId_name: { organizationId, name: 'Centro demostración (sintético)' },
+          organizationId_name: { organizationId, name: 'Centro Guayaquil (demostración)' },
         },
         update: { isDemo: true },
-        create: { organizationId, name: 'Centro demostración (sintético)', isDemo: true },
+        create: {
+          organizationId,
+          name: 'Centro Guayaquil (demostración)',
+          city: 'Guayaquil',
+          isDemo: true,
+        },
       });
+      await tx.workCenter.upsert({
+        where: { organizationId_name: { organizationId, name: 'Centro Quito (demostración)' } },
+        update: { isDemo: true },
+        create: {
+          organizationId,
+          name: 'Centro Quito (demostración)',
+          city: 'Quito',
+          isDemo: true,
+        },
+      });
+      const electricalArea = await tx.workArea.upsert({
+        where: {
+          organizationId_workCenterId_name: {
+            organizationId,
+            workCenterId: guayaquil.id,
+            name: 'Planta A',
+          },
+        },
+        update: { isActive: true },
+        create: {
+          organizationId,
+          workCenterId: guayaquil.id,
+          name: 'Planta A',
+        },
+      });
+      if (moduleKeys.includes('INSPECTIONS_INTELLIGENCE')) {
+        const risk = calculateDemoRisk(4, 4);
+        const baseTime = startsAt.getTime();
+        for (let index = 0; index < 3; index += 1) {
+          const title = `Inspección eléctrica demostrativa ${index + 1}`;
+          const alreadyExists = await tx.inspection.findFirst({
+            where: { organizationId, title, isDemo: true },
+            select: { id: true },
+          });
+          if (alreadyExists) continue;
+          const occurredAt = new Date(baseTime - (30 - index * 10) * 86_400_000);
+          const inspection = await tx.inspection.create({
+            data: {
+              organizationId,
+              workCenterId: guayaquil.id,
+              workAreaId: electricalArea.id,
+              inspectorUserId: userId,
+              title,
+              description: 'Registro sintético para demostrar recurrencia determinística.',
+              status: 'COMPLETED',
+              startedAt: occurredAt,
+              completedAt: occurredAt,
+              isDemo: true,
+              createdAt: occurredAt,
+            },
+          });
+          const finding = await tx.inspectionFinding.create({
+            data: {
+              organizationId,
+              inspectionId: inspection.id,
+              workCenterId: guayaquil.id,
+              workAreaId: electricalArea.id,
+              category: 'ELECTRICAL',
+              title: `Hallazgo eléctrico sintético ${index + 1}`,
+              description: 'Dato sintético sin información personal.',
+              riskMethodKey: risk.methodKey,
+              riskMethodVersion: risk.methodVersion,
+              initialLikelihood: risk.likelihood,
+              initialConsequence: risk.consequence,
+              initialScore: risk.score,
+              initialRiskLevel: risk.level,
+              recurrenceCount: index,
+              recurrenceStatus:
+                index === 0 ? 'NONE' : index === 1 ? 'REPEATED' : 'SYSTEMIC_REVIEW_RECOMMENDED',
+              createdById: userId,
+              createdAt: occurredAt,
+            },
+          });
+          if (index === 2) {
+            await tx.inspectionAlert.create({
+              data: {
+                organizationId,
+                findingId: finding.id,
+                type: 'RECURRENCE',
+                severity: 'WARNING',
+                message:
+                  'Se registraron varios hallazgos de categoría Eléctrico en este centro durante los últimos 90 días. Se recomienda revisar si las acciones puntuales son suficientes y evaluar posibles factores sistémicos.',
+              },
+            });
+          }
+        }
+      }
       await tx.auditLog.create({
         data: {
           organizationId,

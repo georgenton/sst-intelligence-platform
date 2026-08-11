@@ -40,4 +40,5 @@ the relevant checks pass. Never force push or rewrite user history.
 ## Prohibited agent actions
 
 Do not use `prisma db push` as deployment, hardcode deployment URLs, invent completed provider
-calls, add real payment/email behavior, or expand the deep SST modules in this increment.
+calls, or add real payment/email behavior. Deep SST modules require explicit increment scope,
+deterministic rules and corresponding tests and documentation.

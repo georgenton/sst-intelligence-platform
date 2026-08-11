@@ -18,7 +18,8 @@
 - La explicación siempre funciona con plantillas; OpenAI es un adaptador opcional y nunca decide módulos ni puntuaciones.
 - Los planes y límites se resuelven mediante features persistidas, no desde componentes.
 - La demo se activa en una transacción idempotente y solo crea información sintética claramente identificada.
-- Se prioriza una vertical ejecutable y probada. Los módulos SST profundos quedan como contratos y páginas de presentación.
+- Se priorizan verticales ejecutables y probadas. Inspecciones Inteligentes V1 es el primer módulo
+  SST operacional; los demás módulos profundos permanecen como contratos y páginas de presentación.
 
 ## Fases
 
@@ -31,6 +32,8 @@
 7. Implementar el recorrido web crítico, estados de UI y selector de organización.
 8. Añadir pruebas unitarias, integración, E2E, CI y configuración de despliegue.
 9. Instalar, migrar, sembrar y verificar lint, tipos, pruebas y builds.
+10. Implementar Inspecciones Inteligentes V1: matriz demo determinística, hallazgos, acciones,
+    verificación, recurrencia, alertas, analítica y experiencia web móvil.
 
 ## Riesgos
 
@@ -59,6 +62,7 @@
 - [x] README, ADR y documentación de producto/despliegue.
 - [x] `pnpm check`, integración y E2E verificados.
 - [x] Commits Conventional Commits creados después de verificaciones exitosas.
+- [x] Inspecciones Inteligentes V1 con aislamiento, entitlement y reglas determinísticas.
 
 ## Definición de terminado
 
