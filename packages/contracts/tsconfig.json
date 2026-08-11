@@ -1,0 +1,12 @@
+{
+  "extends": "@sst/typescript-config/base.json",
+  "compilerOptions": {
+    "isolatedModules": false,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

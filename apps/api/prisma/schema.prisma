@@ -1,0 +1,389 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MembershipRole {
+  ORG_OWNER
+  ORG_ADMIN
+  SST_MANAGER
+  SST_TECHNICIAN
+  CONSULTANT
+  VIEWER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  DEMO
+  SUSPENDED
+}
+
+enum ModuleKey {
+  CORE
+  INSPECTIONS_INTELLIGENCE
+  TECHNICAL_RISK
+  WORK_PERMITS
+  PSYCHOSOCIAL
+  COMPLIANCE
+}
+
+enum OrganizationModuleStatus {
+  AVAILABLE
+  DEMO
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum ActivationSource {
+  PLAN
+  RECOMMENDATION
+  TRIAL
+  MANUAL
+  ENTERPRISE
+}
+
+enum PlanKey {
+  FREE
+  STARTER
+  GROWTH
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  SUSPENDED
+  CANCELED
+}
+
+enum FeatureValueType {
+  BOOLEAN
+  INTEGER
+  STRING
+}
+
+enum GuidedSessionStatus {
+  IN_PROGRESS
+  COMPLETED
+  CLAIMED
+  DEMO_ACTIVATED
+  EXPIRED
+}
+
+enum UpgradeRequestStatus {
+  OPEN
+  CONTACTED
+  CLOSED
+}
+
+enum AiInteractionStatus {
+  SUCCEEDED
+  FALLBACK
+  FAILED
+}
+
+model User {
+  id                   String                   @id @default(uuid()) @db.Uuid
+  email                String                   @unique
+  passwordHash         String
+  displayName          String
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  refreshSessions      RefreshSession[]
+  memberships          Membership[]
+  claimedGuidedSessions GuidedFlowSession[]      @relation("ClaimedBy")
+  auditLogs            AuditLog[]                @relation("AuditActor")
+  aiInteractions       AiInteraction[]
+  upgradeRequests      UpgradeRequest[]
+}
+
+model RefreshSession {
+  id              String    @id @default(uuid()) @db.Uuid
+  familyId        String    @db.Uuid
+  tokenHash       String
+  userId          String    @db.Uuid
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  reuseDetectedAt DateTime?
+  replacedById    String?   @db.Uuid
+  ip              String?
+  userAgent       String?
+  createdAt       DateTime  @default(now())
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, familyId])
+  @@index([familyId])
+  @@index([expiresAt])
+}
+
+model Organization {
+  id              String             @id @default(uuid()) @db.Uuid
+  name            String
+  country         String
+  sector          String?
+  status          OrganizationStatus @default(ACTIVE)
+  demoStartedAt   DateTime?
+  demoExpiresAt   DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  workCenters     WorkCenter[]
+  memberships     Membership[]
+  invitations     OrganizationInvitation[]
+  modules         OrganizationModule[]
+  subscriptions   Subscription[]
+  usageCounters   UsageCounter[]
+  guidedSessions  GuidedFlowSession[]
+  upgradeRequests UpgradeRequest[]
+  auditLogs       AuditLog[]
+  aiInteractions  AiInteraction[]
+}
+
+model WorkCenter {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  name           String
+  city           String?
+  isDemo         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model Membership {
+  id             String           @id @default(uuid()) @db.Uuid
+  userId         String           @db.Uuid
+  organizationId String           @db.Uuid
+  role           MembershipRole
+  status         MembershipStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, status])
+}
+
+model OrganizationInvitation {
+  id             String         @id @default(uuid()) @db.Uuid
+  organizationId String         @db.Uuid
+  email          String
+  role           MembershipRole
+  tokenHash      String
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime       @default(now())
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@index([organizationId, expiresAt])
+}
+
+model ModuleDefinition {
+  id                   String               @id @default(uuid()) @db.Uuid
+  key                  ModuleKey            @unique
+  name                 String
+  description          String
+  objective            String
+  demoContent          Json
+  sortOrder            Int
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  organizationModules  OrganizationModule[]
+}
+
+model OrganizationModule {
+  id             String                   @id @default(uuid()) @db.Uuid
+  organizationId String                   @db.Uuid
+  moduleId       String                   @db.Uuid
+  status         OrganizationModuleStatus
+  source         ActivationSource
+  startsAt       DateTime?
+  expiresAt      DateTime?
+  metadata       Json?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  module         ModuleDefinition          @relation(fields: [moduleId], references: [id])
+
+  @@unique([organizationId, moduleId])
+  @@index([organizationId, status])
+}
+
+model Plan {
+  id           String        @id @default(uuid()) @db.Uuid
+  key          PlanKey       @unique
+  name         String
+  description  String
+  sortOrder    Int
+  planFeatures PlanFeature[]
+  subscriptions Subscription[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model FeatureDefinition {
+  id            String           @id @default(uuid()) @db.Uuid
+  key           String           @unique
+  description   String
+  valueType     FeatureValueType
+  planFeatures  PlanFeature[]
+  usageCounters UsageCounter[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model PlanFeature {
+  id        String            @id @default(uuid()) @db.Uuid
+  planId    String            @db.Uuid
+  featureId String            @db.Uuid
+  value     String
+  plan      Plan              @relation(fields: [planId], references: [id], onDelete: Cascade)
+  feature   FeatureDefinition @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureId])
+}
+
+model Subscription {
+  id             String             @id @default(uuid()) @db.Uuid
+  organizationId String             @db.Uuid
+  planId         String             @db.Uuid
+  status         SubscriptionStatus @default(ACTIVE)
+  startsAt       DateTime           @default(now())
+  endsAt         DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan           Plan               @relation(fields: [planId], references: [id])
+
+  @@index([organizationId, status])
+}
+
+model UsageCounter {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @db.Uuid
+  featureId      String            @db.Uuid
+  periodStart    DateTime
+  periodEnd      DateTime
+  used           Int               @default(0)
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  feature        FeatureDefinition @relation(fields: [featureId], references: [id])
+
+  @@unique([organizationId, featureId, periodStart])
+  @@index([organizationId])
+}
+
+model GuidedFlowDefinition {
+  id        String              @id @default(uuid()) @db.Uuid
+  key       String
+  version   String
+  schema    Json
+  active    Boolean             @default(true)
+  createdAt DateTime            @default(now())
+  sessions  GuidedFlowSession[]
+
+  @@unique([key, version])
+}
+
+model GuidedFlowSession {
+  id              String              @id @default(uuid()) @db.Uuid
+  definitionId    String              @db.Uuid
+  publicTokenHash String
+  status          GuidedSessionStatus @default(IN_PROGRESS)
+  currentStep     Int                 @default(1)
+  answers         Json                @default("{}")
+  expiresAt       DateTime
+  claimedByUserId String?             @db.Uuid
+  organizationId  String?             @db.Uuid
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  completedAt     DateTime?
+  definition      GuidedFlowDefinition @relation(fields: [definitionId], references: [id])
+  claimedBy       User?                @relation("ClaimedBy", fields: [claimedByUserId], references: [id])
+  organization    Organization?        @relation(fields: [organizationId], references: [id])
+  recommendation  SolutionRecommendation?
+
+  @@index([status, expiresAt])
+  @@index([organizationId])
+}
+
+model SolutionRecommendation {
+  id              String            @id @default(uuid()) @db.Uuid
+  sessionId       String            @unique @db.Uuid
+  engineVersion   String
+  result          Json
+  explanation     Json
+  explanationMode String
+  createdAt       DateTime          @default(now())
+  session         GuidedFlowSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model UpgradeRequest {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @db.Uuid
+  requestedById  String               @db.Uuid
+  message        String?
+  requestedPlan  PlanKey?
+  status         UpgradeRequestStatus @default(OPEN)
+  createdAt      DateTime             @default(now())
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  requestedBy    User                 @relation(fields: [requestedById], references: [id])
+
+  @@index([organizationId, status])
+}
+
+model AuditLog {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String?       @db.Uuid
+  actorUserId    String?       @db.Uuid
+  action         String
+  entityType     String
+  entityId       String?
+  metadata       Json
+  requestId      String
+  ip             String?
+  userAgent      String?
+  createdAt      DateTime      @default(now())
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  actor          User?         @relation("AuditActor", fields: [actorUserId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
+}
+
+model AiInteraction {
+  id             String              @id @default(uuid()) @db.Uuid
+  organizationId String?             @db.Uuid
+  userId         String?             @db.Uuid
+  useCase        String
+  provider       String
+  model          String?
+  promptVersion  String
+  latencyMs      Int
+  inputTokens    Int?
+  outputTokens   Int?
+  status         AiInteractionStatus
+  errorCategory  String?
+  inputHash      String
+  createdAt      DateTime            @default(now())
+  organization   Organization?       @relation(fields: [organizationId], references: [id])
+  user           User?               @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, createdAt])
+}
