@@ -53,6 +53,6 @@
     "ts-node": "10.9.2"
   },
   "prisma": {
-    "seed": "ts-node --transpile-only prisma/seed.ts"
+    "seed": "ts-node --transpile-only --project prisma/tsconfig.seed.json prisma/seed.ts"
   }
 }
