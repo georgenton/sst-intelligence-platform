@@ -22,6 +22,12 @@ type Dashboard = {
     plan: { key: string; name: string };
     features: Record<string, boolean | number | string>;
   };
+  inspections: null | {
+    openFindings: number;
+    highCriticalFindings: number;
+    overdueActions: number;
+    recurrences: number;
+  };
 };
 
 export function DashboardView() {
@@ -75,6 +81,45 @@ export function DashboardView() {
           <h2>{data.organization.modules.length}</h2>
         </Card>
       </div>
+      {data.inspections ? (
+        <section className="stack">
+          <div className="inspection-heading">
+            <div>
+              <p className="eyebrow">Inspecciones</p>
+              <h2>Seguimiento operacional</h2>
+            </div>
+            <Link className="button" href="/app/inspections">
+              Abrir inspecciones
+            </Link>
+          </div>
+          <div className="metric-grid">
+            <Card>
+              <span>Hallazgos abiertos</span>
+              <strong>{data.inspections.openFindings}</strong>
+            </Card>
+            <Card>
+              <span>Altos o críticos</span>
+              <strong>{data.inspections.highCriticalFindings}</strong>
+            </Card>
+            <Card>
+              <span>Acciones vencidas</span>
+              <strong>{data.inspections.overdueActions}</strong>
+            </Card>
+            <Card>
+              <span>Recurrencias</span>
+              <strong>{data.inspections.recurrences}</strong>
+            </Card>
+          </div>
+        </section>
+      ) : (
+        <Card className="stack">
+          <h3>Inspecciones inteligentes</h3>
+          <p className="muted">
+            Activa el módulo para gestionar hallazgos, acciones y recurrencias.
+          </p>
+          <Link href="/app/modules/INSPECTIONS_INTELLIGENCE">Conocer el módulo →</Link>
+        </Card>
+      )}
       <section>
         <h2>Módulos</h2>
         <div className="grid">
