@@ -1,0 +1,48 @@
+name: Quality gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sst
+          POSTGRES_USER: sst
+          POSTGRES_PASSWORD: sst
+        ports: ['5448:5432']
+        options: >-
+          --health-cmd "pg_isready -U sst -d sst"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://sst:sst@localhost:5448/sst?schema=public
+      JWT_ACCESS_SECRET: ci-only-secret-with-at-least-32-characters
+      WEB_ORIGIN: http://localhost:3000
+      API_ORIGIN: http://localhost:3001
+      AI_ENABLED: 'false'
+      AI_PROVIDER: template
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: corepack prepare pnpm@10.33.2 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm db:deploy
+      - run: pnpm db:seed
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm test:integration
+      - run: pnpm build
+      - run: pnpm --filter @sst/web exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
