@@ -30,7 +30,7 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await page.getByRole('button', { name: 'Crear y activar demo' }).click();
   await expect(page.getByText(/Demostración conceptual activa/)).toBeVisible();
 
-  await page.getByRole('link', { name: 'Inspecciones' }).click();
+  await page.getByRole('link', { name: 'Inspecciones', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Operación en campo' })).toBeVisible();
   await page.getByRole('link', { name: 'Nueva inspección' }).click();
   await page
