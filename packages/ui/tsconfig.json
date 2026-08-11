@@ -1,0 +1,10 @@
+{
+  "extends": "@sst/typescript-config/base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.tsx"]
+}

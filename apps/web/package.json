@@ -1,0 +1,36 @@
+{
+  "name": "@sst/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack --port 3000",
+    "build": "next build --webpack",
+    "start": "next start --port 3000",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "5.7.1",
+    "@sst/api-client": "workspace:*",
+    "@sst/contracts": "workspace:*",
+    "@sst/ui": "workspace:*",
+    "@tanstack/react-query": "5.101.4",
+    "next": "16.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-hook-form": "7.85.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@sst/typescript-config": "workspace:*",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "24.10.13",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "tailwindcss": "4.3.3"
+  }
+}
