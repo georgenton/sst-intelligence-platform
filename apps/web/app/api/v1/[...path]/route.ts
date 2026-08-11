@@ -11,7 +11,19 @@ async function proxy(request: Request, context: RouteContext): Promise<Response>
 
   try {
     const proxyRequest = new Request(target, request);
-    return await fetch(proxyRequest, { cache: 'no-store', redirect: 'manual' });
+    const upstream = await fetch(proxyRequest, { cache: 'no-store', redirect: 'manual' });
+    const body = await upstream.arrayBuffer();
+    const headers = new Headers(upstream.headers);
+
+    headers.delete('content-encoding');
+    headers.delete('content-length');
+    headers.delete('transfer-encoding');
+
+    return new Response(body, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers,
+    });
   } catch {
     return Response.json(
       {
