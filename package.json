@@ -1,0 +1,48 @@
+{
+  "name": "sst-intelligence-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "dotenv -- turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "lint:fix": "turbo lint:fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "test:integration": "dotenv -- pnpm --filter @sst/api test:integration",
+    "test:e2e": "dotenv -- pnpm --filter @sst/web test:e2e",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "db:generate": "dotenv -- pnpm --filter @sst/api prisma:generate",
+    "db:migrate": "dotenv -- pnpm --filter @sst/api prisma:migrate",
+    "db:deploy": "dotenv -- pnpm --filter @sst/api prisma:deploy",
+    "db:seed": "dotenv -- pnpm --filter @sst/api prisma:seed",
+    "db:reset": "dotenv -- pnpm --filter @sst/api prisma:reset",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,cjs,mjs,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css}": "prettier --write"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "21.2.1",
+    "@commitlint/config-conventional": "21.2.0",
+    "@eslint/js": "10.0.1",
+    "dotenv-cli": "11.0.0",
+    "eslint": "10.8.1",
+    "husky": "9.1.7",
+    "lint-staged": "17.3.0",
+    "prettier": "3.9.6",
+    "turbo": "2.10.9",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.67.0"
+  }
+}

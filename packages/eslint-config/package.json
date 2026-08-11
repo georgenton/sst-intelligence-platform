@@ -1,0 +1,14 @@
+{
+  "name": "@sst/eslint-config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "peerDependencies": {
+    "@eslint/js": ">=10",
+    "eslint": ">=10",
+    "typescript-eslint": ">=8"
+  }
+}
