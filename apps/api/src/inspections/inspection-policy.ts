@@ -1,0 +1,10 @@
+export const INSPECTION_WRITE_ROLES = [
+  'ORG_OWNER',
+  'ORG_ADMIN',
+  'SST_MANAGER',
+  'SST_TECHNICIAN',
+  'CONSULTANT',
+] as const;
+
+export const INSPECTION_VERIFY_ROLES = ['ORG_OWNER', 'ORG_ADMIN', 'SST_MANAGER'] as const;
+export const INSPECTION_ALERT_ROLES = ['ORG_OWNER', 'ORG_ADMIN', 'SST_MANAGER'] as const;

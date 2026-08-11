@@ -48,7 +48,33 @@ export class DashboardService {
       }),
       this.entitlements.effective(organizationId),
     ]);
-    return { organization, entitlements: effective };
+    const inspections =
+      effective.features['module.inspections'] === true
+        ? await Promise.all([
+            this.prisma.inspectionFinding.count({
+              where: { organizationId, status: { not: 'CLOSED' } },
+            }),
+            this.prisma.inspectionFinding.count({
+              where: { organizationId, initialRiskLevel: { in: ['HIGH', 'CRITICAL'] } },
+            }),
+            this.prisma.correctiveAction.count({
+              where: {
+                organizationId,
+                dueAt: { lt: new Date() },
+                status: { notIn: ['COMPLETED', 'CANCELED'] },
+              },
+            }),
+            this.prisma.inspectionAlert.count({
+              where: { organizationId, type: 'RECURRENCE', status: { not: 'RESOLVED' } },
+            }),
+          ]).then(([openFindings, highCriticalFindings, overdueActions, recurrences]) => ({
+            openFindings,
+            highCriticalFindings,
+            overdueActions,
+            recurrences,
+          }))
+        : null;
+    return { organization, entitlements: effective, inspections };
   }
 
   async requestUpgrade(
