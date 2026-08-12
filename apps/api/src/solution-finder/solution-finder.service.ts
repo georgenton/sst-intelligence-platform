@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import {
+  DEMO_TECHNICAL_RISK_METHOD,
   calculateDemoRisk,
   calculateRecommendation,
   recommendationSchema,
@@ -378,6 +379,75 @@ export class SolutionFinderService {
               },
             });
           }
+        }
+      }
+      if (moduleKeys.includes('TECHNICAL_RISK')) {
+        const methodVersion = await tx.technicalMethodVersion.findFirst({
+          where: {
+            organizationId: null,
+            version: DEMO_TECHNICAL_RISK_METHOD.methodVersion,
+            calculationKey: DEMO_TECHNICAL_RISK_METHOD.calculationKey,
+            status: 'ACTIVE',
+            methodDefinition: { key: DEMO_TECHNICAL_RISK_METHOD.methodKey, status: 'ACTIVE' },
+          },
+          select: { id: true },
+        });
+        const existingAssessment = await tx.technicalAssessment.findFirst({
+          where: {
+            organizationId,
+            title: 'Evaluación técnica demostrativa',
+            isDemo: true,
+          },
+          select: { id: true },
+        });
+        if (methodVersion && !existingAssessment) {
+          const risk = calculateDemoRisk(4, 5);
+          await tx.technicalAssessment.create({
+            data: {
+              organizationId,
+              workCenterId: guayaquil.id,
+              workAreaId: electricalArea.id,
+              methodVersionId: methodVersion.id,
+              methodKey: DEMO_TECHNICAL_RISK_METHOD.methodKey,
+              methodVersion: DEMO_TECHNICAL_RISK_METHOD.methodVersion,
+              calculationKey: DEMO_TECHNICAL_RISK_METHOD.calculationKey,
+              methodSnapshot: DEMO_TECHNICAL_RISK_METHOD as unknown as Prisma.InputJsonValue,
+              title: 'Evaluación técnica demostrativa',
+              description: 'Registro sintético para explorar el flujo de riesgo técnico.',
+              status: 'COMPLETED',
+              createdById: userId,
+              startedAt: startsAt,
+              completedAt: startsAt,
+              isDemo: true,
+              responses: {
+                create: [
+                  {
+                    organizationId,
+                    questionKey: 'activityDescription',
+                    value: 'Actividad sintética de demostración',
+                  },
+                  { organizationId, questionKey: 'likelihood', value: risk.likelihood },
+                  { organizationId, questionKey: 'consequence', value: risk.consequence },
+                ],
+              },
+              result: {
+                create: {
+                  organizationId,
+                  methodKey: DEMO_TECHNICAL_RISK_METHOD.methodKey,
+                  methodVersion: DEMO_TECHNICAL_RISK_METHOD.methodVersion,
+                  calculationKey: DEMO_TECHNICAL_RISK_METHOD.calculationKey,
+                  score: risk.score,
+                  level: risk.level,
+                  result: {
+                    likelihood: risk.likelihood,
+                    consequence: risk.consequence,
+                    synthetic: true,
+                  },
+                  calculatedAt: startsAt,
+                },
+              },
+            },
+          });
         }
       }
       await tx.auditLog.create({

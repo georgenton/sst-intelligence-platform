@@ -89,7 +89,19 @@ export class OrganizationsService {
         status: true,
         demoStartedAt: true,
         demoExpiresAt: true,
-        workCenters: { select: { id: true, name: true, city: true, isDemo: true } },
+        workCenters: {
+          select: {
+            id: true,
+            name: true,
+            city: true,
+            isDemo: true,
+            workAreas: {
+              where: { isActive: true },
+              select: { id: true, name: true },
+              orderBy: { name: 'asc' },
+            },
+          },
+        },
       },
     });
   }

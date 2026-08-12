@@ -14,6 +14,7 @@ import { InspectionsModule } from './inspections/inspections.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { SolutionFinderModule } from './solution-finder/solution-finder.module';
+import { TechnicalRiskModule } from './technical-risk/technical-risk.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { SolutionFinderModule } from './solution-finder/solution-finder.module';
     SolutionFinderModule,
     DashboardModule,
     InspectionsModule,
+    TechnicalRiskModule,
   ],
   controllers: [HealthController],
   providers: [HealthService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
