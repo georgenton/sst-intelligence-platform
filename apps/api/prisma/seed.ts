@@ -1,4 +1,5 @@
-import { PrismaClient, FeatureValueType, ModuleKey, PlanKey } from '@prisma/client';
+import { PrismaClient, FeatureValueType, ModuleKey, PlanKey, Prisma } from '@prisma/client';
+import { DEMO_TECHNICAL_RISK_METHOD } from '@sst/contracts';
 
 const prisma = new PrismaClient();
 
@@ -157,6 +158,54 @@ async function main() {
       },
     },
   });
+
+  let demoMethod = await prisma.technicalMethodDefinition.findFirst({
+    where: { organizationId: null, key: DEMO_TECHNICAL_RISK_METHOD.methodKey },
+  });
+  demoMethod ??= await prisma.technicalMethodDefinition.create({
+    data: {
+      key: DEMO_TECHNICAL_RISK_METHOD.methodKey,
+      name: DEMO_TECHNICAL_RISK_METHOD.methodName,
+      description:
+        'Método sintético para demostrar evaluaciones técnicas determinísticas y versionadas.',
+      category: 'GENERAL_RISK',
+      status: 'ACTIVE',
+    },
+  });
+  const existingVersion = await prisma.technicalMethodVersion.findUnique({
+    where: {
+      methodDefinitionId_version: {
+        methodDefinitionId: demoMethod.id,
+        version: DEMO_TECHNICAL_RISK_METHOD.methodVersion,
+      },
+    },
+  });
+  if (!existingVersion) {
+    await prisma.technicalMethodVersion.create({
+      data: {
+        methodDefinitionId: demoMethod.id,
+        version: DEMO_TECHNICAL_RISK_METHOD.methodVersion,
+        schema: DEMO_TECHNICAL_RISK_METHOD.schema as Prisma.InputJsonValue,
+        calculationKey: DEMO_TECHNICAL_RISK_METHOD.calculationKey,
+        regulatory: false,
+        isDemo: true,
+        disclaimer: DEMO_TECHNICAL_RISK_METHOD.disclaimer,
+        country: null,
+        status: 'ACTIVE',
+      },
+    });
+  } else if (
+    !existingVersion.isDemo ||
+    existingVersion.disclaimer !== DEMO_TECHNICAL_RISK_METHOD.disclaimer
+  ) {
+    await prisma.technicalMethodVersion.update({
+      where: { id: existingVersion.id },
+      data: {
+        isDemo: true,
+        disclaimer: DEMO_TECHNICAL_RISK_METHOD.disclaimer,
+      },
+    });
+  }
 }
 
 main()

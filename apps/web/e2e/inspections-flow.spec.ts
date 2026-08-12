@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('inspección, hallazgo, acción, verificación y recurrencia demo', async ({ page }) => {
+  test.setTimeout(90_000);
   const suffix = Date.now();
   const organizationName = `Inspecciones Demo ${suffix}`;
 
@@ -39,11 +40,17 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await page.getByLabel('Área (opcional)').selectOption({ label: 'Planta A' });
   await page.getByLabel('Título').fill(`Inspección de campo ${suffix}`);
   await page.getByLabel('Descripción').fill('Recorrido operacional E2E.');
-  await page.getByRole('button', { name: 'Crear inspección' }).click();
+  await Promise.all([
+    page.waitForURL(/\/app\/inspections\/[0-9a-f-]+$/),
+    page.getByRole('button', { name: 'Crear inspección' }).click(),
+  ]);
   await expect(page.getByRole('heading', { name: `Inspección de campo ${suffix}` })).toBeVisible();
   await page.getByRole('button', { name: 'Iniciar inspección' }).click();
   await expect(page.getByText('En progreso').first()).toBeVisible();
-  await page.getByRole('link', { name: 'Registrar hallazgo' }).click();
+  await Promise.all([
+    page.waitForURL(/\/app\/inspections\/[0-9a-f-]+\/findings\/new$/),
+    page.getByRole('link', { name: 'Registrar hallazgo' }).click(),
+  ]);
 
   await page.getByRole('button', { name: 'Continuar' }).click();
   await page.getByLabel('Título').fill(`Conductor expuesto ${suffix}`);
@@ -57,7 +64,10 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await expect(page.getByLabel('Consecuencia')).toHaveValue('5');
   await page.getByRole('button', { name: 'Registrar hallazgo' }).click({ force: true });
   await expect(page.getByText('Resultado: 20 · Crítico')).toBeVisible();
-  await page.getByRole('button', { name: 'Sí, crear acción' }).click();
+  await Promise.all([
+    page.waitForURL(/\/app\/inspections\/[0-9a-f-]+\/findings\/[0-9a-f-]+$/),
+    page.getByRole('button', { name: 'Sí, crear acción' }).click(),
+  ]);
 
   await page.getByRole('button', { name: 'Nueva acción' }).click();
   await page.getByLabel('Acción').fill('Aislar conductor y verificar protección');
@@ -73,7 +83,16 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await expect(page.getByText('Cerrado').first()).toBeVisible();
   await expect(page.getByText('Riesgo Bajo')).toBeVisible();
 
-  await page.goto('/app/inspections/alerts');
+  await Promise.all([
+    page.waitForURL('/app/inspections'),
+    page.getByRole('link', { name: 'Inspecciones', exact: true }).click(),
+  ]);
+  await expect(page.getByRole('heading', { name: 'Operación en campo' })).toBeVisible();
+  await Promise.all([
+    page.waitForURL('/app/inspections/alerts'),
+    page.getByRole('link', { name: 'Alertas', exact: true }).click(),
+  ]);
+  await expect(page.getByRole('heading', { name: 'Alertas' })).toBeVisible();
   await expect(
     page.getByText('Este aviso indica recurrencia, no confirma una causa raíz.').first(),
   ).toBeVisible();
