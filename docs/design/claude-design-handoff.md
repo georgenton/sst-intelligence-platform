@@ -33,7 +33,9 @@ B2B multi-tenant SaaS for occupational safety operations. Current product is a w
 - No medical/clinical appearance, diagnosis, guaranteed compliance, or legal-certification claims.
 - “Aprobada” means reviewed by an authorized user, not regulatory certification.
 - Preserve exact semantic differences: Save, Start, Complete, Verify, Request review, Approve review.
-- API guards remain authoritative for role/entitlement. Do not design hidden UI as security.
+- **Professional Review V1:** `APPROVED` and `NEEDS_REVISION` are available only to `ORG_OWNER`, `ORG_ADMIN`, and `SST_MANAGER`.
+- A Consultant must not be designed as an approving reviewer.
+- UI visibility is not security; API guards remain authoritative for role and entitlement.
 - Organization -> center -> area context must survive the journey and remain understandable.
 - Do not change business logic, route behavior, API contracts, or deterministic calculations.
 

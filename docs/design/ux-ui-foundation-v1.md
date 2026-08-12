@@ -174,7 +174,7 @@ User selects exactly one active method/version, location, context, technical ans
 
 ### 5. Recurrence / professional review — “Entender recurrencia y decidir la siguiente acción”
 
-SST Manager or Consultant moves from alert/recurrence evidence to the record, reviews method, response, evidence, author, and result, then requests changes or approves. Approval explicitly means reviewed by an authorized user and never legal certification. The audit-relevant actor/time/decision is visible after success.
+SST Manager or another currently authorized reviewer (`ORG_OWNER`, `ORG_ADMIN`, or `SST_MANAGER`) moves from alert/recurrence evidence to the record, reviews method, responses, evidence, author, and result, then requests changes or approves. A Consultant may analyze the assessment and support follow-up when their permissions allow access, but does not perform the V1 professional review transition. Approval explicitly means reviewed by an authorized user and never legal certification. The audit-relevant actor/time/decision is visible after success.
 
 ## UX state model
 
