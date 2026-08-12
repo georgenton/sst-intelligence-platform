@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('método técnico demo, cálculo crítico y revisión profesional', async ({ page }) => {
+  test.setTimeout(90_000);
   const suffix = Date.now();
 
   await page.goto('/diagnostico');
@@ -55,18 +56,27 @@ test('método técnico demo, cálculo crítico y revisión profesional', async (
   await expect(
     page.getByText('El resultado será calculado por el sistema según la versión seleccionada.'),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Calcular resultado' }).click();
+  await Promise.all([
+    page.waitForURL(/\/app\/technical-risk\/[0-9a-f-]+$/),
+    page.getByRole('button', { name: 'Calcular resultado' }).click(),
+  ]);
 
   await expect(
     page.getByRole('heading', { name: `Evaluación técnica crítica ${suffix}` }),
   ).toBeVisible();
   await expect(page.getByText('20', { exact: true })).toBeVisible();
   await expect(page.getByText('Crítico', { exact: true })).toBeVisible();
-  await page.getByRole('link', { name: 'Revisar evaluación' }).click();
+  await Promise.all([
+    page.waitForURL(/\/app\/technical-risk\/[0-9a-f-]+\/review$/),
+    page.getByRole('link', { name: 'Revisar evaluación' }).click(),
+  ]);
   await expect(page.getByRole('heading', { name: 'Revisión profesional' })).toBeVisible();
   await expect(page.getByText('Evidencia sintética E2E.')).toBeVisible();
   await page.getByLabel('Comentario (opcional)').fill('Revisión profesional E2E.');
-  await page.getByRole('button', { name: 'Aprobar revisión' }).click();
+  await Promise.all([
+    page.waitForURL(/\/app\/technical-risk\/[0-9a-f-]+$/),
+    page.getByRole('button', { name: 'Aprobar revisión' }).click(),
+  ]);
   await expect(page.getByText('Revisada').first()).toBeVisible();
   await expect(page.getByText('Revisada por usuario autorizado')).toBeVisible();
 });
