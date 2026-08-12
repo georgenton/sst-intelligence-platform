@@ -164,40 +164,59 @@ export class TechnicalAssessmentService {
   }
 
   async update(organizationId: string, assessmentId: string, input: UpdateTechnicalAssessmentDto) {
-    const current = await this.get(organizationId, assessmentId);
-    if (!['DRAFT', 'IN_PROGRESS'].includes(current.status)) this.notEditable();
-    const workCenterId = input.workCenterId ?? current.workCenterId;
-    const workAreaId = input.workAreaId ?? current.workAreaId ?? undefined;
-    const location = await this.validateLocation(organizationId, workCenterId, workAreaId);
-    return this.prisma.technicalAssessment.update({
-      where: { id: current.id },
-      data: {
-        workCenterId: location.workCenterId,
-        workAreaId: location.workAreaId,
-        title: input.title?.trim(),
-        description: input.description?.trim(),
-      },
-      include: detailInclude,
+    return this.prisma.$transaction(async (tx) => {
+      await this.claimEditableMutation(tx, organizationId, assessmentId, ['DRAFT', 'IN_PROGRESS']);
+      const current = await tx.technicalAssessment.findUniqueOrThrow({
+        where: { id: assessmentId },
+        select: { workCenterId: true, workAreaId: true },
+      });
+      const workCenterId = input.workCenterId ?? current.workCenterId;
+      const workAreaId = input.workAreaId ?? current.workAreaId ?? undefined;
+      const location = await this.validateLocation(organizationId, workCenterId, workAreaId, tx);
+      return tx.technicalAssessment.update({
+        where: { id: assessmentId },
+        data: {
+          workCenterId: location.workCenterId,
+          workAreaId: location.workAreaId,
+          title: input.title?.trim(),
+          description: input.description?.trim(),
+        },
+        include: detailInclude,
+      });
     });
   }
 
   async start(organizationId: string, assessmentId: string, userId: string, context: Context) {
-    const current = await this.get(organizationId, assessmentId);
-    this.transition(current.status, 'IN_PROGRESS');
-    const assessment = await this.prisma.technicalAssessment.update({
-      where: { id: current.id },
-      data: { status: 'IN_PROGRESS', startedAt: new Date() },
-      include: detailInclude,
+    return this.prisma.$transaction(async (tx) => {
+      const claim = await tx.technicalAssessment.updateMany({
+        where: { id: assessmentId, organizationId, status: 'DRAFT' },
+        data: { status: 'IN_PROGRESS', startedAt: new Date() },
+      });
+      if (claim.count !== 1) {
+        const current = await tx.technicalAssessment.findFirst({
+          where: { id: assessmentId, organizationId },
+          select: { status: true },
+        });
+        if (!current) this.notFound();
+        this.transition(current.status, 'IN_PROGRESS');
+      }
+      const assessment = await tx.technicalAssessment.findUniqueOrThrow({
+        where: { id: assessmentId },
+        include: detailInclude,
+      });
+      await tx.auditLog.create({
+        data: {
+          organizationId,
+          actorUserId: userId,
+          action: 'TECHNICAL_ASSESSMENT_STARTED',
+          entityType: 'TechnicalAssessment',
+          entityId: assessmentId,
+          metadata: {},
+          ...context,
+        },
+      });
+      return assessment;
     });
-    await this.audit.record({
-      organizationId,
-      actorUserId: userId,
-      action: 'TECHNICAL_ASSESSMENT_STARTED',
-      entityType: 'TechnicalAssessment',
-      entityId: assessmentId,
-      ...context,
-    });
-    return assessment;
   }
 
   async saveResponse(
@@ -208,41 +227,48 @@ export class TechnicalAssessmentService {
     userId: string,
     context: Context,
   ) {
-    const assessment = await this.get(organizationId, assessmentId);
-    if (assessment.status !== 'IN_PROGRESS') this.notEditable();
-    let validated: unknown;
-    try {
-      validated = validateTechnicalAnswer(
-        this.snapshot(assessment.methodSnapshot).schema,
-        questionKey,
-        value,
-      );
-    } catch (error) {
-      throw new BadRequestException({
-        code: 'INVALID_TECHNICAL_RESPONSE',
-        message: error instanceof Error ? error.message : 'La respuesta técnica no es válida.',
+    return this.prisma.$transaction(async (tx) => {
+      await this.claimEditableMutation(tx, organizationId, assessmentId, ['IN_PROGRESS']);
+      const assessment = await tx.technicalAssessment.findUniqueOrThrow({
+        where: { id: assessmentId },
+        select: { methodSnapshot: true },
       });
-    }
-    const response = await this.prisma.technicalAssessmentResponse.upsert({
-      where: { assessmentId_questionKey: { assessmentId, questionKey } },
-      update: { value: validated as Prisma.InputJsonValue },
-      create: {
-        organizationId,
-        assessmentId,
-        questionKey,
-        value: validated as Prisma.InputJsonValue,
-      },
+      let validated: unknown;
+      try {
+        validated = validateTechnicalAnswer(
+          this.snapshot(assessment.methodSnapshot).schema,
+          questionKey,
+          value,
+        );
+      } catch (error) {
+        throw new BadRequestException({
+          code: 'INVALID_TECHNICAL_RESPONSE',
+          message: error instanceof Error ? error.message : 'La respuesta técnica no es válida.',
+        });
+      }
+      const response = await tx.technicalAssessmentResponse.upsert({
+        where: { assessmentId_questionKey: { assessmentId, questionKey } },
+        update: { value: validated as Prisma.InputJsonValue },
+        create: {
+          organizationId,
+          assessmentId,
+          questionKey,
+          value: validated as Prisma.InputJsonValue,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          organizationId,
+          actorUserId: userId,
+          action: 'TECHNICAL_RESPONSE_SAVED',
+          entityType: 'TechnicalAssessmentResponse',
+          entityId: response.id,
+          metadata: { assessmentId, questionKey, valueType: typeof validated },
+          ...context,
+        },
+      });
+      return response;
     });
-    await this.audit.record({
-      organizationId,
-      actorUserId: userId,
-      action: 'TECHNICAL_RESPONSE_SAVED',
-      entityType: 'TechnicalAssessmentResponse',
-      entityId: response.id,
-      metadata: { assessmentId, questionKey, valueType: typeof validated },
-      ...context,
-    });
-    return response;
   }
 
   async addEvidence(
@@ -252,8 +278,6 @@ export class TechnicalAssessmentService {
     input: CreateTechnicalEvidenceDto,
     context: Context,
   ) {
-    const assessment = await this.get(organizationId, assessmentId);
-    if (!['DRAFT', 'IN_PROGRESS'].includes(assessment.status)) this.notEditable();
     if (
       (input.type === 'NOTE' && !input.note) ||
       (input.type === 'EXTERNAL_LINK' && !input.externalUrl)
@@ -263,72 +287,76 @@ export class TechnicalAssessmentService {
         message: 'La evidencia debe incluir el contenido correspondiente a su tipo.',
       });
     }
-    if (input.questionKey) {
-      try {
-        const schema = this.snapshot(assessment.methodSnapshot).schema;
-        const exists = schema.sections.some((section) =>
-          section.questions.some(({ key }) => key === input.questionKey),
-        );
-        if (!exists) throw new Error('unknown');
-      } catch {
-        throw new BadRequestException({
-          code: 'UNKNOWN_TECHNICAL_QUESTION',
-          message: 'La pregunta asociada no pertenece a este método.',
-        });
+    return this.prisma.$transaction(async (tx) => {
+      await this.claimEditableMutation(tx, organizationId, assessmentId, ['DRAFT', 'IN_PROGRESS']);
+      const assessment = await tx.technicalAssessment.findUniqueOrThrow({
+        where: { id: assessmentId },
+        select: { methodSnapshot: true },
+      });
+      if (input.questionKey) {
+        try {
+          const schema = this.snapshot(assessment.methodSnapshot).schema;
+          const exists = schema.sections.some((section) =>
+            section.questions.some(({ key }) => key === input.questionKey),
+          );
+          if (!exists) throw new Error('unknown');
+        } catch {
+          throw new BadRequestException({
+            code: 'UNKNOWN_TECHNICAL_QUESTION',
+            message: 'La pregunta asociada no pertenece a este método.',
+          });
+        }
       }
-    }
-    const evidence = await this.prisma.technicalAssessmentEvidence.create({
-      data: {
-        organizationId,
-        assessmentId,
-        createdById: userId,
-        questionKey: input.questionKey,
-        type: input.type,
-        note: input.note?.trim(),
-        externalUrl: input.externalUrl,
-      },
+      const evidence = await tx.technicalAssessmentEvidence.create({
+        data: {
+          organizationId,
+          assessmentId,
+          createdById: userId,
+          questionKey: input.questionKey,
+          type: input.type,
+          note: input.note?.trim(),
+          externalUrl: input.externalUrl,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          organizationId,
+          actorUserId: userId,
+          action: 'TECHNICAL_EVIDENCE_ADDED',
+          entityType: 'TechnicalAssessmentEvidence',
+          entityId: evidence.id,
+          metadata: { assessmentId, questionKey: input.questionKey ?? null, type: input.type },
+          ...context,
+        },
+      });
+      return evidence;
     });
-    await this.audit.record({
-      organizationId,
-      actorUserId: userId,
-      action: 'TECHNICAL_EVIDENCE_ADDED',
-      entityType: 'TechnicalAssessmentEvidence',
-      entityId: evidence.id,
-      metadata: { assessmentId, questionKey: input.questionKey ?? null, type: input.type },
-      ...context,
-    });
-    return evidence;
   }
 
   async complete(organizationId: string, assessmentId: string, userId: string, context: Context) {
     return this.prisma.$transaction(async (tx) => {
-      const assessment = await tx.technicalAssessment.findFirst({
-        where: { id: assessmentId, organizationId },
-        include: { responses: true, result: true },
-      });
-      if (!assessment) this.notFound();
-      if (
-        assessment.status === 'COMPLETED' ||
-        assessment.status === 'REVIEWED' ||
-        assessment.result
-      ) {
-        throw new ConflictException({
-          code: 'ASSESSMENT_ALREADY_COMPLETED',
-          message: 'La evaluación técnica ya fue completada.',
-        });
-      }
-      this.transition(assessment.status, 'COMPLETED');
-      const now = new Date();
       const claim = await tx.technicalAssessment.updateMany({
         where: { id: assessmentId, organizationId, status: 'IN_PROGRESS' },
-        data: { status: 'COMPLETED', completedAt: now },
+        data: { status: 'COMPLETED' },
       });
       if (claim.count !== 1) {
+        const current = await tx.technicalAssessment.findFirst({
+          where: { id: assessmentId, organizationId },
+          select: { status: true, result: { select: { id: true } } },
+        });
+        if (!current) this.notFound();
+        if (!current.result && current.status !== 'COMPLETED' && current.status !== 'REVIEWED') {
+          this.transition(current.status, 'COMPLETED');
+        }
         throw new ConflictException({
           code: 'ASSESSMENT_ALREADY_COMPLETED',
           message: 'La evaluación técnica ya fue completada.',
         });
       }
+      const assessment = await tx.technicalAssessment.findUniqueOrThrow({
+        where: { id: assessmentId },
+        include: { responses: true },
+      });
       const snapshot = this.snapshot(assessment.methodSnapshot);
       const rawAnswers = Object.fromEntries(
         assessment.responses.map(({ questionKey, value }) => [questionKey, value]),
@@ -343,6 +371,11 @@ export class TechnicalAssessmentService {
         });
       }
       const calculated = this.calculations.calculate(snapshot, answers);
+      const now = new Date();
+      await tx.technicalAssessment.update({
+        where: { id: assessmentId },
+        data: { completedAt: now },
+      });
       const result = await tx.technicalAssessmentResult.create({
         data: {
           organizationId,
@@ -434,8 +467,9 @@ export class TechnicalAssessmentService {
     organizationId: string,
     workCenterId: string,
     workAreaId?: string,
+    db: Pick<Prisma.TransactionClient, 'workCenter' | 'workArea'> = this.prisma,
   ) {
-    const center = await this.prisma.workCenter.findFirst({
+    const center = await db.workCenter.findFirst({
       where: { id: workCenterId, organizationId },
       select: { id: true },
     });
@@ -446,7 +480,7 @@ export class TechnicalAssessmentService {
       });
     }
     if (!workAreaId) return { workCenterId, workAreaId: null };
-    const area = await this.prisma.workArea.findFirst({
+    const area = await db.workArea.findFirst({
       where: { id: workAreaId, organizationId, workCenterId, isActive: true },
       select: { id: true },
     });
@@ -457,6 +491,25 @@ export class TechnicalAssessmentService {
       });
     }
     return { workCenterId, workAreaId: area.id };
+  }
+
+  private async claimEditableMutation(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    assessmentId: string,
+    statuses: TechnicalAssessmentStatus[],
+  ) {
+    const claim = await tx.technicalAssessment.updateMany({
+      where: { id: assessmentId, organizationId, status: { in: statuses } },
+      data: { updatedAt: new Date() },
+    });
+    if (claim.count === 1) return;
+    const exists = await tx.technicalAssessment.findFirst({
+      where: { id: assessmentId, organizationId },
+      select: { id: true },
+    });
+    if (!exists) this.notFound();
+    this.notEditable();
   }
 
   private snapshot(value: Prisma.JsonValue): TechnicalMethodVersionSnapshot {

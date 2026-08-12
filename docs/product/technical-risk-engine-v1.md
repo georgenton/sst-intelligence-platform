@@ -83,3 +83,12 @@ la evidencia V1 es `NOTE` o `EXTERNAL_LINK` HTTPS.
 V1 no agrega IA. Ningún proveedor de IA recibe o modifica respuestas, score, clasificación,
 thresholds, revisión o resultado. Una explicación futura deberá leer un resultado determinístico ya
 cerrado sin alterarlo.
+
+## Restricción para el próximo incremento UX/UI
+
+V1 conserva Next.js App Router, TanStack Query para server state y React Hook Form. Un incremento
+separado podrá usar TanStack Table en vistas densas, pero no migrará todavía a TanStack Form ni
+añadirá TanStack Router, Start o Store sin una necesidad concreta. Una aplicación móvil futura se
+planteará con React Native y Expo, compartiendo Query, contracts, api-client, validación y tokens;
+los componentes UI web y native permanecerán separados. Esta dirección no introduce cambios en
+este repair pass.

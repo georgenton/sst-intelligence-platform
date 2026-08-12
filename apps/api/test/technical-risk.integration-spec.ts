@@ -1,4 +1,5 @@
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Test } from '@nestjs/testing';
 import cookieParser from 'cookie-parser';
 import request, { type Test as SuperTestRequest } from 'supertest';
@@ -23,6 +24,59 @@ describe('technical risk integration', () => {
   });
 
   afterAll(async () => app.close());
+
+  async function waitForBlockedAssessmentUpdates(expected: number) {
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      const [row] = await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+        SELECT count(*)::int AS count
+        FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND pid <> pg_backend_pid()
+          AND wait_event_type = 'Lock'
+          AND query LIKE '%TechnicalAssessment%'
+          AND query LIKE 'UPDATE%'
+      `);
+      if ((row?.count ?? 0) >= expected) return;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+    throw new Error(`ASSESSMENT_LOCK_BARRIER_TIMEOUT:${expected}`);
+  }
+
+  async function raceBehindAssessmentLock<T>(
+    assessmentId: string,
+    contenders: [() => PromiseLike<T>, () => PromiseLike<T>],
+  ) {
+    let releaseLock!: () => void;
+    let reportLocked!: () => void;
+    const release = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const locked = new Promise<void>((resolve) => {
+      reportLocked = resolve;
+    });
+    const blocker = prisma.$transaction(async (tx) => {
+      await tx.technicalAssessment.update({
+        where: { id: assessmentId },
+        data: { updatedAt: new Date() },
+      });
+      reportLocked();
+      await release;
+    });
+    await locked;
+    const first = Promise.resolve(contenders[0]());
+    try {
+      await waitForBlockedAssessmentUpdates(1);
+      const second = Promise.resolve(contenders[1]());
+      await waitForBlockedAssessmentUpdates(2);
+      releaseLock();
+      const results = await Promise.all([first, second] as const);
+      await blocker;
+      return results;
+    } finally {
+      releaseLock();
+    }
+  }
 
   async function createContext(label: string) {
     const register = await request(app.getHttpServer())
@@ -511,17 +565,19 @@ describe('technical risk integration', () => {
     };
 
     const assessmentId = await createReady('Finalización concurrente');
-    const completions = await Promise.all([
-      headers(
-        request(app.getHttpServer()).post(
-          `/api/v1/technical-risk/assessments/${assessmentId}/complete`,
+    const completions = await raceBehindAssessmentLock(assessmentId, [
+      () =>
+        headers(
+          request(app.getHttpServer()).post(
+            `/api/v1/technical-risk/assessments/${assessmentId}/complete`,
+          ),
         ),
-      ),
-      headers(
-        request(app.getHttpServer()).post(
-          `/api/v1/technical-risk/assessments/${assessmentId}/complete`,
+      () =>
+        headers(
+          request(app.getHttpServer()).post(
+            `/api/v1/technical-risk/assessments/${assessmentId}/complete`,
+          ),
         ),
-      ),
     ]);
     expect(completions.map(({ status }) => status).sort()).toEqual([201, 409]);
     expect(completions.find(({ status }) => status === 409)?.body.code).toBe(
@@ -569,5 +625,210 @@ describe('technical risk integration', () => {
     for (const revision of stored.reviews.filter(({ decision }) => decision === 'NEEDS_REVISION')) {
       expect(revision.createdAt.getTime()).toBeLessThanOrEqual(stored.reviewedAt!.getTime());
     }
+  }, 60_000);
+
+  it('serializes mutable assessment writes against lifecycle transitions', async () => {
+    const context = await createContext('mutation-races');
+    const methods = await request(app.getHttpServer())
+      .get('/api/v1/technical-risk/methods')
+      .set('Authorization', `Bearer ${context.token}`)
+      .set('x-organization-id', context.organizationId)
+      .expect(200);
+    const methodVersionId = methods.body.find(
+      (method: { key: string }) => method.key === 'DEMO_TECHNICAL_RISK',
+    ).id as string;
+    const headers = (call: SuperTestRequest) =>
+      call
+        .set('Authorization', `Bearer ${context.token}`)
+        .set('x-organization-id', context.organizationId);
+    const createDraft = async (title: string) => {
+      const created = await headers(
+        request(app.getHttpServer()).post('/api/v1/technical-risk/assessments'),
+      )
+        .send({ methodVersionId, workCenterId: context.workCenterId, title })
+        .expect(201);
+      return created.body.id as string;
+    };
+    const createReady = async (title: string) => {
+      const id = await createDraft(title);
+      await headers(
+        request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${id}/start`),
+      ).expect(201);
+      for (const [questionKey, value] of Object.entries({
+        activityDescription: 'Actividad para carrera controlada',
+        likelihood: 2,
+        consequence: 5,
+      })) {
+        await headers(
+          request(app.getHttpServer()).put(
+            `/api/v1/technical-risk/assessments/${id}/responses/${questionKey}`,
+          ),
+        )
+          .send({ value })
+          .expect(200);
+      }
+      return id;
+    };
+
+    const startId = await createDraft('Inicio concurrente');
+    const starts = await raceBehindAssessmentLock(startId, [
+      () =>
+        headers(
+          request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${startId}/start`),
+        ),
+      () =>
+        headers(
+          request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${startId}/start`),
+        ),
+    ]);
+    expect(starts.map(({ status }) => status).sort()).toEqual([201, 409]);
+    expect(starts.find(({ status }) => status === 409)?.body.code).toBe(
+      'INVALID_TECHNICAL_ASSESSMENT_TRANSITION',
+    );
+
+    const rollbackId = await createDraft('Rollback de finalización incompleta');
+    await headers(
+      request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${rollbackId}/start`),
+    ).expect(201);
+    await headers(
+      request(app.getHttpServer()).put(
+        `/api/v1/technical-risk/assessments/${rollbackId}/responses/activityDescription`,
+      ),
+    )
+      .send({ value: 'Actividad incompleta' })
+      .expect(200);
+    await headers(
+      request(app.getHttpServer()).post(
+        `/api/v1/technical-risk/assessments/${rollbackId}/complete`,
+      ),
+    )
+      .expect(400)
+      .expect(({ body }) => expect(body.code).toBe('TECHNICAL_ASSESSMENT_INCOMPLETE'));
+    const rollbackState = await prisma.technicalAssessment.findUniqueOrThrow({
+      where: { id: rollbackId },
+      include: { result: true },
+    });
+    expect(rollbackState).toMatchObject({ status: 'IN_PROGRESS', completedAt: null, result: null });
+    expect(
+      await prisma.auditLog.count({
+        where: {
+          organizationId: context.organizationId,
+          entityId: rollbackId,
+          action: 'TECHNICAL_ASSESSMENT_COMPLETED',
+        },
+      }),
+    ).toBe(0);
+
+    const responseId = await createReady('Respuesta contra finalización');
+    const [responseWrite, responseCompletion] = await raceBehindAssessmentLock(responseId, [
+      () =>
+        headers(
+          request(app.getHttpServer()).put(
+            `/api/v1/technical-risk/assessments/${responseId}/responses/likelihood`,
+          ),
+        ).send({ value: 4 }),
+      () =>
+        headers(
+          request(app.getHttpServer()).post(
+            `/api/v1/technical-risk/assessments/${responseId}/complete`,
+          ),
+        ),
+    ]);
+    expect(responseCompletion.status).toBe(201);
+    expect([200, 409]).toContain(responseWrite.status);
+    if (responseWrite.status === 409) {
+      expect(responseWrite.body.code).toBe('TECHNICAL_ASSESSMENT_NOT_EDITABLE');
+    }
+    const responseState = await prisma.technicalAssessment.findUniqueOrThrow({
+      where: { id: responseId },
+      include: { responses: true, result: true },
+    });
+    const persistedAnswers = Object.fromEntries(
+      responseState.responses.map(({ questionKey, value }) => [questionKey, value]),
+    );
+    const resultInputs = responseState.result!.result as Record<string, unknown>;
+    expect(resultInputs.likelihood).toBe(persistedAnswers.likelihood);
+    expect(resultInputs.consequence).toBe(persistedAnswers.consequence);
+    expect(responseState.result!.score).toBe(
+      Number(persistedAnswers.likelihood) * Number(persistedAnswers.consequence),
+    );
+    expect(responseWrite.status).toBe(200);
+    expect(persistedAnswers.likelihood).toBe(4);
+
+    const lateResponseId = await createReady('Finalización antes de respuesta');
+    const [earlyCompletion, lateResponseWrite] = await raceBehindAssessmentLock(lateResponseId, [
+      () =>
+        headers(
+          request(app.getHttpServer()).post(
+            `/api/v1/technical-risk/assessments/${lateResponseId}/complete`,
+          ),
+        ),
+      () =>
+        headers(
+          request(app.getHttpServer()).put(
+            `/api/v1/technical-risk/assessments/${lateResponseId}/responses/likelihood`,
+          ),
+        ).send({ value: 4 }),
+    ]);
+    expect(earlyCompletion.status).toBe(201);
+    expect(lateResponseWrite.status).toBe(409);
+    expect(lateResponseWrite.body.code).toBe('TECHNICAL_ASSESSMENT_NOT_EDITABLE');
+    const lateResponseState = await prisma.technicalAssessment.findUniqueOrThrow({
+      where: { id: lateResponseId },
+      include: { responses: true, result: true },
+    });
+    const lateAnswers = Object.fromEntries(
+      lateResponseState.responses.map(({ questionKey, value }) => [questionKey, value]),
+    );
+    const lateResultInputs = lateResponseState.result!.result as Record<string, unknown>;
+    expect(lateAnswers.likelihood).toBe(2);
+    expect(lateResultInputs.likelihood).toBe(lateAnswers.likelihood);
+    expect(lateResponseState.result!.score).toBe(10);
+
+    const evidenceId = await createReady('Evidencia contra finalización');
+    const [evidenceCompletion, evidenceWrite] = await raceBehindAssessmentLock(evidenceId, [
+      () =>
+        headers(
+          request(app.getHttpServer()).post(
+            `/api/v1/technical-risk/assessments/${evidenceId}/complete`,
+          ),
+        ),
+      () =>
+        headers(
+          request(app.getHttpServer()).post(
+            `/api/v1/technical-risk/assessments/${evidenceId}/evidence`,
+          ),
+        ).send({ type: 'NOTE', note: 'Evidencia concurrente controlada.' }),
+    ]);
+    expect(evidenceCompletion.status).toBe(201);
+    expect(evidenceWrite.status).toBe(409);
+    const evidenceState = await prisma.technicalAssessment.findUniqueOrThrow({
+      where: { id: evidenceId },
+      include: { evidence: true },
+    });
+    expect(evidenceWrite.body.code).toBe('TECHNICAL_ASSESSMENT_NOT_EDITABLE');
+    expect(evidenceState.evidence).toHaveLength(0);
+
+    const updateId = await createReady('PATCH contra finalización');
+    const [updateCompletion, updateWrite] = await raceBehindAssessmentLock(updateId, [
+      () =>
+        headers(
+          request(app.getHttpServer()).post(
+            `/api/v1/technical-risk/assessments/${updateId}/complete`,
+          ),
+        ),
+      () =>
+        headers(
+          request(app.getHttpServer()).patch(`/api/v1/technical-risk/assessments/${updateId}`),
+        ).send({ title: 'PATCH serializado antes de completar' }),
+    ]);
+    expect(updateCompletion.status).toBe(201);
+    expect(updateWrite.status).toBe(409);
+    const updateState = await prisma.technicalAssessment.findUniqueOrThrow({
+      where: { id: updateId },
+    });
+    expect(updateWrite.body.code).toBe('TECHNICAL_ASSESSMENT_NOT_EDITABLE');
+    expect(updateState.title).toBe('PATCH contra finalización');
+    expect(updateState.status).toBe('COMPLETED');
   }, 60_000);
 });

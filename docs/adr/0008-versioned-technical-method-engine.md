@@ -47,6 +47,13 @@ que dos aprobaciones concurrentes producen una aprobación y un conflicto contro
 registrada pero no reabre automáticamente; `APPROVED` lleva a `REVIEWED` y significa únicamente que
 revisó un usuario autorizado.
 
+Toda mutación de una evaluación existente (`start`, edición, respuesta o evidencia) comienza con
+una escritura condicional sobre `TechnicalAssessment` dentro de su transacción. PostgreSQL conserva
+el lock de esa fila hasta el commit. `complete` reclama primero `IN_PROGRESS -> COMPLETED` y solo
+después lee las respuestas definitivas; por ello una respuesta gana y entra al cálculo, o pierde y
+se rechaza sin persistirse. Si validación o cálculo fallan, status, resultado y auditoría revierten
+juntos.
+
 ## Consecuencias
 
 - Los resultados históricos son reproducibles con su snapshot y calculation key.
