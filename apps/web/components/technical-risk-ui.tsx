@@ -1,6 +1,7 @@
 'use client';
 
 import { Card, StatusBadge } from '@sst/ui';
+import type { TechnicalMethodSchema, TechnicalQuestion } from '@sst/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -9,13 +10,6 @@ import { useForm } from 'react-hook-form';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
 
-type Question = {
-  key: string;
-  label: string;
-  type: string;
-  required: boolean;
-  maxLength?: number;
-};
 type Method = {
   id: string;
   key: string;
@@ -24,8 +18,9 @@ type Method = {
   category: string;
   version: string;
   regulatory: boolean;
+  isDemo: boolean;
   disclaimer: string | null;
-  schema: { sections: Array<{ key: string; title: string; questions: Question[] }> };
+  schema: TechnicalMethodSchema;
 };
 type WorkCenter = {
   id: string;
@@ -52,6 +47,7 @@ type Assessment = {
   methodSnapshot: {
     methodName: string;
     regulatory: boolean;
+    isDemo: boolean;
     disclaimer: string | null;
     schema: Method['schema'];
   };
@@ -129,6 +125,114 @@ function DemoNotice() {
   );
 }
 
+function TechnicalQuestionInput({
+  question,
+  value,
+  onChange,
+}: {
+  question: TechnicalQuestion;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const id = `technical-question-${question.key}`;
+  const common = { id, name: question.key, required: question.required };
+  let input: React.ReactNode;
+
+  switch (question.type) {
+    case 'BOOLEAN':
+      input = (
+        <select
+          {...common}
+          value={value === undefined ? '' : value === true ? 'true' : 'false'}
+          onChange={(event) =>
+            onChange(event.target.value === '' ? undefined : event.target.value === 'true')
+          }
+        >
+          <option value="">Selecciona una opción</option>
+          <option value="true">Sí</option>
+          <option value="false">No</option>
+        </select>
+      );
+      break;
+    case 'SINGLE_CHOICE':
+      input = (
+        <select
+          {...common}
+          value={typeof value === 'string' ? value : ''}
+          onChange={(event) => onChange(event.target.value || undefined)}
+        >
+          <option value="">Selecciona una opción</option>
+          {question.options.map((option) => (
+            <option value={option.value} key={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      );
+      break;
+    case 'INTEGER':
+    case 'DECIMAL':
+      input = (
+        <input
+          {...common}
+          type="number"
+          step={question.type === 'INTEGER' ? 1 : 'any'}
+          min={question.min}
+          max={question.max}
+          value={typeof value === 'number' ? value : ''}
+          onChange={(event) =>
+            onChange(event.target.value === '' ? undefined : Number(event.target.value))
+          }
+        />
+      );
+      break;
+    case 'TEXT':
+      input = (
+        <textarea
+          {...common}
+          rows={4}
+          maxLength={question.maxLength}
+          value={typeof value === 'string' ? value : ''}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      );
+      break;
+    case 'LIKELIHOOD':
+    case 'CONSEQUENCE':
+      input = (
+        <select
+          {...common}
+          value={typeof value === 'number' ? value : ''}
+          onChange={(event) =>
+            onChange(event.target.value === '' ? undefined : Number(event.target.value))
+          }
+        >
+          <option value="">Selecciona un valor</option>
+          {Array.from(
+            { length: question.max - question.min + 1 },
+            (_, index) => question.min + index,
+          ).map((option) => (
+            <option value={option} key={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      );
+      break;
+  }
+
+  return (
+    <div>
+      <label htmlFor={id}>
+        {question.label}
+        {!question.required && ' (opcional)'}
+      </label>
+      {question.description && <p className="muted">{question.description}</p>}
+      {input}
+    </div>
+  );
+}
+
 function Intro({
   title,
   description,
@@ -181,7 +285,6 @@ export function TechnicalRiskDashboard() {
           </Link>
         }
       />
-      <DemoNotice />
       <div className="metric-grid" aria-label="Indicadores de riesgo técnico">
         {[
           ['Evaluaciones', analytics.total],
@@ -259,15 +362,11 @@ export function TechnicalRiskDashboard() {
 }
 
 type GuidedForm = {
-  methodKey: string;
+  methodVersionId: string;
   workCenterId: string;
   workAreaId: string;
   title: string;
   description: string;
-  activityDescription: string;
-  existingControls: string;
-  likelihood: string;
-  consequence: string;
   evidenceType: 'NOTE' | 'EXTERNAL_LINK';
   evidenceNote: string;
   evidenceUrl: string;
@@ -277,13 +376,11 @@ export function NewTechnicalAssessment() {
   const api = useApi();
   const router = useRouter();
   const [step, setStep] = useState(1);
+  const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const form = useForm<GuidedForm>({
     defaultValues: {
       workAreaId: '',
       description: '',
-      existingControls: '',
-      likelihood: '1',
-      consequence: '1',
       evidenceType: 'NOTE',
       evidenceNote: '',
       evidenceUrl: '',
@@ -300,7 +397,7 @@ export function NewTechnicalAssessment() {
       api.request<{ workCenters: WorkCenter[] }>(`/organizations/${api.organizationId}`),
     enabled: Boolean(api.organizationId),
   });
-  const selectedMethod = methods.data?.find(({ key }) => key === form.watch('methodKey'));
+  const selectedMethod = methods.data?.find(({ id }) => id === form.watch('methodVersionId'));
   const selectedCenter = organizationDetails.data?.workCenters.find(
     ({ id }) => id === form.watch('workCenterId'),
   );
@@ -310,7 +407,7 @@ export function NewTechnicalAssessment() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          methodKey: values.methodKey,
+          methodVersionId: values.methodVersionId,
           workCenterId: values.workCenterId,
           workAreaId: values.workAreaId || undefined,
           title: values.title,
@@ -318,13 +415,13 @@ export function NewTechnicalAssessment() {
         }),
       });
       await api.request(`/technical-risk/assessments/${created.id}/start`, { method: 'POST' });
-      const answers: Record<string, unknown> = {
-        activityDescription: values.activityDescription,
-        likelihood: Number(values.likelihood),
-        consequence: Number(values.consequence),
-      };
-      if (values.existingControls.trim()) answers.existingControls = values.existingControls;
-      for (const [questionKey, value] of Object.entries(answers)) {
+      const submittedAnswers = Object.fromEntries(
+        selectedMethod!.schema.sections
+          .flatMap((section) => section.questions)
+          .map((question) => [question.key, answers[question.key]] as const)
+          .filter(([, value]) => value !== undefined && value !== null && value !== ''),
+      );
+      for (const [questionKey, value] of Object.entries(submittedAnswers)) {
         await api.request(`/technical-risk/assessments/${created.id}/responses/${questionKey}`, {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
@@ -361,7 +458,23 @@ export function NewTechnicalAssessment() {
     'Preguntas técnicas',
     'Resumen previo al cálculo',
   ];
-  const values = form.watch();
+  const methodRegistration = form.register('methodVersionId', { required: true });
+  const firstSection = selectedMethod?.schema.sections.slice(0, 1) ?? [];
+  const remainingSections = selectedMethod?.schema.sections.slice(1) ?? [];
+  const renderSections = (sections: TechnicalMethodSchema['sections']) =>
+    sections.map((section) => (
+      <section key={section.key}>
+        <h3>{section.title}</h3>
+        {section.questions.map((question) => (
+          <TechnicalQuestionInput
+            question={question}
+            value={answers[question.key]}
+            onChange={(value) => setAnswers((current) => ({ ...current, [question.key]: value }))}
+            key={question.key}
+          />
+        ))}
+      </section>
+    ));
   return (
     <div className="stack-lg narrow">
       <Intro
@@ -381,10 +494,17 @@ export function NewTechnicalAssessment() {
           <Card>
             <h3>Selecciona un método</h3>
             <label htmlFor="technical-method">Método técnico</label>
-            <select id="technical-method" {...form.register('methodKey', { required: true })}>
+            <select
+              id="technical-method"
+              {...methodRegistration}
+              onChange={(event) => {
+                void methodRegistration.onChange(event);
+                setAnswers({});
+              }}
+            >
               <option value="">Selecciona un método</option>
               {methods.data!.map((method) => (
-                <option value={method.key} key={method.id}>
+                <option value={method.id} key={method.id}>
                   {method.name} · v{method.version}
                 </option>
               ))}
@@ -392,7 +512,7 @@ export function NewTechnicalAssessment() {
             {selectedMethod && (
               <>
                 <p>{selectedMethod.description}</p>
-                {!selectedMethod.regulatory && <DemoNotice />}
+                {selectedMethod.isDemo && <DemoNotice />}
               </>
             )}
           </Card>
@@ -429,40 +549,12 @@ export function NewTechnicalAssessment() {
         )}
         {step === 3 && (
           <Card>
-            <h3>Contexto</h3>
-            <label htmlFor="activity-description">Descripción de la actividad</label>
-            <textarea
-              id="activity-description"
-              rows={5}
-              {...form.register('activityDescription', { required: true })}
-            />
-            <label htmlFor="existing-controls">Controles existentes (opcional)</label>
-            <textarea id="existing-controls" rows={4} {...form.register('existingControls')} />
+            {selectedMethod ? renderSections(firstSection) : <p>Selecciona un método.</p>}
           </Card>
         )}
         {step === 4 && (
           <Card>
-            <h3>Preguntas técnicas</h3>
-            <label htmlFor="technical-likelihood">Probabilidad</label>
-            <select id="technical-likelihood" {...form.register('likelihood', { required: true })}>
-              {[1, 2, 3, 4, 5].map((value) => (
-                <option value={value} key={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-            <label htmlFor="technical-consequence">Consecuencia</label>
-            <select
-              id="technical-consequence"
-              {...form.register('consequence', { required: true })}
-            >
-              {[1, 2, 3, 4, 5].map((value) => (
-                <option value={value} key={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-            <p className="muted">Las escalas admiten valores enteros de 1 a 5.</p>
+            {selectedMethod ? renderSections(remainingSections) : <p>Selecciona un método.</p>}
             <h4>Evidencia (opcional)</h4>
             <label htmlFor="guided-evidence-type">Tipo de evidencia</label>
             <select id="guided-evidence-type" {...form.register('evidenceType')}>
@@ -497,16 +589,16 @@ export function NewTechnicalAssessment() {
               <span>Centro</span>
               <strong>{selectedCenter?.name}</strong>
             </div>
-            <div className="data-row">
-              <span>Probabilidad</span>
-              <strong>{values.likelihood}</strong>
-            </div>
-            <div className="data-row">
-              <span>Consecuencia</span>
-              <strong>{values.consequence}</strong>
-            </div>
+            {selectedMethod?.schema.sections
+              .flatMap((section) => section.questions)
+              .map((question) => (
+                <div className="data-row" key={question.key}>
+                  <span>{question.label}</span>
+                  <strong>{String(answers[question.key] ?? 'Sin respuesta')}</strong>
+                </div>
+              ))}
             <p>El resultado será calculado por el sistema según la versión seleccionada.</p>
-            {selectedMethod && !selectedMethod.regulatory && <DemoNotice />}
+            {selectedMethod?.isDemo && <DemoNotice />}
           </Card>
         )}
         {submit.isError && (

@@ -13,8 +13,10 @@ datos de demostración son sintéticos y se identifican con `isDemo=true`.
 
 ## Experiencia
 
-El recorrido guía por método, ubicación, contexto, preguntas y resumen. El cliente envía únicamente
-respuestas; el API selecciona el proveedor registrado, calcula y persiste el resultado. El detalle
+El recorrido guía por versión exacta del método, ubicación, contexto, preguntas y resumen. El
+formulario recorre las secciones del schema y renderiza cada tipo controlado; no depende de las
+claves del método demo. El cliente envía únicamente respuestas; el API selecciona el proveedor
+registrado, calcula y persiste el resultado. El detalle
 muestra método, versión, score, nivel, instante de cálculo y estado de revisión. Los niveles también
 se expresan como Bajo, Moderado, Alto o Crítico para no depender solo del color.
 
@@ -32,6 +34,10 @@ DRAFT -> IN_PROGRESS -> COMPLETED -> REVIEWED
 Solo `DRAFT` puede iniciarse. `complete` acepta únicamente `IN_PROGRESS`, valida todas las respuestas
 obligatorias, calcula, crea el resultado y cambia el estado dentro de una transacción. Una segunda
 llamada se rechaza de forma controlada con `ASSESSMENT_ALREADY_COMPLETED`.
+
+La selección de catálogo solo incluye versiones activas y vigentes. `POST assessments` requiere
+`methodVersionId`; el snapshot corresponde siempre a esa fila exacta, aunque exista una versión
+posterior. `regulatory=false` no implica demo: el aviso solo aparece para `isDemo=true`.
 
 La revisión solo acepta evaluaciones `COMPLETED`:
 

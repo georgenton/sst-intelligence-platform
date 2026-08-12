@@ -8,7 +8,49 @@ import {
   technicalReviewTargetStatus,
   validateTechnicalAnswer,
   validateTechnicalAnswerSet,
+  type TechnicalMethodSchema,
 } from './technical-risk';
+
+const REPRESENTATIVE_TECHNICAL_SCHEMA: TechnicalMethodSchema = {
+  sections: [
+    {
+      key: 'representative',
+      title: 'Esquema representativo',
+      questions: [
+        { key: 'enabled', label: 'Habilitado', type: 'BOOLEAN', required: true },
+        {
+          key: 'category',
+          label: 'Categoría',
+          type: 'SINGLE_CHOICE',
+          required: true,
+          options: [
+            { value: 'a', label: 'A' },
+            { value: 'b', label: 'B' },
+          ],
+        },
+        {
+          key: 'workers',
+          label: 'Trabajadores',
+          type: 'INTEGER',
+          required: true,
+          min: 1,
+          max: 100,
+        },
+        { key: 'exposure', label: 'Exposición', type: 'DECIMAL', required: true, min: 0, max: 10 },
+        { key: 'detail', label: 'Detalle', type: 'TEXT', required: true, maxLength: 50 },
+        {
+          key: 'probability',
+          label: 'Probabilidad',
+          type: 'LIKELIHOOD',
+          required: true,
+          min: 1,
+          max: 5,
+        },
+        { key: 'impact', label: 'Impacto', type: 'CONSEQUENCE', required: true, min: 1, max: 5 },
+      ],
+    },
+  ],
+};
 
 describe('technical method schema and answers', () => {
   it('validates the controlled demo schema', () => {
@@ -31,6 +73,38 @@ describe('technical method schema and answers', () => {
         likelihood: 4,
       }),
     ).toThrow('MISSING_TECHNICAL_ANSWER:consequence');
+  });
+
+  it('validates a second renderable schema with every controlled question type', () => {
+    expect(technicalMethodSchema.parse(REPRESENTATIVE_TECHNICAL_SCHEMA)).toEqual(
+      REPRESENTATIVE_TECHNICAL_SCHEMA,
+    );
+    expect(
+      validateTechnicalAnswerSet(REPRESENTATIVE_TECHNICAL_SCHEMA, {
+        enabled: true,
+        category: 'b',
+        workers: 25,
+        exposure: 2.5,
+        detail: 'Medición sintética',
+        probability: 3,
+        impact: 4,
+      }),
+    ).toMatchObject({ category: 'b', workers: 25, exposure: 2.5 });
+  });
+
+  it('rejects wrong types, out-of-range values and unknown single-choice options', () => {
+    expect(() =>
+      validateTechnicalAnswer(REPRESENTATIVE_TECHNICAL_SCHEMA, 'enabled', 'true'),
+    ).toThrow('INVALID_TECHNICAL_ANSWER:enabled');
+    expect(() => validateTechnicalAnswer(REPRESENTATIVE_TECHNICAL_SCHEMA, 'workers', 1.5)).toThrow(
+      'INVALID_TECHNICAL_ANSWER:workers',
+    );
+    expect(() => validateTechnicalAnswer(REPRESENTATIVE_TECHNICAL_SCHEMA, 'exposure', 11)).toThrow(
+      'INVALID_TECHNICAL_ANSWER:exposure',
+    );
+    expect(() => validateTechnicalAnswer(REPRESENTATIVE_TECHNICAL_SCHEMA, 'category', 'c')).toThrow(
+      'INVALID_TECHNICAL_ANSWER:category',
+    );
   });
 });
 
@@ -61,6 +135,7 @@ describe('technical calculation registry', () => {
       consequence,
     });
     expect(result).toMatchObject({ score, level });
+    expect(result.result).not.toHaveProperty('thresholds');
   });
 });
 
