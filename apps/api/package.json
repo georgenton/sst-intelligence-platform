@@ -14,7 +14,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "prisma:seed": "prisma db seed",
+    "prisma:seed": "pnpm --filter @sst/contracts build && prisma db seed",
     "prisma:reset": "prisma migrate reset"
   },
   "dependencies": {
