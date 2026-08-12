@@ -384,13 +384,10 @@ export class TechnicalAssessmentService {
     context: Context,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      const now = new Date();
       const approved = input.decision === 'APPROVED';
       const claim = await tx.technicalAssessment.updateMany({
         where: { id: assessmentId, organizationId, status: 'COMPLETED' },
-        data: approved
-          ? { status: 'REVIEWED', reviewedAt: now, reviewedById: reviewerUserId }
-          : { updatedAt: now },
+        data: approved ? { status: 'REVIEWED' } : { updatedAt: new Date() },
       });
       if (claim.count !== 1) {
         const exists = await tx.technicalAssessment.findFirst({
@@ -401,6 +398,12 @@ export class TechnicalAssessmentService {
         throw new ConflictException({
           code: 'ASSESSMENT_NOT_READY_FOR_REVIEW',
           message: 'Solo una evaluación completada puede revisarse.',
+        });
+      }
+      if (approved) {
+        await tx.technicalAssessment.update({
+          where: { id: assessmentId },
+          data: { reviewedAt: new Date(), reviewedById: reviewerUserId },
         });
       }
       const review = await tx.technicalAssessmentReview.create({
