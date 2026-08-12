@@ -141,6 +141,30 @@ enum ActionEvidenceType {
   EXTERNAL_LINK
 }
 
+enum TechnicalMethodStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
+enum TechnicalAssessmentStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  REVIEWED
+  CANCELED
+}
+
+enum TechnicalEvidenceType {
+  NOTE
+  EXTERNAL_LINK
+}
+
+enum TechnicalReviewDecision {
+  APPROVED
+  NEEDS_REVISION
+}
+
 enum InspectionAlertType {
   RECURRENCE
   OVERDUE_ACTION
@@ -160,25 +184,29 @@ enum AlertStatus {
 }
 
 model User {
-  id                    String              @id @default(uuid()) @db.Uuid
-  email                 String              @unique
-  passwordHash          String
-  displayName           String
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
-  refreshSessions       RefreshSession[]
-  memberships           Membership[]
-  claimedGuidedSessions GuidedFlowSession[] @relation("ClaimedBy")
-  auditLogs             AuditLog[]          @relation("AuditActor")
-  aiInteractions        AiInteraction[]
-  upgradeRequests       UpgradeRequest[]
-  inspections           Inspection[]        @relation("InspectionInspector")
-  findingsCreated       InspectionFinding[] @relation("FindingCreator")
-  actionsAssigned       CorrectiveAction[]  @relation("ActionAssignee")
-  actionsCreated        CorrectiveAction[]  @relation("ActionCreator")
-  actionsVerified       CorrectiveAction[]  @relation("ActionVerifier")
-  evidenceCreated       ActionEvidence[]    @relation("EvidenceCreator")
-  alertsAcknowledged    InspectionAlert[]   @relation("AlertAcknowledger")
+  id                           String                        @id @default(uuid()) @db.Uuid
+  email                        String                        @unique
+  passwordHash                 String
+  displayName                  String
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+  refreshSessions              RefreshSession[]
+  memberships                  Membership[]
+  claimedGuidedSessions        GuidedFlowSession[]           @relation("ClaimedBy")
+  auditLogs                    AuditLog[]                    @relation("AuditActor")
+  aiInteractions               AiInteraction[]
+  upgradeRequests              UpgradeRequest[]
+  inspections                  Inspection[]                  @relation("InspectionInspector")
+  findingsCreated              InspectionFinding[]           @relation("FindingCreator")
+  actionsAssigned              CorrectiveAction[]            @relation("ActionAssignee")
+  actionsCreated               CorrectiveAction[]            @relation("ActionCreator")
+  actionsVerified              CorrectiveAction[]            @relation("ActionVerifier")
+  evidenceCreated              ActionEvidence[]              @relation("EvidenceCreator")
+  alertsAcknowledged           InspectionAlert[]             @relation("AlertAcknowledger")
+  technicalAssessments         TechnicalAssessment[]         @relation("TechnicalAssessmentCreator")
+  technicalAssessmentsReviewed TechnicalAssessment[]         @relation("TechnicalAssessmentReviewer")
+  technicalEvidenceCreated     TechnicalAssessmentEvidence[] @relation("TechnicalEvidenceCreator")
+  technicalReviews             TechnicalAssessmentReview[]   @relation("TechnicalReviewReviewer")
 }
 
 model RefreshSession {
@@ -201,62 +229,71 @@ model RefreshSession {
 }
 
 model Organization {
-  id                String                   @id @default(uuid()) @db.Uuid
-  name              String
-  country           String
-  sector            String?
-  status            OrganizationStatus       @default(ACTIVE)
-  demoStartedAt     DateTime?
-  demoExpiresAt     DateTime?
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
-  workCenters       WorkCenter[]
-  memberships       Membership[]
-  invitations       OrganizationInvitation[]
-  modules           OrganizationModule[]
-  subscriptions     Subscription[]
-  usageCounters     UsageCounter[]
-  guidedSessions    GuidedFlowSession[]
-  upgradeRequests   UpgradeRequest[]
-  auditLogs         AuditLog[]
-  aiInteractions    AiInteraction[]
-  workAreas         WorkArea[]
-  inspections       Inspection[]
-  findings          InspectionFinding[]
-  correctiveActions CorrectiveAction[]
-  actionEvidence    ActionEvidence[]
-  inspectionAlerts  InspectionAlert[]
+  id                         String                        @id @default(uuid()) @db.Uuid
+  name                       String
+  country                    String
+  sector                     String?
+  status                     OrganizationStatus            @default(ACTIVE)
+  demoStartedAt              DateTime?
+  demoExpiresAt              DateTime?
+  createdAt                  DateTime                      @default(now())
+  updatedAt                  DateTime                      @updatedAt
+  workCenters                WorkCenter[]
+  memberships                Membership[]
+  invitations                OrganizationInvitation[]
+  modules                    OrganizationModule[]
+  subscriptions              Subscription[]
+  usageCounters              UsageCounter[]
+  guidedSessions             GuidedFlowSession[]
+  upgradeRequests            UpgradeRequest[]
+  auditLogs                  AuditLog[]
+  aiInteractions             AiInteraction[]
+  workAreas                  WorkArea[]
+  inspections                Inspection[]
+  findings                   InspectionFinding[]
+  correctiveActions          CorrectiveAction[]
+  actionEvidence             ActionEvidence[]
+  inspectionAlerts           InspectionAlert[]
+  technicalMethodDefinitions TechnicalMethodDefinition[]
+  technicalMethodVersions    TechnicalMethodVersion[]
+  technicalAssessments       TechnicalAssessment[]
+  technicalResponses         TechnicalAssessmentResponse[]
+  technicalResults           TechnicalAssessmentResult[]
+  technicalEvidence          TechnicalAssessmentEvidence[]
+  technicalReviews           TechnicalAssessmentReview[]
 }
 
 model WorkCenter {
-  id             String              @id @default(uuid()) @db.Uuid
-  organizationId String              @db.Uuid
-  name           String
-  city           String?
-  isDemo         Boolean             @default(false)
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  workAreas      WorkArea[]
-  inspections    Inspection[]
-  findings       InspectionFinding[]
+  id                   String                @id @default(uuid()) @db.Uuid
+  organizationId       String                @db.Uuid
+  name                 String
+  city                 String?
+  isDemo               Boolean               @default(false)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workAreas            WorkArea[]
+  inspections          Inspection[]
+  findings             InspectionFinding[]
+  technicalAssessments TechnicalAssessment[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
 }
 
 model WorkArea {
-  id             String              @id @default(uuid()) @db.Uuid
-  organizationId String              @db.Uuid
-  workCenterId   String              @db.Uuid
-  name           String
-  isActive       Boolean             @default(true)
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  workCenter     WorkCenter          @relation(fields: [workCenterId], references: [id], onDelete: Cascade)
-  inspections    Inspection[]
-  findings       InspectionFinding[]
+  id                   String                @id @default(uuid()) @db.Uuid
+  organizationId       String                @db.Uuid
+  workCenterId         String                @db.Uuid
+  name                 String
+  isActive             Boolean               @default(true)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workCenter           WorkCenter            @relation(fields: [workCenterId], references: [id], onDelete: Cascade)
+  inspections          Inspection[]
+  findings             InspectionFinding[]
+  technicalAssessments TechnicalAssessment[]
 
   @@unique([organizationId, workCenterId, name])
   @@index([organizationId, isActive])
@@ -391,6 +428,147 @@ model InspectionAlert {
   @@unique([findingId, type])
   @@index([organizationId, status, createdAt])
   @@index([organizationId, type])
+}
+
+model TechnicalMethodDefinition {
+  id             String                   @id @default(uuid()) @db.Uuid
+  organizationId String?                  @db.Uuid
+  key            String
+  name           String
+  description    String
+  category       String
+  status         TechnicalMethodStatus    @default(DRAFT)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  organization   Organization?            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  versions       TechnicalMethodVersion[]
+
+  @@unique([organizationId, key])
+  @@index([key, status])
+  @@index([organizationId, status])
+}
+
+model TechnicalMethodVersion {
+  id                 String                    @id @default(uuid()) @db.Uuid
+  organizationId     String?                   @db.Uuid
+  methodDefinitionId String                    @db.Uuid
+  version            String
+  schema             Json
+  calculationKey     String
+  regulatory         Boolean                   @default(false)
+  country            String?
+  validFrom          DateTime?
+  validTo            DateTime?
+  status             TechnicalMethodStatus     @default(DRAFT)
+  createdAt          DateTime                  @default(now())
+  organization       Organization?             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  methodDefinition   TechnicalMethodDefinition @relation(fields: [methodDefinitionId], references: [id], onDelete: Cascade)
+  assessments        TechnicalAssessment[]
+
+  @@unique([methodDefinitionId, version])
+  @@index([organizationId, status])
+  @@index([calculationKey, status])
+}
+
+model TechnicalAssessment {
+  id               String                        @id @default(uuid()) @db.Uuid
+  organizationId   String                        @db.Uuid
+  workCenterId     String                        @db.Uuid
+  workAreaId       String?                       @db.Uuid
+  methodVersionId  String                        @db.Uuid
+  methodKey        String
+  methodVersion    String
+  calculationKey   String
+  methodSnapshot   Json
+  title            String
+  description      String?
+  status           TechnicalAssessmentStatus     @default(DRAFT)
+  createdById      String                        @db.Uuid
+  reviewedById     String?                       @db.Uuid
+  startedAt        DateTime?
+  completedAt      DateTime?
+  reviewedAt       DateTime?
+  isDemo           Boolean                       @default(false)
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+  organization     Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workCenter       WorkCenter                    @relation(fields: [workCenterId], references: [id])
+  workArea         WorkArea?                     @relation(fields: [workAreaId], references: [id])
+  methodVersionRef TechnicalMethodVersion        @relation(fields: [methodVersionId], references: [id])
+  createdBy        User                          @relation("TechnicalAssessmentCreator", fields: [createdById], references: [id])
+  reviewedBy       User?                         @relation("TechnicalAssessmentReviewer", fields: [reviewedById], references: [id])
+  responses        TechnicalAssessmentResponse[]
+  result           TechnicalAssessmentResult?
+  evidence         TechnicalAssessmentEvidence[]
+  reviews          TechnicalAssessmentReview[]
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, workCenterId])
+  @@index([organizationId, methodKey])
+}
+
+model TechnicalAssessmentResponse {
+  id             String              @id @default(uuid()) @db.Uuid
+  organizationId String              @db.Uuid
+  assessmentId   String              @db.Uuid
+  questionKey    String
+  value          Json
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessment     TechnicalAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, questionKey])
+  @@index([organizationId, assessmentId])
+}
+
+model TechnicalAssessmentResult {
+  id             String              @id @default(uuid()) @db.Uuid
+  organizationId String              @db.Uuid
+  assessmentId   String              @unique @db.Uuid
+  methodKey      String
+  methodVersion  String
+  calculationKey String
+  score          Float?
+  level          RiskLevel?
+  result         Json
+  calculatedAt   DateTime            @default(now())
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessment     TechnicalAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, level])
+}
+
+model TechnicalAssessmentEvidence {
+  id             String                @id @default(uuid()) @db.Uuid
+  organizationId String                @db.Uuid
+  assessmentId   String                @db.Uuid
+  questionKey    String?
+  type           TechnicalEvidenceType
+  note           String?
+  externalUrl    String?
+  createdById    String                @db.Uuid
+  createdAt      DateTime              @default(now())
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessment     TechnicalAssessment   @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  createdBy      User                  @relation("TechnicalEvidenceCreator", fields: [createdById], references: [id])
+
+  @@index([organizationId, assessmentId])
+}
+
+model TechnicalAssessmentReview {
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @db.Uuid
+  assessmentId   String                  @db.Uuid
+  reviewerUserId String                  @db.Uuid
+  decision       TechnicalReviewDecision
+  comment        String?
+  createdAt      DateTime                @default(now())
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessment     TechnicalAssessment     @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  reviewer       User                    @relation("TechnicalReviewReviewer", fields: [reviewerUserId], references: [id])
+
+  @@index([organizationId, assessmentId, createdAt])
 }
 
 model Membership {
