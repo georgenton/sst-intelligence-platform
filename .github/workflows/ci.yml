@@ -22,7 +22,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://sst:sst@localhost:5448/sst?schema=public
+      DATABASE_URL: postgresql://sst:sst@localhost:5448/sst?schema=public&connection_limit=5
       JWT_ACCESS_SECRET: ci-only-secret-with-at-least-32-characters
       WEB_ORIGIN: http://localhost:3000
       API_ORIGIN: http://localhost:3001
