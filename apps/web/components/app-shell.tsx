@@ -86,6 +86,7 @@ export function AppShell({ children }: PropsWithChildren) {
           <nav aria-label="Navegación de la aplicación">
             <Link href="/app">Resumen</Link>
             <Link href="/app/inspections">Inspecciones</Link>
+            <Link href="/app/technical-risk">Riesgo técnico</Link>
             <Link href="/app/modules">Módulos</Link>
             <Link href="/app/organizations">Organizaciones</Link>
             <Link href="/app/settings/organization">Empresa</Link>
