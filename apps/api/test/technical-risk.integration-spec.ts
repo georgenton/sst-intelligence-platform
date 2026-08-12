@@ -55,14 +55,17 @@ describe('technical risk integration', () => {
     const locked = new Promise<void>((resolve) => {
       reportLocked = resolve;
     });
-    const blocker = prisma.$transaction(async (tx) => {
-      await tx.technicalAssessment.update({
-        where: { id: assessmentId },
-        data: { updatedAt: new Date() },
-      });
-      reportLocked();
-      await release;
-    });
+    const blocker = prisma.$transaction(
+      async (tx) => {
+        await tx.technicalAssessment.update({
+          where: { id: assessmentId },
+          data: { updatedAt: new Date() },
+        });
+        reportLocked();
+        await release;
+      },
+      { timeout: 30_000 },
+    );
     await locked;
     const first = Promise.resolve(contenders[0]());
     try {
