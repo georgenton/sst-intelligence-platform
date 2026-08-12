@@ -83,7 +83,15 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await expect(page.getByText('Cerrado').first()).toBeVisible();
   await expect(page.getByText('Riesgo Bajo')).toBeVisible();
 
-  await page.goto('/app/inspections/alerts');
+  await Promise.all([
+    page.waitForURL('/app/inspections'),
+    page.getByRole('link', { name: 'Inspecciones', exact: true }).click(),
+  ]);
+  await expect(page.getByRole('heading', { name: 'Operación en campo' })).toBeVisible();
+  await Promise.all([
+    page.waitForURL('/app/inspections/alerts'),
+    page.getByRole('link', { name: 'Alertas', exact: true }).click(),
+  ]);
   await expect(page.getByRole('heading', { name: 'Alertas' })).toBeVisible();
   await expect(
     page.getByText('Este aviso indica recurrencia, no confirma una causa raíz.').first(),
