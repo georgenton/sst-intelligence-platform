@@ -456,6 +456,8 @@ model TechnicalMethodVersion {
   schema             Json
   calculationKey     String
   regulatory         Boolean                   @default(false)
+  isDemo             Boolean                   @default(false)
+  disclaimer         String?
   country            String?
   validFrom          DateTime?
   validTo            DateTime?

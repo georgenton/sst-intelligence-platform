@@ -1,19 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import {
-  TECHNICAL_RISK_DEMO_DISCLAIMER,
-  technicalMethodSchema,
-  type TechnicalMethodVersionSnapshot,
-} from '@sst/contracts';
+import { technicalMethodSchema, type TechnicalMethodVersionSnapshot } from '@sst/contracts';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class TechnicalMethodService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private visibleWhere(organizationId: string) {
+  private visibleWhere(organizationId: string, now = new Date()) {
     return {
       status: 'ACTIVE' as const,
       OR: [{ organizationId: null }, { organizationId }],
+      AND: [
+        { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
+        { OR: [{ validTo: null }, { validTo: { gte: now } }] },
+      ],
       methodDefinition: {
         status: 'ACTIVE' as const,
         OR: [{ organizationId: null }, { organizationId }],
@@ -30,6 +30,8 @@ export class TechnicalMethodService {
         schema: true,
         calculationKey: true,
         regulatory: true,
+        isDemo: true,
+        disclaimer: true,
         country: true,
         validFrom: true,
         validTo: true,
@@ -43,12 +45,13 @@ export class TechnicalMethodService {
   }
 
   async get(organizationId: string, methodKey: string, version?: string) {
+    const visibleWhere = this.visibleWhere(organizationId);
     const row = await this.prisma.technicalMethodVersion.findFirst({
       where: {
-        ...this.visibleWhere(organizationId),
+        ...visibleWhere,
         version,
         methodDefinition: {
-          ...this.visibleWhere(organizationId).methodDefinition,
+          ...visibleWhere.methodDefinition,
           key: methodKey,
         },
       },
@@ -58,6 +61,8 @@ export class TechnicalMethodService {
         schema: true,
         calculationKey: true,
         regulatory: true,
+        isDemo: true,
+        disclaimer: true,
         country: true,
         validFrom: true,
         validTo: true,
@@ -76,6 +81,34 @@ export class TechnicalMethodService {
     return this.present(row);
   }
 
+  async getById(organizationId: string, methodVersionId: string) {
+    const row = await this.prisma.technicalMethodVersion.findFirst({
+      where: { ...this.visibleWhere(organizationId), id: methodVersionId },
+      select: {
+        id: true,
+        version: true,
+        schema: true,
+        calculationKey: true,
+        regulatory: true,
+        isDemo: true,
+        disclaimer: true,
+        country: true,
+        validFrom: true,
+        validTo: true,
+        methodDefinition: {
+          select: { key: true, name: true, description: true, category: true },
+        },
+      },
+    });
+    if (!row) {
+      throw new NotFoundException({
+        code: 'TECHNICAL_METHOD_NOT_FOUND',
+        message: 'La versión exacta del método técnico no está disponible.',
+      });
+    }
+    return this.present(row);
+  }
+
   snapshot(
     method: Awaited<ReturnType<TechnicalMethodService['get']>>,
   ): TechnicalMethodVersionSnapshot {
@@ -85,6 +118,7 @@ export class TechnicalMethodService {
       methodVersion: method.version,
       calculationKey: method.calculationKey,
       regulatory: method.regulatory,
+      isDemo: method.isDemo,
       country: method.country,
       disclaimer: method.disclaimer,
       schema: technicalMethodSchema.parse(method.schema),
@@ -97,6 +131,8 @@ export class TechnicalMethodService {
     schema: unknown;
     calculationKey: string;
     regulatory: boolean;
+    isDemo: boolean;
+    disclaimer: string | null;
     country: string | null;
     validFrom: Date | null;
     validTo: Date | null;
@@ -112,10 +148,11 @@ export class TechnicalMethodService {
       schema: technicalMethodSchema.parse(row.schema),
       calculationKey: row.calculationKey,
       regulatory: row.regulatory,
+      isDemo: row.isDemo,
       country: row.country,
       validFrom: row.validFrom,
       validTo: row.validTo,
-      disclaimer: row.regulatory ? null : TECHNICAL_RISK_DEMO_DISCLAIMER,
+      disclaimer: row.disclaimer,
     };
   }
 }

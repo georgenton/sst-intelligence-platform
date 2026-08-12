@@ -8,7 +8,6 @@ import type { Prisma, TechnicalAssessmentStatus } from '@prisma/client';
 import {
   assertTechnicalAssessmentTransition,
   technicalMethodSchema,
-  technicalReviewTargetStatus,
   validateTechnicalAnswer,
   validateTechnicalAnswerSet,
   type TechnicalAnswerSet,
@@ -118,7 +117,7 @@ export class TechnicalAssessmentService {
     context: Context,
   ) {
     const [method, location] = await Promise.all([
-      this.methods.get(organizationId, input.methodKey, input.methodVersion),
+      this.methods.getById(organizationId, input.methodVersionId),
       this.validateLocation(organizationId, input.workCenterId, input.workAreaId),
     ]);
     const snapshot = this.methods.snapshot(method);
@@ -135,7 +134,7 @@ export class TechnicalAssessmentService {
         title: input.title.trim(),
         description: input.description?.trim(),
         createdById: userId,
-        isDemo: !method.regulatory,
+        isDemo: method.isDemo,
       },
       include: detailInclude,
     });
@@ -148,7 +147,7 @@ export class TechnicalAssessmentService {
       metadata: {
         methodKey: method.key,
         methodVersion: method.version,
-        isDemo: !method.regulatory,
+        isDemo: method.isDemo,
       },
       ...context,
     });
@@ -319,6 +318,17 @@ export class TechnicalAssessmentService {
         });
       }
       this.transition(assessment.status, 'COMPLETED');
+      const now = new Date();
+      const claim = await tx.technicalAssessment.updateMany({
+        where: { id: assessmentId, organizationId, status: 'IN_PROGRESS' },
+        data: { status: 'COMPLETED', completedAt: now },
+      });
+      if (claim.count !== 1) {
+        throw new ConflictException({
+          code: 'ASSESSMENT_ALREADY_COMPLETED',
+          message: 'La evaluación técnica ya fue completada.',
+        });
+      }
       const snapshot = this.snapshot(assessment.methodSnapshot);
       const rawAnswers = Object.fromEntries(
         assessment.responses.map(({ questionKey, value }) => [questionKey, value]),
@@ -333,7 +343,6 @@ export class TechnicalAssessmentService {
         });
       }
       const calculated = this.calculations.calculate(snapshot, answers);
-      const now = new Date();
       const result = await tx.technicalAssessmentResult.create({
         data: {
           organizationId,
@@ -346,10 +355,6 @@ export class TechnicalAssessmentService {
           result: calculated.result as Prisma.InputJsonValue,
           calculatedAt: now,
         },
-      });
-      await tx.technicalAssessment.update({
-        where: { id: assessmentId },
-        data: { status: 'COMPLETED', completedAt: now },
       });
       await tx.auditLog.create({
         data: {
@@ -379,18 +384,25 @@ export class TechnicalAssessmentService {
     context: Context,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      const assessment = await tx.technicalAssessment.findFirst({
-        where: { id: assessmentId, organizationId },
-        select: { id: true, status: true },
+      const now = new Date();
+      const approved = input.decision === 'APPROVED';
+      const claim = await tx.technicalAssessment.updateMany({
+        where: { id: assessmentId, organizationId, status: 'COMPLETED' },
+        data: approved
+          ? { status: 'REVIEWED', reviewedAt: now, reviewedById: reviewerUserId }
+          : { updatedAt: now },
       });
-      if (!assessment) this.notFound();
-      if (assessment.status !== 'COMPLETED') {
+      if (claim.count !== 1) {
+        const exists = await tx.technicalAssessment.findFirst({
+          where: { id: assessmentId, organizationId },
+          select: { id: true },
+        });
+        if (!exists) this.notFound();
         throw new ConflictException({
           code: 'ASSESSMENT_NOT_READY_FOR_REVIEW',
           message: 'Solo una evaluación completada puede revisarse.',
         });
       }
-      const targetStatus = technicalReviewTargetStatus(assessment.status, input.decision);
       const review = await tx.technicalAssessmentReview.create({
         data: {
           organizationId,
@@ -400,13 +412,6 @@ export class TechnicalAssessmentService {
           comment: input.comment?.trim(),
         },
       });
-      if (targetStatus === 'REVIEWED') {
-        this.transition(assessment.status, 'REVIEWED');
-        await tx.technicalAssessment.update({
-          where: { id: assessmentId },
-          data: { status: 'REVIEWED', reviewedAt: new Date(), reviewedById: reviewerUserId },
-        });
-      }
       await tx.auditLog.create({
         data: {
           organizationId,
@@ -462,6 +467,7 @@ export class TechnicalAssessmentService {
       methodVersion: String(snapshot.methodVersion),
       calculationKey: String(snapshot.calculationKey),
       regulatory: snapshot.regulatory === true,
+      isDemo: snapshot.isDemo === true,
       country: typeof snapshot.country === 'string' ? snapshot.country : null,
       disclaimer: typeof snapshot.disclaimer === 'string' ? snapshot.disclaimer : null,
       schema: technicalMethodSchema.parse(snapshot.schema),

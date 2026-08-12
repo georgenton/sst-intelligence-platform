@@ -68,6 +68,7 @@ export type TechnicalMethodVersionSnapshot = {
   methodVersion: string;
   calculationKey: string;
   regulatory: boolean;
+  isDemo: boolean;
   country: string | null;
   disclaimer: string | null;
   schema: TechnicalMethodSchema;
@@ -164,6 +165,7 @@ export const DEMO_TECHNICAL_RISK_METHOD: TechnicalMethodVersionSnapshot = {
   methodVersion: '1.0.0',
   calculationKey: 'DEMO_TECHNICAL_RISK_5X5',
   regulatory: false,
+  isDemo: true,
   country: null,
   disclaimer: TECHNICAL_RISK_DEMO_DISCLAIMER,
   schema: {
@@ -226,15 +228,6 @@ export class DemoTechnicalRiskCalculator implements TechnicalCalculationProvider
       result: {
         likelihood: risk.likelihood,
         consequence: risk.consequence,
-        thresholds:
-          method.methodKey === DEMO_TECHNICAL_RISK_METHOD.methodKey
-            ? [
-                { min: 1, max: 4, level: 'LOW' },
-                { min: 5, max: 9, level: 'MODERATE' },
-                { min: 10, max: 16, level: 'HIGH' },
-                { min: 17, max: 25, level: 'CRITICAL' },
-              ]
-            : undefined,
       },
     };
   }

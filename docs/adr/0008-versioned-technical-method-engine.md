@@ -15,7 +15,12 @@ Separar definición, versión, evaluación, respuesta, resultado, evidencia y re
 `ACTIVE` es inmutable para el flujo de aplicación: V1 no expone operaciones de edición y cualquier
 cambio futuro crea una versión nueva. La evaluación referencia la fila original y además conserva
 un snapshot mínimo con clave y nombre del método, versión, schema controlado, calculation key,
-carácter regulatorio, país y disclaimer.
+carácter regulatorio, `isDemo`, país y disclaimer. Crear una evaluación exige el UUID exacto de la
+versión: el servidor no infiere “la última” por fecha. Solo son elegibles versiones `ACTIVE` cuya
+ventana incluya el instante actual (`validFrom <= now <= validTo`, con extremos nulos abiertos).
+
+`regulatory` e `isDemo` son propiedades independientes. Un método puede ser no regulatorio sin ser
+demostrativo; el aviso demo solo se presenta cuando `isDemo=true` y se conserva en el snapshot.
 
 El schema se valida con Zod y solo admite `BOOLEAN`, `SINGLE_CHOICE`, `INTEGER`, `DECIMAL`, `TEXT`,
 `LIKELIHOOD` y `CONSEQUENCE`. No admite grafos condicionales, JavaScript, plugins ni fórmulas
@@ -26,12 +31,19 @@ registrados explícitamente. Un key desconocido falla; JSON describe formulario 
 pero nunca ejecuta lógica. El método DEMO usa la primitiva matemática 5×5 ya probada por
 Inspections: score `likelihood × consequence` y los límites 1–4, 5–9, 10–16 y 17–25.
 
+Una `calculationKey` publicada es un contrato inmutable: su algoritmo y semántica no se modifican.
+Todo cambio de lógica requiere una key nueva y una nueva versión del método. Los límites 5×5 viven
+en `DEMO_RISK_METHOD`; el resultado técnico no persiste una segunda copia de esos umbrales.
+
 Technical Assessments e Inspection Findings permanecen separados. Comparten una función matemática
 pura porque esa regla coincide; no comparten entidades, lifecycle ni persistencia, evitando que el
 workflow de inspecciones determine el de una metodología técnica.
 
-El resultado solo lo crea el backend en la misma transacción que marca `COMPLETED`. Completar por
-segunda vez se rechaza con `ASSESSMENT_ALREADY_COMPLETED`. Una revisión `NEEDS_REVISION` queda
+El resultado solo lo crea el backend tras reclamar atómicamente `IN_PROGRESS -> COMPLETED` en la
+misma transacción. Completar por segunda vez se rechaza con `ASSESSMENT_ALREADY_COMPLETED`, sin
+filtrar errores de unicidad. La revisión también reclama atómicamente el estado `COMPLETED`, por lo
+que dos aprobaciones concurrentes producen una aprobación y un conflicto controlado. Una revisión
+`NEEDS_REVISION` queda
 registrada pero no reabre automáticamente; `APPROVED` lleva a `REVIEWED` y significa únicamente que
 revisó un usuario autorizado.
 

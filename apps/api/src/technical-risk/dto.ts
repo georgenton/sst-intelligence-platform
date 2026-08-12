@@ -2,8 +2,7 @@ import { Allow, IsEnum, IsOptional, IsString, IsUUID, IsUrl, Length } from 'clas
 import { TechnicalEvidenceType, TechnicalReviewDecision } from '@prisma/client';
 
 export class CreateTechnicalAssessmentDto {
-  @IsString() @Length(3, 100) methodKey!: string;
-  @IsOptional() @IsString() @Length(1, 30) methodVersion?: string;
+  @IsUUID() methodVersionId!: string;
   @IsUUID() workCenterId!: string;
   @IsOptional() @IsUUID() workAreaId?: string;
   @IsString() @Length(3, 160) title!: string;

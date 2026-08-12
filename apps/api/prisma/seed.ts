@@ -188,8 +188,21 @@ async function main() {
         schema: DEMO_TECHNICAL_RISK_METHOD.schema as Prisma.InputJsonValue,
         calculationKey: DEMO_TECHNICAL_RISK_METHOD.calculationKey,
         regulatory: false,
+        isDemo: true,
+        disclaimer: DEMO_TECHNICAL_RISK_METHOD.disclaimer,
         country: null,
         status: 'ACTIVE',
+      },
+    });
+  } else if (
+    !existingVersion.isDemo ||
+    existingVersion.disclaimer !== DEMO_TECHNICAL_RISK_METHOD.disclaimer
+  ) {
+    await prisma.technicalMethodVersion.update({
+      where: { id: existingVersion.id },
+      data: {
+        isDemo: true,
+        disclaimer: DEMO_TECHNICAL_RISK_METHOD.disclaimer,
       },
     });
   }
