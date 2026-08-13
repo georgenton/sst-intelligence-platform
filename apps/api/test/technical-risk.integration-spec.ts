@@ -25,22 +25,68 @@ describe('technical risk integration', () => {
 
   afterAll(async () => app.close());
 
-  async function waitForBlockedAssessmentUpdates(expected: number) {
+  type AssessmentLockWaiter = {
+    pid: number;
+    state: string;
+    waitEventType: string | null;
+    waitEvent: string | null;
+    blockingPids: number[];
+  };
+
+  async function assessmentLockWaiters() {
+    return prisma.$queryRaw<AssessmentLockWaiter[]>(Prisma.sql`
+      SELECT
+        pid::int AS pid,
+        state,
+        wait_event_type AS "waitEventType",
+        wait_event AS "waitEvent",
+        pg_blocking_pids(pid) AS "blockingPids"
+      FROM pg_stat_activity
+      WHERE datname = current_database()
+        AND backend_type = 'client backend'
+        AND pid <> pg_backend_pid()
+        AND state = 'active'
+        AND wait_event_type = 'Lock'
+        AND query LIKE '%TechnicalAssessment%'
+        AND query LIKE 'UPDATE%'
+      ORDER BY pid
+    `);
+  }
+
+  async function waitForAssessmentContender(input: {
+    phase: 'first' | 'second';
+    blockerPid: number;
+    firstContenderPid?: number;
+    excludedPids: number[];
+  }) {
     const deadline = Date.now() + 10_000;
+    let lastWaiters: AssessmentLockWaiter[] = [];
     while (Date.now() < deadline) {
-      const [row] = await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
-        SELECT count(*)::int AS count
-        FROM pg_stat_activity
-        WHERE datname = current_database()
-          AND pid <> pg_backend_pid()
-          AND wait_event_type = 'Lock'
-          AND query LIKE '%TechnicalAssessment%'
-          AND query LIKE 'UPDATE%'
-      `);
-      if ((row?.count ?? 0) >= expected) return;
+      lastWaiters = await assessmentLockWaiters();
+      const candidates = lastWaiters.filter(({ pid }) => !input.excludedPids.includes(pid));
+      const requiredBlockerPid =
+        input.phase === 'first' ? input.blockerPid : input.firstContenderPid;
+      if (
+        requiredBlockerPid !== undefined &&
+        candidates.length === 1 &&
+        candidates[0]!.blockingPids.includes(requiredBlockerPid)
+      ) {
+        return { pid: candidates[0]!.pid, waiters: lastWaiters };
+      }
       await new Promise<void>((resolve) => setImmediate(resolve));
     }
-    throw new Error(`ASSESSMENT_LOCK_BARRIER_TIMEOUT:${expected}`);
+    throw new Error(
+      `ASSESSMENT_LOCK_TOPOLOGY_TIMEOUT:${JSON.stringify({
+        phase: input.phase,
+        blockerPid: input.blockerPid,
+        firstContenderPid: input.firstContenderPid ?? null,
+        secondContenderPid:
+          input.phase === 'second'
+            ? (lastWaiters.find(({ pid }) => !input.excludedPids.includes(pid))?.pid ?? null)
+            : null,
+        waiters: lastWaiters,
+      })}`,
+    );
   }
 
   async function raceBehindAssessmentLock<T>(
@@ -48,36 +94,81 @@ describe('technical risk integration', () => {
     contenders: [() => PromiseLike<T>, () => PromiseLike<T>],
   ) {
     let releaseLock!: () => void;
-    let reportLocked!: () => void;
+    let reportLocked!: (pid: number) => void;
     const release = new Promise<void>((resolve) => {
       releaseLock = resolve;
     });
-    const locked = new Promise<void>((resolve) => {
+    const locked = new Promise<number>((resolve) => {
       reportLocked = resolve;
     });
     const blocker = prisma.$transaction(
       async (tx) => {
+        const [backend] = await tx.$queryRaw<Array<{ pid: number }>>(Prisma.sql`
+          SELECT pg_backend_pid()::int AS pid
+        `);
+        if (!backend) throw new Error('ASSESSMENT_LOCK_BLOCKER_PID_UNAVAILABLE');
         await tx.technicalAssessment.update({
           where: { id: assessmentId },
           data: { updatedAt: new Date() },
         });
-        reportLocked();
+        reportLocked(backend.pid);
         await release;
       },
       { timeout: 30_000 },
     );
-    await locked;
-    const first = Promise.resolve(contenders[0]());
+    const blockerPid = await locked;
+    const preexistingWaiters = await assessmentLockWaiters();
+    if (preexistingWaiters.length > 0) {
+      releaseLock();
+      await blocker;
+      throw new Error(
+        `ASSESSMENT_LOCK_TOPOLOGY_PRECONDITION:${JSON.stringify({
+          blockerPid,
+          waiters: preexistingWaiters,
+        })}`,
+      );
+    }
+    let first: Promise<T> | undefined;
+    let second: Promise<T> | undefined;
     try {
-      await waitForBlockedAssessmentUpdates(1);
-      const second = Promise.resolve(contenders[1]());
-      await waitForBlockedAssessmentUpdates(2);
+      first = Promise.resolve(contenders[0]());
+      const firstWait = await waitForAssessmentContender({
+        phase: 'first',
+        blockerPid,
+        excludedPids: [blockerPid],
+      });
+      second = Promise.resolve(contenders[1]());
+      const secondWait = await waitForAssessmentContender({
+        phase: 'second',
+        blockerPid,
+        firstContenderPid: firstWait.pid,
+        excludedPids: [blockerPid, firstWait.pid],
+      });
+      const firstTopology = secondWait.waiters.find(({ pid }) => pid === firstWait.pid);
+      const secondTopology = secondWait.waiters.find(({ pid }) => pid === secondWait.pid);
+      if (
+        !firstTopology?.blockingPids.includes(blockerPid) ||
+        !secondTopology?.blockingPids.includes(firstWait.pid)
+      ) {
+        throw new Error(
+          `ASSESSMENT_LOCK_TOPOLOGY_INVALID:${JSON.stringify({
+            blockerPid,
+            firstContenderPid: firstWait.pid,
+            secondContenderPid: secondWait.pid,
+            waiters: secondWait.waiters,
+          })}`,
+        );
+      }
       releaseLock();
       const results = await Promise.all([first, second] as const);
       await blocker;
       return results;
     } finally {
       releaseLock();
+      const pending: Promise<unknown>[] = [blocker];
+      if (first) pending.push(first);
+      if (second) pending.push(second);
+      await Promise.allSettled(pending);
     }
   }
 
@@ -122,6 +213,56 @@ describe('technical risk integration', () => {
       workCenterId: stored.workCenters[0]!.id,
     };
   }
+
+  async function createMutationRaceContext(label: string) {
+    const context = await createContext(label);
+    const methods = await request(app.getHttpServer())
+      .get('/api/v1/technical-risk/methods')
+      .set('Authorization', `Bearer ${context.token}`)
+      .set('x-organization-id', context.organizationId)
+      .expect(200);
+    const methodVersionId = methods.body.find(
+      (method: { key: string }) => method.key === 'DEMO_TECHNICAL_RISK',
+    ).id as string;
+    const headers = (call: SuperTestRequest) =>
+      call
+        .set('Authorization', `Bearer ${context.token}`)
+        .set('x-organization-id', context.organizationId);
+    const createDraft = async (title: string) => {
+      const created = await headers(
+        request(app.getHttpServer()).post('/api/v1/technical-risk/assessments'),
+      )
+        .send({ methodVersionId, workCenterId: context.workCenterId, title })
+        .expect(201);
+      return created.body.id as string;
+    };
+    const createReady = async (title: string) => {
+      const id = await createDraft(title);
+      await headers(
+        request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${id}/start`),
+      ).expect(201);
+      for (const [questionKey, value] of Object.entries({
+        activityDescription: 'Actividad para carrera controlada',
+        likelihood: 2,
+        consequence: 5,
+      })) {
+        await headers(
+          request(app.getHttpServer()).put(
+            `/api/v1/technical-risk/assessments/${id}/responses/${questionKey}`,
+          ),
+        )
+          .send({ value })
+          .expect(200);
+      }
+      return id;
+    };
+    return { context, headers, createDraft, createReady };
+  }
+
+  let mutationRaceContext: Awaited<ReturnType<typeof createMutationRaceContext>>;
+  beforeAll(async () => {
+    mutationRaceContext = await createMutationRaceContext('mutation-races');
+  });
 
   it('calculates, persists, reviews and tenant-scopes a versioned assessment', async () => {
     const register = await request(app.getHttpServer())
@@ -630,48 +771,8 @@ describe('technical risk integration', () => {
     }
   }, 60_000);
 
-  it('serializes mutable assessment writes against lifecycle transitions', async () => {
-    const context = await createContext('mutation-races');
-    const methods = await request(app.getHttpServer())
-      .get('/api/v1/technical-risk/methods')
-      .set('Authorization', `Bearer ${context.token}`)
-      .set('x-organization-id', context.organizationId)
-      .expect(200);
-    const methodVersionId = methods.body.find(
-      (method: { key: string }) => method.key === 'DEMO_TECHNICAL_RISK',
-    ).id as string;
-    const headers = (call: SuperTestRequest) =>
-      call
-        .set('Authorization', `Bearer ${context.token}`)
-        .set('x-organization-id', context.organizationId);
-    const createDraft = async (title: string) => {
-      const created = await headers(
-        request(app.getHttpServer()).post('/api/v1/technical-risk/assessments'),
-      )
-        .send({ methodVersionId, workCenterId: context.workCenterId, title })
-        .expect(201);
-      return created.body.id as string;
-    };
-    const createReady = async (title: string) => {
-      const id = await createDraft(title);
-      await headers(
-        request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${id}/start`),
-      ).expect(201);
-      for (const [questionKey, value] of Object.entries({
-        activityDescription: 'Actividad para carrera controlada',
-        likelihood: 2,
-        consequence: 5,
-      })) {
-        await headers(
-          request(app.getHttpServer()).put(
-            `/api/v1/technical-risk/assessments/${id}/responses/${questionKey}`,
-          ),
-        )
-          .send({ value })
-          .expect(200);
-      }
-      return id;
-    };
+  it('serializes concurrent start and rolls back incomplete completion', async () => {
+    const { context, headers, createDraft } = mutationRaceContext;
 
     const startId = await createDraft('Inicio concurrente');
     const starts = await raceBehindAssessmentLock(startId, [
@@ -721,7 +822,10 @@ describe('technical risk integration', () => {
         },
       }),
     ).toBe(0);
+  }, 60_000);
 
+  it('serializes a response write before completion', async () => {
+    const { headers, createReady } = mutationRaceContext;
     const responseId = await createReady('Respuesta contra finalización');
     const [responseWrite, responseCompletion] = await raceBehindAssessmentLock(responseId, [
       () =>
@@ -738,10 +842,7 @@ describe('technical risk integration', () => {
         ),
     ]);
     expect(responseCompletion.status).toBe(201);
-    expect([200, 409]).toContain(responseWrite.status);
-    if (responseWrite.status === 409) {
-      expect(responseWrite.body.code).toBe('TECHNICAL_ASSESSMENT_NOT_EDITABLE');
-    }
+    expect(responseWrite.status).toBe(200);
     const responseState = await prisma.technicalAssessment.findUniqueOrThrow({
       where: { id: responseId },
       include: { responses: true, result: true },
@@ -755,9 +856,11 @@ describe('technical risk integration', () => {
     expect(responseState.result!.score).toBe(
       Number(persistedAnswers.likelihood) * Number(persistedAnswers.consequence),
     );
-    expect(responseWrite.status).toBe(200);
     expect(persistedAnswers.likelihood).toBe(4);
+  }, 60_000);
 
+  it('serializes completion before mutable assessment writes', async () => {
+    const { headers, createReady } = mutationRaceContext;
     const lateResponseId = await createReady('Finalización antes de respuesta');
     const [earlyCompletion, lateResponseWrite] = await raceBehindAssessmentLock(lateResponseId, [
       () =>
