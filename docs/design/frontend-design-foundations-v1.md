@@ -43,3 +43,14 @@ in Alto contraste. Motion collapses for focus mode and for the operating-system 
 preference.
 
 This increment adds no backend, Prisma, API, entitlement, organization-cache or domain changes.
+Remote preference synchronization remains a future increment with an explicit API contract; local
+storage is only the V1 startup and offline layer.
+
+## Handoff sources
+
+Implementation was checked against `README.md`, `HANDOFF_MANIFEST.md`, `SOURCE_OF_TRUTH.md`,
+`system/tokens-reference.md`, `system/themes-focus.md`, `system/typography-icons.md`,
+`system/component-contract.md`, `system/component-ownership.md`, the accessibility, shadcn,
+responsive, copy and domain/UI engineering mappings, the three North Stars, and the repository
+`engineering-handoff-v1.1-errata.md`. External reference stylesheets were inspected but were not
+imported or copied as production stylesheets.
