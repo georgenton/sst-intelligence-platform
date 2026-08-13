@@ -2,6 +2,35 @@ import type { QueryClient } from '@tanstack/react-query';
 
 const privateQueryRoot = ['private'] as const;
 
+type OrganizationReconciliation = {
+  action: 'initialize' | 'preserve' | 'transition';
+  organizationId: string | null;
+};
+
+export function planOrganizationReconciliation(input: {
+  contextUserId: string | null;
+  authenticatedUserId: string;
+  activeOrganizationId: string | null;
+  validOrganizationIds: readonly string[];
+  initialOrganizationId: string | null;
+}): OrganizationReconciliation {
+  if (input.contextUserId !== input.authenticatedUserId) {
+    return { action: 'initialize', organizationId: input.initialOrganizationId };
+  }
+  if (
+    input.activeOrganizationId &&
+    input.validOrganizationIds.includes(input.activeOrganizationId)
+  ) {
+    return { action: 'preserve', organizationId: input.activeOrganizationId };
+  }
+  const fallbackOrganizationId = input.validOrganizationIds[0] ?? null;
+  return {
+    action:
+      input.activeOrganizationId === fallbackOrganizationId ? 'preserve' : 'transition',
+    organizationId: fallbackOrganizationId,
+  };
+}
+
 function organizationQueryRoot(organizationId: string) {
   return ['private', 'org', organizationId] as const;
 }
@@ -23,7 +52,7 @@ export async function removeAllPrivateQueries(queryClient: QueryClient) {
 export async function isolateOrganizationTransition(
   queryClient: QueryClient,
   previousOrganizationId: string | null,
-  nextOrganizationId: string,
+  nextOrganizationId: string | null,
   commitContext: () => void,
 ) {
   if (previousOrganizationId === nextOrganizationId) return;

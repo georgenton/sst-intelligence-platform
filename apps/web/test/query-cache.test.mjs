@@ -7,7 +7,11 @@ import {
   resolveStoredActiveOrganization,
   storeActiveOrganization,
 } from '../lib/active-organization-storage.ts';
-import { isolateOrganizationTransition, removeAllPrivateQueries } from '../lib/query-cache.ts';
+import {
+  isolateOrganizationTransition,
+  planOrganizationReconciliation,
+  removeAllPrivateQueries,
+} from '../lib/query-cache.ts';
 import { isPrivateQueryKey, queryKeys } from '../lib/query-keys.ts';
 
 function memoryStorage(initial = {}) {
@@ -177,4 +181,142 @@ test('active organization falls back to a valid membership when browser storage 
     storeActiveOrganization(unavailableStorage, 'user-a', 'org-a', ['org-a']),
   );
   assert.doesNotThrow(() => clearStoredActiveOrganization(unavailableStorage, 'user-a'));
+});
+
+test('organization refetch preserves a valid in-memory tenant when storage is unavailable', () => {
+  const unavailableStorage = {
+    getItem: () => {
+      throw new Error('storage disabled');
+    },
+    setItem: () => {
+      throw new Error('storage disabled');
+    },
+    removeItem: () => {
+      throw new Error('storage disabled');
+    },
+  };
+  const storageFallback = resolveStoredActiveOrganization(unavailableStorage, 'user-a', [
+    'org-a',
+    'org-b',
+  ]);
+
+  assert.equal(storageFallback, 'org-a');
+  assert.deepEqual(
+    planOrganizationReconciliation({
+      contextUserId: 'user-a',
+      authenticatedUserId: 'user-a',
+      activeOrganizationId: 'org-b',
+      validOrganizationIds: ['org-a', 'org-b'],
+      initialOrganizationId: storageFallback,
+    }),
+    { action: 'preserve', organizationId: 'org-b' },
+  );
+});
+
+test('membership removal transitions through isolation to a valid fallback tenant', async () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  let activeOrganizationId = 'org-b';
+  let aborted = false;
+  const oldRequest = queryClient
+    .fetchQuery({
+      queryKey: queryKeys.organization.dashboard('org-b'),
+      queryFn: ({ signal }) =>
+        new Promise((resolve) => {
+          signal.addEventListener(
+            'abort',
+            () => {
+              aborted = true;
+              resolve('aborted');
+            },
+            { once: true },
+          );
+        }),
+    })
+    .catch((error) => error);
+  queryClient.setQueryData(queryKeys.organization.members('org-b'), ['member-b']);
+  const reconciliation = planOrganizationReconciliation({
+    contextUserId: 'user-a',
+    authenticatedUserId: 'user-a',
+    activeOrganizationId,
+    validOrganizationIds: ['org-a'],
+    initialOrganizationId: null,
+  });
+
+  assert.deepEqual(reconciliation, { action: 'transition', organizationId: 'org-a' });
+  await isolateOrganizationTransition(
+    queryClient,
+    activeOrganizationId,
+    reconciliation.organizationId,
+    () => {
+      activeOrganizationId = reconciliation.organizationId;
+      assert.equal(queryClient.getQueryData(queryKeys.organization.dashboard('org-a')), undefined);
+    },
+  );
+  await oldRequest;
+
+  assert.equal(aborted, true);
+  assert.equal(activeOrganizationId, 'org-a');
+  assert.equal(queryClient.getQueryData(queryKeys.organization.members('org-b')), undefined);
+});
+
+test('membership removal clears the active tenant when no valid fallback remains', async () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  let activeOrganizationId = 'org-b';
+  let aborted = false;
+  const oldRequest = queryClient
+    .fetchQuery({
+      queryKey: queryKeys.organization.dashboard('org-b'),
+      queryFn: ({ signal }) =>
+        new Promise((resolve) => {
+          signal.addEventListener(
+            'abort',
+            () => {
+              aborted = true;
+              resolve('aborted');
+            },
+            { once: true },
+          );
+        }),
+    })
+    .catch((error) => error);
+  queryClient.setQueryData(queryKeys.organization.members('org-b'), ['member-b']);
+  const reconciliation = planOrganizationReconciliation({
+    contextUserId: 'user-a',
+    authenticatedUserId: 'user-a',
+    activeOrganizationId,
+    validOrganizationIds: [],
+    initialOrganizationId: null,
+  });
+
+  assert.deepEqual(reconciliation, { action: 'transition', organizationId: null });
+  await isolateOrganizationTransition(
+    queryClient,
+    activeOrganizationId,
+    reconciliation.organizationId,
+    () => {
+      activeOrganizationId = reconciliation.organizationId;
+    },
+  );
+  await oldRequest;
+
+  assert.equal(aborted, true);
+  assert.equal(activeOrganizationId, null);
+  assert.equal(queryClient.getQueryData(queryKeys.organization.members('org-b')), undefined);
+});
+
+test('reconciliation preserves private cache when the active tenant remains valid', () => {
+  const queryClient = new QueryClient();
+  queryClient.setQueryData(queryKeys.organization.dashboard('org-b'), { tenant: 'org-b' });
+  const reconciliation = planOrganizationReconciliation({
+    contextUserId: 'user-a',
+    authenticatedUserId: 'user-a',
+    activeOrganizationId: 'org-b',
+    validOrganizationIds: ['org-a', 'org-b'],
+    initialOrganizationId: null,
+  });
+
+  assert.deepEqual(reconciliation, { action: 'preserve', organizationId: 'org-b' });
+  assert.deepEqual(queryClient.getQueryData(queryKeys.organization.dashboard('org-b')), {
+    tenant: 'org-b',
+  });
 });

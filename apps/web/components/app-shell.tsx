@@ -16,7 +16,10 @@ import {
   resolveStoredActiveOrganization,
   storeActiveOrganization,
 } from '@/lib/active-organization-storage';
-import { isolateOrganizationTransition } from '@/lib/query-cache';
+import {
+  isolateOrganizationTransition,
+  planOrganizationReconciliation,
+} from '@/lib/query-cache';
 import { queryKeys } from '@/lib/query-keys';
 import { useAuth } from './auth-provider';
 
@@ -42,7 +45,7 @@ export function AppShell({ children }: PropsWithChildren) {
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const [activeId, setActiveIdState] = useState<string | null>(null);
-  const [transitionTarget, setTransitionTarget] = useState<string | null>(null);
+  const [transitionTarget, setTransitionTarget] = useState<string | null | undefined>(undefined);
   const [contextUserId, setContextUserId] = useState<string | null>(null);
   const [contextNotice, setContextNotice] = useState<string | null>(null);
   const userId = auth.user?.id;
@@ -58,18 +61,67 @@ export function AppShell({ children }: PropsWithChildren) {
   }, [auth.loading, auth.user, pathname, router]);
   useEffect(() => setContextNotice(null), [pathname]);
   useEffect(() => {
-    if (!userId || !organizations.data) return;
+    if (!userId || !organizations.data || transitionTarget !== undefined) return;
     const validIds = organizations.data.map(({ id }) => id);
-    const resolved = resolveStoredActiveOrganization(window.localStorage, userId, validIds);
-    setActiveIdState(resolved);
-    setContextUserId(userId);
-    if (resolved) storeActiveOrganization(window.localStorage, userId, resolved, validIds);
-    else clearStoredActiveOrganization(window.localStorage, userId);
-  }, [organizations.data, userId]);
+    const initialOrganizationId =
+      contextUserId === userId
+        ? null
+        : resolveStoredActiveOrganization(window.localStorage, userId, validIds);
+    const reconciliation = planOrganizationReconciliation({
+      contextUserId,
+      authenticatedUserId: userId,
+      activeOrganizationId: activeId,
+      validOrganizationIds: validIds,
+      initialOrganizationId,
+    });
+    if (reconciliation.action === 'initialize') {
+      setTransitionTarget(undefined);
+      setActiveIdState(reconciliation.organizationId);
+      setContextUserId(userId);
+      if (reconciliation.organizationId)
+        storeActiveOrganization(
+          window.localStorage,
+          userId,
+          reconciliation.organizationId,
+          validIds,
+        );
+      else clearStoredActiveOrganization(window.localStorage, userId);
+      return;
+    }
+    if (reconciliation.action === 'preserve') {
+      if (reconciliation.organizationId)
+        storeActiveOrganization(
+          window.localStorage,
+          userId,
+          reconciliation.organizationId,
+          validIds,
+        );
+      else clearStoredActiveOrganization(window.localStorage, userId);
+      return;
+    }
+    setContextNotice(null);
+    setTransitionTarget(reconciliation.organizationId);
+    void isolateOrganizationTransition(
+      queryClient,
+      activeId,
+      reconciliation.organizationId,
+      () => {
+        setActiveIdState(reconciliation.organizationId);
+        if (reconciliation.organizationId)
+          storeActiveOrganization(
+            window.localStorage,
+            userId,
+            reconciliation.organizationId,
+            validIds,
+          );
+        else clearStoredActiveOrganization(window.localStorage, userId);
+      },
+    ).catch(() => setTransitionTarget(undefined));
+  }, [activeId, contextUserId, organizations.data, queryClient, transitionTarget, userId]);
 
   useEffect(() => {
-    if (!transitionTarget || activeId !== transitionTarget) return;
-    const frame = window.requestAnimationFrame(() => setTransitionTarget(null));
+    if (transitionTarget === undefined || activeId !== transitionTarget) return;
+    const frame = window.requestAnimationFrame(() => setTransitionTarget(undefined));
     return () => window.cancelAnimationFrame(frame);
   }, [activeId, transitionTarget]);
 
@@ -94,12 +146,13 @@ export function AppShell({ children }: PropsWithChildren) {
         setContextNotice(notice ?? null);
       });
     } catch (error) {
-      setTransitionTarget(null);
+      setTransitionTarget(undefined);
       throw error;
     }
   }
   const current = organizations.data?.find((item) => item.id === activeId);
-  const transitioning = Boolean(transitionTarget) || Boolean(userId && contextUserId !== userId);
+  const transitioning =
+    transitionTarget !== undefined || Boolean(userId && contextUserId !== userId);
   const demoActive =
     current?.status === 'DEMO' &&
     current.demoExpiresAt !== undefined &&
