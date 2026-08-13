@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query-keys';
 import { useAuth } from './auth-provider';
 import { useOrganization } from './app-shell';
 
@@ -37,10 +38,11 @@ export type DashboardData = {
 export function useDashboardData() {
   const auth = useAuth();
   const organization = useOrganization();
+  const organizationId = organization.activeId;
   const query = useQuery({
-    queryKey: ['dashboard', organization.activeId],
-    queryFn: () => auth.request<DashboardData>('/dashboard', {}, organization.activeId!),
-    enabled: Boolean(organization.activeId),
+    queryKey: queryKeys.organization.dashboard(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) => auth.request<DashboardData>('/dashboard', { signal }, organizationId!),
+    enabled: Boolean(organizationId),
   });
-  return { ...query, activeId: organization.activeId };
+  return { ...query, activeId: organizationId };
 }

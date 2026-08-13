@@ -1,6 +1,7 @@
 'use client';
 
 import { apiRequest } from '@sst/api-client';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   createContext,
   useCallback,
@@ -10,6 +11,8 @@ import {
   useState,
   type PropsWithChildren,
 } from 'react';
+import { clearStoredActiveOrganization } from '@/lib/active-organization-storage';
+import { removeAllPrivateQueries } from '@/lib/query-cache';
 
 type User = { id: string; email: string; displayName: string; memberships?: unknown[] };
 type Credentials = { email: string; password: string; displayName?: string };
@@ -26,6 +29,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: PropsWithChildren) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -46,10 +50,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
         method: 'POST',
         body: JSON.stringify(input),
       });
+      if (user?.id !== result.user.id) {
+        setLoading(true);
+        setAccessToken(null);
+        await removeAllPrivateQueries(queryClient);
+        if (user?.id) clearStoredActiveOrganization(window.localStorage, user.id);
+      }
       setUser(result.user);
       setAccessToken(result.accessToken);
+      setLoading(false);
     },
-    [],
+    [queryClient, user?.id],
   );
 
   const request = useCallback(
@@ -66,13 +77,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
       login: (input) => authenticate('/auth/login', input),
       register: (input) => authenticate('/auth/register', input),
       logout: async () => {
+        const exitingUserId = user?.id;
+        setLoading(true);
+        setAccessToken(null);
+        await removeAllPrivateQueries(queryClient);
+        if (exitingUserId) clearStoredActiveOrganization(window.localStorage, exitingUserId);
         await apiRequest('/auth/logout', { method: 'POST' }).catch(() => undefined);
         setUser(null);
-        setAccessToken(null);
+        setLoading(false);
       },
       request,
     }),
-    [accessToken, authenticate, loading, request, user],
+    [accessToken, authenticate, loading, queryClient, request, user],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

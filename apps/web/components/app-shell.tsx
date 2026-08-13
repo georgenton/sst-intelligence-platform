@@ -11,6 +11,13 @@ import {
   useState,
   type PropsWithChildren,
 } from 'react';
+import {
+  clearStoredActiveOrganization,
+  resolveStoredActiveOrganization,
+  storeActiveOrganization,
+} from '@/lib/active-organization-storage';
+import { isolateOrganizationTransition } from '@/lib/query-cache';
+import { queryKeys } from '@/lib/query-keys';
 import { useAuth } from './auth-provider';
 
 type Organization = {
@@ -22,9 +29,10 @@ type Organization = {
 };
 type OrganizationContextValue = {
   activeId: string | null;
-  setActiveId(id: string): void;
+  setActiveId(id: string, notice?: string): Promise<void>;
   organizations: Organization[];
   loading: boolean;
+  transitioning: boolean;
 };
 const OrganizationContext = createContext<OrganizationContextValue | null>(null);
 
@@ -34,29 +42,64 @@ export function AppShell({ children }: PropsWithChildren) {
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const [activeId, setActiveIdState] = useState<string | null>(null);
+  const [transitionTarget, setTransitionTarget] = useState<string | null>(null);
+  const [contextUserId, setContextUserId] = useState<string | null>(null);
+  const [contextNotice, setContextNotice] = useState<string | null>(null);
+  const userId = auth.user?.id;
   const organizations = useQuery({
-    queryKey: ['organizations', auth.user?.id],
-    queryFn: () => auth.request<Organization[]>('/organizations'),
-    enabled: Boolean(auth.user && auth.accessToken),
+    queryKey: queryKeys.user.organizations(userId ?? 'unauthenticated'),
+    queryFn: ({ signal }) => auth.request<Organization[]>('/organizations', { signal }),
+    enabled: Boolean(userId && auth.accessToken),
   });
 
   useEffect(() => {
     if (!auth.loading && !auth.user)
       router.replace(`/auth/login?next=${encodeURIComponent(pathname)}`);
   }, [auth.loading, auth.user, pathname, router]);
+  useEffect(() => setContextNotice(null), [pathname]);
   useEffect(() => {
-    if (!organizations.data?.length) return;
-    const stored = window.localStorage.getItem('active-organization-id');
-    const valid = organizations.data.some((item) => item.id === stored);
-    setActiveIdState(valid ? stored : organizations.data[0]!.id);
-  }, [organizations.data]);
+    if (!userId || !organizations.data) return;
+    const validIds = organizations.data.map(({ id }) => id);
+    const resolved = resolveStoredActiveOrganization(window.localStorage, userId, validIds);
+    setActiveIdState(resolved);
+    setContextUserId(userId);
+    if (resolved) storeActiveOrganization(window.localStorage, userId, resolved, validIds);
+    else clearStoredActiveOrganization(window.localStorage, userId);
+  }, [organizations.data, userId]);
 
-  function setActiveId(id: string) {
-    window.localStorage.setItem('active-organization-id', id);
-    setActiveIdState(id);
-    void queryClient.invalidateQueries();
+  useEffect(() => {
+    if (!transitionTarget || activeId !== transitionTarget) return;
+    const frame = window.requestAnimationFrame(() => setTransitionTarget(null));
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeId, transitionTarget]);
+
+  async function setActiveId(id: string, notice?: string) {
+    if (!userId) return;
+    if (id === activeId) {
+      setContextNotice(notice ?? null);
+      return;
+    }
+    const currentOrganizations =
+      queryClient.getQueryData<Organization[]>(queryKeys.user.organizations(userId)) ??
+      organizations.data ??
+      [];
+    const validIds = currentOrganizations.map((organization) => organization.id);
+    if (!validIds.includes(id)) throw new Error('ACTIVE_ORGANIZATION_NOT_AVAILABLE');
+    setContextNotice(null);
+    setTransitionTarget(id);
+    try {
+      await isolateOrganizationTransition(queryClient, activeId, id, () => {
+        storeActiveOrganization(window.localStorage, userId, id, validIds);
+        setActiveIdState(id);
+        setContextNotice(notice ?? null);
+      });
+    } catch (error) {
+      setTransitionTarget(null);
+      throw error;
+    }
   }
   const current = organizations.data?.find((item) => item.id === activeId);
+  const transitioning = Boolean(transitionTarget) || Boolean(userId && contextUserId !== userId);
   const demoActive =
     current?.status === 'DEMO' &&
     current.demoExpiresAt !== undefined &&
@@ -66,9 +109,10 @@ export function AppShell({ children }: PropsWithChildren) {
       activeId,
       setActiveId,
       organizations: organizations.data ?? [],
-      loading: organizations.isLoading,
+      loading: organizations.isLoading || transitioning,
+      transitioning,
     }),
-    [activeId, organizations.data, organizations.isLoading],
+    [activeId, organizations.data, organizations.isLoading, transitioning],
   );
   if (auth.loading || (!auth.user && !auth.loading))
     return (
@@ -105,8 +149,10 @@ export function AppShell({ children }: PropsWithChildren) {
             <select
               className="org-select"
               aria-label="Organización activa"
-              value={activeId ?? ''}
-              onChange={(event) => setActiveId(event.target.value)}
+              value={transitioning ? '' : (activeId ?? '')}
+              disabled={transitioning}
+              aria-busy={transitioning}
+              onChange={(event) => void setActiveId(event.target.value)}
             >
               <option value="">Selecciona una organización</option>
               {(organizations.data ?? []).map((organization) => (
@@ -131,7 +177,18 @@ export function AppShell({ children }: PropsWithChildren) {
               . Los datos son sintéticos.
             </div>
           )}
-          <main className="app-content">{children}</main>
+          <main className="app-content" aria-busy={transitioning}>
+            {transitioning ? (
+              <p role="status" aria-live="polite">
+                Cambiando organización…
+              </p>
+            ) : (
+              <>
+                {contextNotice && <p role="status">{contextNotice}</p>}
+                {children}
+              </>
+            )}
+          </main>
         </div>
       </div>
     </OrganizationContext.Provider>

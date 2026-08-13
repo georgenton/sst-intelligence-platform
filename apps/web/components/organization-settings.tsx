@@ -4,6 +4,7 @@ import { Button, Card, StatusBadge } from '@sst/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { queryKeys } from '@/lib/query-keys';
 import { useAuth } from './auth-provider';
 import { useOrganization } from './app-shell';
 
@@ -20,11 +21,13 @@ export function OrganizationSettings() {
   const organization = useOrganization();
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
+  const organizationId = organization.activeId;
+  const userId = auth.user?.id;
   const query = useQuery({
-    queryKey: ['organization', organization.activeId],
-    queryFn: () =>
-      auth.request<Details>(`/organizations/${organization.activeId}`, {}, organization.activeId!),
-    enabled: Boolean(organization.activeId),
+    queryKey: queryKeys.organization.details(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<Details>(`/organizations/${organizationId}`, { signal }, organizationId!),
+    enabled: Boolean(organizationId),
   });
   const { register, handleSubmit } = useForm<{ name: string; sector: string }>({
     values: query.data ? { name: query.data.name, sector: query.data.sector ?? '' } : undefined,
@@ -36,8 +39,12 @@ export function OrganizationSettings() {
       organization.activeId!,
     );
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['organization'] }),
-      queryClient.invalidateQueries({ queryKey: ['organizations'] }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.details(organizationId!),
+      }),
+      userId
+        ? queryClient.invalidateQueries({ queryKey: queryKeys.user.organizations(userId) })
+        : Promise.resolve(),
     ]);
     setMessage('Datos actualizados.');
   });

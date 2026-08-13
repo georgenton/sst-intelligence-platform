@@ -3,6 +3,7 @@
 import { Card, StatusBadge } from '@sst/ui';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { queryKeys } from '@/lib/query-keys';
 import { useAuth } from './auth-provider';
 import { useDashboardData } from './use-app-data';
 
@@ -12,8 +13,8 @@ export function ModulesView() {
   const auth = useAuth();
   const dashboard = useDashboardData();
   const catalog = useQuery({
-    queryKey: ['module-catalog'],
-    queryFn: () => auth.request<CatalogItem[]>('/module-catalog'),
+    queryKey: queryKeys.global.moduleCatalog(),
+    queryFn: ({ signal }) => auth.request<CatalogItem[]>('/module-catalog', { signal }),
     enabled: Boolean(auth.accessToken),
   });
   if (catalog.isLoading || dashboard.isLoading) return <p>Cargando módulos…</p>;

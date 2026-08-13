@@ -3,6 +3,7 @@
 import { Card, StatusBadge } from '@sst/ui';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { queryKeys } from '@/lib/query-keys';
 import { useAuth } from './auth-provider';
 import { useOrganization } from './app-shell';
 
@@ -33,10 +34,11 @@ type Dashboard = {
 export function DashboardView() {
   const auth = useAuth();
   const organization = useOrganization();
+  const organizationId = organization.activeId;
   const query = useQuery({
-    queryKey: ['dashboard', organization.activeId],
-    queryFn: () => auth.request<Dashboard>('/dashboard', {}, organization.activeId!),
-    enabled: Boolean(organization.activeId),
+    queryKey: queryKeys.organization.dashboard(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) => auth.request<Dashboard>('/dashboard', { signal }, organizationId!),
+    enabled: Boolean(organizationId),
   });
   if (!organization.activeId)
     return (
