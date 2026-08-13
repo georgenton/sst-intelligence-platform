@@ -4,6 +4,7 @@ import { Button, Card, StatusBadge } from '@sst/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { queryKeys } from '@/lib/query-keys';
 import { useAuth } from './auth-provider';
 import { useOrganization } from './app-shell';
 
@@ -20,15 +21,16 @@ export function MembersView() {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const organizationId = organization.activeId;
   const query = useQuery({
-    queryKey: ['members', organization.activeId],
-    queryFn: () =>
+    queryKey: queryKeys.organization.members(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
       auth.request<Member[]>(
-        `/organizations/${organization.activeId}/members`,
-        {},
-        organization.activeId!,
+        `/organizations/${organizationId}/members`,
+        { signal },
+        organizationId!,
       ),
-    enabled: Boolean(organization.activeId),
+    enabled: Boolean(organizationId),
   });
   const { register, handleSubmit, reset } = useForm<{ email: string; role: string }>({
     defaultValues: { role: 'VIEWER' },
@@ -43,7 +45,9 @@ export function MembersView() {
       );
       setMessage(`Invitación registrada mediante ${result.delivery}.`);
       reset({ email: '', role: 'VIEWER' });
-      await queryClient.invalidateQueries({ queryKey: ['members'] });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.members(organizationId!),
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'No pudimos registrar la invitación.');
     }

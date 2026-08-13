@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { useForm, type FieldValues, type Path, type UseFormRegister } from 'react-hook-form';
+import { queryKeys } from '@/lib/query-keys';
 import { useAuth } from './auth-provider';
 import { useOrganization } from './app-shell';
 
@@ -182,15 +183,17 @@ function DemoNotice() {
 
 export function InspectionsDashboard() {
   const api = useApi();
+  const organizationId = api.organizationId;
   const analytics = useQuery({
-    queryKey: ['inspection-analytics', api.organizationId],
-    queryFn: () => api.request<Analytics>('/inspections/analytics/summary'),
-    enabled: Boolean(api.organizationId),
+    queryKey: queryKeys.organization.inspectionAnalytics(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) => api.request<Analytics>('/inspections/analytics/summary', { signal }),
+    enabled: Boolean(organizationId),
   });
   const inspections = useQuery({
-    queryKey: ['inspections', api.organizationId],
-    queryFn: () => api.request<{ items: Inspection[]; total: number }>('/inspections?pageSize=20'),
-    enabled: Boolean(api.organizationId),
+    queryKey: queryKeys.organization.inspections(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      api.request<{ items: Inspection[]; total: number }>('/inspections?pageSize=20', { signal }),
+    enabled: Boolean(organizationId),
   });
   if (!api.organizationId) return <Card>Selecciona una organización.</Card>;
   if (analytics.isLoading || inspections.isLoading) return <p>Cargando inspecciones…</p>;
@@ -288,10 +291,11 @@ type InspectionForm = {
 export function NewInspection() {
   const api = useApi();
   const router = useRouter();
+  const organizationId = api.organizationId;
   const context = useQuery({
-    queryKey: ['inspection-context', api.organizationId],
-    queryFn: () => api.request<ContextData>('/inspections/context'),
-    enabled: Boolean(api.organizationId),
+    queryKey: queryKeys.organization.inspectionContext(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) => api.request<ContextData>('/inspections/context', { signal }),
+    enabled: Boolean(organizationId),
   });
   const form = useForm<InspectionForm>({
     defaultValues: {
@@ -390,16 +394,19 @@ export function NewInspection() {
 export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
   const api = useApi();
   const queryClient = useQueryClient();
+  const organizationId = api.organizationId;
   const query = useQuery({
-    queryKey: ['inspection', api.organizationId, inspectionId],
-    queryFn: () => api.request<Inspection>(`/inspections/${inspectionId}`),
-    enabled: Boolean(api.organizationId),
+    queryKey: queryKeys.organization.inspection(organizationId ?? 'inactive', inspectionId),
+    queryFn: ({ signal }) => api.request<Inspection>(`/inspections/${inspectionId}`, { signal }),
+    enabled: Boolean(organizationId),
   });
   const transition = useMutation({
     mutationFn: (action: 'start' | 'complete') =>
       api.request(`/inspections/${inspectionId}/${action}`, { method: 'POST' }),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ['inspection', api.organizationId, inspectionId] }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.inspection(organizationId!, inspectionId),
+      }),
   });
   if (query.isLoading) return <p>Cargando inspección…</p>;
   if (!query.data) return <p className="field-error">Inspección no encontrada.</p>;
@@ -484,13 +491,14 @@ type FindingForm = {
 export function NewFinding({ inspectionId }: { inspectionId: string }) {
   const api = useApi();
   const router = useRouter();
+  const organizationId = api.organizationId;
   const [step, setStep] = useState(1);
   const [created, setCreated] = useState<CreatedFinding | null>(null);
   const riskValues = useRef({ likelihood: 1, consequence: 1 });
   const inspection = useQuery({
-    queryKey: ['inspection', api.organizationId, inspectionId],
-    queryFn: () => api.request<Inspection>(`/inspections/${inspectionId}`),
-    enabled: Boolean(api.organizationId),
+    queryKey: queryKeys.organization.inspection(organizationId ?? 'inactive', inspectionId),
+    queryFn: ({ signal }) => api.request<Inspection>(`/inspections/${inspectionId}`, { signal }),
+    enabled: Boolean(organizationId),
   });
   const form = useForm<FindingForm>({
     defaultValues: {
@@ -533,8 +541,8 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
             <div className="recurrence-callout">
               <strong>{label(created.recurrenceStatus)}</strong>
               <p>
-                {created.recurrenceCount} antecedentes en los últimos{' '}
-                {created.recurrenceWindowDays} días.
+                {created.recurrenceCount} antecedentes en los últimos {created.recurrenceWindowDays}{' '}
+                días.
               </p>
               {created.recurrenceStatus === 'SYSTEMIC_REVIEW_RECOMMENDED' && (
                 <p>Este aviso indica recurrencia, no confirma una causa raíz.</p>
@@ -757,15 +765,17 @@ export function FindingDetail({
 }) {
   const api = useApi();
   const queryClient = useQueryClient();
+  const organizationId = api.organizationId;
   const finding = useQuery({
-    queryKey: ['finding', api.organizationId, findingId],
-    queryFn: () => api.request<Finding>(`/inspections/${inspectionId}/findings/${findingId}`),
-    enabled: Boolean(api.organizationId),
+    queryKey: queryKeys.organization.finding(organizationId ?? 'inactive', findingId),
+    queryFn: ({ signal }) =>
+      api.request<Finding>(`/inspections/${inspectionId}/findings/${findingId}`, { signal }),
+    enabled: Boolean(organizationId),
   });
   const context = useQuery({
-    queryKey: ['inspection-context', api.organizationId],
-    queryFn: () => api.request<ContextData>('/inspections/context'),
-    enabled: Boolean(api.organizationId),
+    queryKey: queryKeys.organization.inspectionContext(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) => api.request<ContextData>('/inspections/context', { signal }),
+    enabled: Boolean(organizationId),
   });
   const actionForm = useForm<ActionForm>({
     defaultValues: {
@@ -783,7 +793,9 @@ export function FindingDetail({
     defaultValues: { likelihood: 1, consequence: 1 },
   });
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ['finding', api.organizationId, findingId] });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.organization.finding(organizationId!, findingId),
+    });
   const createAction = useMutation({
     mutationFn: (values: ActionForm) =>
       api.request(`/inspections/${inspectionId}/findings/${findingId}/actions`, {
@@ -831,11 +843,13 @@ export function FindingDetail({
         eyebrow="Hallazgo"
         title={data.title}
         description={`${FINDING_CATEGORY_LABELS[data.category]} · ${data.workCenter?.name ?? ''}`}
-        actions={data.status !== 'CLOSED' ? (
-          <button className="button" onClick={() => setShowAction(!showAction)}>
-            Nueva acción
-          </button>
-        ) : null}
+        actions={
+          data.status !== 'CLOSED' ? (
+            <button className="button" onClick={() => setShowAction(!showAction)}>
+              Nueva acción
+            </button>
+          ) : null
+        }
       />
       <div className="detail-strip">
         <RiskBadge level={data.initialRiskLevel} />
@@ -870,10 +884,7 @@ export function FindingDetail({
             {data.workCenter?.name} y categoría {FINDING_CATEGORY_LABELS[data.category]}.
           </p>
           {data.recurrence?.previous.map((item) => (
-            <Link
-              key={item.id}
-              href={`/app/inspections/${item.inspectionId}/findings/${item.id}`}
-            >
+            <Link key={item.id} href={`/app/inspections/${item.inspectionId}/findings/${item.id}`}>
               {item.title} →
             </Link>
           ))}
@@ -948,12 +959,12 @@ export function FindingDetail({
               </div>
               {data.status !== 'CLOSED' &&
                 !['PENDING_VERIFICATION', 'COMPLETED', 'CANCELED'].includes(action.status) && (
-                <button
-                  className="button secondary"
-                  onClick={() => completeAction.mutate(action.id)}
-                >
-                  Marcar terminada
-                </button>
+                  <button
+                    className="button secondary"
+                    onClick={() => completeAction.mutate(action.id)}
+                  >
+                    Marcar terminada
+                  </button>
                 )}
             </Card>
           ))
@@ -1024,9 +1035,10 @@ export function FindingDetail({
 export function InspectionAlerts() {
   const api = useApi();
   const queryClient = useQueryClient();
+  const organizationId = api.organizationId;
   const alerts = useQuery({
-    queryKey: ['inspection-alerts', api.organizationId],
-    queryFn: () =>
+    queryKey: queryKeys.organization.inspectionAlerts(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
       api.request<{
         items: Array<{
           id: string;
@@ -1042,14 +1054,16 @@ export function InspectionAlerts() {
             inspection: { id: string };
           };
         }>;
-      }>('/inspections/alerts'),
-    enabled: Boolean(api.organizationId),
+      }>('/inspections/alerts', { signal }),
+    enabled: Boolean(organizationId),
   });
   const acknowledge = useMutation({
     mutationFn: (id: string) =>
       api.request(`/inspections/alerts/${id}/acknowledge`, { method: 'POST' }),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ['inspection-alerts', api.organizationId] }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.inspectionAlerts(organizationId!),
+      }),
   });
   return (
     <div className="stack">
@@ -1095,10 +1109,11 @@ export function InspectionAlerts() {
 
 export function InspectionAnalytics() {
   const api = useApi();
+  const organizationId = api.organizationId;
   const query = useQuery({
-    queryKey: ['inspection-analytics', api.organizationId],
-    queryFn: () => api.request<Analytics>('/inspections/analytics/summary'),
-    enabled: Boolean(api.organizationId),
+    queryKey: queryKeys.organization.inspectionAnalytics(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) => api.request<Analytics>('/inspections/analytics/summary', { signal }),
+    enabled: Boolean(organizationId),
   });
   if (!query.data) return <p>Cargando analítica…</p>;
   const data = query.data;

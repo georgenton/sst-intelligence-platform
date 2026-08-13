@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { queryKeys } from '@/lib/query-keys';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
 
@@ -264,10 +265,11 @@ function RiskBadge({ level }: { level: string | null | undefined }) {
 
 export function TechnicalRiskDashboard() {
   const api = useApi();
+  const organizationId = api.organizationId;
   const query = useQuery({
-    queryKey: ['technical-risk-assessments', api.organizationId],
-    queryFn: () => api.request<ListResponse>('/technical-risk/assessments'),
-    enabled: Boolean(api.organizationId),
+    queryKey: queryKeys.organization.technicalRiskAssessments(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) => api.request<ListResponse>('/technical-risk/assessments', { signal }),
+    enabled: Boolean(organizationId),
   });
   if (!api.organizationId) return <Card>Selecciona una organización.</Card>;
   if (query.isLoading) return <p>Cargando evaluaciones técnicas…</p>;
@@ -375,6 +377,7 @@ type GuidedForm = {
 export function NewTechnicalAssessment() {
   const api = useApi();
   const router = useRouter();
+  const organizationId = api.organizationId;
   const [step, setStep] = useState(1);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const form = useForm<GuidedForm>({
@@ -387,15 +390,15 @@ export function NewTechnicalAssessment() {
     },
   });
   const methods = useQuery({
-    queryKey: ['technical-risk-methods', api.organizationId],
-    queryFn: () => api.request<Method[]>('/technical-risk/methods'),
-    enabled: Boolean(api.organizationId),
+    queryKey: queryKeys.organization.technicalRiskMethods(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) => api.request<Method[]>('/technical-risk/methods', { signal }),
+    enabled: Boolean(organizationId),
   });
   const organizationDetails = useQuery({
-    queryKey: ['technical-risk-context', api.organizationId],
-    queryFn: () =>
-      api.request<{ workCenters: WorkCenter[] }>(`/organizations/${api.organizationId}`),
-    enabled: Boolean(api.organizationId),
+    queryKey: queryKeys.organization.technicalRiskContext(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      api.request<{ workCenters: WorkCenter[] }>(`/organizations/${organizationId}`, { signal }),
+    enabled: Boolean(organizationId),
   });
   const selectedMethod = methods.data?.find(({ id }) => id === form.watch('methodVersionId'));
   const selectedCenter = organizationDetails.data?.workCenters.find(
@@ -637,15 +640,20 @@ export function NewTechnicalAssessment() {
 export function TechnicalAssessmentDetail({ assessmentId }: { assessmentId: string }) {
   const api = useApi();
   const queryClient = useQueryClient();
+  const organizationId = api.organizationId;
   const evidenceForm = useForm<{
     type: 'NOTE' | 'EXTERNAL_LINK';
     note: string;
     externalUrl: string;
   }>({ defaultValues: { type: 'NOTE', note: '', externalUrl: '' } });
   const query = useQuery({
-    queryKey: ['technical-risk-assessment', api.organizationId, assessmentId],
-    queryFn: () => api.request<Assessment>(`/technical-risk/assessments/${assessmentId}`),
-    enabled: Boolean(api.organizationId),
+    queryKey: queryKeys.organization.technicalRiskAssessment(
+      organizationId ?? 'inactive',
+      assessmentId,
+    ),
+    queryFn: ({ signal }) =>
+      api.request<Assessment>(`/technical-risk/assessments/${assessmentId}`, { signal }),
+    enabled: Boolean(organizationId),
   });
   const evidence = useMutation({
     mutationFn: (values: { type: 'NOTE' | 'EXTERNAL_LINK'; note: string; externalUrl: string }) =>
@@ -661,7 +669,7 @@ export function TechnicalAssessmentDetail({ assessmentId }: { assessmentId: stri
     onSuccess: () => {
       evidenceForm.reset();
       void queryClient.invalidateQueries({
-        queryKey: ['technical-risk-assessment', api.organizationId, assessmentId],
+        queryKey: queryKeys.organization.technicalRiskAssessment(organizationId!, assessmentId),
       });
     },
   });
@@ -819,11 +827,16 @@ export function TechnicalAssessmentReview({ assessmentId }: { assessmentId: stri
   const api = useApi();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const organizationId = api.organizationId;
   const form = useForm<{ comment: string }>({ defaultValues: { comment: '' } });
   const query = useQuery({
-    queryKey: ['technical-risk-assessment', api.organizationId, assessmentId],
-    queryFn: () => api.request<Assessment>(`/technical-risk/assessments/${assessmentId}`),
-    enabled: Boolean(api.organizationId),
+    queryKey: queryKeys.organization.technicalRiskAssessment(
+      organizationId ?? 'inactive',
+      assessmentId,
+    ),
+    queryFn: ({ signal }) =>
+      api.request<Assessment>(`/technical-risk/assessments/${assessmentId}`, { signal }),
+    enabled: Boolean(organizationId),
   });
   const mutation = useMutation({
     mutationFn: (decision: 'APPROVED' | 'NEEDS_REVISION') =>
@@ -834,7 +847,7 @@ export function TechnicalAssessmentReview({ assessmentId }: { assessmentId: stri
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
-        queryKey: ['technical-risk-assessment', api.organizationId, assessmentId],
+        queryKey: queryKeys.organization.technicalRiskAssessment(organizationId!, assessmentId),
       });
       router.push(`/app/technical-risk/${assessmentId}`);
     },

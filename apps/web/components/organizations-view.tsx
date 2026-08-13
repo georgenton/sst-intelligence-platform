@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { queryKeys } from '@/lib/query-keys';
 import { useAuth } from './auth-provider';
 import { useOrganization } from './app-shell';
 import { SessionPersistence } from './guided';
@@ -18,7 +19,6 @@ export function OrganizationsView() {
   const queryClient = useQueryClient();
   const search = useSearchParams();
   const router = useRouter();
-  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const {
     register,
@@ -28,15 +28,19 @@ export function OrganizationsView() {
   } = useForm<Fields>({ defaultValues: { country: 'Ecuador' } });
   const submit = handleSubmit(async (fields) => {
     setError('');
-    setMessage('');
     try {
       const created = await auth.request<{ id: string; name: string }>('/organizations', {
         method: 'POST',
         body: JSON.stringify({ ...fields, sector: fields.sector || undefined }),
       });
-      organization.setActiveId(created.id);
-      await queryClient.invalidateQueries({ queryKey: ['organizations'] });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.user.organizations(auth.user!.id),
+      });
       const sessionId = search.get('sessionId');
+      await organization.setActiveId(
+        created.id,
+        sessionId ? undefined : 'Organización creada correctamente.',
+      );
       if (sessionId) {
         const token = SessionPersistence.load(sessionId);
         if (!token) throw new Error('No encontramos el token del diagnóstico.');
@@ -58,12 +62,13 @@ export function OrganizationsView() {
             sessionToken: token,
           },
         );
-        await queryClient.invalidateQueries({ queryKey: ['organizations'] });
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.user.organizations(auth.user!.id),
+        });
         router.push('/app');
         return;
       }
       reset({ name: '', country: 'Ecuador', sector: '' });
-      setMessage('Organización creada correctamente.');
     } catch (cause) {
       setError(
         cause instanceof ApiClientError
@@ -93,7 +98,8 @@ export function OrganizationsView() {
               <button
                 className="card module-row"
                 key={item.id}
-                onClick={() => organization.setActiveId(item.id)}
+                disabled={organization.transitioning}
+                onClick={() => void organization.setActiveId(item.id)}
               >
                 <span>
                   <strong>{item.name}</strong>
@@ -125,7 +131,6 @@ export function OrganizationsView() {
                 {error}
               </p>
             )}
-            {message && <p role="status">{message}</p>}
             <Button disabled={isSubmitting}>
               {isSubmitting
                 ? 'Creando…'

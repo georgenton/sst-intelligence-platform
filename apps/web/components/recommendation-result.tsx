@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useAuth } from './auth-provider';
+import { queryKeys } from '@/lib/query-keys';
 import { RecommendationSummary, SessionPersistence } from './guided';
 
 type Session = {
@@ -21,13 +22,13 @@ export function RecommendationResult() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const auth = useAuth();
   const query = useQuery({
-    queryKey: ['solution-result', sessionId],
-    queryFn: () => {
+    queryKey: queryKeys.public.solutionFinder.result(sessionId),
+    queryFn: ({ signal }) => {
       const token = SessionPersistence.load(sessionId);
       if (!token) throw new Error('No encontramos el token de la sesión.');
       return apiRequest<Session>(
         `/solution-finder/sessions/${sessionId}`,
-        {},
+        { signal },
         { sessionToken: token },
       );
     },
