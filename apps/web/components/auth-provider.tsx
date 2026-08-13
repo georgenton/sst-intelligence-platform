@@ -12,6 +12,7 @@ import {
   type PropsWithChildren,
 } from 'react';
 import { clearStoredActiveOrganization } from '@/lib/active-organization-storage';
+import { clearAppearanceSessionUser, setAppearanceSessionUser } from '@/lib/appearance';
 import { removeAllPrivateQueries } from '@/lib/query-cache';
 
 type User = { id: string; email: string; displayName: string; memberships?: unknown[] };
@@ -37,10 +38,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     apiRequest<{ user: User; accessToken: string }>('/auth/refresh', { method: 'POST' })
       .then((result) => {
+        setAppearanceSessionUser(window.localStorage, result.user.id);
         setUser(result.user);
         setAccessToken(result.accessToken);
       })
-      .catch(() => undefined)
+      .catch(() => clearAppearanceSessionUser(window.localStorage))
       .finally(() => setLoading(false));
   }, []);
 
@@ -56,6 +58,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         await removeAllPrivateQueries(queryClient);
         if (user?.id) clearStoredActiveOrganization(window.localStorage, user.id);
       }
+      setAppearanceSessionUser(window.localStorage, result.user.id);
       setUser(result.user);
       setAccessToken(result.accessToken);
       setLoading(false);
@@ -82,6 +85,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setAccessToken(null);
         await removeAllPrivateQueries(queryClient);
         if (exitingUserId) clearStoredActiveOrganization(window.localStorage, exitingUserId);
+        clearAppearanceSessionUser(window.localStorage);
         await apiRequest('/auth/logout', { method: 'POST' }).catch(() => undefined);
         setUser(null);
         setLoading(false);
