@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { URL } from 'node:url';
 import {
+  appearanceFocusScope,
   appearanceFocusStorageKey,
   appearanceSessionUserKey,
   appearanceThemeStorageKey,
@@ -66,8 +69,8 @@ test('forces public surfaces to Operativo with focus off even when a user prefer
 test('keeps focus independent from theme and remembers it per task type', () => {
   const storage = memoryStorage();
   storeTheme(storage, 'user-a', 'contraste');
-  storeFocus(storage, 'user-a', 'inspections', 'on');
-  storeFocus(storage, 'user-a', 'technical-risk', 'off');
+  storeFocus(storage, 'user-a', 'inspection', 'on');
+  storeFocus(storage, 'user-a', 'technical-assessment', 'off');
 
   assert.deepEqual(resolveAppearanceForSurface(storage, '/app/inspections/new', 'user-a'), {
     theme: 'contraste',
@@ -78,6 +81,76 @@ test('keeps focus independent from theme and remembers it per task type', () => 
     focus: 'off',
   });
   assert.equal(resolveStoredFocus(storage, 'user-a', 'workspace'), 'off');
+});
+
+test('maps only real task routes to distinct focus scopes', () => {
+  assert.equal(appearanceFocusScope('/app/inspections'), 'workspace');
+  assert.equal(appearanceFocusScope('/app/inspections/alerts'), 'workspace');
+  assert.equal(appearanceFocusScope('/app/inspections/new'), 'inspection');
+  assert.equal(appearanceFocusScope('/app/inspections/inspection-id'), 'inspection');
+  assert.equal(appearanceFocusScope('/app/inspections/inspection-id/findings/new'), 'finding');
+  assert.equal(
+    appearanceFocusScope('/app/inspections/inspection-id/findings/finding-id'),
+    'finding',
+  );
+  assert.equal(appearanceFocusScope('/app/technical-risk'), 'workspace');
+  assert.equal(appearanceFocusScope('/app/technical-risk/new'), 'technical-assessment');
+  assert.equal(appearanceFocusScope('/app/technical-risk/assessment-id'), 'technical-assessment');
+  assert.equal(
+    appearanceFocusScope('/app/technical-risk/assessment-id/review'),
+    'professional-review',
+  );
+});
+
+test('does not leak focus between inspection and finding task types', () => {
+  const storage = memoryStorage();
+  storeFocus(storage, 'user-a', 'inspection', 'on');
+
+  assert.equal(
+    resolveAppearanceForSurface(storage, '/app/inspections/inspection-id', 'user-a').focus,
+    'on',
+  );
+  assert.equal(
+    resolveAppearanceForSurface(
+      storage,
+      '/app/inspections/inspection-id/findings/finding-id',
+      'user-a',
+    ).focus,
+    'off',
+  );
+});
+
+test('does not leak focus between technical assessment and professional review', () => {
+  const storage = memoryStorage();
+  storeTheme(storage, 'user-a', 'noche');
+  storeFocus(storage, 'user-a', 'technical-assessment', 'on');
+
+  assert.deepEqual(
+    resolveAppearanceForSurface(storage, '/app/technical-risk/assessment-id', 'user-a'),
+    { theme: 'noche', focus: 'on' },
+  );
+  assert.deepEqual(
+    resolveAppearanceForSurface(storage, '/app/technical-risk/assessment-id/review', 'user-a'),
+    { theme: 'noche', focus: 'off' },
+  );
+});
+
+test('keeps Plex Mono available without globally preloading it', () => {
+  const layout = readFileSync(new URL('../app/layout.tsx', import.meta.url), 'utf8');
+
+  assert.match(layout, /IBM_Plex_Mono/);
+  assert.match(layout, /const plexMono = IBM_Plex_Mono\(\{[\s\S]*?preload: false,/);
+  assert.match(layout, /className=\{`\$\{plexSans\.variable\} \$\{plexMono\.variable\}`\}/);
+});
+
+test('focus motion reduction is opt-in and never targets every descendant', () => {
+  const focusCss = readFileSync(new URL('../styles/focus.css', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(
+    focusCss,
+    /\[data-focus=['"]on['"]\]\s+\*\s*\{[^}]*?(?:animation|transition)-duration/s,
+  );
+  assert.match(focusCss, /\[data-focus='on'\] \.focus-decorative-motion/);
 });
 
 test('session owner marker can be replaced and cleared without deleting user preferences', () => {
@@ -113,7 +186,7 @@ test('storage failures preserve in-memory safety defaults and never throw', () =
   assert.doesNotThrow(() => setAppearanceSessionUser(unavailableStorage, 'user-a'));
   assert.doesNotThrow(() => clearAppearanceSessionUser(unavailableStorage));
   assert.equal(
-    appearanceFocusStorageKey('user-a', 'technical-risk').includes('organization'),
+    appearanceFocusStorageKey('user-a', 'technical-assessment').includes('organization'),
     false,
   );
 });

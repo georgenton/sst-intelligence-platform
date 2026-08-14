@@ -10,6 +10,13 @@ async function registerUser(page: import('@playwright/test').Page, email: string
   await expect(page.getByLabel('Tema visual')).toBeVisible();
 }
 
+async function navigateWithinApp(page: import('@playwright/test').Page, pathname: string) {
+  await page.evaluate((nextPathname) => {
+    window.history.pushState(null, '', nextPathname);
+  }, pathname);
+  await expect.poll(() => page.evaluate(() => window.location.pathname)).toBe(pathname);
+}
+
 test('theme, no-flash reload, focus scope, public forcing and user isolation', async ({
   page,
 }, testInfo) => {
@@ -73,14 +80,32 @@ test('theme, no-flash reload, focus scope, public forcing and user isolation', a
   await expect(page.locator('html')).toHaveAttribute('data-focus', 'on');
   await page.screenshot({ path: testInfo.outputPath('workspace-focus-on.png'), fullPage: true });
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'noche');
-  await page.getByRole('link', { name: 'Inspecciones', exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/inspections$/);
+
+  await navigateWithinApp(page, '/app/inspections/new');
   await expect(page.locator('html')).toHaveAttribute('data-focus', 'off');
   await page.getByRole('switch', { name: /Enfoque/ }).click();
   await expect(page.locator('html')).toHaveAttribute('data-focus', 'on');
-  await page.getByRole('link', { name: 'Resumen', exact: true }).click();
-  await expect(page).toHaveURL(/\/app$/);
+
+  const missingInspectionId = '00000000-0000-4000-8000-000000000001';
+  await navigateWithinApp(page, `/app/inspections/${missingInspectionId}/findings/new`);
+  await expect(page.locator('html')).toHaveAttribute('data-focus', 'off');
+
+  await navigateWithinApp(page, '/app/inspections/new');
   await expect(page.locator('html')).toHaveAttribute('data-focus', 'on');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'noche');
+
+  await navigateWithinApp(page, '/app/technical-risk/new');
+  await expect(page.locator('html')).toHaveAttribute('data-focus', 'off');
+  await page.getByRole('switch', { name: /Enfoque/ }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-focus', 'on');
+
+  const missingAssessmentId = '00000000-0000-4000-8000-000000000002';
+  await navigateWithinApp(page, `/app/technical-risk/${missingAssessmentId}/review`);
+  await expect(page.locator('html')).toHaveAttribute('data-focus', 'off');
+
+  await navigateWithinApp(page, '/app/technical-risk/new');
+  await expect(page.locator('html')).toHaveAttribute('data-focus', 'on');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'noche');
 
   await page.getByLabel('Tema visual').selectOption('contraste');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'contraste');

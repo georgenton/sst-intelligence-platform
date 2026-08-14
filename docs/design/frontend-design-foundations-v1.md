@@ -12,9 +12,10 @@ The visible label for `contraste` is **Alto contraste**. The engineering handoff
 prompt example `alto-contraste` without changing the product label.
 
 Public routes always render `operativo` with focus off. Authenticated routes restore a user-scoped
-theme and a user-and-task-scoped focus preference. Organization identifiers are never part of the
-appearance keys. Logout clears only the active session marker; saved preferences remain isolated
-under their user identifier.
+theme and a user-and-task-type-scoped focus preference. Current stable task scopes are `inspection`,
+`finding`, `technical-assessment` and `professional-review`; route collections and other surfaces
+use `workspace`. Organization identifiers are never part of the appearance keys. Logout clears only
+the active session marker; saved preferences remain isolated under their user identifier.
 
 An inline, fixed bootstrap in the document head applies the stored attributes before hydration.
 It contains no user content and falls back to Operativo when storage is absent, blocked, or invalid.
@@ -31,16 +32,18 @@ The client provider then reconciles the marker with the authenticated user.
    permission, method, evidence or validation context.
 
 IBM Plex Sans and IBM Plex Mono are self-hosted at build time through `next/font`; no font binary is
-committed and the browser performs no runtime font-CDN request. Mono is reserved for technical
-identifiers while ordinary numerical values use tabular Sans.
+committed and the browser performs no runtime font-CDN request. Mono remains available for technical
+identifiers but is not globally preloaded; ordinary numerical values use tabular Sans. Both families
+retain `latin` and `latin-ext` so configurable names and technical content are not restricted to the
+basic Latin subset.
 
 ## Scope and accessibility
 
 Existing `Button`, `Card` and `StatusBadge` APIs remain unchanged and now inherit semantic roles.
 Risk badges include label plus a level-specific geometric marker, so color is not the only signal.
 Interactive borders use `border-interactive`; visible focus is at least 3 px and increases to 4 px
-in Alto contraste. Motion collapses for focus mode and for the operating-system reduced-motion
-preference.
+in Alto contraste. Focus Mode reduces motion only on explicitly decorative elements, while the
+operating-system reduced-motion preference remains an independent global accessibility concern.
 
 This increment adds no backend, Prisma, API, entitlement, organization-cache or domain changes.
 Remote preference synchronization remains a future increment with an explicit API contract; local

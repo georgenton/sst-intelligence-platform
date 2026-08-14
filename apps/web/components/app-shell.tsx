@@ -173,7 +173,10 @@ export function AppShell({ children }: PropsWithChildren) {
           <Link className="brand" href="/app">
             {process.env.NEXT_PUBLIC_APP_NAME ?? 'SST Inteligente'}
           </Link>
-          <nav className="focus-dim" aria-label="Navegación de la aplicación">
+          <nav
+            className="focus-dim focus-decorative-motion"
+            aria-label="Navegación de la aplicación"
+          >
             <Link href="/app">Resumen</Link>
             <Link href="/app/inspections">Inspecciones</Link>
             <Link href="/app/technical-risk">Riesgo técnico</Link>

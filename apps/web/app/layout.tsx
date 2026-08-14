@@ -20,6 +20,7 @@ const plexMono = IBM_Plex_Mono({
   variable: '--font-plex-mono',
   weight: ['400', '500', '600'],
   subsets: ['latin', 'latin-ext'],
+  preload: false,
   display: 'swap',
   fallback: ['ui-monospace', 'monospace'],
 });

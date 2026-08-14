@@ -23,8 +23,20 @@ export function isAuthenticatedSurface(pathname: string): boolean {
 }
 
 export function appearanceFocusScope(pathname: string): string {
-  if (pathname.startsWith('/app/inspections')) return 'inspections';
-  if (pathname.startsWith('/app/technical-risk')) return 'technical-risk';
+  const segments = pathname.split('/').filter(Boolean);
+
+  if (segments[0] === 'app' && segments[1] === 'inspections') {
+    if (segments.length === 5 && segments[3] === 'findings') return 'finding';
+    if (segments.length === 3 && segments[2] !== 'alerts' && segments[2] !== 'analytics') {
+      return 'inspection';
+    }
+  }
+
+  if (segments[0] === 'app' && segments[1] === 'technical-risk') {
+    if (segments.length === 4 && segments[3] === 'review') return 'professional-review';
+    if (segments.length === 3) return 'technical-assessment';
+  }
+
   return 'workspace';
 }
 
@@ -126,11 +138,15 @@ export const appearanceBootstrapScript = `
         const userKey = encodeURIComponent(userId);
         const storedTheme = window.localStorage.getItem('sst:appearance:user:' + userKey + ':theme');
         if (['operativo', 'sereno', 'noche', 'contraste'].includes(storedTheme)) theme = storedTheme;
-        const scope = path.startsWith('/app/inspections')
-          ? 'inspections'
-          : path.startsWith('/app/technical-risk')
-            ? 'technical-risk'
-            : 'workspace';
+        const segments = path.split('/').filter(Boolean);
+        let scope = 'workspace';
+        if (segments[0] === 'app' && segments[1] === 'inspections') {
+          if (segments.length === 5 && segments[3] === 'findings') scope = 'finding';
+          else if (segments.length === 3 && segments[2] !== 'alerts' && segments[2] !== 'analytics') scope = 'inspection';
+        } else if (segments[0] === 'app' && segments[1] === 'technical-risk') {
+          if (segments.length === 4 && segments[3] === 'review') scope = 'professional-review';
+          else if (segments.length === 3) scope = 'technical-assessment';
+        }
         if (window.localStorage.getItem('sst:appearance:user:' + userKey + ':focus:' + scope) === 'on') focus = 'on';
       }
     } catch {}
