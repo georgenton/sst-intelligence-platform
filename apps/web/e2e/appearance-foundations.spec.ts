@@ -41,8 +41,11 @@ test('theme, no-flash reload, focus scope, public forcing and user isolation', a
   await page.getByLabel('Sector').fill('Manufactura');
   await page.getByRole('button', { name: 'Crear organización' }).click();
   await expect(page.getByText('Organización creada correctamente.')).toBeVisible();
-  await page.getByRole('link', { name: 'Resumen', exact: true }).click();
-  await expect(page.getByRole('heading', { name: `Fundaciones visuales ${suffix}` })).toBeVisible();
+  await page.getByRole('link', { name: 'Inicio', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Centro de comando' })).toBeVisible();
+  await expect(
+    page.getByText(`Fundaciones visuales ${suffix}`, { exact: true }).first(),
+  ).toBeVisible();
 
   for (const visualTheme of ['operativo', 'sereno', 'noche', 'contraste']) {
     await page.getByLabel('Tema visual').selectOption(visualTheme);
@@ -57,6 +60,17 @@ test('theme, no-flash reload, focus scope, public forcing and user isolation', a
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
     .toBe(true);
+  await expect(page.getByLabel('Organización activa')).toBeVisible();
+  await expect(page.getByLabel('Tema visual')).toBeVisible();
+  await expect(page.getByRole('switch', { name: /Enfoque/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Salir' })).toBeVisible();
+  await page.getByRole('button', { name: 'Abrir navegación' }).click();
+  await expect(page.getByRole('link', { name: 'Inicio', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Cerrar navegación' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
+  await page.getByRole('button', { name: 'Cerrar navegación' }).click();
   await page.screenshot({ path: testInfo.outputPath('dashboard-320px.png'), fullPage: true });
   await page.setViewportSize({ width: 640, height: 720 });
   await expect

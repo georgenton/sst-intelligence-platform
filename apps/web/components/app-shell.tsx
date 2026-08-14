@@ -18,7 +18,8 @@ import {
 } from '@/lib/active-organization-storage';
 import { isolateOrganizationTransition, planOrganizationReconciliation } from '@/lib/query-cache';
 import { queryKeys } from '@/lib/query-keys';
-import { AppearanceControls } from './appearance-provider';
+import { AppSidebar } from './app-sidebar';
+import { AppTopbar } from './app-topbar';
 import { useAuth } from './auth-provider';
 
 type Organization = {
@@ -168,66 +169,39 @@ export function AppShell({ children }: PropsWithChildren) {
     );
   return (
     <OrganizationContext.Provider value={context}>
+      <a className="skip-link" href="#main-content">
+        Saltar al contenido principal
+      </a>
       <div className="app-layout">
-        <aside className="sidebar">
-          <Link className="brand" href="/app">
-            {process.env.NEXT_PUBLIC_APP_NAME ?? 'SST Inteligente'}
-          </Link>
-          <nav
-            className="focus-dim focus-decorative-motion"
-            aria-label="Navegación de la aplicación"
-          >
-            <Link href="/app">Resumen</Link>
-            <Link href="/app/inspections">Inspecciones</Link>
-            <Link href="/app/technical-risk">Riesgo técnico</Link>
-            <Link href="/app/modules">Módulos</Link>
-            <Link href="/app/organizations">Organizaciones</Link>
-            <Link href="/app/settings/organization">Empresa</Link>
-            <Link href="/app/settings/members">Miembros</Link>
-            <Link href="/app/billing">Plan</Link>
-            <Link href="/app/demo">Demo</Link>
-          </nav>
-        </aside>
+        <AppSidebar pathname={pathname} />
         <div className="app-main">
-          <header className="app-topbar">
-            <div>
-              <strong>Organización activa</strong>
-              <br />
-              <span className="muted">{current?.memberships[0]?.role ?? 'Sin organización'}</span>
-            </div>
-            <select
-              className="org-select"
-              aria-label="Organización activa"
-              value={transitioning ? '' : (activeId ?? '')}
-              disabled={transitioning}
-              aria-busy={transitioning}
-              onChange={(event) => void setActiveId(event.target.value)}
-            >
-              <option value="">Selecciona una organización</option>
-              {(organizations.data ?? []).map((organization) => (
-                <option value={organization.id} key={organization.id}>
-                  {organization.name}
-                </option>
-              ))}
-            </select>
-            <AppearanceControls />
-            <button
-              className="button secondary"
-              onClick={() => auth.logout().then(() => router.push('/'))}
-            >
-              Salir
-            </button>
-          </header>
-          {demoActive && (
+          <AppTopbar
+            activeId={activeId}
+            currentName={transitioning ? 'Cambiando organización…' : current?.name}
+            currentRole={transitioning ? undefined : current?.memberships[0]?.role}
+            organizations={organizations.data ?? []}
+            transitioning={transitioning}
+            onOrganizationChange={(id) => void setActiveId(id)}
+            onLogout={() => void auth.logout().then(() => router.push('/'))}
+          />
+          {demoActive && !transitioning && (
             <div className="demo-banner" role="status">
-              Demostración conceptual activa
-              {current.demoExpiresAt
-                ? ` hasta ${new Date(current.demoExpiresAt).toLocaleDateString('es')}`
-                : ''}
-              . Los datos son sintéticos.
+              <span>
+                Demostración conceptual activa
+                {current.demoExpiresAt
+                  ? ` hasta ${new Date(current.demoExpiresAt).toLocaleDateString('es')}`
+                  : ''}
+                . Los datos son sintéticos.
+              </span>
+              <Link href="/app/demo">Ver detalles</Link>
             </div>
           )}
-          <main className="app-content focus-task" aria-busy={transitioning}>
+          <main
+            id="main-content"
+            className="app-content focus-task"
+            aria-busy={transitioning}
+            tabIndex={-1}
+          >
             {transitioning ? (
               <p role="status" aria-live="polite">
                 Cambiando organización…

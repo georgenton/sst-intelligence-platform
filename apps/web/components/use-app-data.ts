@@ -33,6 +33,12 @@ export type DashboardData = {
     demoActive: boolean;
     demoExpiresAt?: string;
   };
+  inspections: null | {
+    openFindings: number;
+    highCriticalFindings: number;
+    overdueActions: number;
+    recurrences: number;
+  };
 };
 
 export function useDashboardData() {

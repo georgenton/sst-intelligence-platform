@@ -90,7 +90,10 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await expect(page.getByRole('heading', { name: 'Operación en campo' })).toBeVisible();
   await Promise.all([
     page.waitForURL('/app/inspections/alerts'),
-    page.getByRole('link', { name: 'Alertas', exact: true }).click(),
+    page
+      .getByRole('navigation', { name: 'Navegación principal' })
+      .getByRole('link', { name: 'Alertas', exact: true })
+      .click(),
   ]);
   await expect(page.getByRole('heading', { name: 'Alertas' })).toBeVisible();
   await expect(
