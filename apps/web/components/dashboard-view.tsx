@@ -3,6 +3,7 @@
 import { Card, StatusBadge } from '@sst/ui';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { resolveAsyncCollectionState, resolveAttentionState } from '@/lib/command-center-state';
 import { queryKeys } from '@/lib/query-keys';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
@@ -246,16 +247,33 @@ export function DashboardView() {
       data.inspections.overdueActions +
       data.inspections.recurrences
     : 0;
-  const completedAssessments =
-    technicalRisk.data?.items.filter((item) => item.status === 'COMPLETED').slice(0, 3) ?? [];
-  const drafts =
-    technicalRisk.data?.items
-      .filter((item) => item.status === 'DRAFT' || item.status === 'IN_PROGRESS')
-      .slice(0, 3) ?? [];
-  const hasAttention =
-    inspectionAttentionCount > 0 ||
-    completedAssessments.length > 0 ||
-    Boolean(alerts.data?.items.length);
+  const technicalRiskItems = technicalRiskEnabled ? (technicalRisk.data?.items ?? []) : [];
+  const completedAssessments = technicalRiskItems
+    .filter((item) => item.status === 'COMPLETED')
+    .slice(0, 3);
+  const drafts = technicalRiskItems
+    .filter((item) => item.status === 'DRAFT' || item.status === 'IN_PROGRESS')
+    .slice(0, 3);
+  const alertItems = inspectionsEnabled ? (alerts.data?.items ?? []) : [];
+  const alertsState = resolveAsyncCollectionState({
+    enabled: inspectionsEnabled,
+    status: alerts.status,
+    itemCount: alertItems.length,
+  });
+  const technicalRiskAttentionState = resolveAsyncCollectionState({
+    enabled: technicalRiskEnabled,
+    status: technicalRisk.status,
+    itemCount: completedAssessments.length,
+  });
+  const technicalRiskProgressState = resolveAsyncCollectionState({
+    enabled: technicalRiskEnabled,
+    status: technicalRisk.status,
+    itemCount: drafts.length,
+  });
+  const attention = resolveAttentionState({
+    knownAttentionCount: inspectionAttentionCount + completedAssessments.length + alertItems.length,
+    sourceStates: [alertsState, technicalRiskAttentionState],
+  });
 
   return (
     <div className="command-center">
@@ -371,21 +389,27 @@ export function DashboardView() {
               ))}
             </div>
           )}
-          {!hasAttention && (
+          {attention.sourcesLoading && <p role="status">Comprobando señales adicionales…</p>}
+          {attention.showEmpty && (
             <Card className="command-empty-state">
               <h3>Sin elementos que requieran atención hoy</h3>
               <p>Los indicadores disponibles no reportan asuntos activos en este momento.</p>
             </Card>
           )}
-          {alerts.isError && (
+          {alertsState === 'error' && (
             <p className="command-section-error" role="alert">
-              Las alertas detalladas no están disponibles. Puedes abrir el módulo para reintentar.
+              No pudimos comprobar las alertas detalladas. Puedes abrir el módulo para reintentar.
             </p>
           )}
-          {alerts.data?.items.length ? (
+          {technicalRiskAttentionState === 'error' && (
+            <p className="command-section-error" role="alert">
+              No pudimos comprobar las evaluaciones técnicas para esta sección.
+            </p>
+          )}
+          {alertItems.length > 0 ? (
             <div className="command-alerts">
               <h3>Alertas abiertas</h3>
-              {alerts.data.items.slice(0, 3).map((alert) => (
+              {alertItems.slice(0, 3).map((alert) => (
                 <Link
                   href={`/app/inspections/${alert.finding.inspection.id}/findings/${alert.finding.id}`}
                   className="command-alert-link"
@@ -401,37 +425,47 @@ export function DashboardView() {
           ) : null}
         </CommandSection>
 
-        <CommandSection title="En progreso" description="Trabajo real que puede continuarse ahora.">
-          {technicalRisk.isError && technicalRiskEnabled && (
-            <p className="command-section-error" role="alert">
-              No pudimos cargar las evaluaciones técnicas.
-            </p>
-          )}
-          {drafts.length > 0 ? (
-            <div className="command-progress-list">
-              {drafts.map((assessment) => (
-                <Link href={`/app/technical-risk/${assessment.id}`} key={assessment.id}>
-                  <span>
-                    <StatusBadge>
-                      {assessment.status === 'DRAFT' ? 'Borrador' : 'En progreso'}
-                    </StatusBadge>
-                    <strong>{assessment.title}</strong>
-                    <small>{assessment.workCenter.name}</small>
-                  </span>
-                  <span aria-hidden="true">Continuar →</span>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <Card className="command-empty-state">
-              <h3>Sin evaluaciones en curso</h3>
-              <p>No hay borradores o evaluaciones técnicas en progreso disponibles.</p>
-              {technicalRiskEnabled && (
+        {technicalRiskEnabled && (
+          <CommandSection
+            title="En progreso"
+            description="Trabajo real que puede continuarse ahora."
+          >
+            {technicalRiskProgressState === 'loading' && (
+              <Card className="command-empty-state" role="status">
+                <h3>Comprobando evaluaciones en curso…</h3>
+                <p>Estamos consultando el trabajo disponible para esta organización.</p>
+              </Card>
+            )}
+            {technicalRiskProgressState === 'error' && (
+              <p className="command-section-error" role="alert">
+                No pudimos cargar las evaluaciones técnicas.
+              </p>
+            )}
+            {technicalRiskProgressState === 'success-with-data' && (
+              <div className="command-progress-list">
+                {drafts.map((assessment) => (
+                  <Link href={`/app/technical-risk/${assessment.id}`} key={assessment.id}>
+                    <span>
+                      <StatusBadge>
+                        {assessment.status === 'DRAFT' ? 'Borrador' : 'En progreso'}
+                      </StatusBadge>
+                      <strong>{assessment.title}</strong>
+                      <small>{assessment.workCenter.name}</small>
+                    </span>
+                    <span aria-hidden="true">Continuar →</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+            {technicalRiskProgressState === 'success-empty' && (
+              <Card className="command-empty-state">
+                <h3>Sin evaluaciones en curso</h3>
+                <p>No hay borradores o evaluaciones técnicas en progreso disponibles.</p>
                 <Link href="/app/technical-risk/new">Nueva evaluación →</Link>
-              )}
-            </Card>
-          )}
-        </CommandSection>
+              </Card>
+            )}
+          </CommandSection>
+        )}
       </div>
 
       <CommandSection
