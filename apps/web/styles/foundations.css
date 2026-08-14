@@ -1,0 +1,230 @@
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--surface-page);
+}
+
+body {
+  margin: 0;
+  color: var(--text-primary);
+  background: var(--surface-page);
+  font-family: var(--font-core);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  outline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus-ring);
+}
+
+input,
+select,
+textarea,
+.field input,
+.field select,
+.field textarea {
+  border-color: var(--border-interactive);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-grid strong,
+.big-number,
+.risk-badge {
+  font-variant-numeric: tabular-nums;
+}
+
+.app-layout,
+.app-main,
+.app-topbar,
+.app-content,
+.sidebar,
+.card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.appearance-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.appearance-controls legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.theme-control {
+  display: grid;
+  gap: 2px;
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+}
+
+.theme-control select {
+  min-height: 36px;
+  max-width: 160px;
+  padding: 5px 30px 5px 9px;
+  border: 1px solid var(--border-interactive);
+  border-radius: var(--radius-control);
+  color: var(--text-primary);
+  background: var(--surface-card);
+}
+
+.focus-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 5px 11px;
+  border: 1px solid var(--border-interactive);
+  border-radius: var(--radius-pill);
+  color: var(--text-primary);
+  background: var(--surface-card);
+  font-size: var(--text-body-sm);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.focus-switch[aria-checked='true'] {
+  border-color: var(--interactive-primary);
+  background: var(--focus-active-surface);
+}
+
+.risk-badge {
+  align-items: center;
+  gap: 7px;
+  color: var(--risk-unknown-fg);
+  background: var(--risk-unknown-bg);
+  border-color: var(--risk-unknown-border);
+}
+
+.risk-badge::before {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  background: currentColor;
+  content: '';
+}
+
+.risk-low {
+  color: var(--risk-low-fg);
+  background: var(--risk-low-bg);
+  border-color: var(--risk-low-border);
+}
+
+.risk-low::before {
+  border-radius: 50%;
+}
+
+.risk-moderate {
+  color: var(--risk-moderate-fg);
+  background: var(--risk-moderate-bg);
+  border-color: var(--risk-moderate-border);
+}
+
+.risk-moderate::before {
+  transform: rotate(45deg);
+}
+
+.risk-high {
+  color: var(--risk-high-fg);
+  background: var(--risk-high-bg);
+  border-color: var(--risk-high-border);
+}
+
+.risk-high::before {
+  width: 0;
+  height: 0;
+  background: transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 9px solid currentColor;
+  border-left: 5px solid transparent;
+}
+
+.risk-critical {
+  color: var(--risk-critical-fg);
+  background: var(--risk-critical-bg);
+  border-color: var(--risk-critical-border);
+}
+
+.status-badge {
+  color: var(--status-success-fg);
+  background: var(--status-success-bg);
+  border: 1px solid var(--status-success-border);
+}
+
+@media (max-width: 1060px) {
+  .app-topbar {
+    flex-wrap: wrap;
+  }
+
+  .appearance-controls {
+    order: 3;
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .app-topbar {
+    padding-inline: var(--space-4);
+  }
+
+  .app-topbar > *,
+  .org-select,
+  .app-topbar > .button {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .sidebar {
+    max-width: 100vw;
+  }
+
+  .appearance-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .theme-control select,
+  .focus-switch {
+    width: 100%;
+    max-width: none;
+    min-height: var(--target-min);
+  }
+}

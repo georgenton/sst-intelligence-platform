@@ -1,18 +1,5 @@
 @import 'tailwindcss';
 
-:root {
-  --ink: #13261f;
-  --muted: #60716a;
-  --surface: #ffffff;
-  --canvas: #f3f7f4;
-  --line: #dbe6df;
-  --brand: #167c5a;
-  --brand-dark: #0d593f;
-  --accent: #d7f3e7;
-  --warning: #fff3cf;
-  --danger: #b42318;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -23,7 +10,7 @@ body {
   margin: 0;
   color: var(--ink);
   background: var(--canvas);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-core);
 }
 a {
   color: inherit;
@@ -43,7 +30,7 @@ textarea {
   outline-offset: 3px;
 }
 :focus-visible {
-  outline: 3px solid #56b894;
+  outline: 3px solid var(--focus-ring);
 }
 .container {
   width: min(1120px, calc(100% - 32px));
@@ -58,7 +45,7 @@ textarea {
   border-radius: 10px;
   padding: 10px 18px;
   background: var(--brand);
-  color: white;
+  color: var(--interactive-primary-text);
   font-weight: 700;
   cursor: pointer;
 }
@@ -70,7 +57,7 @@ textarea {
   cursor: not-allowed;
 }
 .button.secondary {
-  background: white;
+  background: var(--interactive-secondary);
   color: var(--ink);
   border: 1px solid var(--line);
 }
@@ -79,7 +66,7 @@ textarea {
   border-radius: 16px;
   background: var(--surface);
   padding: 22px;
-  box-shadow: 0 8px 24px rgb(24 64 49 / 5%);
+  box-shadow: var(--shadow-card);
 }
 .status-badge {
   display: inline-flex;
@@ -103,10 +90,10 @@ textarea {
 .field select,
 .field textarea {
   min-height: 44px;
-  border: 1px solid #bdcbc3;
+  border: 1px solid var(--border-interactive);
   border-radius: 9px;
   padding: 9px 11px;
-  background: white;
+  background: var(--surface-card);
 }
 .field-error {
   color: var(--danger);
@@ -151,7 +138,7 @@ h2 {
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--line);
-  background: rgb(255 255 255 / 92%);
+  background: var(--surface-card);
 }
 .site-header-inner {
   display: flex;
@@ -184,8 +171,8 @@ h2 {
   line-height: 1.6;
 }
 .hero-panel {
-  background: var(--ink);
-  color: white;
+  background: var(--surface-inverse);
+  color: var(--text-inverse);
   border-radius: 24px;
   padding: 30px;
 }
@@ -196,8 +183,8 @@ h2 {
 }
 .sidebar {
   padding: 24px;
-  background: #10281f;
-  color: white;
+  background: var(--surface-inverse);
+  color: var(--text-inverse);
   display: flex;
   flex-direction: column;
   gap: 28px;
@@ -209,11 +196,11 @@ h2 {
 .sidebar nav a {
   padding: 10px 12px;
   border-radius: 8px;
-  color: #d9e9e1;
+  color: var(--text-inverse-muted);
 }
 .sidebar nav a:hover {
-  background: #1d4033;
-  color: white;
+  background: var(--surface-inverse-hover);
+  color: var(--text-inverse);
 }
 .app-main {
   min-width: 0;
@@ -225,7 +212,7 @@ h2 {
   align-items: center;
   gap: 16px;
   border-bottom: 1px solid var(--line);
-  background: white;
+  background: var(--surface-card);
 }
 .org-select {
   max-width: 280px;
@@ -237,7 +224,8 @@ h2 {
 .demo-banner {
   padding: 10px 24px;
   background: var(--warning);
-  border-bottom: 1px solid #ecd992;
+  border-bottom: 1px solid var(--demo-banner-border);
+  color: var(--demo-banner-fg);
   font-size: 14px;
 }
 .app-content {
@@ -256,7 +244,7 @@ h2 {
 .progress-track {
   height: 9px;
   border-radius: 999px;
-  background: #dce7e1;
+  background: var(--border-subtle);
   overflow: hidden;
 }
 .progress-bar {
@@ -275,7 +263,7 @@ h2 {
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 9px;
-  background: white;
+  background: var(--surface-card);
 }
 .check input {
   margin-top: 3px;
@@ -329,7 +317,7 @@ h2 {
   display: grid;
   gap: 3px;
   padding: 14px 16px;
-  border: 1px solid #ecd992;
+  border: 1px solid var(--demo-banner-border);
   border-radius: 12px;
   background: var(--warning);
   font-size: 14px;
@@ -374,24 +362,26 @@ h2 {
   padding: 6px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: white;
+  background: var(--surface-card);
   font-size: 13px;
   font-weight: 800;
 }
 .risk-low {
-  border-color: #79b895;
+  border-color: var(--risk-low-border);
 }
 .risk-moderate {
-  border-color: #d6ac3d;
+  border-color: var(--risk-moderate-border);
 }
-.risk-high,
-.risk-critical,
 .overdue-chip {
-  border-color: var(--danger);
+  color: var(--status-danger-fg);
+  background: var(--status-danger-bg);
+  border-color: var(--status-danger-border);
 }
 .demo-chip {
   margin-left: 8px;
-  border-color: #8d73c7;
+  color: var(--demo-fg);
+  background: var(--demo-bg);
+  border-color: var(--demo-border);
 }
 .scale-field {
   margin: 0;

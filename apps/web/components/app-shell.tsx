@@ -16,11 +16,9 @@ import {
   resolveStoredActiveOrganization,
   storeActiveOrganization,
 } from '@/lib/active-organization-storage';
-import {
-  isolateOrganizationTransition,
-  planOrganizationReconciliation,
-} from '@/lib/query-cache';
+import { isolateOrganizationTransition, planOrganizationReconciliation } from '@/lib/query-cache';
 import { queryKeys } from '@/lib/query-keys';
+import { AppearanceControls } from './appearance-provider';
 import { useAuth } from './auth-provider';
 
 type Organization = {
@@ -101,22 +99,17 @@ export function AppShell({ children }: PropsWithChildren) {
     }
     setContextNotice(null);
     setTransitionTarget(reconciliation.organizationId);
-    void isolateOrganizationTransition(
-      queryClient,
-      activeId,
-      reconciliation.organizationId,
-      () => {
-        setActiveIdState(reconciliation.organizationId);
-        if (reconciliation.organizationId)
-          storeActiveOrganization(
-            window.localStorage,
-            userId,
-            reconciliation.organizationId,
-            validIds,
-          );
-        else clearStoredActiveOrganization(window.localStorage, userId);
-      },
-    ).catch(() => setTransitionTarget(undefined));
+    void isolateOrganizationTransition(queryClient, activeId, reconciliation.organizationId, () => {
+      setActiveIdState(reconciliation.organizationId);
+      if (reconciliation.organizationId)
+        storeActiveOrganization(
+          window.localStorage,
+          userId,
+          reconciliation.organizationId,
+          validIds,
+        );
+      else clearStoredActiveOrganization(window.localStorage, userId);
+    }).catch(() => setTransitionTarget(undefined));
   }, [activeId, contextUserId, organizations.data, queryClient, transitionTarget, userId]);
 
   useEffect(() => {
@@ -180,7 +173,10 @@ export function AppShell({ children }: PropsWithChildren) {
           <Link className="brand" href="/app">
             {process.env.NEXT_PUBLIC_APP_NAME ?? 'SST Inteligente'}
           </Link>
-          <nav aria-label="Navegación de la aplicación">
+          <nav
+            className="focus-dim focus-decorative-motion"
+            aria-label="Navegación de la aplicación"
+          >
             <Link href="/app">Resumen</Link>
             <Link href="/app/inspections">Inspecciones</Link>
             <Link href="/app/technical-risk">Riesgo técnico</Link>
@@ -214,6 +210,7 @@ export function AppShell({ children }: PropsWithChildren) {
                 </option>
               ))}
             </select>
+            <AppearanceControls />
             <button
               className="button secondary"
               onClick={() => auth.logout().then(() => router.push('/'))}
@@ -230,7 +227,7 @@ export function AppShell({ children }: PropsWithChildren) {
               . Los datos son sintéticos.
             </div>
           )}
-          <main className="app-content" aria-busy={transitioning}>
+          <main className="app-content focus-task" aria-busy={transitioning}>
             {transitioning ? (
               <p role="status" aria-live="polite">
                 Cambiando organización…

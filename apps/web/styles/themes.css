@@ -1,0 +1,221 @@
+[data-theme='operativo'] {
+  color-scheme: light;
+  --surface-page: #f2f5f4;
+  --surface-card: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e9eeec;
+  --surface-inverse: #14211d;
+  --surface-selected: #e6f4ee;
+  --border-subtle: #e3e9e6;
+  --border-default: #cdd8d3;
+  --border-strong: #aebbb5;
+  --border-interactive: #75877f;
+  --text-primary: #13211c;
+  --text-secondary: #4b5a54;
+  --text-tertiary: #5a6a63;
+  --text-link: #0f6a4c;
+  --interactive-primary: #167c5a;
+  --interactive-primary-hover: #0d593f;
+  --interactive-primary-text: #ffffff;
+  --interactive-secondary: #ffffff;
+  --interactive-secondary-hover: #eff3f1;
+  --interactive-secondary-text: #13211c;
+  --interactive-disabled-bg: #eff3f1;
+  --interactive-disabled-text: #5a6a63;
+  --focus-ring: #0f6a4c;
+  --focus-active-surface: #e6f4ee;
+  --risk-low-border: #2f9c72;
+  --risk-moderate-border: #a8790a;
+}
+
+[data-theme='sereno'] {
+  color-scheme: light;
+  --surface-page: #faf8f6;
+  --surface-card: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f2eef1;
+  --surface-inverse: #2a2433;
+  --surface-selected: #efeafa;
+  --border-subtle: #ece6ea;
+  --border-default: #ddd4dc;
+  --border-strong: #b3a7b6;
+  --border-interactive: #7a6f80;
+  --text-primary: #241f2b;
+  --text-secondary: #544c5d;
+  --text-tertiary: #6f6878;
+  --text-link: #4a3781;
+  --interactive-primary: #55418f;
+  --interactive-primary-hover: #3f2f6e;
+  --interactive-primary-text: #ffffff;
+  --interactive-secondary: #ffffff;
+  --interactive-secondary-hover: #f5f1f7;
+  --interactive-secondary-text: #241f2b;
+  --interactive-disabled-bg: #f2eef1;
+  --interactive-disabled-text: #6f6878;
+  --focus-ring: #55418f;
+  --focus-active-surface: #efeafa;
+  --risk-low-bg: #e9f3ed;
+  --risk-low-border: #2f9c72;
+  --risk-moderate-bg: #fbf2dd;
+  --risk-moderate-border: #a8790a;
+  --risk-high-bg: #fbeade;
+  --risk-critical-bg: #fbeae9;
+  --demo-bg: #efeafa;
+  --demo-border: #55418f;
+  --demo-fg: #3f2f6e;
+  --status-neutral-bg: #f2eef1;
+  --status-neutral-border: #ddd4dc;
+  --status-neutral-fg: #544c5d;
+}
+
+[data-theme='noche'] {
+  color-scheme: dark;
+  --surface-page: #101a17;
+  --surface-card: #17231f;
+  --surface-raised: #1e2c27;
+  --surface-sunken: #0c1411;
+  --surface-inverse: #060d0b;
+  --surface-selected: #123024;
+  --border-subtle: #24332d;
+  --border-default: #33453d;
+  --border-strong: #4f675c;
+  --border-interactive: #6d857b;
+  --border-inverse: #ffffff26;
+  --text-primary: #e8f0ec;
+  --text-secondary: #aabbb4;
+  --text-tertiary: #8a9c95;
+  --text-inverse: #e8f0ec;
+  --text-inverse-muted: #aabbb4;
+  --text-link: #5fd0a3;
+  --interactive-primary: #2a9873;
+  --interactive-primary-hover: #38b98c;
+  --interactive-primary-text: #04120c;
+  --interactive-secondary: #1e2c27;
+  --interactive-secondary-hover: #26362f;
+  --interactive-secondary-text: #e8f0ec;
+  --interactive-disabled-bg: #1a2622;
+  --interactive-disabled-text: #849890;
+  --focus-ring: #7fd3b1;
+  --focus-active-surface: #123024;
+  --risk-low-bg: #10291d;
+  --risk-low-border: #3f9f74;
+  --risk-low-fg: #8fe0b8;
+  --risk-moderate-bg: #2c2413;
+  --risk-moderate-border: #c99b36;
+  --risk-moderate-fg: #f0c96a;
+  --risk-high-bg: #301c11;
+  --risk-high-border: #d4763a;
+  --risk-high-fg: #f4a978;
+  --risk-critical-bg: #331716;
+  --risk-critical-border: #dd5a4f;
+  --risk-critical-fg: #ff9d93;
+  --risk-unknown-bg: #1a2723;
+  --risk-unknown-border: #4f675c;
+  --risk-unknown-fg: #aabbb4;
+  --status-success-bg: #10291d;
+  --status-success-border: #3f9f74;
+  --status-success-fg: #8fe0b8;
+  --status-warning-bg: #2c2413;
+  --status-warning-border: #c99b36;
+  --status-warning-fg: #f0c96a;
+  --status-danger-bg: #331716;
+  --status-danger-border: #dd5a4f;
+  --status-danger-fg: #ff9d93;
+  --status-info-bg: #122431;
+  --status-info-border: #4a86c9;
+  --status-info-fg: #9cc7f2;
+  --status-neutral-bg: #1a2723;
+  --status-neutral-border: #33453d;
+  --status-neutral-fg: #aabbb4;
+  --demo-bg: #221c33;
+  --demo-border: #8f7ce0;
+  --demo-fg: #c9bcf7;
+  --demo-banner-bg: #2c2513;
+  --demo-banner-border: #6b5a1f;
+  --demo-banner-fg: #f0d98a;
+  --entitlement-bg: #1a2723;
+  --entitlement-border: #33453d;
+  --entitlement-fg: #aabbb4;
+  --shadow-card: 0 1px 0 rgb(0 0 0 / 40%);
+  --shadow-raised: 0 8px 22px rgb(0 0 0 / 45%);
+  --shadow-overlay: 0 20px 52px rgb(0 0 0 / 60%);
+}
+
+[data-theme='contraste'] {
+  color-scheme: light;
+  --surface-page: #ffffff;
+  --surface-card: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f0f0f0;
+  --surface-inverse: #000000;
+  --surface-selected: #e3efe9;
+  --border-subtle: #767676;
+  --border-default: #000000;
+  --border-strong: #000000;
+  --border-interactive: #000000;
+  --text-primary: #000000;
+  --text-secondary: #2b2b2b;
+  --text-tertiary: #3d3d3d;
+  --text-link: #00432f;
+  --interactive-primary: #00563c;
+  --interactive-primary-hover: #003a28;
+  --interactive-primary-text: #ffffff;
+  --interactive-secondary: #ffffff;
+  --interactive-secondary-hover: #e8e8e8;
+  --interactive-secondary-text: #000000;
+  --interactive-disabled-bg: #e8e8e8;
+  --interactive-disabled-text: #4a4a4a;
+  --focus-ring: #000000;
+  --focus-active-surface: #e3efe9;
+  --risk-low-bg: #ffffff;
+  --risk-low-border: #00563c;
+  --risk-low-fg: #00402c;
+  --risk-moderate-bg: #ffffff;
+  --risk-moderate-border: #7a5200;
+  --risk-moderate-fg: #5c3e00;
+  --risk-high-bg: #ffffff;
+  --risk-high-border: #8a3b00;
+  --risk-high-fg: #7a3400;
+  --risk-critical-bg: #ffffff;
+  --risk-critical-border: #9a0000;
+  --risk-critical-fg: #8a0000;
+  --risk-unknown-bg: #ffffff;
+  --risk-unknown-border: #3d3d3d;
+  --risk-unknown-fg: #2b2b2b;
+  --status-success-bg: #ffffff;
+  --status-success-border: #00563c;
+  --status-success-fg: #00402c;
+  --status-warning-bg: #ffffff;
+  --status-warning-border: #7a5200;
+  --status-warning-fg: #5c3e00;
+  --status-danger-bg: #ffffff;
+  --status-danger-border: #9a0000;
+  --status-danger-fg: #8a0000;
+  --status-info-bg: #ffffff;
+  --status-info-border: #00396b;
+  --status-info-fg: #00305c;
+  --status-neutral-bg: #ffffff;
+  --status-neutral-border: #000000;
+  --status-neutral-fg: #000000;
+  --demo-bg: #ffffff;
+  --demo-border: #3b2a7a;
+  --demo-fg: #33246b;
+  --demo-banner-bg: #fff6d6;
+  --demo-banner-border: #7a5200;
+  --demo-banner-fg: #4a3200;
+  --shadow-card: none;
+  --shadow-raised: none;
+}
+
+[data-theme='contraste'] .button,
+[data-theme='contraste'] .card,
+[data-theme='contraste'] .risk-badge,
+[data-theme='contraste'] .status-badge,
+[data-theme='contraste'] .method-notice {
+  border-width: 2px;
+}
+
+[data-theme='contraste'] :focus-visible {
+  outline-width: 4px;
+  outline-offset: 3px;
+}
