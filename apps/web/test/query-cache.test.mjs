@@ -44,6 +44,26 @@ test('query factories distinguish public, global, user and organization ownershi
     'org-a',
     'dashboard',
   ]);
+  assert.deepEqual(queryKeys.organization.inspectionList('org-a', 'page=1&pageSize=20'), [
+    'private',
+    'org',
+    'org-a',
+    'inspections',
+    'list',
+    'page=1&pageSize=20',
+  ]);
+  assert.deepEqual(queryKeys.organization.inspectionAlertList('org-a', 'status=OPEN'), [
+    'private',
+    'org',
+    'org-a',
+    'inspections',
+    'alerts',
+    'status=OPEN',
+  ]);
+  assert.deepEqual(
+    queryKeys.organization.inspectionAnalyticsSummary('org-a', 'workCenterId=center-a'),
+    ['private', 'org', 'org-a', 'inspections', 'analytics', 'workCenterId=center-a'],
+  );
   assert.equal(isPrivateQueryKey(queryKeys.global.moduleCatalog()), false);
   assert.equal(isPrivateQueryKey(queryKeys.user.organizations('user-a')), true);
 });
