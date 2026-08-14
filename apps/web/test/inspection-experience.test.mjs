@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  actionPrimaryLabel,
   actionPrimaryStep,
+  actionProgressMeta,
   activeFilterCount,
+  alertTypeLabel,
   apiQuery,
   canAcknowledgeInspectionAlerts,
   canCompleteCorrectiveAction,
@@ -84,4 +87,30 @@ test('presents the corrective action lifecycle without backward transitions', ()
   assert.equal(actionPrimaryStep('PENDING_VERIFICATION'), 'verify');
   assert.equal(actionPrimaryStep('COMPLETED'), null);
   assert.equal(actionPrimaryStep('CANCELED'), null);
+});
+
+test('distinguishes pending verification from verified completion in user-facing copy', () => {
+  const pending = actionProgressMeta(['PENDING_VERIFICATION']);
+  assert.deepEqual(pending, { label: 'Pendiente de verificación', state: 'current' });
+  assert.doesNotMatch(pending.label, /complet|cerrad|resuelt|finaliz/iu);
+  assert.deepEqual(actionProgressMeta(['COMPLETED']), {
+    label: 'Acción verificada',
+    state: 'done',
+  });
+  assert.equal(statusMeta('action', 'COMPLETED').label, 'Verificada');
+});
+
+test('labels the in-progress action CTA as a submission to verification', () => {
+  assert.equal(actionPrimaryLabel('OPEN'), 'Iniciar acción');
+  assert.equal(actionPrimaryLabel('IN_PROGRESS'), 'Enviar a verificación');
+  assert.equal(actionPrimaryLabel('PENDING_VERIFICATION'), 'Verificar riesgo residual');
+  assert.equal(actionPrimaryLabel('COMPLETED'), null);
+});
+
+test('maps every current inspection alert type explicitly and keeps unknown values neutral', () => {
+  assert.equal(alertTypeLabel('RECURRENCE'), 'Recurrencia');
+  assert.equal(alertTypeLabel('OVERDUE_ACTION'), 'Acción vencida');
+  assert.equal(alertTypeLabel('HIGH_RESIDUAL_RISK'), 'Riesgo residual alto o crítico');
+  assert.equal(alertTypeLabel('FUTURE_SIGNAL'), 'future signal');
+  assert.notEqual(alertTypeLabel('FUTURE_SIGNAL'), 'Riesgo residual alto o crítico');
 });

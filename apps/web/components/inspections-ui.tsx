@@ -9,7 +9,10 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import {
+  actionPrimaryLabel,
   actionPrimaryStep,
+  actionProgressMeta,
+  alertTypeLabel,
   apiQuery,
   canAcknowledgeInspectionAlerts,
   canCompleteCorrectiveAction,
@@ -241,10 +244,6 @@ function labelRecurrence(value: string): string {
       SYSTEMIC_REVIEW_RECOMMENDED: 'Revisión sistémica recomendada',
     }[value] ?? value
   );
-}
-
-function labelAlertType(value: string): string {
-  return value === 'RECURRENCE' ? 'Recurrencia' : 'Riesgo residual alto o crítico';
 }
 
 function useInspectionApi() {
@@ -1506,7 +1505,7 @@ export function FindingDetail({
       ),
     onSuccess: async () => {
       setNotice(
-        'Acción completada. Queda pendiente verificar el riesgo residual; el hallazgo no se considera resuelto.',
+        'Ejecución registrada. La acción queda pendiente de verificación del riesgo residual.',
       );
       await refreshFinding();
     },
@@ -1554,6 +1553,9 @@ export function FindingDetail({
     completeAction.isError ||
     addEvidence.isError ||
     verify.isError;
+  const actionProgress = actionProgressMeta(
+    finding.data?.actions.map((action) => action.status) ?? [],
+  );
 
   return (
     <AccessGate api={api}>
@@ -1663,8 +1665,8 @@ export function FindingDetail({
                       <>
                         <strong aria-label="Sin valor">—</strong>
                         <p>
-                          Pendiente de verificación. Completar la acción no verifica el riesgo
-                          residual.
+                          Pendiente de verificación. La ejecución registrada aún requiere verificar
+                          el riesgo residual.
                         </p>
                         <InspectionRiskBadge pending />
                       </>
@@ -1786,7 +1788,7 @@ export function FindingDetail({
                   <InspectionState
                     kind="empty"
                     title="No hay acciones todavía"
-                    description="Crea una acción para asignar el control, iniciar el trabajo y después completarlo."
+                    description="Crea una acción para asignar el control, iniciar el trabajo y enviarlo a verificación."
                   />
                 ) : (
                   <div className="inspection-action-list">
@@ -1827,7 +1829,11 @@ export function FindingDetail({
                                   {evidence.type === 'NOTE' ? (
                                     <span>{evidence.note}</span>
                                   ) : (
-                                    <a href={evidence.externalUrl} target="_blank" rel="noreferrer">
+                                    <a
+                                      href={evidence.externalUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
                                       Abrir enlace externo
                                     </a>
                                   )}
@@ -1943,7 +1949,7 @@ export function FindingDetail({
                                   })
                                 }
                               >
-                                Iniciar acción
+                                {actionPrimaryLabel(action.status)}
                               </button>
                             ) : null}
                             {nextStep === 'complete' && canComplete ? (
@@ -1953,20 +1959,20 @@ export function FindingDetail({
                                 disabled={completeAction.isPending}
                                 onClick={() => completeAction.mutate(action.id)}
                               >
-                                Completar acción
+                                {actionPrimaryLabel(action.status)}
                               </button>
                             ) : null}
                           </div>
                           {nextStep === 'complete' && !canComplete ? (
                             <p className="inspection-permission-inline">
                               {api.role === 'SST_TECHNICIAN'
-                                ? 'Tu rol SST_TECHNICIAN solo completa acciones asignadas a tu usuario. La API valida esta restricción.'
-                                : `Tu rol ${api.role ?? 'actual'} no puede completar esta acción.`}
+                                ? 'Tu rol SST_TECHNICIAN solo puede enviar a verificación acciones asignadas a tu usuario. La API valida esta restricción.'
+                                : `Tu rol ${api.role ?? 'actual'} no puede enviar esta acción a verificación.`}
                             </p>
                           ) : null}
                           {action.status === 'PENDING_VERIFICATION' ? (
                             <p className="inspection-invariant-note">
-                              Completar la acción no verifica el riesgo residual.
+                              El envío de la ejecución no verifica el riesgo residual.
                             </p>
                           ) : null}
                         </Card>
@@ -2010,19 +2016,7 @@ export function FindingDetail({
                   <li className={finding.data.actions.length ? 'done' : 'current'}>
                     Acción correctiva creada
                   </li>
-                  <li
-                    className={
-                      finding.data.actions.some((action) =>
-                        ['PENDING_VERIFICATION', 'COMPLETED'].includes(action.status),
-                      )
-                        ? 'done'
-                        : finding.data.actions.length
-                          ? 'current'
-                          : ''
-                    }
-                  >
-                    Acción completada
-                  </li>
+                  <li className={actionProgress.state}>{actionProgress.label}</li>
                   <li className={finding.data.residualScore ? 'done' : 'current'}>
                     Riesgo residual verificado
                   </li>
@@ -2062,7 +2056,7 @@ export function FindingDetail({
                   {finding.data.alerts.map((alert) => (
                     <div className="inspection-rail-alert" key={alert.id}>
                       <DomainStatusBadge domain="alert" status={alert.status} />
-                      <strong>{labelAlertType(alert.type)}</strong>
+                      <strong>{alertTypeLabel(alert.type)}</strong>
                       <p>{alert.message}</p>
                     </div>
                   ))}
@@ -2074,7 +2068,7 @@ export function FindingDetail({
           <InspectionDialog
             open={showVerify}
             title="Verificar riesgo residual"
-            description="Registra la probabilidad y la consecuencia observadas después de la acción. Esta verificación es independiente de completar la acción y queda asociada a tu usuario."
+            description="Registra la probabilidad y la consecuencia observadas después de la acción. El envío de la ejecución y esta verificación son etapas distintas; la verificación queda asociada a tu usuario."
             onClose={() => {
               if (!verify.isPending) setShowVerify(false);
             }}
@@ -2217,7 +2211,7 @@ export function InspectionAlerts({ filters = {} }: { filters?: InspectionAlertFi
                 <Card className="inspection-alert-card" key={alert.id}>
                   <div className="inspection-alert-topline">
                     <DomainStatusBadge domain="alert" status={alert.status} />
-                    <span>{labelAlertType(alert.type)}</span>
+                    <span>{alertTypeLabel(alert.type)}</span>
                     <span>{formatDate(alert.createdAt)}</span>
                   </div>
                   <h3>{alert.finding.title}</h3>

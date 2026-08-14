@@ -95,8 +95,9 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await expect(
     page.getByText('Protección aislada y revisada durante la prueba E2E.'),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Completar acción' }).click();
+  await page.getByRole('button', { name: 'Enviar a verificación' }).click();
   await expect(page.getByText('Pendiente de verificación').first()).toBeVisible();
+  await expect(page.getByText('Acción completada', { exact: true })).toHaveCount(0);
 
   await page.setViewportSize({ width: 320, height: 800 });
   await page.getByRole('switch', { name: 'Enfoque inactivo' }).click();

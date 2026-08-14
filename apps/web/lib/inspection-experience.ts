@@ -121,3 +121,38 @@ export function actionPrimaryStep(status: string): 'start' | 'complete' | 'verif
   if (status === 'PENDING_VERIFICATION') return 'verify';
   return null;
 }
+
+export function actionPrimaryLabel(status: string): string | null {
+  if (status === 'OPEN') return 'Iniciar acción';
+  if (status === 'IN_PROGRESS') return 'Enviar a verificación';
+  if (status === 'PENDING_VERIFICATION') return 'Verificar riesgo residual';
+  return null;
+}
+
+export function actionProgressMeta(statuses: readonly string[]): {
+  label: string;
+  state: '' | 'current' | 'done';
+} {
+  const activeStatuses = statuses.filter((status) => status !== 'CANCELED');
+  if (activeStatuses.length === 0) return { label: 'Ejecución por iniciar', state: '' };
+  if (activeStatuses.every((status) => status === 'COMPLETED'))
+    return { label: 'Acción verificada', state: 'done' };
+  if (activeStatuses.some((status) => status === 'PENDING_VERIFICATION'))
+    return { label: 'Pendiente de verificación', state: 'current' };
+  if (activeStatuses.some((status) => status === 'IN_PROGRESS'))
+    return { label: 'Ejecución en curso', state: 'current' };
+  return { label: 'Ejecución por iniciar', state: 'current' };
+}
+
+export type InspectionAlertType = 'RECURRENCE' | 'OVERDUE_ACTION' | 'HIGH_RESIDUAL_RISK';
+
+const ALERT_TYPE_LABELS: Record<InspectionAlertType, string> = {
+  RECURRENCE: 'Recurrencia',
+  OVERDUE_ACTION: 'Acción vencida',
+  HIGH_RESIDUAL_RISK: 'Riesgo residual alto o crítico',
+};
+
+export function alertTypeLabel(value: string): string {
+  if (value in ALERT_TYPE_LABELS) return ALERT_TYPE_LABELS[value as InspectionAlertType];
+  return value.replaceAll('_', ' ').toLocaleLowerCase('es');
+}
