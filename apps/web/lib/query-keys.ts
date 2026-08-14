@@ -39,14 +39,20 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'inspections', 'context'] as const,
     inspections: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'inspections', 'list'] as const,
+    inspectionList: (organizationId: string, filters: string) =>
+      [...privateRoot, 'org', organizationId, 'inspections', 'list', filters] as const,
     inspection: (organizationId: string, inspectionId: string) =>
       [...privateRoot, 'org', organizationId, 'inspections', 'detail', inspectionId] as const,
     finding: (organizationId: string, findingId: string) =>
       [...privateRoot, 'org', organizationId, 'findings', 'detail', findingId] as const,
     inspectionAlerts: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'inspections', 'alerts'] as const,
+    inspectionAlertList: (organizationId: string, filters: string) =>
+      [...privateRoot, 'org', organizationId, 'inspections', 'alerts', filters] as const,
     inspectionAnalytics: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'inspections', 'analytics'] as const,
+    inspectionAnalyticsSummary: (organizationId: string, filters: string) =>
+      [...privateRoot, 'org', organizationId, 'inspections', 'analytics', filters] as const,
     technicalRiskAssessments: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'technical-risk', 'assessments'] as const,
     technicalRiskMethods: (organizationId: string) =>

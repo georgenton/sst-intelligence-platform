@@ -1,4 +1,11 @@
-import { InspectionAlerts } from '@/components/inspections-ui';
-export default function Page() {
-  return <InspectionAlerts />;
+import { InspectionAlerts, type InspectionAlertFilters } from '@/components/inspections-ui';
+
+type SearchParams = Record<string, string | string[] | undefined>;
+
+export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const params = await searchParams;
+  const filters: InspectionAlertFilters = {
+    status: Array.isArray(params.status) ? params.status[0] : params.status,
+  };
+  return <InspectionAlerts filters={filters} />;
 }
