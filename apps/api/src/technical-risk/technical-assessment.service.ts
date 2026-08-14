@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -22,6 +23,11 @@ import type {
   UpdateTechnicalAssessmentDto,
 } from './dto';
 import { TechnicalCalculationRegistry } from './technical-calculation.registry';
+import {
+  TECHNICAL_ASSESSMENT_MUTATION_SYNC,
+  type TechnicalAssessmentMutationOperation,
+  type TechnicalAssessmentMutationSync,
+} from './technical-assessment-mutation-sync';
 import { TechnicalMethodService } from './technical-method.service';
 
 type Context = Pick<AuditEvent, 'requestId' | 'ip' | 'userAgent'>;
@@ -50,6 +56,8 @@ export class TechnicalAssessmentService {
     private readonly audit: AuditService,
     private readonly methods: TechnicalMethodService,
     private readonly calculations: TechnicalCalculationRegistry,
+    @Inject(TECHNICAL_ASSESSMENT_MUTATION_SYNC)
+    private readonly mutationSync: TechnicalAssessmentMutationSync,
   ) {}
 
   async list(organizationId: string) {
@@ -165,7 +173,13 @@ export class TechnicalAssessmentService {
 
   async update(organizationId: string, assessmentId: string, input: UpdateTechnicalAssessmentDto) {
     return this.prisma.$transaction(async (tx) => {
-      await this.claimEditableMutation(tx, organizationId, assessmentId, ['DRAFT', 'IN_PROGRESS']);
+      await this.claimEditableMutation(
+        tx,
+        organizationId,
+        assessmentId,
+        ['DRAFT', 'IN_PROGRESS'],
+        'UPDATE_ASSESSMENT',
+      );
       const current = await tx.technicalAssessment.findUniqueOrThrow({
         where: { id: assessmentId },
         select: { workCenterId: true, workAreaId: true },
@@ -228,7 +242,13 @@ export class TechnicalAssessmentService {
     context: Context,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      await this.claimEditableMutation(tx, organizationId, assessmentId, ['IN_PROGRESS']);
+      await this.claimEditableMutation(
+        tx,
+        organizationId,
+        assessmentId,
+        ['IN_PROGRESS'],
+        'UPSERT_RESPONSE',
+      );
       const assessment = await tx.technicalAssessment.findUniqueOrThrow({
         where: { id: assessmentId },
         select: { methodSnapshot: true },
@@ -288,7 +308,13 @@ export class TechnicalAssessmentService {
       });
     }
     return this.prisma.$transaction(async (tx) => {
-      await this.claimEditableMutation(tx, organizationId, assessmentId, ['DRAFT', 'IN_PROGRESS']);
+      await this.claimEditableMutation(
+        tx,
+        organizationId,
+        assessmentId,
+        ['DRAFT', 'IN_PROGRESS'],
+        'ADD_EVIDENCE',
+      );
       const assessment = await tx.technicalAssessment.findUniqueOrThrow({
         where: { id: assessmentId },
         select: { methodSnapshot: true },
@@ -335,6 +361,12 @@ export class TechnicalAssessmentService {
 
   async complete(organizationId: string, assessmentId: string, userId: string, context: Context) {
     return this.prisma.$transaction(async (tx) => {
+      await this.mutationSync.point({
+        assessmentId,
+        operation: 'COMPLETE',
+        phase: 'BEFORE_CLAIM',
+        tx,
+      });
       const claim = await tx.technicalAssessment.updateMany({
         where: { id: assessmentId, organizationId, status: 'IN_PROGRESS' },
         data: { status: 'COMPLETED' },
@@ -353,6 +385,12 @@ export class TechnicalAssessmentService {
           message: 'La evaluación técnica ya fue completada.',
         });
       }
+      await this.mutationSync.point({
+        assessmentId,
+        operation: 'COMPLETE',
+        phase: 'AFTER_SUCCESSFUL_CLAIM',
+        tx,
+      });
       const assessment = await tx.technicalAssessment.findUniqueOrThrow({
         where: { id: assessmentId },
         include: { responses: true },
@@ -498,12 +536,27 @@ export class TechnicalAssessmentService {
     organizationId: string,
     assessmentId: string,
     statuses: TechnicalAssessmentStatus[],
+    operation: TechnicalAssessmentMutationOperation,
   ) {
+    await this.mutationSync.point({
+      assessmentId,
+      operation,
+      phase: 'BEFORE_CLAIM',
+      tx,
+    });
     const claim = await tx.technicalAssessment.updateMany({
       where: { id: assessmentId, organizationId, status: { in: statuses } },
       data: { updatedAt: new Date() },
     });
-    if (claim.count === 1) return;
+    if (claim.count === 1) {
+      await this.mutationSync.point({
+        assessmentId,
+        operation,
+        phase: 'AFTER_SUCCESSFUL_CLAIM',
+        tx,
+      });
+      return;
+    }
     const exists = await tx.technicalAssessment.findFirst({
       where: { id: assessmentId, organizationId },
       select: { id: true },
