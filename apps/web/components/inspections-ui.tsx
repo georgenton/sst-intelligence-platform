@@ -1,14 +1,46 @@
 'use client';
 
-import { Card, StatusBadge } from '@sst/ui';
+import { ApiClientError } from '@sst/api-client';
+import type { FindingCategory } from '@sst/contracts';
+import { Card } from '@sst/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
-import { useForm, type FieldValues, type Path, type UseFormRegister } from 'react-hook-form';
+import { useEffect, useRef, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import {
+  actionPrimaryLabel,
+  actionPrimaryStep,
+  actionProgressMeta,
+  alertTypeLabel,
+  apiQuery,
+  canAcknowledgeInspectionAlerts,
+  canCompleteCorrectiveAction,
+  canVerifyFindings,
+  canWriteInspections,
+  filterSearchParams,
+  statusMeta,
+  type InspectionFilters,
+} from '@/lib/inspection-experience';
 import { queryKeys } from '@/lib/query-keys';
-import { useAuth } from './auth-provider';
 import { useOrganization } from './app-shell';
+import { useAuth } from './auth-provider';
+import {
+  ActiveFilters,
+  ContextLine,
+  DomainStatusBadge,
+  EntitlementState,
+  InlineRequestState,
+  InspectionDemoNotice,
+  InspectionDialog,
+  InspectionPageHeader,
+  InspectionRiskBadge,
+  InspectionSkeleton,
+  InspectionState,
+  PermissionState,
+  QuestionScale,
+} from './inspection-experience-ui';
+import { useDashboardData } from './use-app-data';
 
 type ContextData = {
   workCenters: Array<{
@@ -20,42 +52,15 @@ type ContextData = {
   }>;
   members: Array<{ id: string; displayName: string; role: string }>;
 };
-type FindingCategory =
-  | 'ELECTRICAL'
-  | 'FIRE'
-  | 'MECHANICAL'
-  | 'CHEMICAL'
-  | 'ERGONOMIC'
-  | 'PHYSICAL'
-  | 'BIOLOGICAL'
-  | 'PSYCHOSOCIAL'
-  | 'HOUSEKEEPING'
-  | 'OTHER';
-const FINDING_CATEGORY_LABELS: Record<FindingCategory, string> = {
-  ELECTRICAL: 'Eléctrico',
-  FIRE: 'Incendio',
-  MECHANICAL: 'Mecánico',
-  CHEMICAL: 'Químico',
-  ERGONOMIC: 'Ergonómico',
-  PHYSICAL: 'Físico',
-  BIOLOGICAL: 'Biológico',
-  PSYCHOSOCIAL: 'Psicosocial',
-  HOUSEKEEPING: 'Orden y limpieza',
-  OTHER: 'Otro',
-};
-const FINDING_CATEGORIES = Object.keys(FINDING_CATEGORY_LABELS) as FindingCategory[];
-type Inspection = {
+
+type ActionEvidence = {
   id: string;
-  title: string;
-  description?: string;
-  status: string;
-  scheduledFor?: string;
-  isDemo: boolean;
-  workCenter: { id: string; name: string };
-  workArea?: { id: string; name: string };
-  findings?: Finding[];
-  overdueActions?: number;
+  type: 'NOTE' | 'EXTERNAL_LINK';
+  note?: string;
+  externalUrl?: string;
+  createdAt?: string;
 };
+
 type Action = {
   id: string;
   title: string;
@@ -63,10 +68,15 @@ type Action = {
   status: string;
   priority: string;
   dueAt?: string;
+  completedAt?: string;
+  verifiedAt?: string;
   overdue: boolean;
+  assignedToUserId?: string;
   assignedTo?: { id: string; displayName: string };
-  evidence: Array<{ id: string; type: string; note?: string; externalUrl?: string }>;
+  verifiedBy?: { id: string; displayName: string };
+  evidence: ActionEvidence[];
 };
+
 type Finding = {
   id: string;
   title: string;
@@ -77,14 +87,20 @@ type Finding = {
   initialConsequence: number;
   initialScore: number;
   initialRiskLevel: string;
+  residualLikelihood?: number;
+  residualConsequence?: number;
   residualScore?: number;
   residualRiskLevel?: string;
+  riskMethodKey?: string;
+  riskMethodVersion?: string;
   recurrenceCount: number;
   recurrenceStatus: string;
-  workCenter?: { id: string; name: string };
-  workArea?: { id: string; name: string };
+  createdAt?: string;
+  workCenter?: { id?: string; name: string };
+  workArea?: { id?: string; name: string };
   inspection?: { id: string; title: string; status: string; isDemo: boolean };
   actions: Action[];
+  alerts?: Array<{ id: string; type: string; severity: string; status: string; message: string }>;
   recurrence?: {
     previousCount: number;
     windowDays: number;
@@ -97,7 +113,26 @@ type Finding = {
     }>;
   };
 };
+
+type Inspection = {
+  id: string;
+  title: string;
+  description?: string;
+  status: string;
+  scheduledFor?: string;
+  createdAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  isDemo: boolean;
+  workCenter: { id: string; name: string; city?: string };
+  workArea?: { id: string; name: string };
+  inspector?: { id: string; displayName: string };
+  findings?: Finding[];
+  overdueActions?: number;
+};
+
 type CreatedFinding = Finding & { recurrenceWindowDays: number };
+
 type Analytics = {
   totalInspections: number;
   openFindings: number;
@@ -115,169 +150,459 @@ type Analytics = {
   };
 };
 
-const statusLabels: Record<string, string> = {
-  DRAFT: 'Borrador',
-  IN_PROGRESS: 'En progreso',
-  COMPLETED: 'Completada',
-  CANCELED: 'Cancelada',
-  OPEN: 'Abierto',
-  ACTION_IN_PROGRESS: 'Acción en progreso',
-  PENDING_VERIFICATION: 'Pendiente de verificación',
-  CLOSED: 'Cerrado',
-  LOW: 'Bajo',
-  MODERATE: 'Moderado',
-  HIGH: 'Alto',
-  CRITICAL: 'Crítico',
-  NONE: 'Sin recurrencia',
-  REPEATED: 'Hallazgo recurrente',
-  SYSTEMIC_REVIEW_RECOMMENDED: 'Revisión sistémica recomendada',
-  ACKNOWLEDGED: 'Reconocida',
+type InspectionList = { items: Inspection[]; total: number; page: number; pageSize: number };
+type AlertList = {
+  items: Array<{
+    id: string;
+    type: string;
+    severity: string;
+    status: string;
+    message: string;
+    createdAt?: string;
+    finding: {
+      id: string;
+      title: string;
+      recurrenceCount: number;
+      category?: FindingCategory;
+      workCenter: { id?: string; name: string };
+      inspection: { id: string; title?: string };
+    };
+  }>;
+  total: number;
 };
-const label = (value: string) => statusLabels[value] ?? value.replaceAll('_', ' ');
 
-function useApi() {
+export type InspectionsDashboardFilters = Pick<
+  InspectionFilters,
+  | 'workCenterId'
+  | 'workAreaId'
+  | 'inspectionStatus'
+  | 'riskLevel'
+  | 'findingStatus'
+  | 'hasRecurrence'
+  | 'overdue'
+>;
+export type InspectionAlertFilters = Pick<InspectionFilters, 'status'>;
+export type InspectionAnalyticsFilters = Pick<
+  InspectionFilters,
+  'workCenterId' | 'workAreaId' | 'category'
+>;
+
+const likelihoodDescriptions = [
+  'Muy improbable',
+  'Improbable',
+  'Posible',
+  'Probable',
+  'Muy probable',
+] as const;
+const consequenceDescriptions = ['Menor', 'Leve', 'Moderada', 'Grave', 'Muy grave'] as const;
+const FINDING_CATEGORIES: FindingCategory[] = [
+  'ELECTRICAL',
+  'FIRE',
+  'MECHANICAL',
+  'CHEMICAL',
+  'ERGONOMIC',
+  'PHYSICAL',
+  'BIOLOGICAL',
+  'PSYCHOSOCIAL',
+  'HOUSEKEEPING',
+  'OTHER',
+];
+const FINDING_CATEGORY_LABELS: Record<FindingCategory, string> = {
+  ELECTRICAL: 'Eléctrico',
+  FIRE: 'Incendio',
+  MECHANICAL: 'Mecánico',
+  CHEMICAL: 'Químico',
+  ERGONOMIC: 'Ergonómico',
+  PHYSICAL: 'Físico',
+  BIOLOGICAL: 'Biológico',
+  PSYCHOSOCIAL: 'Psicosocial',
+  HOUSEKEEPING: 'Orden y limpieza',
+  OTHER: 'Otro',
+};
+const WRITE_ROLE_COPY = 'ORG_OWNER, ORG_ADMIN, SST_MANAGER, SST_TECHNICIAN o CONSULTANT';
+const VERIFY_ROLE_COPY = 'ORG_OWNER, ORG_ADMIN o SST_MANAGER';
+
+function shouldRetryGet(failureCount: number, error: Error): boolean {
+  if (error instanceof ApiClientError && error.status < 500) return false;
+  return failureCount < 1;
+}
+
+function formatDate(value?: string): string {
+  if (!value) return 'Sin fecha';
+  return new Intl.DateTimeFormat('es-EC', { dateStyle: 'medium' }).format(new Date(value));
+}
+
+function labelPriority(value: string): string {
+  return { LOW: 'Baja', MEDIUM: 'Media', HIGH: 'Alta', URGENT: 'Urgente' }[value] ?? value;
+}
+
+function labelRecurrence(value: string): string {
+  return (
+    {
+      NONE: 'Sin recurrencia',
+      REPEATED: 'Hallazgo recurrente',
+      SYSTEMIC_REVIEW_RECOMMENDED: 'Revisión sistémica recomendada',
+    }[value] ?? value
+  );
+}
+
+function useInspectionApi() {
   const auth = useAuth();
   const organization = useOrganization();
+  const dashboard = useDashboardData();
+  const activeOrganization = organization.organizations.find(
+    (candidate) => candidate.id === organization.activeId,
+  );
+  const role = activeOrganization?.memberships[0]?.role;
+  const moduleEnabled = dashboard.data?.entitlements.features['module.inspections'] === true;
   return {
     organizationId: organization.activeId,
+    organizationName: activeOrganization?.name,
+    role,
+    userId: auth.user?.id,
+    planName: dashboard.data?.entitlements.plan.name,
+    accessLoading: organization.loading || dashboard.isLoading,
+    accessError: dashboard.isError,
+    moduleEnabled,
     request: <T,>(path: string, init: RequestInit = {}) =>
       auth.request<T>(path, init, organization.activeId!),
   };
 }
 
-function PageIntro({
-  eyebrow,
-  title,
-  description,
-  actions,
-}: {
-  eyebrow: string;
-  title: string;
-  description: string;
-  actions?: React.ReactNode;
-}) {
-  return (
-    <div className="inspection-heading">
-      <div>
-        <p className="eyebrow">{eyebrow}</p>
-        <h2>{title}</h2>
-        <p className="muted">{description}</p>
-      </div>
-      {actions && <div className="form-actions compact">{actions}</div>}
-    </div>
-  );
-}
-
-function RiskBadge({ level }: { level: string }) {
-  return <span className={`risk-badge risk-${level.toLowerCase()}`}>Riesgo {label(level)}</span>;
-}
-
-function DemoNotice() {
-  return (
-    <div className="method-notice" role="note">
-      <strong>Matriz demostrativa 5×5</strong>
-      <span>Metodología demostrativa 5×5. No constituye una metodología regulatoria validada.</span>
-    </div>
-  );
-}
-
-export function InspectionsDashboard() {
-  const api = useApi();
+function useInspectionContext(api: ReturnType<typeof useInspectionApi>, enabled = true) {
   const organizationId = api.organizationId;
+  return useQuery({
+    queryKey: queryKeys.organization.inspectionContext(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) => api.request<ContextData>('/inspections/context', { signal }),
+    enabled: Boolean(organizationId && api.moduleEnabled && enabled),
+    retry: shouldRetryGet,
+  });
+}
+
+function AccessGate({
+  api,
+  children,
+}: {
+  api: ReturnType<typeof useInspectionApi>;
+  children: React.ReactNode;
+}) {
+  if (api.accessLoading) return <InspectionSkeleton label="Comprobando acceso a inspecciones" />;
+  if (!api.organizationId)
+    return (
+      <InspectionState
+        kind="info"
+        title="Selecciona una organización"
+        description="El contexto de organización es necesario antes de consultar inspecciones."
+      />
+    );
+  if (api.accessError)
+    return (
+      <InspectionState
+        kind="error"
+        title="No pudimos comprobar el acceso"
+        description="Revisa tu conexión y vuelve a intentarlo. La navegación permanece disponible."
+      />
+    );
+  if (!api.moduleEnabled) return <EntitlementState planName={api.planName} />;
+  return children;
+}
+
+function PageQueryError({ retry }: { retry(): void }) {
+  return (
+    <InspectionState
+      kind="error"
+      title="No pudimos cargar esta vista"
+      description="Revisa tu conexión. No se modificó ningún registro."
+      action={
+        <button className="button secondary" type="button" onClick={retry}>
+          Reintentar
+        </button>
+      }
+    />
+  );
+}
+
+function replaceFilters(
+  path: string,
+  filters: InspectionFilters,
+  router: ReturnType<typeof useRouter>,
+) {
+  const search = filterSearchParams(filters);
+  router.replace(search ? `${path}?${search}` : path);
+}
+
+function MetricLink({ value, label, href }: { value: number; label: string; href: string }) {
+  return (
+    <Link className="inspection-metric" href={href} aria-label={`${label}: ${value}. Ver detalle`}>
+      <strong>{value}</strong>
+      <span>{label}</span>
+      <small>
+        Ver detalle <span aria-hidden="true">→</span>
+      </small>
+    </Link>
+  );
+}
+
+function DemoChip() {
+  return <span className="demo-chip">Demostración</span>;
+}
+
+export function InspectionsDashboard({ filters = {} }: { filters?: InspectionsDashboardFilters }) {
+  const api = useInspectionApi();
+  const router = useRouter();
+  const organizationId = api.organizationId;
+  const context = useInspectionContext(api);
+  const filterKey = apiQuery(filters);
   const analytics = useQuery({
-    queryKey: queryKeys.organization.inspectionAnalytics(organizationId ?? 'inactive'),
-    queryFn: ({ signal }) => api.request<Analytics>('/inspections/analytics/summary', { signal }),
-    enabled: Boolean(organizationId),
+    queryKey: queryKeys.organization.inspectionAnalyticsSummary(
+      organizationId ?? 'inactive',
+      filterKey,
+    ),
+    queryFn: ({ signal }) =>
+      api.request<Analytics>(`/inspections/analytics/summary?${filterKey}`, { signal }),
+    enabled: Boolean(organizationId && api.moduleEnabled),
+    retry: shouldRetryGet,
   });
   const inspections = useQuery({
-    queryKey: queryKeys.organization.inspections(organizationId ?? 'inactive'),
-    queryFn: ({ signal }) =>
-      api.request<{ items: Inspection[]; total: number }>('/inspections?pageSize=20', { signal }),
-    enabled: Boolean(organizationId),
+    queryKey: queryKeys.organization.inspectionList(organizationId ?? 'inactive', filterKey),
+    queryFn: ({ signal }) => api.request<InspectionList>(`/inspections?${filterKey}`, { signal }),
+    enabled: Boolean(organizationId && api.moduleEnabled),
+    retry: shouldRetryGet,
   });
-  if (!api.organizationId) return <Card>Selecciona una organización.</Card>;
-  if (analytics.isLoading || inspections.isLoading) return <p>Cargando inspecciones…</p>;
-  if (analytics.isError || inspections.isError)
-    return (
-      <p className="field-error" role="alert">
-        No pudimos cargar el módulo. Verifica que la organización tenga acceso.
-      </p>
-    );
-  const summary = analytics.data!;
+  const activeCenter = context.data?.workCenters.find(({ id }) => id === filters.workCenterId);
+  const activeArea = activeCenter?.workAreas.find(({ id }) => id === filters.workAreaId);
+  const activeFilters = [
+    filters.workCenterId && {
+      key: 'workCenterId',
+      label: activeCenter?.name ?? 'Centro seleccionado',
+    },
+    filters.workAreaId && { key: 'workAreaId', label: activeArea?.name ?? 'Área seleccionada' },
+    filters.inspectionStatus && {
+      key: 'inspectionStatus',
+      label: statusMeta('inspection', filters.inspectionStatus).label,
+    },
+    filters.riskLevel && { key: 'riskLevel', label: `Riesgo ${filters.riskLevel.toLowerCase()}` },
+    filters.findingStatus && {
+      key: 'findingStatus',
+      label: `Hallazgos ${statusMeta('finding', filters.findingStatus).label.toLowerCase()}`,
+    },
+    filters.hasRecurrence && { key: 'hasRecurrence', label: 'Con recurrencia' },
+    filters.overdue && { key: 'overdue', label: 'Con acciones vencidas' },
+  ].filter(Boolean) as Array<{ key: string; label: string }>;
+
+  function updateFilter(key: keyof InspectionsDashboardFilters, value: string) {
+    const next = { ...filters, [key]: value || undefined };
+    if (key === 'workCenterId') next.workAreaId = undefined;
+    replaceFilters('/app/inspections', next, router);
+  }
+
   return (
-    <div className="stack">
-      <PageIntro
-        eyebrow="Inspecciones inteligentes"
-        title="Operación en campo"
-        description="Registra hallazgos, acciones, verificaciones y recurrencias con decisiones determinísticas."
-        actions={
-          <>
-            <Link className="button secondary" href="/app/inspections/alerts">
-              Alertas
-            </Link>
-            <Link className="button secondary" href="/app/inspections/analytics">
-              Analítica
-            </Link>
-            <Link className="button" href="/app/inspections/new">
-              Nueva inspección
-            </Link>
-          </>
-        }
-      />
-      <DemoNotice />
-      <div className="metric-grid">
-        <Card>
-          <span>Inspecciones</span>
-          <strong>{summary.totalInspections}</strong>
-        </Card>
-        <Card>
-          <span>Hallazgos abiertos</span>
-          <strong>{summary.openFindings}</strong>
-        </Card>
-        <Card>
-          <span>Altos o críticos</span>
-          <strong>{summary.highCriticalFindings}</strong>
-        </Card>
-        <Card>
-          <span>Acciones vencidas</span>
-          <strong>{summary.overdueActions}</strong>
-        </Card>
-        <Card>
-          <span>Recurrencias</span>
-          <strong>{summary.recurrenceAlerts}</strong>
-        </Card>
-      </div>
-      <section className="stack">
-        <h3>Inspecciones recientes</h3>
-        {inspections.data!.items.length === 0 ? (
-          <Card>
-            <p>No existen inspecciones todavía.</p>
-            <Link href="/app/inspections/new">Crear la primera →</Link>
-          </Card>
-        ) : (
-          <div className="adaptive-list">
-            {inspections.data!.items.map((inspection) => (
-              <Link
-                href={`/app/inspections/${inspection.id}`}
-                key={inspection.id}
-                className="inspection-card"
-              >
-                <div>
-                  <StatusBadge>{label(inspection.status)}</StatusBadge>
-                  {inspection.isDemo && <span className="demo-chip">Datos de demostración</span>}
-                  <h3>{inspection.title}</h3>
-                  <p>
-                    {inspection.workCenter.name}
-                    {inspection.workArea ? ` · ${inspection.workArea.name}` : ''}
-                  </p>
-                </div>
-                <span>Ver detalle →</span>
+    <AccessGate api={api}>
+      <div className="inspection-workspace stack">
+        <InspectionPageHeader
+          eyebrow="Operación · Inspecciones"
+          title="Inspecciones"
+          description="Prioriza recorridos, identifica hallazgos y sigue las acciones sin mezclar sus ciclos de vida."
+          context={<ContextLine>{api.organizationName ?? 'Organización activa'}</ContextLine>}
+          actions={
+            <>
+              <Link className="button secondary" href="/app/inspections/alerts">
+                Alertas
               </Link>
-            ))}
+              <Link className="button secondary" href="/app/inspections/analytics">
+                Tendencias
+              </Link>
+              {canWriteInspections(api.role) ? (
+                <Link className="button" href="/app/inspections/new">
+                  Nueva inspección
+                </Link>
+              ) : null}
+            </>
+          }
+        />
+        <InspectionDemoNotice compact />
+        {!canWriteInspections(api.role) ? (
+          <PermissionState
+            role={api.role}
+            capability="crear o modificar inspecciones"
+            authorizedRoles={WRITE_ROLE_COPY}
+          />
+        ) : null}
+        {analytics.isLoading ? (
+          <InspectionSkeleton label="Cargando indicadores" />
+        ) : analytics.isError ? (
+          <PageQueryError retry={() => void analytics.refetch()} />
+        ) : analytics.data ? (
+          <section aria-labelledby="inspection-indicators-title">
+            <div className="inspection-section-heading">
+              <div>
+                <p className="eyebrow">Señales operativas</p>
+                <h2 id="inspection-indicators-title">Estado de la operación</h2>
+              </div>
+            </div>
+            <div className="inspection-metric-grid">
+              <MetricLink
+                value={analytics.data.totalInspections}
+                label="Inspecciones"
+                href="/app/inspections"
+              />
+              <MetricLink
+                value={analytics.data.openFindings}
+                label="Hallazgos abiertos"
+                href="/app/inspections?findingStatus=OPEN"
+              />
+              <MetricLink
+                value={analytics.data.highCriticalFindings}
+                label="Altos o críticos"
+                href="/app/inspections/analytics#risk-summary"
+              />
+              <MetricLink
+                value={analytics.data.overdueActions}
+                label="Acciones vencidas"
+                href="/app/inspections?overdue=true"
+              />
+              <MetricLink
+                value={analytics.data.recurrenceAlerts}
+                label="Recurrencias"
+                href="/app/inspections?hasRecurrence=true"
+              />
+            </div>
+          </section>
+        ) : null}
+
+        <section className="inspection-list-section" aria-labelledby="inspection-list-title">
+          <div className="inspection-section-heading">
+            <div>
+              <p className="eyebrow">Recorridos</p>
+              <h2 id="inspection-list-title">Inspecciones recientes</h2>
+            </div>
+            {inspections.data ? (
+              <span aria-live="polite">{inspections.data.total} resultados</span>
+            ) : null}
           </div>
-        )}
-      </section>
-    </div>
+          <div className="inspection-filter-panel focus-dim">
+            <div className="inspection-filter-grid">
+              <label>
+                <span>Centro</span>
+                <select
+                  aria-label="Filtrar por centro"
+                  value={filters.workCenterId ?? ''}
+                  onChange={(event) => updateFilter('workCenterId', event.target.value)}
+                >
+                  <option value="">Todos los centros</option>
+                  {context.data?.workCenters.map((center) => (
+                    <option value={center.id} key={center.id}>
+                      {center.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Área</span>
+                <select
+                  aria-label="Filtrar por área"
+                  value={filters.workAreaId ?? ''}
+                  disabled={!activeCenter}
+                  title={!activeCenter ? 'Selecciona primero un centro.' : undefined}
+                  onChange={(event) => updateFilter('workAreaId', event.target.value)}
+                >
+                  <option value="">Todas las áreas</option>
+                  {activeCenter?.workAreas.map((area) => (
+                    <option value={area.id} key={area.id}>
+                      {area.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Estado</span>
+                <select
+                  aria-label="Filtrar por estado"
+                  value={filters.inspectionStatus ?? ''}
+                  onChange={(event) => updateFilter('inspectionStatus', event.target.value)}
+                >
+                  <option value="">Todos los estados</option>
+                  <option value="DRAFT">Borrador</option>
+                  <option value="IN_PROGRESS">En progreso</option>
+                  <option value="COMPLETED">Completada</option>
+                  <option value="CANCELED">Cancelada</option>
+                </select>
+              </label>
+            </div>
+            <ActiveFilters
+              filters={activeFilters}
+              onRemove={(key) => updateFilter(key as keyof InspectionsDashboardFilters, '')}
+              onClear={() => replaceFilters('/app/inspections', {}, router)}
+            />
+          </div>
+          {inspections.isLoading || context.isLoading ? (
+            <InspectionSkeleton label="Cargando inspecciones" />
+          ) : inspections.isError || context.isError ? (
+            <PageQueryError
+              retry={() => void Promise.all([inspections.refetch(), context.refetch()])}
+            />
+          ) : inspections.data?.items.length === 0 ? (
+            <InspectionState
+              kind="empty"
+              title={
+                activeFilters.length ? 'Ninguna inspección coincide' : 'Aún no hay inspecciones'
+              }
+              description={
+                activeFilters.length
+                  ? 'Quita uno o más filtros para ampliar la búsqueda.'
+                  : 'Crea un recorrido en borrador y luego inícialo cuando comience el trabajo de campo.'
+              }
+              action={
+                activeFilters.length ? (
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={() => replaceFilters('/app/inspections', {}, router)}
+                  >
+                    Quitar filtros
+                  </button>
+                ) : canWriteInspections(api.role) ? (
+                  <Link className="button" href="/app/inspections/new">
+                    Nueva inspección
+                  </Link>
+                ) : undefined
+              }
+            />
+          ) : (
+            <div className="inspection-adaptive-list" data-density="compact">
+              {inspections.data?.items.map((inspection) => (
+                <Link
+                  href={`/app/inspections/${inspection.id}`}
+                  key={inspection.id}
+                  className="inspection-operational-row"
+                  aria-label={`Abrir inspección ${inspection.title}`}
+                >
+                  <span className="inspection-row-main">
+                    <span className="inspection-row-kind">Inspección</span>
+                    <strong>{inspection.title}</strong>
+                    <small>
+                      {inspection.workCenter.name}
+                      {inspection.workArea ? ` · ${inspection.workArea.name}` : ''}
+                      {inspection.inspector ? ` · ${inspection.inspector.displayName}` : ''}
+                    </small>
+                  </span>
+                  <DomainStatusBadge domain="inspection" status={inspection.status} />
+                  {inspection.overdueActions ? (
+                    <span className="overdue-chip">{inspection.overdueActions} vencidas</span>
+                  ) : (
+                    <span className="inspection-row-muted">Sin acciones vencidas</span>
+                  )}
+                  {inspection.isDemo ? <DemoChip /> : null}
+                  <span aria-hidden="true" className="inspection-row-chevron">
+                    ›
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </AccessGate>
   );
 }
 
@@ -288,16 +613,14 @@ type InspectionForm = {
   description: string;
   scheduledFor: string;
 };
+
 export function NewInspection() {
-  const api = useApi();
+  const api = useInspectionApi();
   const router = useRouter();
-  const organizationId = api.organizationId;
-  const context = useQuery({
-    queryKey: queryKeys.organization.inspectionContext(organizationId ?? 'inactive'),
-    queryFn: ({ signal }) => api.request<ContextData>('/inspections/context', { signal }),
-    enabled: Boolean(organizationId),
-  });
+  const queryClient = useQueryClient();
+  const context = useInspectionContext(api);
   const form = useForm<InspectionForm>({
+    mode: 'onBlur',
     defaultValues: {
       workCenterId: '',
       workAreaId: '',
@@ -308,6 +631,10 @@ export function NewInspection() {
   });
   const centerId = form.watch('workCenterId');
   const areas = context.data?.workCenters.find((center) => center.id === centerId)?.workAreas ?? [];
+  useEffect(() => {
+    if (!areas.some(({ id }) => id === form.getValues('workAreaId')))
+      form.setValue('workAreaId', '');
+  }, [areas, form]);
   const mutation = useMutation({
     mutationFn: (values: InspectionForm) =>
       api.request<Inspection>('/inspections', {
@@ -319,433 +646,753 @@ export function NewInspection() {
           description: values.description || undefined,
         }),
       }),
-    onSuccess: (created) => router.push(`/app/inspections/${created.id}`),
+    onSuccess: async (created) => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.inspections(api.organizationId!),
+      });
+      router.push(`/app/inspections/${created.id}`);
+    },
   });
+
   return (
-    <div className="stack narrow">
-      <PageIntro
-        eyebrow="Nueva inspección"
-        title="Planifica el recorrido"
-        description="La inspección comienza como borrador y podrá iniciarse cuando estés en campo."
-      />
-      <Card>
-        <form
-          className="stack"
-          onSubmit={form.handleSubmit((values) => {
-            if (!mutation.isPending) mutation.mutate(values);
-          })}
-        >
-          <div className="field">
-            <label htmlFor="center">Centro de trabajo</label>
-            <select id="center" {...form.register('workCenterId', { required: true })}>
-              <option value="">Selecciona</option>
-              {context.data?.workCenters.map((center) => (
-                <option key={center.id} value={center.id}>
-                  {center.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="area">Área (opcional)</label>
-            <select id="area" {...form.register('workAreaId')}>
-              <option value="">Sin área específica</option>
-              {areas.map((area) => (
-                <option key={area.id} value={area.id}>
-                  {area.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="inspection-title">Título</label>
-            <input
-              id="inspection-title"
-              {...form.register('title', { required: true, minLength: 3 })}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="inspection-description">Descripción</label>
-            <textarea id="inspection-description" rows={4} {...form.register('description')} />
-          </div>
-          <div className="field">
-            <label htmlFor="scheduled">Fecha programada</label>
-            <input id="scheduled" type="datetime-local" {...form.register('scheduledFor')} />
-          </div>
-          {mutation.isError && (
-            <p className="field-error" role="alert">
-              No pudimos crear la inspección.
-            </p>
-          )}
-          <div className="form-actions">
-            <Link className="button secondary" href="/app/inspections">
-              Cancelar
-            </Link>
-            <button className="button" disabled={mutation.isPending}>
-              Crear inspección
-            </button>
-          </div>
-        </form>
-      </Card>
-    </div>
+    <AccessGate api={api}>
+      <div className="inspection-task-page">
+        <InspectionPageHeader
+          eyebrow="Nueva inspección"
+          title="Planifica el recorrido"
+          description="Define el lugar y el objetivo. La inspección se crea como borrador; iniciar el trabajo es un acto separado."
+          context={<ContextLine>{api.organizationName ?? 'Organización activa'}</ContextLine>}
+        />
+        <InspectionDemoNotice compact />
+        {!canWriteInspections(api.role) ? (
+          <PermissionState
+            role={api.role}
+            capability="crear una inspección"
+            authorizedRoles={WRITE_ROLE_COPY}
+          />
+        ) : context.isLoading ? (
+          <InspectionSkeleton label="Cargando centros y áreas" />
+        ) : context.isError ? (
+          <PageQueryError retry={() => void context.refetch()} />
+        ) : context.data?.workCenters.length === 0 ? (
+          <InspectionState
+            kind="empty"
+            title="No hay centros configurados"
+            description="Configura un centro de trabajo antes de crear la inspección."
+            action={
+              <Link className="button secondary" href="/app/settings/organization">
+                Ir a Organización
+              </Link>
+            }
+          />
+        ) : (
+          <Card className="inspection-form-card">
+            <form
+              className="inspection-form"
+              noValidate
+              onSubmit={form.handleSubmit((values) => {
+                if (!mutation.isPending) mutation.mutate(values);
+              })}
+            >
+              <div className="inspection-form-intro">
+                <p className="eyebrow">Contexto operacional</p>
+                <h2>Ubicación y alcance</h2>
+                <p>Los centros y áreas pertenecen a la organización activa.</p>
+              </div>
+              <div className="inspection-form-grid">
+                <div className="field">
+                  <label htmlFor="center">Centro de trabajo</label>
+                  <select
+                    id="center"
+                    aria-invalid={Boolean(form.formState.errors.workCenterId)}
+                    {...form.register('workCenterId', {
+                      required: 'Selecciona un centro de trabajo.',
+                    })}
+                  >
+                    <option value="">Selecciona un centro</option>
+                    {context.data?.workCenters.map((center) => (
+                      <option key={center.id} value={center.id}>
+                        {center.name}
+                      </option>
+                    ))}
+                  </select>
+                  {form.formState.errors.workCenterId ? (
+                    <p className="field-error">{form.formState.errors.workCenterId.message}</p>
+                  ) : null}
+                </div>
+                <div className="field">
+                  <label htmlFor="area">Área (opcional)</label>
+                  <select id="area" disabled={!centerId} {...form.register('workAreaId')}>
+                    <option value="">Sin área específica</option>
+                    {areas.map((area) => (
+                      <option key={area.id} value={area.id}>
+                        {area.name}
+                      </option>
+                    ))}
+                  </select>
+                  {!centerId ? <small>Selecciona primero un centro.</small> : null}
+                </div>
+              </div>
+              <div className="field">
+                <label htmlFor="inspection-title">Título</label>
+                <input
+                  id="inspection-title"
+                  placeholder="Ej. Recorrido de seguridad en Planta A"
+                  aria-invalid={Boolean(form.formState.errors.title)}
+                  {...form.register('title', {
+                    required: 'Escribe un título para identificar el recorrido.',
+                    minLength: { value: 3, message: 'Usa al menos 3 caracteres.' },
+                    maxLength: { value: 160, message: 'Usa como máximo 160 caracteres.' },
+                  })}
+                />
+                {form.formState.errors.title ? (
+                  <p className="field-error">{form.formState.errors.title.message}</p>
+                ) : null}
+              </div>
+              <div className="field">
+                <label htmlFor="inspection-description">Descripción (opcional)</label>
+                <textarea
+                  id="inspection-description"
+                  rows={4}
+                  placeholder="Objetivo y límites del recorrido"
+                  {...form.register('description', {
+                    maxLength: { value: 2000, message: 'Usa como máximo 2000 caracteres.' },
+                  })}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="scheduled">Fecha programada (opcional)</label>
+                <input id="scheduled" type="datetime-local" {...form.register('scheduledFor')} />
+              </div>
+              <p className="inspection-invariant-note">
+                Guardar el borrador no inicia la inspección.
+              </p>
+              {mutation.isError ? (
+                <InlineRequestState>
+                  No pudimos crear la inspección. Tus datos permanecen en el formulario; vuelve a
+                  intentarlo.
+                </InlineRequestState>
+              ) : null}
+              <div className="inspection-sticky-actions">
+                <Link className="button secondary" href="/app/inspections">
+                  Cancelar
+                </Link>
+                <button className="button" disabled={mutation.isPending}>
+                  {mutation.isPending ? 'Creando borrador…' : 'Crear inspección'}
+                </button>
+              </div>
+            </form>
+          </Card>
+        )}
+      </div>
+    </AccessGate>
   );
 }
 
 export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
-  const api = useApi();
+  const api = useInspectionApi();
   const queryClient = useQueryClient();
   const organizationId = api.organizationId;
+  const [showComplete, setShowComplete] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const query = useQuery({
     queryKey: queryKeys.organization.inspection(organizationId ?? 'inactive', inspectionId),
     queryFn: ({ signal }) => api.request<Inspection>(`/inspections/${inspectionId}`, { signal }),
-    enabled: Boolean(organizationId),
+    enabled: Boolean(organizationId && api.moduleEnabled),
+    retry: shouldRetryGet,
   });
   const transition = useMutation({
     mutationFn: (action: 'start' | 'complete') =>
       api.request(`/inspections/${inspectionId}/${action}`, { method: 'POST' }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.organization.inspection(organizationId!, inspectionId),
-      }),
+    onSuccess: async (_, action) => {
+      setShowComplete(false);
+      setNotice(
+        action === 'start'
+          ? 'Inspección iniciada. Ya puedes registrar hallazgos.'
+          : 'Inspección completada.',
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.inspection(organizationId!, inspectionId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.inspections(organizationId!),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.inspectionAnalytics(organizationId!),
+        }),
+      ]);
+    },
   });
-  if (query.isLoading) return <p>Cargando inspección…</p>;
-  if (!query.data) return <p className="field-error">Inspección no encontrada.</p>;
-  const inspection = query.data;
+
   return (
-    <div className="stack">
-      <PageIntro
-        eyebrow="Detalle de inspección"
-        title={inspection.title}
-        description={`${inspection.workCenter.name}${inspection.workArea ? ` · ${inspection.workArea.name}` : ''}`}
-        actions={
-          <>
-            {inspection.status === 'DRAFT' && (
-              <button className="button" onClick={() => transition.mutate('start')}>
-                Iniciar inspección
-              </button>
+    <AccessGate api={api}>
+      {query.isLoading ? (
+        <InspectionSkeleton label="Cargando detalle de inspección" />
+      ) : query.isError ? (
+        query.error instanceof ApiClientError && query.error.status === 404 ? (
+          <InspectionState
+            kind="empty"
+            title="No encontramos esta inspección"
+            description={`Comprueba que el enlace corresponde a ${api.organizationName ?? 'la organización activa'}.`}
+            action={
+              <Link className="button secondary" href="/app/inspections">
+                Volver a inspecciones
+              </Link>
+            }
+          />
+        ) : (
+          <PageQueryError retry={() => void query.refetch()} />
+        )
+      ) : query.data ? (
+        <div className="inspection-workspace stack">
+          <InspectionPageHeader
+            eyebrow="Inspección"
+            title={query.data.title}
+            description={
+              query.data.description ??
+              'Recorrido operativo con captura de hallazgos y seguimiento independiente de acciones.'
+            }
+            context={
+              <ContextLine>
+                {api.organizationName} · {query.data.workCenter.name}
+                {query.data.workArea ? ` · ${query.data.workArea.name}` : ''}
+              </ContextLine>
+            }
+            actions={
+              canWriteInspections(api.role) ? (
+                <>
+                  {query.data.status === 'DRAFT' ? (
+                    <button
+                      className="button"
+                      type="button"
+                      disabled={transition.isPending}
+                      onClick={() => transition.mutate('start')}
+                    >
+                      {transition.isPending ? 'Iniciando…' : 'Iniciar inspección'}
+                    </button>
+                  ) : null}
+                  {query.data.status === 'IN_PROGRESS' ? (
+                    <>
+                      <button
+                        className="button secondary"
+                        type="button"
+                        onClick={() => setShowComplete(true)}
+                      >
+                        Completar inspección
+                      </button>
+                      <Link
+                        className="button"
+                        href={`/app/inspections/${query.data.id}/findings/new`}
+                      >
+                        Registrar hallazgo
+                      </Link>
+                    </>
+                  ) : null}
+                </>
+              ) : undefined
+            }
+          />
+          <div className="inspection-object-strip">
+            <DomainStatusBadge domain="inspection" status={query.data.status} />
+            {query.data.isDemo ? <DemoChip /> : null}
+            <span>Creada {formatDate(query.data.createdAt)}</span>
+            {query.data.inspector ? (
+              <span>Inspector: {query.data.inspector.displayName}</span>
+            ) : null}
+          </div>
+          <InspectionDemoNotice compact />
+          {notice ? (
+            <p className="inspection-success" role="status">
+              {notice}
+            </p>
+          ) : null}
+          {!canWriteInspections(api.role) ? (
+            <PermissionState
+              role={api.role}
+              capability="iniciar, completar o registrar hallazgos"
+              authorizedRoles={WRITE_ROLE_COPY}
+            />
+          ) : null}
+          {transition.isError ? (
+            <InlineRequestState>
+              No pudimos cambiar el estado. Revisa el estado actual y vuelve a intentarlo.
+            </InlineRequestState>
+          ) : null}
+          <section aria-labelledby="inspection-findings-title">
+            <div className="inspection-section-heading">
+              <div>
+                <p className="eyebrow">Registro de campo</p>
+                <h2 id="inspection-findings-title">
+                  Hallazgos <span>{query.data.findings?.length ?? 0}</span>
+                </h2>
+              </div>
+            </div>
+            {query.data.findings?.length ? (
+              <div className="inspection-adaptive-list" data-density="compact">
+                {query.data.findings.map((finding) => (
+                  <Link
+                    className="inspection-operational-row finding-row"
+                    href={`/app/inspections/${query.data.id}/findings/${finding.id}`}
+                    key={finding.id}
+                    aria-label={`Abrir hallazgo ${finding.title}`}
+                  >
+                    <span className="inspection-row-main">
+                      <span className="inspection-row-kind">
+                        {FINDING_CATEGORY_LABELS[finding.category]}
+                      </span>
+                      <strong>{finding.title}</strong>
+                      <small>
+                        Probabilidad {finding.initialLikelihood} × consecuencia{' '}
+                        {finding.initialConsequence}
+                      </small>
+                    </span>
+                    <InspectionRiskBadge
+                      level={finding.initialRiskLevel}
+                      score={finding.initialScore}
+                    />
+                    <DomainStatusBadge domain="finding" status={finding.status} />
+                    {finding.recurrenceCount > 0 ? (
+                      <span className="recurrence-chip">
+                        {finding.recurrenceCount} antecedentes
+                      </span>
+                    ) : null}
+                    <span aria-hidden="true" className="inspection-row-chevron">
+                      ›
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <InspectionState
+                kind="empty"
+                title="No hay hallazgos registrados"
+                description={
+                  query.data.status === 'IN_PROGRESS'
+                    ? 'Registra lo observado durante el recorrido. Guardar un hallazgo no completa la inspección.'
+                    : 'Inicia la inspección para habilitar la captura de campo.'
+                }
+              />
             )}
-            {inspection.status === 'IN_PROGRESS' && (
+          </section>
+          <InspectionDialog
+            open={showComplete}
+            title="Completar inspección"
+            description="Esta acción termina el recorrido y no admite nuevos hallazgos. Las acciones correctivas y sus verificaciones conservan su ciclo independiente."
+            onClose={() => {
+              if (!transition.isPending) setShowComplete(false);
+            }}
+          >
+            <div className="inspection-dialog-actions">
               <button
                 className="button secondary"
-                onClick={() =>
-                  confirm('¿Completar esta inspección?') && transition.mutate('complete')
-                }
+                type="button"
+                disabled={transition.isPending}
+                onClick={() => setShowComplete(false)}
               >
-                Completar inspección
+                Volver
               </button>
-            )}
-            <Link className="button" href={`/app/inspections/${inspection.id}/findings/new`}>
-              Registrar hallazgo
-            </Link>
-          </>
-        }
-      />
-      <div className="detail-strip">
-        <StatusBadge>{label(inspection.status)}</StatusBadge>
-        {inspection.isDemo && <span className="demo-chip">Datos de demostración</span>}
-      </div>
-      <section className="stack">
-        <h3>Hallazgos</h3>
-        {inspection.findings?.length ? (
-          <div className="adaptive-list">
-            {inspection.findings.map((finding) => (
-              <Link
-                className="inspection-card"
-                href={`/app/inspections/${inspection.id}/findings/${finding.id}`}
-                key={finding.id}
+              <button
+                className="button"
+                type="button"
+                disabled={transition.isPending}
+                onClick={() => transition.mutate('complete')}
               >
-                <div>
-                  <RiskBadge level={finding.initialRiskLevel} />
-                  <h3>{finding.title}</h3>
-                  <p>
-                    {FINDING_CATEGORY_LABELS[finding.category]} · {label(finding.status)}
-                  </p>
-                </div>
-                <span>Revisar →</span>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <Card>No se han registrado hallazgos.</Card>
-        )}
-      </section>
-    </div>
+                {transition.isPending ? 'Completando…' : 'Completar inspección'}
+              </button>
+            </div>
+          </InspectionDialog>
+        </div>
+      ) : null}
+    </AccessGate>
   );
 }
 
-const likelihoodDescriptions = [
-  'Muy improbable',
-  'Improbable',
-  'Posible',
-  'Probable',
-  'Muy probable',
-];
-const consequenceDescriptions = ['Menor', 'Leve', 'Moderada', 'Grave', 'Muy grave'];
 type FindingForm = {
   title: string;
   description: string;
   category: FindingCategory;
-  likelihood: number;
-  consequence: number;
+  likelihood: number | undefined;
+  consequence: number | undefined;
 };
+
 export function NewFinding({ inspectionId }: { inspectionId: string }) {
-  const api = useApi();
+  const api = useInspectionApi();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const organizationId = api.organizationId;
   const [step, setStep] = useState(1);
   const [created, setCreated] = useState<CreatedFinding | null>(null);
-  const riskValues = useRef({ likelihood: 1, consequence: 1 });
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
   const inspection = useQuery({
     queryKey: queryKeys.organization.inspection(organizationId ?? 'inactive', inspectionId),
     queryFn: ({ signal }) => api.request<Inspection>(`/inspections/${inspectionId}`, { signal }),
-    enabled: Boolean(organizationId),
+    enabled: Boolean(organizationId && api.moduleEnabled),
+    retry: shouldRetryGet,
   });
   const form = useForm<FindingForm>({
+    mode: 'onBlur',
     defaultValues: {
       title: '',
       description: '',
       category: 'ELECTRICAL',
-      likelihood: 1,
-      consequence: 1,
+      likelihood: undefined,
+      consequence: undefined,
     },
   });
+  const values = form.watch();
   const mutation = useMutation({
-    mutationFn: (values: FindingForm) =>
+    mutationFn: (input: FindingForm) =>
       api.request<CreatedFinding>(`/inspections/${inspectionId}/findings`, {
         method: 'POST',
-        body: JSON.stringify({
-          ...values,
-          likelihood: Number(values.likelihood),
-          consequence: Number(values.consequence),
-        }),
+        body: JSON.stringify(input),
       }),
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       setCreated(result);
-      setStep(5);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.inspection(organizationId!, inspectionId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.inspections(organizationId!),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.inspectionAnalytics(organizationId!),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.inspectionAlerts(organizationId!),
+        }),
+      ]);
     },
   });
-  if (created)
+
+  useEffect(() => {
+    if (step > 1) stepHeadingRef.current?.focus();
+  }, [step]);
+
+  async function continueStep() {
+    const fields: Array<keyof FindingForm> =
+      step === 2
+        ? ['title', 'description']
+        : step === 3
+          ? ['category']
+          : step === 4
+            ? ['likelihood', 'consequence']
+            : [];
+    const valid = fields.length === 0 || (await form.trigger(fields));
+    if (valid) setStep((current) => Math.min(current + 1, 5));
+  }
+
+  if (created) {
     return (
-      <div className="stack narrow">
-        <PageIntro
-          eyebrow="Hallazgo registrado"
-          title={created.title}
-          description="El sistema calculó la clasificación con la matriz demostrativa."
-        />
-        <Card className="stack">
-          <RiskBadge level={created.initialRiskLevel} />
-          <h3>
-            Resultado: {created.initialScore} · {label(created.initialRiskLevel)}
-          </h3>
-          {created.recurrenceCount > 0 && (
-            <div className="recurrence-callout">
-              <strong>{label(created.recurrenceStatus)}</strong>
+      <AccessGate api={api}>
+        <div className="inspection-task-page">
+          <InspectionPageHeader
+            eyebrow="Hallazgo guardado"
+            title={created.title}
+            description="El servidor calculó y guardó la valoración con la matriz demostrativa vigente."
+            context={
+              <ContextLine>
+                {api.organizationName} · {created.workCenter?.name}
+                {created.workArea ? ` · ${created.workArea.name}` : ''}
+              </ContextLine>
+            }
+          />
+          <Card className="inspection-result-card" role="status">
+            <div>
+              <p className="eyebrow">Resultado calculado por el servidor</p>
+              <strong className="inspection-result-score">{created.initialScore}</strong>
+            </div>
+            <div>
+              <InspectionRiskBadge level={created.initialRiskLevel} score={created.initialScore} />
+              <h2>
+                Probabilidad {created.initialLikelihood} × consecuencia {created.initialConsequence}
+              </h2>
+              <p>Método DEMO_5X5 · versión {created.riskMethodVersion ?? '1.0.0'}</p>
+            </div>
+          </Card>
+          <InspectionDemoNotice />
+          {created.recurrenceCount > 0 ? (
+            <div className="inspection-recurrence" role="note">
+              <strong>{labelRecurrence(created.recurrenceStatus)}</strong>
               <p>
                 {created.recurrenceCount} antecedentes en los últimos {created.recurrenceWindowDays}{' '}
-                días.
+                días para el mismo centro y categoría.
               </p>
-              {created.recurrenceStatus === 'SYSTEMIC_REVIEW_RECOMMENDED' && (
-                <p>Este aviso indica recurrencia, no confirma una causa raíz.</p>
-              )}
+              <p>Este aviso indica recurrencia, no confirma una causa raíz.</p>
             </div>
-          )}
-          <p>¿Quieres crear una acción ahora?</p>
-          <div className="form-actions">
-            <button
-              className="button secondary"
-              onClick={() => router.push(`/app/inspections/${inspectionId}`)}
-            >
-              Después
-            </button>
-            <button
-              className="button"
-              onClick={() => router.push(`/app/inspections/${inspectionId}/findings/${created.id}`)}
-            >
-              Sí, crear acción
-            </button>
-          </div>
-        </Card>
-      </div>
-    );
-  return (
-    <div className="stack narrow">
-      <PageIntro
-        eyebrow="Nuevo hallazgo"
-        title={`Paso ${step} de 5`}
-        description={
-          inspection.data
-            ? `${inspection.data.workCenter.name}${inspection.data.workArea ? ` · ${inspection.data.workArea.name}` : ''}`
-            : 'Registro guiado'
-        }
-      />
-      <div className="progress-track" aria-label={`Paso ${step} de 5`}>
-        <div className="progress-bar" style={{ width: `${step * 20}%` }} />
-      </div>
-      <Card>
-        <form
-          className="stack"
-          onSubmit={form.handleSubmit((values, event) => {
-            if (mutation.isPending || !(event?.target instanceof HTMLFormElement)) return;
-            const nativeValues = new FormData(event.target);
-            mutation.mutate({
-              ...values,
-              likelihood: Number(nativeValues.get('likelihood')),
-              consequence: Number(nativeValues.get('consequence')),
-            });
-          })}
-        >
-          {step === 1 && (
-            <>
-              <h3>¿Dónde encontraste el problema?</h3>
-              <p>
-                Centro: <strong>{inspection.data?.workCenter.name}</strong>
-              </p>
-              <p>
-                Área: <strong>{inspection.data?.workArea?.name ?? 'Sin área específica'}</strong>
-              </p>
-            </>
-          )}
-          {step === 2 && (
-            <>
-              <h3>¿Qué observaste?</h3>
-              <div className="field">
-                <label htmlFor="finding-title">Título</label>
-                <input
-                  id="finding-title"
-                  {...form.register('title', { required: true, minLength: 3 })}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="finding-description">Descripción</label>
-                <textarea
-                  id="finding-description"
-                  rows={5}
-                  {...form.register('description', { required: true, minLength: 3 })}
-                />
-              </div>
-            </>
-          )}
-          {step === 3 && (
-            <>
-              <h3>¿Qué tipo de hallazgo es?</h3>
-              <div className="field">
-                <label htmlFor="category">Categoría del hallazgo</label>
-                <select id="category" {...form.register('category')}>
-                  {FINDING_CATEGORIES.map((category) => (
-                    <option key={category} value={category}>
-                      {FINDING_CATEGORY_LABELS[category]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <p className="muted">
-                Esta categoría no constituye una clasificación legal del riesgo.
-              </p>
-            </>
-          )}
-          {step === 4 && (
-            <>
-              <h3>Valoración DEMO</h3>
-              <DemoNotice />
-              <Scale
-                name="likelihood"
-                title="Probabilidad"
-                descriptions={likelihoodDescriptions}
-                register={form.register}
-                onSelect={(name, value) => {
-                  riskValues.current[name] = value;
-                }}
-              />
-              <Scale
-                name="consequence"
-                title="Consecuencia"
-                descriptions={consequenceDescriptions}
-                register={form.register}
-                onSelect={(name, value) => {
-                  riskValues.current[name] = value;
-                }}
-              />
-              <div className="preview-card">
-                <strong>Valoración preparada</strong>
-                <span>La clasificación será calculada por el sistema.</span>
-              </div>
-            </>
-          )}
-          {mutation.isError && (
-            <p className="field-error" role="alert">
-              No pudimos registrar el hallazgo.
-            </p>
-          )}
-          <div className="form-actions">
-            {step > 1 ? (
-              <button type="button" className="button secondary" onClick={() => setStep(step - 1)}>
-                Atrás
-              </button>
-            ) : (
-              <Link className="button secondary" href={`/app/inspections/${inspectionId}`}>
-                Cancelar
-              </Link>
-            )}
-            {step < 4 ? (
-              <button type="button" className="button" onClick={() => setStep(step + 1)}>
-                Continuar
-              </button>
-            ) : (
+          ) : null}
+          <Card className="inspection-next-card">
+            <div>
+              <p className="eyebrow">Siguiente paso</p>
+              <h2>Planifica la acción correctiva</h2>
+              <p>El hallazgo queda guardado. Su estado y el de cada acción son independientes.</p>
+            </div>
+            <div className="inspection-dialog-actions">
               <button
+                className="button secondary"
                 type="button"
+                onClick={() => router.push(`/app/inspections/${inspectionId}`)}
+              >
+                Volver a la inspección
+              </button>
+              <button
                 className="button"
+                type="button"
                 onClick={() =>
-                  void form.handleSubmit((values) =>
-                    mutation.mutate({
-                      ...values,
-                      likelihood: riskValues.current.likelihood,
-                      consequence: riskValues.current.consequence,
-                    }),
-                  )()
+                  router.push(`/app/inspections/${inspectionId}/findings/${created.id}`)
                 }
               >
-                Registrar hallazgo
+                Crear acción correctiva
               </button>
-            )}
-          </div>
-        </form>
-      </Card>
-    </div>
-  );
-}
+            </div>
+          </Card>
+        </div>
+      </AccessGate>
+    );
+  }
 
-function Scale<T extends FieldValues & { likelihood: number; consequence: number }>({
-  name,
-  title,
-  descriptions,
-  register,
-  onSelect,
-}: {
-  name: 'likelihood' | 'consequence';
-  title: string;
-  descriptions: string[];
-  register: UseFormRegister<T>;
-  onSelect(name: 'likelihood' | 'consequence', value: number): void;
-}) {
-  const field = register(name as Path<T>, { valueAsNumber: true });
   return (
-    <div className="field scale-field">
-      <label htmlFor={`scale-${name}`}>{title}</label>
-      <select
-        id={`scale-${name}`}
-        {...field}
-        onChange={(event) => {
-          void field.onChange(event);
-          onSelect(name, Number(event.target.value));
-        }}
-      >
-        {descriptions.map((description, index) => (
-          <option key={description} value={index + 1}>
-            {index + 1} — {description}
-          </option>
-        ))}
-      </select>
-    </div>
+    <AccessGate api={api}>
+      {inspection.isLoading ? (
+        <InspectionSkeleton label="Cargando captura de hallazgo" />
+      ) : inspection.isError ? (
+        <PageQueryError retry={() => void inspection.refetch()} />
+      ) : !canWriteInspections(api.role) ? (
+        <PermissionState
+          role={api.role}
+          capability="registrar un hallazgo"
+          authorizedRoles={WRITE_ROLE_COPY}
+        />
+      ) : inspection.data && ['COMPLETED', 'CANCELED'].includes(inspection.data.status) ? (
+        <InspectionState
+          kind="info"
+          title="La inspección ya no admite hallazgos"
+          description="Una inspección completada o cancelada conserva sus registros, pero no acepta nuevas capturas."
+          action={
+            <Link className="button secondary" href={`/app/inspections/${inspectionId}`}>
+              Volver al detalle
+            </Link>
+          }
+        />
+      ) : inspection.data ? (
+        <div className="inspection-field-capture">
+          <InspectionPageHeader
+            eyebrow={`Paso ${step} de 5 · Nuevo hallazgo`}
+            title={
+              [
+                'Confirma el contexto',
+                'Describe lo observado',
+                'Clasifica el hallazgo',
+                'Valora el riesgo',
+                'Revisa y guarda',
+              ][step - 1] ?? 'Nuevo hallazgo'
+            }
+            description="Captura guiada con la organización, el centro y el área siempre visibles."
+            context={
+              <ContextLine>
+                {api.organizationName} · {inspection.data.workCenter.name}
+                {inspection.data.workArea ? ` · ${inspection.data.workArea.name}` : ''}
+              </ContextLine>
+            }
+          />
+          <InspectionDemoNotice compact />
+          <div className="inspection-stepper" aria-label={`Paso ${step} de 5`}>
+            <span>Paso {step} de 5</span>
+            <div aria-hidden="true">
+              {[1, 2, 3, 4, 5].map((item) => (
+                <i className={item <= step ? 'active' : ''} key={item} />
+              ))}
+            </div>
+          </div>
+          <Card className="inspection-wizard-card">
+            <form
+              noValidate
+              onSubmit={form.handleSubmit((input) => {
+                if (!mutation.isPending)
+                  mutation.mutate({
+                    ...input,
+                    likelihood: Number(values.likelihood),
+                    consequence: Number(values.consequence),
+                  });
+              })}
+            >
+              <h2 className="sr-only" ref={stepHeadingRef} tabIndex={-1}>
+                Paso {step} de 5
+              </h2>
+              {step === 1 ? (
+                <div className="inspection-review-list">
+                  <div>
+                    <span>Inspección</span>
+                    <strong>{inspection.data.title}</strong>
+                  </div>
+                  <div>
+                    <span>Centro</span>
+                    <strong>{inspection.data.workCenter.name}</strong>
+                  </div>
+                  <div>
+                    <span>Área</span>
+                    <strong>{inspection.data.workArea?.name ?? 'Sin área específica'}</strong>
+                  </div>
+                  <p className="inspection-invariant-note">
+                    Este contexto proviene de la inspección y no se envía como una organización
+                    arbitraria.
+                  </p>
+                </div>
+              ) : null}
+              {step === 2 ? (
+                <div className="inspection-form">
+                  <div className="field">
+                    <label htmlFor="finding-title">Título del hallazgo</label>
+                    <input
+                      id="finding-title"
+                      autoFocus
+                      aria-invalid={Boolean(form.formState.errors.title)}
+                      {...form.register('title', {
+                        required: 'Escribe un título para el hallazgo.',
+                        minLength: { value: 3, message: 'Usa al menos 3 caracteres.' },
+                        maxLength: { value: 160, message: 'Usa como máximo 160 caracteres.' },
+                      })}
+                    />
+                    {form.formState.errors.title ? (
+                      <p className="field-error">{form.formState.errors.title.message}</p>
+                    ) : null}
+                  </div>
+                  <div className="field">
+                    <label htmlFor="finding-description">Descripción</label>
+                    <textarea
+                      id="finding-description"
+                      rows={6}
+                      aria-invalid={Boolean(form.formState.errors.description)}
+                      {...form.register('description', {
+                        required: 'Describe lo observado.',
+                        minLength: { value: 3, message: 'Usa al menos 3 caracteres.' },
+                        maxLength: { value: 4000, message: 'Usa como máximo 4000 caracteres.' },
+                      })}
+                    />
+                    {form.formState.errors.description ? (
+                      <p className="field-error">{form.formState.errors.description.message}</p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+              {step === 3 ? (
+                <div className="inspection-form">
+                  <div className="field">
+                    <label htmlFor="finding-category">Categoría del hallazgo</label>
+                    <select id="finding-category" autoFocus {...form.register('category')}>
+                      {FINDING_CATEGORIES.map((category) => (
+                        <option key={category} value={category}>
+                          {FINDING_CATEGORY_LABELS[category]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="inspection-invariant-note">
+                    La categoría organiza la operación. No constituye por sí sola una clasificación
+                    legal.
+                  </p>
+                </div>
+              ) : null}
+              {step === 4 ? (
+                <div className="inspection-form">
+                  <QuestionScale
+                    name="likelihood"
+                    title="Probabilidad"
+                    descriptions={likelihoodDescriptions}
+                    register={form.register}
+                    error={form.formState.errors.likelihood?.message}
+                  />
+                  <QuestionScale
+                    name="consequence"
+                    title="Consecuencia"
+                    descriptions={consequenceDescriptions}
+                    register={form.register}
+                    error={form.formState.errors.consequence?.message}
+                  />
+                  <div className="inspection-server-calculation" role="status">
+                    <strong>Valoración preparada</strong>
+                    <span>
+                      El servidor calculará y guardará el resultado. La interfaz no estima el nivel.
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+              {step === 5 ? (
+                <div className="inspection-review-list">
+                  <div>
+                    <span>Hallazgo</span>
+                    <strong>{values.title}</strong>
+                  </div>
+                  <div>
+                    <span>Descripción</span>
+                    <strong>{values.description}</strong>
+                  </div>
+                  <div>
+                    <span>Categoría</span>
+                    <strong>{FINDING_CATEGORY_LABELS[values.category]}</strong>
+                  </div>
+                  <div>
+                    <span>Probabilidad</span>
+                    <strong>{values.likelihood} de 5</strong>
+                  </div>
+                  <div>
+                    <span>Consecuencia</span>
+                    <strong>{values.consequence} de 5</strong>
+                  </div>
+                  <p className="inspection-invariant-note">
+                    Guardar registra el hallazgo. No completa la inspección.
+                  </p>
+                </div>
+              ) : null}
+              {mutation.isError ? (
+                <InlineRequestState>
+                  No pudimos guardar el hallazgo. Todas tus respuestas se conservaron; vuelve a
+                  intentarlo.
+                </InlineRequestState>
+              ) : null}
+              <div className="inspection-sticky-actions">
+                {step === 1 ? (
+                  <Link className="button secondary" href={`/app/inspections/${inspectionId}`}>
+                    Cancelar
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() => setStep((current) => Math.max(1, current - 1))}
+                  >
+                    Atrás
+                  </button>
+                )}
+                {step < 5 ? (
+                  <button
+                    key="continue-finding"
+                    type="button"
+                    className="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      void continueStep();
+                    }}
+                  >
+                    Continuar
+                  </button>
+                ) : (
+                  <button
+                    key="save-finding"
+                    type="submit"
+                    className="button"
+                    disabled={mutation.isPending}
+                  >
+                    {mutation.isPending ? 'Guardando…' : 'Guardar hallazgo'}
+                  </button>
+                )}
+              </div>
+            </form>
+          </Card>
+        </div>
+      ) : null}
+    </AccessGate>
   );
 }
 
@@ -756,6 +1403,9 @@ type ActionForm = {
   priority: string;
   dueAt: string;
 };
+type EvidenceForm = { type: 'NOTE' | 'EXTERNAL_LINK'; note: string; externalUrl: string };
+type VerifyForm = { likelihood: number | undefined; consequence: number | undefined };
+
 export function FindingDetail({
   inspectionId,
   findingId,
@@ -763,21 +1413,23 @@ export function FindingDetail({
   inspectionId: string;
   findingId: string;
 }) {
-  const api = useApi();
+  const api = useInspectionApi();
   const queryClient = useQueryClient();
   const organizationId = api.organizationId;
+  const [showAction, setShowAction] = useState(false);
+  const [evidenceActionId, setEvidenceActionId] = useState<string | null>(null);
+  const [showVerify, setShowVerify] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const finding = useQuery({
     queryKey: queryKeys.organization.finding(organizationId ?? 'inactive', findingId),
     queryFn: ({ signal }) =>
       api.request<Finding>(`/inspections/${inspectionId}/findings/${findingId}`, { signal }),
-    enabled: Boolean(organizationId),
+    enabled: Boolean(organizationId && api.moduleEnabled),
+    retry: shouldRetryGet,
   });
-  const context = useQuery({
-    queryKey: queryKeys.organization.inspectionContext(organizationId ?? 'inactive'),
-    queryFn: ({ signal }) => api.request<ContextData>('/inspections/context', { signal }),
-    enabled: Boolean(organizationId),
-  });
+  const context = useInspectionContext(api);
   const actionForm = useForm<ActionForm>({
+    mode: 'onBlur',
     defaultValues: {
       title: '',
       description: '',
@@ -786,30 +1438,63 @@ export function FindingDetail({
       dueAt: '',
     },
   });
-  const [showAction, setShowAction] = useState(false);
-  const [showVerify, setShowVerify] = useState(false);
-  const residualValues = useRef({ likelihood: 1, consequence: 1 });
-  const verifyForm = useForm<{ likelihood: number; consequence: number }>({
-    defaultValues: { likelihood: 1, consequence: 1 },
+  const evidenceForm = useForm<EvidenceForm>({
+    mode: 'onBlur',
+    defaultValues: { type: 'NOTE', note: '', externalUrl: '' },
   });
-  const refresh = () =>
-    queryClient.invalidateQueries({
-      queryKey: queryKeys.organization.finding(organizationId!, findingId),
-    });
+  const verifyForm = useForm<VerifyForm>({
+    mode: 'onBlur',
+    defaultValues: { likelihood: undefined, consequence: undefined },
+  });
+  const evidenceType = evidenceForm.watch('type');
+
+  async function refreshFinding() {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.finding(organizationId!, findingId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.inspection(organizationId!, inspectionId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.inspections(organizationId!),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.inspectionAnalytics(organizationId!),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.inspectionAlerts(organizationId!),
+      }),
+    ]);
+  }
+
   const createAction = useMutation({
-    mutationFn: (values: ActionForm) =>
+    mutationFn: (input: ActionForm) =>
       api.request(`/inspections/${inspectionId}/findings/${findingId}/actions`, {
         method: 'POST',
         body: JSON.stringify({
-          ...values,
-          assignedToUserId: values.assignedToUserId || undefined,
-          dueAt: values.dueAt || undefined,
+          ...input,
+          assignedToUserId: input.assignedToUserId || undefined,
+          dueAt: input.dueAt || undefined,
+          description: input.description || undefined,
         }),
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
       actionForm.reset();
       setShowAction(false);
-      void refresh();
+      setNotice('Acción correctiva guardada como abierta.');
+      await refreshFinding();
+    },
+  });
+  const updateAction = useMutation({
+    mutationFn: ({ actionId, status }: { actionId: string; status: 'IN_PROGRESS' }) =>
+      api.request(`/inspections/${inspectionId}/findings/${findingId}/actions/${actionId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: async () => {
+      setNotice('Acción iniciada.');
+      await refreshFinding();
     },
   });
   const completeAction = useMutation({
@@ -818,359 +1503,1009 @@ export function FindingDetail({
         `/inspections/${inspectionId}/findings/${findingId}/actions/${actionId}/complete`,
         { method: 'POST' },
       ),
-    onSuccess: refresh,
+    onSuccess: async () => {
+      setNotice(
+        'Ejecución registrada. La acción queda pendiente de verificación del riesgo residual.',
+      );
+      await refreshFinding();
+    },
+  });
+  const addEvidence = useMutation({
+    mutationFn: ({ actionId, input }: { actionId: string; input: EvidenceForm }) =>
+      api.request(
+        `/inspections/${inspectionId}/findings/${findingId}/actions/${actionId}/evidence`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            type: input.type,
+            note: input.type === 'NOTE' ? input.note : undefined,
+            externalUrl: input.type === 'EXTERNAL_LINK' ? input.externalUrl : undefined,
+          }),
+        },
+      ),
+    onSuccess: async () => {
+      evidenceForm.reset();
+      setEvidenceActionId(null);
+      setNotice('Evidencia guardada.');
+      await refreshFinding();
+    },
   });
   const verify = useMutation({
-    mutationFn: (values: { likelihood: number; consequence: number }) =>
+    mutationFn: (input: VerifyForm) =>
       api.request(`/inspections/${inspectionId}/findings/${findingId}/verify`, {
         method: 'POST',
         body: JSON.stringify({
-          likelihood: Number(values.likelihood),
-          consequence: Number(values.consequence),
+          likelihood: Number(input.likelihood),
+          consequence: Number(input.consequence),
         }),
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
+      verifyForm.reset();
       setShowVerify(false);
-      void refresh();
+      setNotice('Riesgo residual verificado por un usuario autorizado.');
+      await refreshFinding();
     },
   });
-  if (finding.isLoading) return <p>Cargando hallazgo…</p>;
-  if (!finding.data) return <p className="field-error">Hallazgo no encontrado.</p>;
-  const data = finding.data;
+
+  const mutationError =
+    createAction.isError ||
+    updateAction.isError ||
+    completeAction.isError ||
+    addEvidence.isError ||
+    verify.isError;
+  const actionProgress = actionProgressMeta(
+    finding.data?.actions.map((action) => action.status) ?? [],
+  );
+
   return (
-    <div className="stack">
-      <PageIntro
-        eyebrow="Hallazgo"
-        title={data.title}
-        description={`${FINDING_CATEGORY_LABELS[data.category]} · ${data.workCenter?.name ?? ''}`}
-        actions={
-          data.status !== 'CLOSED' ? (
-            <button className="button" onClick={() => setShowAction(!showAction)}>
-              Nueva acción
-            </button>
-          ) : null
-        }
-      />
-      <div className="detail-strip">
-        <RiskBadge level={data.initialRiskLevel} />
-        <StatusBadge>{label(data.status)}</StatusBadge>
-      </div>
-      <DemoNotice />
-      <div className="grid">
-        <Card className="stack">
-          <h3>Riesgo inicial</h3>
-          <strong className="big-number">{data.initialScore}</strong>
-          <span>
-            Probabilidad {data.initialLikelihood} × consecuencia {data.initialConsequence}
-          </span>
-        </Card>
-        <Card className="stack">
-          <h3>Riesgo residual</h3>
-          {data.residualScore ? (
-            <>
-              <strong className="big-number">{data.residualScore}</strong>
-              <RiskBadge level={data.residualRiskLevel!} />
-            </>
-          ) : (
-            <p className="muted">Pendiente de verificación.</p>
-          )}
-        </Card>
-      </div>
-      {data.recurrenceStatus !== 'NONE' && (
-        <div className="recurrence-callout">
-          <strong>{label(data.recurrenceStatus)}</strong>
-          <p>
-            {data.recurrence?.previousCount} antecedentes en {data.recurrence?.windowDays} días, en{' '}
-            {data.workCenter?.name} y categoría {FINDING_CATEGORY_LABELS[data.category]}.
-          </p>
-          {data.recurrence?.previous.map((item) => (
-            <Link key={item.id} href={`/app/inspections/${item.inspectionId}/findings/${item.id}`}>
-              {item.title} →
-            </Link>
-          ))}
-          {data.recurrenceStatus === 'SYSTEMIC_REVIEW_RECOMMENDED' && (
-            <p>
-              <strong>Este aviso indica recurrencia, no confirma una causa raíz.</strong>
-            </p>
-          )}
-        </div>
-      )}
-      {showAction && (
-        <Card>
-          <form
-            className="stack"
-            onSubmit={actionForm.handleSubmit((values) => createAction.mutate(values))}
-          >
-            <h3>Crear acción correctiva</h3>
-            <div className="field">
-              <label htmlFor="action-title">Acción</label>
-              <input
-                id="action-title"
-                {...actionForm.register('title', { required: true, minLength: 3 })}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="action-description">Descripción</label>
-              <textarea id="action-description" {...actionForm.register('description')} />
-            </div>
-            <div className="field">
-              <label htmlFor="assignee">Responsable</label>
-              <select id="assignee" {...actionForm.register('assignedToUserId')}>
-                <option value="">Sin asignar</option>
-                {context.data?.members.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.displayName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="priority">Prioridad</label>
-              <select id="priority" {...actionForm.register('priority')}>
-                <option value="LOW">Baja</option>
-                <option value="MEDIUM">Media</option>
-                <option value="HIGH">Alta</option>
-                <option value="URGENT">Urgente</option>
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="due">Fecha límite</label>
-              <input id="due" type="datetime-local" {...actionForm.register('dueAt')} />
-            </div>
-            <button className="button">Guardar acción</button>
-          </form>
-        </Card>
-      )}
-      <section className="stack">
-        <h3>Acciones correctivas</h3>
-        {data.actions.length === 0 ? (
-          <Card>No hay acciones todavía.</Card>
+    <AccessGate api={api}>
+      {finding.isLoading ? (
+        <InspectionSkeleton label="Cargando detalle de hallazgo" />
+      ) : finding.isError ? (
+        finding.error instanceof ApiClientError && finding.error.status === 404 ? (
+          <InspectionState
+            kind="empty"
+            title="No encontramos este hallazgo"
+            description={`Comprueba que el enlace corresponde a ${api.organizationName ?? 'la organización activa'}.`}
+            action={
+              <Link className="button secondary" href={`/app/inspections/${inspectionId}`}>
+                Volver a la inspección
+              </Link>
+            }
+          />
         ) : (
-          data.actions.map((action) => (
-            <Card className="action-card" key={action.id}>
-              <div>
-                <StatusBadge>{label(action.status)}</StatusBadge>
-                {action.overdue && <span className="overdue-chip">Vencida</span>}
-                <h3>{action.title}</h3>
-                <p className="muted">
-                  Prioridad {label(action.priority)}
-                  {action.assignedTo ? ` · ${action.assignedTo.displayName}` : ''}
-                </p>
-              </div>
-              {data.status !== 'CLOSED' &&
-                !['PENDING_VERIFICATION', 'COMPLETED', 'CANCELED'].includes(action.status) && (
-                  <button
-                    className="button secondary"
-                    onClick={() => completeAction.mutate(action.id)}
+          <PageQueryError retry={() => void finding.refetch()} />
+        )
+      ) : finding.data ? (
+        <div className="inspection-workspace stack">
+          <InspectionPageHeader
+            eyebrow={`Hallazgo · ${FINDING_CATEGORY_LABELS[finding.data.category]}`}
+            title={finding.data.title}
+            description={finding.data.description}
+            context={
+              <ContextLine>
+                {api.organizationName} · {finding.data.workCenter?.name}
+                {finding.data.workArea ? ` · ${finding.data.workArea.name}` : ''}
+              </ContextLine>
+            }
+            actions={
+              canWriteInspections(api.role) && finding.data.status !== 'CLOSED' ? (
+                <button
+                  className="button"
+                  type="button"
+                  onClick={() => setShowAction((current) => !current)}
+                >
+                  {showAction ? 'Cerrar formulario' : 'Nueva acción'}
+                </button>
+              ) : undefined
+            }
+          />
+          <div className="inspection-object-strip">
+            <InspectionRiskBadge
+              level={finding.data.initialRiskLevel}
+              score={finding.data.initialScore}
+            />
+            <DomainStatusBadge domain="finding" status={finding.data.status} />
+            {finding.data.inspection?.isDemo ? <DemoChip /> : null}
+            <span>
+              Método {finding.data.riskMethodKey ?? 'DEMO_5X5'} · versión{' '}
+              <span className="mono">{finding.data.riskMethodVersion ?? '1.0.0'}</span>
+            </span>
+          </div>
+          <InspectionDemoNotice compact />
+          {notice ? (
+            <p className="inspection-success" role="status">
+              {notice}
+            </p>
+          ) : null}
+          {mutationError ? (
+            <InlineRequestState>
+              No pudimos completar la operación. Tus datos se conservaron; revisa el estado actual y
+              vuelve a intentarlo.
+            </InlineRequestState>
+          ) : null}
+
+          <div className="inspection-finding-layout">
+            <div className="stack">
+              <section aria-labelledby="risk-pair-title">
+                <div className="inspection-section-heading">
+                  <div>
+                    <p className="eyebrow">Valoración</p>
+                    <h2 id="risk-pair-title">Riesgo inicial y residual</h2>
+                  </div>
+                </div>
+                <div className="inspection-risk-pair">
+                  <Card>
+                    <span>Riesgo inicial</span>
+                    <strong>{finding.data.initialScore}</strong>
+                    <p>
+                      Probabilidad {finding.data.initialLikelihood} × consecuencia{' '}
+                      {finding.data.initialConsequence}
+                    </p>
+                    <InspectionRiskBadge
+                      level={finding.data.initialRiskLevel}
+                      score={finding.data.initialScore}
+                    />
+                  </Card>
+                  <Card className={!finding.data.residualScore ? 'pending' : ''}>
+                    <span>Riesgo residual</span>
+                    {finding.data.residualScore ? (
+                      <>
+                        <strong>{finding.data.residualScore}</strong>
+                        <p>
+                          Probabilidad {finding.data.residualLikelihood} × consecuencia{' '}
+                          {finding.data.residualConsequence}
+                        </p>
+                        <InspectionRiskBadge
+                          level={finding.data.residualRiskLevel}
+                          score={finding.data.residualScore}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <strong aria-label="Sin valor">—</strong>
+                        <p>
+                          Pendiente de verificación. La ejecución registrada aún requiere verificar
+                          el riesgo residual.
+                        </p>
+                        <InspectionRiskBadge pending />
+                      </>
+                    )}
+                  </Card>
+                </div>
+              </section>
+
+              {finding.data.recurrenceStatus !== 'NONE' ? (
+                <div className="inspection-recurrence" role="note">
+                  <strong>{labelRecurrence(finding.data.recurrenceStatus)}</strong>
+                  <p>
+                    {finding.data.recurrence?.previousCount} antecedentes en{' '}
+                    {finding.data.recurrence?.windowDays} días, en {finding.data.workCenter?.name} y
+                    categoría {FINDING_CATEGORY_LABELS[finding.data.category]}.
+                  </p>
+                  <p>Este aviso indica recurrencia, no confirma una causa raíz.</p>
+                  {finding.data.recurrence?.previous.length ? (
+                    <div className="inspection-related-links">
+                      {finding.data.recurrence.previous.map((item) => (
+                        <Link
+                          key={item.id}
+                          href={`/app/inspections/${item.inspectionId}/findings/${item.id}`}
+                        >
+                          {item.title} <span aria-hidden="true">→</span>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {showAction ? (
+                <Card className="inspection-form-card">
+                  <form
+                    className="inspection-form"
+                    noValidate
+                    onSubmit={actionForm.handleSubmit((input) => createAction.mutate(input))}
                   >
-                    Marcar terminada
-                  </button>
+                    <div className="inspection-form-intro">
+                      <p className="eyebrow">Acción correctiva</p>
+                      <h2>Define el siguiente control</h2>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="action-title">Acción</label>
+                      <input
+                        id="action-title"
+                        aria-invalid={Boolean(actionForm.formState.errors.title)}
+                        {...actionForm.register('title', {
+                          required: 'Describe la acción correctiva.',
+                          minLength: { value: 3, message: 'Usa al menos 3 caracteres.' },
+                          maxLength: { value: 160, message: 'Usa como máximo 160 caracteres.' },
+                        })}
+                      />
+                      {actionForm.formState.errors.title ? (
+                        <p className="field-error">{actionForm.formState.errors.title.message}</p>
+                      ) : null}
+                    </div>
+                    <div className="field">
+                      <label htmlFor="action-description">Descripción (opcional)</label>
+                      <textarea
+                        id="action-description"
+                        rows={4}
+                        {...actionForm.register('description')}
+                      />
+                    </div>
+                    <div className="inspection-form-grid">
+                      <div className="field">
+                        <label htmlFor="assignee">Responsable</label>
+                        <select id="assignee" {...actionForm.register('assignedToUserId')}>
+                          <option value="">Sin asignar</option>
+                          {context.data?.members.map((member) => (
+                            <option key={member.id} value={member.id}>
+                              {member.displayName} · {member.role}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label htmlFor="priority">Prioridad</label>
+                        <select id="priority" {...actionForm.register('priority')}>
+                          <option value="LOW">Baja</option>
+                          <option value="MEDIUM">Media</option>
+                          <option value="HIGH">Alta</option>
+                          <option value="URGENT">Urgente</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="due">Fecha límite (opcional)</label>
+                      <input id="due" type="datetime-local" {...actionForm.register('dueAt')} />
+                    </div>
+                    <div className="inspection-dialog-actions">
+                      <button
+                        className="button secondary"
+                        type="button"
+                        onClick={() => setShowAction(false)}
+                      >
+                        Cancelar
+                      </button>
+                      <button className="button" disabled={createAction.isPending}>
+                        {createAction.isPending ? 'Guardando…' : 'Guardar acción'}
+                      </button>
+                    </div>
+                  </form>
+                </Card>
+              ) : null}
+
+              <section aria-labelledby="corrective-actions-title">
+                <div className="inspection-section-heading">
+                  <div>
+                    <p className="eyebrow">Workflow independiente</p>
+                    <h2 id="corrective-actions-title">
+                      Acciones correctivas <span>{finding.data.actions.length}</span>
+                    </h2>
+                  </div>
+                </div>
+                {finding.data.actions.length === 0 ? (
+                  <InspectionState
+                    kind="empty"
+                    title="No hay acciones todavía"
+                    description="Crea una acción para asignar el control, iniciar el trabajo y enviarlo a verificación."
+                  />
+                ) : (
+                  <div className="inspection-action-list">
+                    {finding.data.actions.map((action) => {
+                      const nextStep = actionPrimaryStep(action.status);
+                      const canComplete = canCompleteCorrectiveAction({
+                        role: api.role,
+                        userId: api.userId,
+                        assignedToUserId: action.assignedToUserId ?? action.assignedTo?.id,
+                      });
+                      return (
+                        <Card className="inspection-action-card" key={action.id}>
+                          <div className="inspection-action-topline">
+                            <DomainStatusBadge domain="action" status={action.status} />
+                            {action.overdue ? <span className="overdue-chip">Vencida</span> : null}
+                            <span>Prioridad {labelPriority(action.priority)}</span>
+                          </div>
+                          <h3>{action.title}</h3>
+                          {action.description ? <p>{action.description}</p> : null}
+                          <dl className="inspection-action-meta">
+                            <div>
+                              <dt>Responsable</dt>
+                              <dd>{action.assignedTo?.displayName ?? 'Sin asignar'}</dd>
+                            </div>
+                            <div>
+                              <dt>Vencimiento</dt>
+                              <dd>{formatDate(action.dueAt)}</dd>
+                            </div>
+                          </dl>
+                          {action.evidence.length ? (
+                            <div className="inspection-evidence-list">
+                              <strong>Evidencia compatible</strong>
+                              {action.evidence.map((evidence) => (
+                                <div key={evidence.id}>
+                                  <span aria-hidden="true">
+                                    {evidence.type === 'NOTE' ? '≡' : '↗'}
+                                  </span>
+                                  {evidence.type === 'NOTE' ? (
+                                    <span>{evidence.note}</span>
+                                  ) : (
+                                    <a
+                                      href={evidence.externalUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      Abrir enlace externo
+                                    </a>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="inspection-row-muted">Sin evidencia registrada.</p>
+                          )}
+                          {evidenceActionId === action.id ? (
+                            <form
+                              className="inspection-evidence-form"
+                              noValidate
+                              onSubmit={evidenceForm.handleSubmit((input) =>
+                                addEvidence.mutate({ actionId: action.id, input }),
+                              )}
+                            >
+                              <div className="field">
+                                <label htmlFor={`evidence-type-${action.id}`}>
+                                  Tipo de evidencia
+                                </label>
+                                <select
+                                  id={`evidence-type-${action.id}`}
+                                  {...evidenceForm.register('type')}
+                                >
+                                  <option value="NOTE">Nota</option>
+                                  <option value="EXTERNAL_LINK">Enlace externo HTTPS</option>
+                                </select>
+                              </div>
+                              {evidenceType === 'NOTE' ? (
+                                <div className="field">
+                                  <label htmlFor={`evidence-note-${action.id}`}>Nota</label>
+                                  <textarea
+                                    id={`evidence-note-${action.id}`}
+                                    rows={3}
+                                    {...evidenceForm.register('note', {
+                                      required: 'Escribe la nota que respalda la acción.',
+                                      maxLength: {
+                                        value: 2000,
+                                        message: 'Usa como máximo 2000 caracteres.',
+                                      },
+                                    })}
+                                  />
+                                  {evidenceForm.formState.errors.note ? (
+                                    <p className="field-error">
+                                      {evidenceForm.formState.errors.note.message}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <div className="field">
+                                  <label htmlFor={`evidence-url-${action.id}`}>Enlace HTTPS</label>
+                                  <input
+                                    id={`evidence-url-${action.id}`}
+                                    type="url"
+                                    inputMode="url"
+                                    placeholder="https://"
+                                    {...evidenceForm.register('externalUrl', {
+                                      required: 'Escribe un enlace HTTPS.',
+                                      pattern: {
+                                        value: /^https:\/\/.+/,
+                                        message:
+                                          'Usa un enlace completo que comience con https://.',
+                                      },
+                                    })}
+                                  />
+                                  {evidenceForm.formState.errors.externalUrl ? (
+                                    <p className="field-error">
+                                      {evidenceForm.formState.errors.externalUrl.message}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              )}
+                              <p className="inspection-invariant-note">
+                                V1 admite notas y enlaces externos. No existe carga de archivos.
+                              </p>
+                              <div className="inspection-dialog-actions">
+                                <button
+                                  className="button secondary"
+                                  type="button"
+                                  onClick={() => setEvidenceActionId(null)}
+                                >
+                                  Cancelar
+                                </button>
+                                <button className="button" disabled={addEvidence.isPending}>
+                                  {addEvidence.isPending ? 'Guardando…' : 'Guardar evidencia'}
+                                </button>
+                              </div>
+                            </form>
+                          ) : null}
+                          <div className="inspection-action-controls">
+                            {canWriteInspections(api.role) && finding.data.status !== 'CLOSED' ? (
+                              <button
+                                className="button secondary"
+                                type="button"
+                                onClick={() => {
+                                  evidenceForm.reset();
+                                  setEvidenceActionId(action.id);
+                                }}
+                              >
+                                Añadir evidencia
+                              </button>
+                            ) : null}
+                            {nextStep === 'start' && canWriteInspections(api.role) ? (
+                              <button
+                                className="button"
+                                type="button"
+                                disabled={updateAction.isPending}
+                                onClick={() =>
+                                  updateAction.mutate({
+                                    actionId: action.id,
+                                    status: 'IN_PROGRESS',
+                                  })
+                                }
+                              >
+                                {actionPrimaryLabel(action.status)}
+                              </button>
+                            ) : null}
+                            {nextStep === 'complete' && canComplete ? (
+                              <button
+                                className="button"
+                                type="button"
+                                disabled={completeAction.isPending}
+                                onClick={() => completeAction.mutate(action.id)}
+                              >
+                                {actionPrimaryLabel(action.status)}
+                              </button>
+                            ) : null}
+                          </div>
+                          {nextStep === 'complete' && !canComplete ? (
+                            <p className="inspection-permission-inline">
+                              {api.role === 'SST_TECHNICIAN'
+                                ? 'Tu rol SST_TECHNICIAN solo puede enviar a verificación acciones asignadas a tu usuario. La API valida esta restricción.'
+                                : `Tu rol ${api.role ?? 'actual'} no puede enviar esta acción a verificación.`}
+                            </p>
+                          ) : null}
+                          {action.status === 'PENDING_VERIFICATION' ? (
+                            <p className="inspection-invariant-note">
+                              El envío de la ejecución no verifica el riesgo residual.
+                            </p>
+                          ) : null}
+                        </Card>
+                      );
+                    })}
+                  </div>
                 )}
-            </Card>
-          ))
-        )}
-      </section>
-      {data.actions.some((action) => action.status === 'PENDING_VERIFICATION') && (
-        <Card className="stack">
-          <h3>Verificación</h3>
-          <p>La verificación recalcula el riesgo residual en el backend.</p>
-          {!showVerify ? (
-            <button className="button" onClick={() => setShowVerify(true)}>
-              Verificar corrección
-            </button>
-          ) : (
+              </section>
+
+              {finding.data.actions.some((action) => action.status === 'PENDING_VERIFICATION') ? (
+                canVerifyFindings(api.role) ? (
+                  <Card className="inspection-verification-callout">
+                    <div>
+                      <p className="eyebrow">Paso actual</p>
+                      <h2>Verificar riesgo residual</h2>
+                      <p>
+                        Registra la valoración observada después de la acción. El servidor calcula
+                        el resultado y cierra el hallazgo solo si se cumplen sus prerrequisitos
+                        actuales.
+                      </p>
+                    </div>
+                    <button className="button" type="button" onClick={() => setShowVerify(true)}>
+                      Verificar riesgo residual
+                    </button>
+                  </Card>
+                ) : (
+                  <PermissionState
+                    role={api.role}
+                    capability="verificar el riesgo residual"
+                    authorizedRoles={VERIFY_ROLE_COPY}
+                  />
+                )
+              ) : null}
+            </div>
+
+            <aside className="inspection-context-rail focus-dim" aria-label="Contexto del hallazgo">
+              <Card>
+                <h2>Progreso del hallazgo</h2>
+                <ol className="inspection-workflow-steps">
+                  <li className="done">Hallazgo registrado</li>
+                  <li className={finding.data.actions.length ? 'done' : 'current'}>
+                    Acción correctiva creada
+                  </li>
+                  <li className={actionProgress.state}>{actionProgress.label}</li>
+                  <li className={finding.data.residualScore ? 'done' : 'current'}>
+                    Riesgo residual verificado
+                  </li>
+                  <li className={finding.data.status === 'CLOSED' ? 'done' : ''}>
+                    Hallazgo cerrado por la regla vigente
+                  </li>
+                </ol>
+              </Card>
+              <Card>
+                <h2>Prerrequisitos actuales</h2>
+                <ul className="inspection-prerequisites">
+                  <li data-complete={finding.data.actions.length > 0}>
+                    Al menos una acción correctiva
+                  </li>
+                  <li
+                    data-complete={
+                      finding.data.actions.some((action) => action.status !== 'CANCELED') &&
+                      finding.data.actions
+                        .filter((action) => action.status !== 'CANCELED')
+                        .every((action) => action.status === 'COMPLETED')
+                    }
+                  >
+                    Acciones no canceladas verificadas
+                  </li>
+                  <li data-complete={Boolean(finding.data.residualScore)}>
+                    Riesgo residual registrado
+                  </li>
+                </ul>
+                <p className="inspection-invariant-note">
+                  La API aplica la regla y hoy cierra automáticamente cuando la verificación
+                  completa los prerrequisitos.
+                </p>
+              </Card>
+              {finding.data.alerts?.length ? (
+                <Card>
+                  <h2>Alertas relacionadas</h2>
+                  {finding.data.alerts.map((alert) => (
+                    <div className="inspection-rail-alert" key={alert.id}>
+                      <DomainStatusBadge domain="alert" status={alert.status} />
+                      <strong>{alertTypeLabel(alert.type)}</strong>
+                      <p>{alert.message}</p>
+                    </div>
+                  ))}
+                </Card>
+              ) : null}
+            </aside>
+          </div>
+
+          <InspectionDialog
+            open={showVerify}
+            title="Verificar riesgo residual"
+            description="Registra la probabilidad y la consecuencia observadas después de la acción. El envío de la ejecución y esta verificación son etapas distintas; la verificación queda asociada a tu usuario."
+            onClose={() => {
+              if (!verify.isPending) setShowVerify(false);
+            }}
+          >
             <form
-              className="stack"
-              onSubmit={verifyForm.handleSubmit((values, event) => {
-                if (!(event?.target instanceof HTMLFormElement)) return;
-                const nativeValues = new FormData(event.target);
-                verify.mutate({
-                  ...values,
-                  likelihood: Number(nativeValues.get('likelihood')),
-                  consequence: Number(nativeValues.get('consequence')),
-                });
-              })}
+              className="inspection-form"
+              noValidate
+              onSubmit={verifyForm.handleSubmit((input) => verify.mutate(input))}
             >
-              <Scale
+              <QuestionScale
                 name="likelihood"
                 title="Probabilidad residual"
                 descriptions={likelihoodDescriptions}
                 register={verifyForm.register}
-                onSelect={(name, value) => {
-                  residualValues.current[name] = value;
-                }}
+                error={verifyForm.formState.errors.likelihood?.message}
               />
-              <Scale
+              <QuestionScale
                 name="consequence"
                 title="Consecuencia residual"
                 descriptions={consequenceDescriptions}
                 register={verifyForm.register}
-                onSelect={(name, value) => {
-                  residualValues.current[name] = value;
-                }}
+                error={verifyForm.formState.errors.consequence?.message}
               />
-              <button
-                type="button"
-                className="button"
-                onClick={() =>
-                  void verifyForm.handleSubmit((values) =>
-                    verify.mutate({
-                      ...values,
-                      likelihood: residualValues.current.likelihood,
-                      consequence: residualValues.current.consequence,
-                    }),
-                  )()
-                }
-              >
-                Confirmar verificación
-              </button>
+              <div className="inspection-server-calculation" role="note">
+                <strong>El servidor calcula el resultado</strong>
+                <span>
+                  La verificación puede cerrar el hallazgo conforme a la regla vigente y puede
+                  generar una alerta si el riesgo residual permanece alto o crítico.
+                </span>
+              </div>
+              {verify.isError ? (
+                <InlineRequestState>
+                  No pudimos registrar la verificación. Las selecciones permanecen disponibles.
+                </InlineRequestState>
+              ) : null}
+              <div className="inspection-dialog-actions">
+                <button
+                  className="button secondary"
+                  type="button"
+                  disabled={verify.isPending}
+                  onClick={() => setShowVerify(false)}
+                >
+                  Cancelar
+                </button>
+                <button className="button" disabled={verify.isPending}>
+                  {verify.isPending ? 'Verificando…' : 'Verificar riesgo residual'}
+                </button>
+              </div>
             </form>
-          )}
-        </Card>
-      )}
-    </div>
+          </InspectionDialog>
+        </div>
+      ) : null}
+    </AccessGate>
   );
 }
 
-export function InspectionAlerts() {
-  const api = useApi();
+export function InspectionAlerts({ filters = {} }: { filters?: InspectionAlertFilters }) {
+  const api = useInspectionApi();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const organizationId = api.organizationId;
+  const filterKey = apiQuery(filters);
   const alerts = useQuery({
-    queryKey: queryKeys.organization.inspectionAlerts(organizationId ?? 'inactive'),
-    queryFn: ({ signal }) =>
-      api.request<{
-        items: Array<{
-          id: string;
-          type: string;
-          severity: string;
-          status: string;
-          message: string;
-          finding: {
-            id: string;
-            title: string;
-            recurrenceCount: number;
-            workCenter: { name: string };
-            inspection: { id: string };
-          };
-        }>;
-      }>('/inspections/alerts', { signal }),
-    enabled: Boolean(organizationId),
+    queryKey: queryKeys.organization.inspectionAlertList(organizationId ?? 'inactive', filterKey),
+    queryFn: ({ signal }) => api.request<AlertList>(`/inspections/alerts?${filterKey}`, { signal }),
+    enabled: Boolean(organizationId && api.moduleEnabled),
+    retry: shouldRetryGet,
   });
   const acknowledge = useMutation({
     mutationFn: (id: string) =>
       api.request(`/inspections/alerts/${id}/acknowledge`, { method: 'POST' }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.organization.inspectionAlerts(organizationId!),
-      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.inspectionAlerts(organizationId!),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.dashboard(organizationId!),
+        }),
+      ]);
+    },
   });
+  const activeFilters = filters.status
+    ? [{ key: 'status', label: statusMeta('alert', filters.status).label }]
+    : [];
+
   return (
-    <div className="stack">
-      <PageIntro
-        eyebrow="Inspecciones"
-        title="Alertas"
-        description="Recurrencias y riesgos residuales que requieren atención."
-      />
-      {alerts.data?.items.length ? (
-        alerts.data.items.map((alert) => (
-          <Card className="stack" key={alert.id}>
-            <div className="detail-strip">
-              <StatusBadge>{label(alert.status)}</StatusBadge>
-              <span>{label(alert.type)}</span>
-            </div>
-            <h3>{alert.finding.title}</h3>
-            <p>{alert.message}</p>
-            {alert.type === 'RECURRENCE' && (
-              <p>
-                <strong>Este aviso indica recurrencia, no confirma una causa raíz.</strong>
-              </p>
-            )}
-            <div className="form-actions compact">
-              <Link
-                href={`/app/inspections/${alert.finding.inspection.id}/findings/${alert.finding.id}`}
+    <AccessGate api={api}>
+      <div className="inspection-workspace stack">
+        <InspectionPageHeader
+          eyebrow="Operación · Alertas"
+          title="Alertas de inspecciones"
+          description="Revisa señales de recurrencia y riesgo residual alto o crítico sin convertirlas en diagnósticos de causa."
+          context={<ContextLine>{api.organizationName ?? 'Organización activa'}</ContextLine>}
+          actions={
+            <Link className="button secondary" href="/app/inspections">
+              Volver a inspecciones
+            </Link>
+          }
+        />
+        <div className="inspection-filter-panel focus-dim">
+          <div className="inspection-filter-grid one">
+            <label>
+              <span>Estado de la alerta</span>
+              <select
+                aria-label="Filtrar alertas por estado"
+                value={filters.status ?? ''}
+                onChange={(event) =>
+                  replaceFilters('/app/inspections/alerts', { status: event.target.value }, router)
+                }
               >
-                Ver hallazgo →
-              </Link>
-              {alert.status === 'OPEN' && (
-                <button className="button secondary" onClick={() => acknowledge.mutate(alert.id)}>
-                  Reconocer
-                </button>
-              )}
+                <option value="">Todos los estados</option>
+                <option value="OPEN">Abiertas</option>
+                <option value="ACKNOWLEDGED">Reconocidas</option>
+                <option value="RESOLVED">Resueltas</option>
+              </select>
+            </label>
+          </div>
+          <ActiveFilters
+            filters={activeFilters}
+            onRemove={() => replaceFilters('/app/inspections/alerts', {}, router)}
+            onClear={() => replaceFilters('/app/inspections/alerts', {}, router)}
+          />
+        </div>
+        {alerts.isLoading ? (
+          <InspectionSkeleton label="Cargando alertas" />
+        ) : alerts.isError ? (
+          <PageQueryError retry={() => void alerts.refetch()} />
+        ) : alerts.data?.items.length ? (
+          <section aria-labelledby="alerts-list-title">
+            <div className="inspection-section-heading">
+              <div>
+                <p className="eyebrow">Atención operativa</p>
+                <h2 id="alerts-list-title">Señales registradas</h2>
+              </div>
+              <span aria-live="polite">{alerts.data.total} resultados</span>
             </div>
-          </Card>
-        ))
-      ) : (
-        <Card>No hay alertas abiertas.</Card>
-      )}
-    </div>
+            <div className="inspection-alert-list" data-density="compact">
+              {alerts.data.items.map((alert) => (
+                <Card className="inspection-alert-card" key={alert.id}>
+                  <div className="inspection-alert-topline">
+                    <DomainStatusBadge domain="alert" status={alert.status} />
+                    <span>{alertTypeLabel(alert.type)}</span>
+                    <span>{formatDate(alert.createdAt)}</span>
+                  </div>
+                  <h3>{alert.finding.title}</h3>
+                  <p>
+                    {alert.finding.workCenter.name}
+                    {alert.finding.category
+                      ? ` · ${FINDING_CATEGORY_LABELS[alert.finding.category]}`
+                      : ''}
+                  </p>
+                  <p>{alert.message}</p>
+                  {alert.type === 'RECURRENCE' ? (
+                    <p className="inspection-invariant-note">
+                      Este aviso indica recurrencia, no confirma una causa raíz.
+                    </p>
+                  ) : null}
+                  <div className="inspection-action-controls">
+                    <Link
+                      className="button secondary"
+                      href={`/app/inspections/${alert.finding.inspection.id}/findings/${alert.finding.id}`}
+                    >
+                      Ver hallazgo
+                    </Link>
+                    {alert.status === 'OPEN' && canAcknowledgeInspectionAlerts(api.role) ? (
+                      <button
+                        className="button"
+                        type="button"
+                        disabled={acknowledge.isPending}
+                        onClick={() => acknowledge.mutate(alert.id)}
+                      >
+                        Reconocer alerta
+                      </button>
+                    ) : null}
+                  </div>
+                  {alert.status === 'OPEN' && !canAcknowledgeInspectionAlerts(api.role) ? (
+                    <p className="inspection-permission-inline">
+                      Tu rol {api.role ?? 'actual'} puede analizar esta alerta, pero solo{' '}
+                      {VERIFY_ROLE_COPY} pueden reconocerla. La API valida el permiso.
+                    </p>
+                  ) : null}
+                </Card>
+              ))}
+            </div>
+          </section>
+        ) : (
+          <InspectionState
+            kind="empty"
+            title={
+              activeFilters.length ? 'No hay alertas con este estado' : 'No hay alertas abiertas'
+            }
+            description="Las recurrencias y los riesgos residuales altos o críticos aparecerán aquí cuando la API los registre."
+            action={
+              activeFilters.length ? (
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => replaceFilters('/app/inspections/alerts', {}, router)}
+                >
+                  Quitar filtros
+                </button>
+              ) : undefined
+            }
+          />
+        )}
+        {acknowledge.isError ? (
+          <InlineRequestState>
+            No pudimos reconocer la alerta. El registro permanece abierto; vuelve a intentarlo.
+          </InlineRequestState>
+        ) : null}
+      </div>
+    </AccessGate>
   );
 }
 
-export function InspectionAnalytics() {
-  const api = useApi();
+export function InspectionAnalytics({ filters = {} }: { filters?: InspectionAnalyticsFilters }) {
+  const api = useInspectionApi();
+  const router = useRouter();
   const organizationId = api.organizationId;
+  const context = useInspectionContext(api);
+  const filterKey = apiQuery(filters);
   const query = useQuery({
-    queryKey: queryKeys.organization.inspectionAnalytics(organizationId ?? 'inactive'),
-    queryFn: ({ signal }) => api.request<Analytics>('/inspections/analytics/summary', { signal }),
-    enabled: Boolean(organizationId),
+    queryKey: queryKeys.organization.inspectionAnalyticsSummary(
+      organizationId ?? 'inactive',
+      filterKey,
+    ),
+    queryFn: ({ signal }) =>
+      api.request<Analytics>(`/inspections/analytics/summary?${filterKey}`, { signal }),
+    enabled: Boolean(organizationId && api.moduleEnabled),
+    retry: shouldRetryGet,
   });
-  if (!query.data) return <p>Cargando analítica…</p>;
-  const data = query.data;
+  const activeCenter = context.data?.workCenters.find(({ id }) => id === filters.workCenterId);
+  const activeArea = activeCenter?.workAreas.find(({ id }) => id === filters.workAreaId);
+  const activeFilters = [
+    filters.workCenterId && {
+      key: 'workCenterId',
+      label: activeCenter?.name ?? 'Centro seleccionado',
+    },
+    filters.workAreaId && { key: 'workAreaId', label: activeArea?.name ?? 'Área seleccionada' },
+    filters.category && {
+      key: 'category',
+      label: FINDING_CATEGORY_LABELS[filters.category as FindingCategory],
+    },
+  ].filter(Boolean) as Array<{ key: string; label: string }>;
+
+  function updateFilter(key: keyof InspectionAnalyticsFilters, value: string) {
+    const next = { ...filters, [key]: value || undefined };
+    if (key === 'workCenterId') next.workAreaId = undefined;
+    replaceFilters('/app/inspections/analytics', next, router);
+  }
+
   return (
-    <div className="stack">
-      <PageIntro
-        eyebrow="Inspecciones"
-        title="Analítica operacional"
-        description="Métricas calculadas exclusivamente con registros almacenados."
-      />
-      <div className="metric-grid">
-        <Card>
-          <span>Total inspecciones</span>
-          <strong>{data.totalInspections}</strong>
-        </Card>
-        <Card>
-          <span>Promedio días abiertos</span>
-          <strong>{data.averageDaysOpen}</strong>
-        </Card>
-        <Card>
-          <span>Porcentaje cerrado</span>
-          <strong>{data.percentageClosed}%</strong>
-        </Card>
-        <Card>
-          <span>Acciones vencidas</span>
-          <strong>{data.overdueActions}</strong>
-        </Card>
+    <AccessGate api={api}>
+      <div className="inspection-workspace stack">
+        <InspectionPageHeader
+          eyebrow="Análisis · Tendencias y recurrencias"
+          title="Tendencias de inspecciones"
+          description="Lee la operación con métricas calculadas exclusivamente a partir de registros almacenados."
+          context={<ContextLine>{api.organizationName ?? 'Organización activa'}</ContextLine>}
+          actions={
+            <Link className="button secondary" href="/app/inspections">
+              Volver a inspecciones
+            </Link>
+          }
+        />
+        <InspectionDemoNotice compact />
+        <div className="inspection-filter-panel focus-dim">
+          <div className="inspection-filter-grid">
+            <label>
+              <span>Centro</span>
+              <select
+                aria-label="Filtrar tendencias por centro"
+                value={filters.workCenterId ?? ''}
+                onChange={(event) => updateFilter('workCenterId', event.target.value)}
+              >
+                <option value="">Todos los centros</option>
+                {context.data?.workCenters.map((center) => (
+                  <option value={center.id} key={center.id}>
+                    {center.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Área</span>
+              <select
+                aria-label="Filtrar tendencias por área"
+                value={filters.workAreaId ?? ''}
+                disabled={!activeCenter}
+                title={!activeCenter ? 'Selecciona primero un centro.' : undefined}
+                onChange={(event) => updateFilter('workAreaId', event.target.value)}
+              >
+                <option value="">Todas las áreas</option>
+                {activeCenter?.workAreas.map((area) => (
+                  <option value={area.id} key={area.id}>
+                    {area.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Categoría</span>
+              <select
+                aria-label="Filtrar tendencias por categoría"
+                value={filters.category ?? ''}
+                onChange={(event) => updateFilter('category', event.target.value)}
+              >
+                <option value="">Todas las categorías</option>
+                {FINDING_CATEGORIES.map((category) => (
+                  <option value={category} key={category}>
+                    {FINDING_CATEGORY_LABELS[category]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <ActiveFilters
+            filters={activeFilters}
+            onRemove={(key) => updateFilter(key as keyof InspectionAnalyticsFilters, '')}
+            onClear={() => replaceFilters('/app/inspections/analytics', {}, router)}
+          />
+        </div>
+        {query.isLoading || context.isLoading ? (
+          <InspectionSkeleton label="Cargando tendencias" />
+        ) : query.isError || context.isError ? (
+          <PageQueryError retry={() => void Promise.all([query.refetch(), context.refetch()])} />
+        ) : query.data ? (
+          query.data.totalInspections === 0 && activeFilters.length === 0 ? (
+            <InspectionState
+              kind="empty"
+              title="Aún no hay datos de inspecciones"
+              description="Las tendencias aparecerán cuando existan inspecciones y hallazgos almacenados."
+              action={
+                canWriteInspections(api.role) ? (
+                  <Link className="button" href="/app/inspections/new">
+                    Nueva inspección
+                  </Link>
+                ) : undefined
+              }
+            />
+          ) : (
+            <>
+              <section aria-labelledby="analytics-summary-title">
+                <div className="inspection-section-heading">
+                  <div>
+                    <p className="eyebrow">Resumen</p>
+                    <h2 id="analytics-summary-title">Indicadores del contexto</h2>
+                  </div>
+                </div>
+                <div className="inspection-metric-grid analytics">
+                  <div className="inspection-metric static">
+                    <strong>{query.data.totalInspections}</strong>
+                    <span>Inspecciones</span>
+                  </div>
+                  <div className="inspection-metric static">
+                    <strong>{query.data.openFindings}</strong>
+                    <span>Hallazgos abiertos</span>
+                  </div>
+                  <div className="inspection-metric static">
+                    <strong>{query.data.averageDaysOpen}</strong>
+                    <span>Días abiertos en promedio</span>
+                  </div>
+                  <div className="inspection-metric static">
+                    <strong>{query.data.percentageClosed}%</strong>
+                    <span>Hallazgos cerrados</span>
+                  </div>
+                  <div className="inspection-metric static">
+                    <strong>{query.data.overdueActions}</strong>
+                    <span>Acciones vencidas</span>
+                  </div>
+                </div>
+              </section>
+              <div className="inspection-analytics-grid">
+                <Card>
+                  <h2>Hallazgos por categoría</h2>
+                  {query.data.findingsByCategory.length ? (
+                    query.data.findingsByCategory.map((item) => (
+                      <div className="inspection-data-row" key={item.category}>
+                        <span>{FINDING_CATEGORY_LABELS[item.category]}</span>
+                        <strong>{item.count}</strong>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="muted">Sin hallazgos para este contexto.</p>
+                  )}
+                </Card>
+                <Card>
+                  <h2>Hallazgos por centro</h2>
+                  {query.data.findingsByWorkCenter.length ? (
+                    query.data.findingsByWorkCenter.map((item) => (
+                      <div className="inspection-data-row" key={item.workCenterId}>
+                        <span>{item.name}</span>
+                        <strong>{item.count}</strong>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="muted">Sin hallazgos para este contexto.</p>
+                  )}
+                </Card>
+                <Card id="risk-summary">
+                  <h2>Riesgo inicial</h2>
+                  <p className="inspection-caption">
+                    Nivel y conteo calculados a partir del resultado almacenado por el servidor.
+                  </p>
+                  {query.data.findingsByRiskLevel.length ? (
+                    query.data.findingsByRiskLevel.map((item) => (
+                      <div className="inspection-data-row" key={item.riskLevel}>
+                        <InspectionRiskBadge level={item.riskLevel} />
+                        <strong>{item.count}</strong>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="muted">Sin valoraciones para este contexto.</p>
+                  )}
+                </Card>
+                <Card>
+                  <h2>Riesgo residual verificado</h2>
+                  {query.data.initialVsResidual.residual.length ? (
+                    query.data.initialVsResidual.residual.map((item) => (
+                      <div className="inspection-data-row" key={item.riskLevel ?? 'pending'}>
+                        <InspectionRiskBadge level={item.riskLevel} pending={!item.riskLevel} />
+                        <strong>{item.count}</strong>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="muted">Todavía no hay verificaciones residuales.</p>
+                  )}
+                </Card>
+              </div>
+              <p className="inspection-invariant-note">
+                Una recurrencia es una señal operacional. No confirma una causa raíz.
+              </p>
+            </>
+          )
+        ) : null}
       </div>
-      <div className="grid">
-        <Card className="stack">
-          <h3>Hallazgos por categoría</h3>
-          {data.findingsByCategory.map((item) => (
-            <div className="data-row" key={item.category}>
-              <span>{FINDING_CATEGORY_LABELS[item.category]}</span>
-              <strong>{item.count}</strong>
-            </div>
-          ))}
-        </Card>
-        <Card className="stack">
-          <h3>Hallazgos por centro</h3>
-          {data.findingsByWorkCenter.map((item) => (
-            <div className="data-row" key={item.workCenterId}>
-              <span>{item.name}</span>
-              <strong>{item.count}</strong>
-            </div>
-          ))}
-        </Card>
-        <Card className="stack">
-          <h3>Riesgo inicial</h3>
-          {data.findingsByRiskLevel.map((item) => (
-            <div className="data-row" key={item.riskLevel}>
-              <span>{label(item.riskLevel)}</span>
-              <strong>{item.count}</strong>
-            </div>
-          ))}
-        </Card>
-      </div>
-    </div>
+    </AccessGate>
   );
 }

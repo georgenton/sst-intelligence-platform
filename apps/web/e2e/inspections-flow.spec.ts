@@ -32,7 +32,7 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await expect(page.getByText(/Demostración conceptual activa/)).toBeVisible();
 
   await page.getByRole('link', { name: 'Inspecciones', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Operación en campo' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Inspecciones', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Nueva inspección' }).click();
   await page
     .getByLabel('Centro de trabajo')
@@ -44,6 +44,7 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
     page.waitForURL(/\/app\/inspections\/[0-9a-f-]+$/),
     page.getByRole('button', { name: 'Crear inspección' }).click(),
   ]);
+  const inspectionUrl = page.url();
   await expect(page.getByRole('heading', { name: `Inspección de campo ${suffix}` })).toBeVisible();
   await page.getByRole('button', { name: 'Iniciar inspección' }).click();
   await expect(page.getByText('En progreso').first()).toBeVisible();
@@ -58,36 +59,98 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await page.getByRole('button', { name: 'Continuar' }).click();
   await page.getByLabel('Categoría del hallazgo').selectOption('ELECTRICAL');
   await page.getByRole('button', { name: 'Continuar' }).click();
-  await page.getByLabel('Probabilidad').selectOption('4');
-  await page.getByLabel('Consecuencia').selectOption('5');
-  await expect(page.getByLabel('Probabilidad')).toHaveValue('4');
-  await expect(page.getByLabel('Consecuencia')).toHaveValue('5');
-  await page.getByRole('button', { name: 'Registrar hallazgo' }).click({ force: true });
-  await expect(page.getByText('Resultado: 20 · Crítico')).toBeVisible();
+  await page.getByRole('group', { name: 'Probabilidad' }).locator('input[value="4"]').check();
+  await page.getByRole('group', { name: 'Consecuencia' }).locator('input[value="5"]').check();
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await expect(page.getByText('Probabilidad').last()).toBeVisible();
+  const [findingResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/inspections\/[0-9a-f-]+\/findings$/.test(response.url()),
+    ),
+    page.getByRole('button', { name: 'Guardar hallazgo' }).click(),
+  ]);
+  expect(findingResponse.ok(), await findingResponse.text()).toBe(true);
+  await expect(page.getByText('Resultado calculado por el servidor')).toBeVisible();
+  await expect(page.getByText('Probabilidad 4 × consecuencia 5')).toBeVisible();
+  await expect(page.getByText('Crítico').first()).toBeVisible();
   await Promise.all([
     page.waitForURL(/\/app\/inspections\/[0-9a-f-]+\/findings\/[0-9a-f-]+$/),
-    page.getByRole('button', { name: 'Sí, crear acción' }).click(),
+    page.getByRole('button', { name: 'Crear acción correctiva' }).click(),
   ]);
+  const findingUrl = page.url();
 
   await page.getByRole('button', { name: 'Nueva acción' }).click();
   await page.getByLabel('Acción').fill('Aislar conductor y verificar protección');
-  await page.getByLabel('Responsable').selectOption({ label: 'Técnico Inspecciones E2E' });
+  await page
+    .getByLabel('Responsable')
+    .selectOption({ label: 'Técnico Inspecciones E2E · ORG_OWNER' });
   await page.getByLabel('Prioridad').selectOption('URGENT');
   await page.getByRole('button', { name: 'Guardar acción' }).click();
-  await page.getByRole('button', { name: 'Marcar terminada' }).click();
+  await page.getByRole('button', { name: 'Iniciar acción' }).click();
+  await page.getByRole('button', { name: 'Añadir evidencia' }).click();
+  await page.getByLabel('Nota').fill('Protección aislada y revisada durante la prueba E2E.');
+  await page.getByRole('button', { name: 'Guardar evidencia' }).click();
+  await expect(
+    page.getByText('Protección aislada y revisada durante la prueba E2E.'),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Enviar a verificación' }).click();
   await expect(page.getByText('Pendiente de verificación').first()).toBeVisible();
-  await page.getByRole('button', { name: 'Verificar corrección' }).click();
-  await page.getByLabel('Probabilidad residual').selectOption('1');
-  await page.getByLabel('Consecuencia residual').selectOption('1');
-  await page.getByRole('button', { name: 'Confirmar verificación' }).click();
-  await expect(page.getByText('Cerrado').first()).toBeVisible();
-  await expect(page.getByText('Riesgo Bajo')).toBeVisible();
+  await expect(page.getByText('Acción completada', { exact: true })).toHaveCount(0);
 
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.getByRole('switch', { name: 'Enfoque inactivo' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-focus', 'on');
+  await expect(page.getByText(organizationName).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Riesgo inicial y residual' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Verificar riesgo residual' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+
+  await page.goto(inspectionUrl);
+  await expect(page.locator('html')).toHaveAttribute('data-focus', 'off');
+  await page.goto(findingUrl);
+  await expect(page.locator('html')).toHaveAttribute('data-focus', 'on');
+
+  await page.getByRole('button', { name: 'Verificar riesgo residual' }).click();
+  await page
+    .getByRole('group', { name: 'Probabilidad residual' })
+    .locator('input[value="1"]')
+    .check();
+  await page
+    .getByRole('group', { name: 'Consecuencia residual' })
+    .locator('input[value="1"]')
+    .check();
+  const [verificationResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/inspections\/[0-9a-f-]+\/findings\/[0-9a-f-]+\/verify$/.test(response.url()),
+    ),
+    page.getByRole('dialog').getByRole('button', { name: 'Verificar riesgo residual' }).click(),
+  ]);
+  expect(verificationResponse.ok(), await verificationResponse.text()).toBe(true);
+  await expect(page.getByText('Cerrado').first()).toBeVisible();
+  await expect(page.getByText('Bajo').first()).toBeVisible();
+
+  for (const theme of ['operativo', 'sereno', 'noche', 'contraste']) {
+    await page.getByLabel('Tema visual').selectOption(theme);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    await expect(page.getByRole('heading', { name: `Conductor expuesto ${suffix}` })).toBeVisible();
+  }
+
+  await page.getByRole('button', { name: 'Abrir navegación' }).click();
   await Promise.all([
     page.waitForURL('/app/inspections'),
-    page.getByRole('link', { name: 'Inspecciones', exact: true }).click(),
+    page
+      .getByRole('navigation', { name: 'Navegación principal' })
+      .getByRole('link', { name: 'Inspecciones', exact: true })
+      .click(),
   ]);
-  await expect(page.getByRole('heading', { name: 'Operación en campo' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Inspecciones', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Abrir navegación' }).click();
   await Promise.all([
     page.waitForURL('/app/inspections/alerts'),
     page
