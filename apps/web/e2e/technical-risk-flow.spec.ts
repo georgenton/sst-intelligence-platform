@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('método técnico demo, cálculo crítico y revisión profesional', async ({ page }) => {
+test('borrador, ejecución, resultado y revisión profesional de riesgo técnico', async ({ page }) => {
   test.setTimeout(90_000);
   const suffix = Date.now();
 
@@ -30,53 +30,69 @@ test('método técnico demo, cálculo crítico y revisión profesional', async (
   await expect(page.getByText(/Demostración conceptual activa/)).toBeVisible();
 
   await page.getByRole('link', { name: 'Riesgo técnico', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Evaluaciones técnicas' })).toBeVisible();
-  await page.getByRole('link', { name: 'Nueva evaluación' }).click();
+  await expect(page.getByRole('heading', { name: 'Riesgo técnico', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Nueva evaluación técnica' }).click();
   await page
     .getByLabel('Método técnico')
     .selectOption({ label: 'Evaluación técnica demostrativa · v1.0.0' });
-  await expect(page.getByText('No constituye una evaluación regulatoria validada.')).toBeVisible();
+  await expect(page.getByText(/No constituye una evaluación regulatoria validada/)).toBeVisible();
   await page.getByRole('button', { name: 'Continuar' }).click();
 
   await page
     .getByLabel('Centro de trabajo')
     .selectOption({ label: 'Centro Guayaquil (demostración)' });
-  await page.getByLabel('Área (opcional)').selectOption({ label: 'Planta A' });
+  await page.getByLabel('Área').selectOption({ label: 'Planta A' });
   await page.getByLabel('Título').fill(`Evaluación técnica crítica ${suffix}`);
+  await page.getByLabel('Descripción · opcional').fill('Actividad sintética para E2E.');
   await page.getByRole('button', { name: 'Continuar' }).click();
-
-  await page.getByLabel('Descripción de la actividad').fill('Actividad sintética para E2E.');
-  await page.getByLabel('Controles existentes (opcional)').fill('Control sintético existente.');
-  await page.getByRole('button', { name: 'Continuar' }).click();
-
-  await page.getByLabel('Probabilidad').selectOption('4');
-  await page.getByLabel('Consecuencia').selectOption('5');
-  await page.getByLabel('Nota de evidencia').fill('Evidencia sintética E2E.');
-  await page.getByRole('button', { name: 'Continuar' }).click();
-  await expect(
-    page.getByText('El resultado será calculado por el sistema según la versión seleccionada.'),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Confirma el borrador' })).toBeVisible();
   await Promise.all([
     page.waitForURL(/\/app\/technical-risk\/[0-9a-f-]+$/),
-    page.getByRole('button', { name: 'Calcular resultado' }).click(),
+    page.getByRole('button', { name: 'Crear borrador' }).click(),
   ]);
 
-  await expect(
-    page.getByRole('heading', { name: `Evaluación técnica crítica ${suffix}` }),
-  ).toBeVisible();
-  await expect(page.getByText('20', { exact: true })).toBeVisible();
-  await expect(page.getByText('Crítico', { exact: true })).toBeVisible();
-  await Promise.all([
-    page.waitForURL(/\/app\/technical-risk\/[0-9a-f-]+\/review$/),
-    page.getByRole('link', { name: 'Revisar evaluación' }).click(),
-  ]);
+  await expect(page.getByText(/Borrador/).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Iniciar evaluación' }).click();
+  await expect(page.getByText(/En curso/).first()).toBeVisible();
+  await page.getByLabel('Descripción de la actividad').fill('Actividad sintética para E2E.');
+  await page.getByLabel(/Controles existentes/).fill('Control sintético existente.');
+  await page.getByRole('group', { name: 'Probabilidad' }).getByRole('radio', { name: '4' }).check();
+  await page.getByRole('group', { name: 'Consecuencia' }).getByRole('radio', { name: /5 Mayor/ }).check();
+
+  await page.getByLabel('Nota').fill('Evidencia sintética E2E.');
+  await page.getByRole('button', { name: 'Guardar evidencia' }).click();
+  await expect(page.getByText('Evidencia guardada. La evaluación permanece En curso.')).toBeVisible();
+  await page.getByRole('button', { name: 'Guardar respuestas' }).click();
+  await expect(page.getByText('Respuestas guardadas. La evaluación permanece En curso.')).toBeVisible();
+  await page.getByRole('button', { name: 'Completar evaluación' }).click();
+
+  const result = page.getByRole('region', { name: 'Resultado técnico' });
+  await expect(result.getByRole('heading', { name: 'Resultado técnico' })).toBeVisible();
+  await expect(result.getByText('20', { exact: true }).first()).toBeVisible();
+  await expect(result.getByText('Crítico', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Revisión pendiente', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Abrir revisión profesional' }).click();
+  await expect(page).toHaveURL(/\/app\/technical-risk\/[0-9a-f-]+\/review$/);
   await expect(page.getByRole('heading', { name: 'Revisión profesional' })).toBeVisible();
   await expect(page.getByText('Evidencia sintética E2E.')).toBeVisible();
-  await page.getByLabel('Comentario (opcional)').fill('Revisión profesional E2E.');
-  await Promise.all([
-    page.waitForURL(/\/app\/technical-risk\/[0-9a-f-]+$/),
-    page.getByRole('button', { name: 'Aprobar revisión' }).click(),
-  ]);
-  await expect(page.getByText('Revisada').first()).toBeVisible();
-  await expect(page.getByText('Revisada por usuario autorizado')).toBeVisible();
+  await page.getByLabel('Solicitar cambios').check();
+  await page.getByLabel('Comentario').fill('Ajustar el contexto antes de aprobar.');
+  await page.getByRole('button', { name: 'Registrar decisión' }).click();
+  const revisionDialog = page.getByRole('dialog', { name: 'Confirmar solicitud de cambios' });
+  await expect(revisionDialog).toBeVisible();
+  await revisionDialog.getByRole('button', { name: 'Registrar decisión' }).click();
+  await expect(page.getByText('La evaluación permanece Completada.')).toBeVisible();
+  await expect(page.getByText(/Completada/).first()).toBeVisible();
+
+  await page.getByLabel('Aprobar revisión').check();
+  await page.getByLabel(/Comentario/).fill('Revisión profesional E2E.');
+  await page.getByRole('button', { name: 'Registrar decisión' }).click();
+  const approvalDialog = page.getByRole('dialog', { name: 'Confirmar aprobación profesional' });
+  await expect(approvalDialog).toBeVisible();
+  await approvalDialog.getByRole('button', { name: 'Registrar decisión' }).click();
+  await expect(page.getByText(/La evaluación ahora está Revisada/)).toBeVisible();
+  await expect(page.getByText(/Revisada/).first()).toBeVisible();
+  await expect(
+    page.getByLabel('Historial de revisión').first().getByText('Revisión profesional E2E.'),
+  ).toBeVisible();
 });
