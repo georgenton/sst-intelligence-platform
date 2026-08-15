@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { appearanceFocusStorageKey, appearanceSessionUserKey } from '../lib/appearance';
 
 test('inspección, hallazgo, acción, verificación y recurrencia demo', async ({ page }) => {
   test.setTimeout(90_000);
@@ -101,7 +102,20 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
 
   await page.setViewportSize({ width: 320, height: 800 });
   await page.getByRole('switch', { name: 'Enfoque inactivo' }).click();
+  await expect(page.getByRole('switch', { name: 'Enfoque activo' })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
   await expect(page.locator('html')).toHaveAttribute('data-focus', 'on');
+  const appearanceUserId = await page.evaluate(
+    (key) => window.localStorage.getItem(key),
+    appearanceSessionUserKey,
+  );
+  expect(appearanceUserId).not.toBeNull();
+  const findingFocusStorageKey = appearanceFocusStorageKey(appearanceUserId!, 'finding');
+  await expect
+    .poll(() => page.evaluate((key) => window.localStorage.getItem(key), findingFocusStorageKey))
+    .toBe('on');
   await expect(page.getByText(organizationName).first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Riesgo inicial y residual' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Verificar riesgo residual' })).toBeVisible();
@@ -109,10 +123,55 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
     true,
   );
 
+  const refreshRequests = { inspection: 0, finding: 0 };
+  let refreshPhase: keyof typeof refreshRequests | null = null;
+  page.on('request', (request) => {
+    if (
+      refreshPhase &&
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === '/api/v1/auth/refresh'
+    ) {
+      refreshRequests[refreshPhase] += 1;
+    }
+  });
+
+  refreshPhase = 'inspection';
+  const inspectionRefresh = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === '/api/v1/auth/refresh',
+  );
   await page.goto(inspectionUrl);
+  expect((await inspectionRefresh).ok()).toBe(true);
+  await expect(page).toHaveURL(inspectionUrl);
+  await expect(page.getByText(organizationName).first()).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-focus', 'off');
+  await expect(page.getByRole('switch', { name: 'Enfoque inactivo' })).toHaveAttribute(
+    'aria-checked',
+    'false',
+  );
+  expect(refreshRequests.inspection).toBe(1);
+
+  refreshPhase = 'finding';
+  const findingRefresh = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === '/api/v1/auth/refresh',
+  );
   await page.goto(findingUrl);
+  expect((await findingRefresh).ok()).toBe(true);
+  await expect(page).toHaveURL(findingUrl);
+  await expect(page.getByText(organizationName).first()).toBeVisible();
+  await expect(page.getByRole('switch', { name: 'Enfoque activo' })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
   await expect(page.locator('html')).toHaveAttribute('data-focus', 'on');
+  await expect
+    .poll(() => page.evaluate((key) => window.localStorage.getItem(key), findingFocusStorageKey))
+    .toBe('on');
+  expect(refreshRequests.finding).toBe(1);
+  refreshPhase = null;
 
   await page.getByRole('button', { name: 'Verificar riesgo residual' }).click();
   await page

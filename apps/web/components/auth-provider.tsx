@@ -8,17 +8,23 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type PropsWithChildren,
 } from 'react';
 import { clearStoredActiveOrganization } from '@/lib/active-organization-storage';
 import { clearAppearanceSessionUser, setAppearanceSessionUser } from '@/lib/appearance';
+import {
+  createAuthSessionGeneration,
+  refreshBrowserSession,
+  waitForBrowserRefreshSettlement,
+  type AuthSessionUser,
+} from '@/lib/auth-refresh';
 import { removeAllPrivateQueries } from '@/lib/query-cache';
 
-type User = { id: string; email: string; displayName: string; memberships?: unknown[] };
 type Credentials = { email: string; password: string; displayName?: string };
 type AuthContextValue = {
-  user: User | null;
+  user: AuthSessionUser | null;
   loading: boolean;
   accessToken: string | null;
   login(input: Credentials): Promise<void>;
@@ -31,39 +37,59 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
-  const [user, setUser] = useState<User | null>(null);
+  const sessionGeneration = useRef(createAuthSessionGeneration()).current;
+  const [user, setUser] = useState<AuthSessionUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiRequest<{ user: User; accessToken: string }>('/auth/refresh', { method: 'POST' })
+    const generation = sessionGeneration.capture();
+    void refreshBrowserSession()
       .then((result) => {
-        setAppearanceSessionUser(window.localStorage, result.user.id);
-        setUser(result.user);
-        setAccessToken(result.accessToken);
+        sessionGeneration.commit(generation, () => {
+          setAppearanceSessionUser(window.localStorage, result.user.id);
+          setUser(result.user);
+          setAccessToken(result.accessToken);
+        });
       })
-      .catch(() => clearAppearanceSessionUser(window.localStorage))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch(() => {
+        sessionGeneration.commit(generation, () => clearAppearanceSessionUser(window.localStorage));
+      })
+      .finally(() => {
+        sessionGeneration.commit(generation, () => setLoading(false));
+      });
+  }, [sessionGeneration]);
 
   const authenticate = useCallback(
     async (path: '/auth/login' | '/auth/register', input: Credentials) => {
-      const result = await apiRequest<{ user: User; accessToken: string }>(path, {
-        method: 'POST',
-        body: JSON.stringify(input),
-      });
-      if (user?.id !== result.user.id) {
-        setLoading(true);
-        setAccessToken(null);
-        await removeAllPrivateQueries(queryClient);
-        if (user?.id) clearStoredActiveOrganization(window.localStorage, user.id);
+      const generation = sessionGeneration.advance();
+      try {
+        await waitForBrowserRefreshSettlement();
+        if (!sessionGeneration.isCurrent(generation)) return;
+        const result = await apiRequest<{ user: AuthSessionUser; accessToken: string }>(path, {
+          method: 'POST',
+          body: JSON.stringify(input),
+        });
+        if (!sessionGeneration.isCurrent(generation)) return;
+        if (user?.id !== result.user.id) {
+          setLoading(true);
+          setAccessToken(null);
+          await removeAllPrivateQueries(queryClient);
+          if (!sessionGeneration.isCurrent(generation)) return;
+          if (user?.id) clearStoredActiveOrganization(window.localStorage, user.id);
+        }
+        sessionGeneration.commit(generation, () => {
+          setAppearanceSessionUser(window.localStorage, result.user.id);
+          setUser(result.user);
+          setAccessToken(result.accessToken);
+          setLoading(false);
+        });
+      } catch (error: unknown) {
+        sessionGeneration.commit(generation, () => setLoading(false));
+        throw error;
       }
-      setAppearanceSessionUser(window.localStorage, result.user.id);
-      setUser(result.user);
-      setAccessToken(result.accessToken);
-      setLoading(false);
     },
-    [queryClient, user?.id],
+    [queryClient, sessionGeneration, user?.id],
   );
 
   const request = useCallback(
@@ -80,19 +106,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
       login: (input) => authenticate('/auth/login', input),
       register: (input) => authenticate('/auth/register', input),
       logout: async () => {
+        const generation = sessionGeneration.advance();
         const exitingUserId = user?.id;
         setLoading(true);
         setAccessToken(null);
+        setUser(null);
+        clearAppearanceSessionUser(window.localStorage);
         await removeAllPrivateQueries(queryClient);
         if (exitingUserId) clearStoredActiveOrganization(window.localStorage, exitingUserId);
-        clearAppearanceSessionUser(window.localStorage);
+        await waitForBrowserRefreshSettlement();
+        if (!sessionGeneration.isCurrent(generation)) return;
         await apiRequest('/auth/logout', { method: 'POST' }).catch(() => undefined);
-        setUser(null);
-        setLoading(false);
+        sessionGeneration.commit(generation, () => setLoading(false));
       },
       request,
     }),
-    [accessToken, authenticate, loading, queryClient, request, user],
+    [accessToken, authenticate, loading, queryClient, request, sessionGeneration, user],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
