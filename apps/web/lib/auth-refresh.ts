@@ -12,6 +12,23 @@ export type AuthRefreshResult = {
   accessToken: string;
 };
 
+type LogoutServerInvalidationOptions = {
+  capturedRefreshSettlement: Promise<void> | null;
+  isCurrentGeneration: () => boolean;
+  requestLogout: () => Promise<unknown>;
+};
+
+function invokeBestEffort(operation: () => Promise<unknown>): Promise<void> {
+  try {
+    return operation().then(
+      () => undefined,
+      () => undefined,
+    );
+  } catch {
+    return Promise.resolve();
+  }
+}
+
 export function createAuthRefreshSingleFlight<Result>() {
   let inFlight: Promise<Result> | null = null;
 
@@ -26,6 +43,14 @@ export function createAuthRefreshSingleFlight<Result>() {
       inFlight = shared;
       return shared;
     },
+    currentSettlement(): Promise<void> | null {
+      const pending = inFlight;
+      if (!pending) return null;
+      return pending.then(
+        () => undefined,
+        () => undefined,
+      );
+    },
     async waitForSettlement(): Promise<void> {
       const pending = inFlight;
       if (!pending) return;
@@ -35,6 +60,23 @@ export function createAuthRefreshSingleFlight<Result>() {
       );
     },
   };
+}
+
+export function startLogoutServerInvalidation({
+  capturedRefreshSettlement,
+  isCurrentGeneration,
+  requestLogout,
+}: LogoutServerInvalidationOptions): Promise<void> {
+  const firstLogout = invokeBestEffort(requestLogout);
+
+  if (capturedRefreshSettlement) {
+    void capturedRefreshSettlement.then(() => {
+      if (!isCurrentGeneration()) return;
+      void invokeBestEffort(requestLogout);
+    });
+  }
+
+  return firstLogout;
 }
 
 export function createAuthSessionGeneration() {
@@ -69,4 +111,8 @@ export function refreshBrowserSession(): Promise<AuthRefreshResult> {
 
 export function waitForBrowserRefreshSettlement(): Promise<void> {
   return browserRefresh.waitForSettlement();
+}
+
+export function captureBrowserRefreshSettlement(): Promise<void> | null {
+  return browserRefresh.currentSettlement();
 }

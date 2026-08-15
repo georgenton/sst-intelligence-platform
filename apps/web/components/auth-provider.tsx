@@ -15,8 +15,10 @@ import {
 import { clearStoredActiveOrganization } from '@/lib/active-organization-storage';
 import { clearAppearanceSessionUser, setAppearanceSessionUser } from '@/lib/appearance';
 import {
+  captureBrowserRefreshSettlement,
   createAuthSessionGeneration,
   refreshBrowserSession,
+  startLogoutServerInvalidation,
   waitForBrowserRefreshSettlement,
   type AuthSessionUser,
 } from '@/lib/auth-refresh';
@@ -107,16 +109,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
       register: (input) => authenticate('/auth/register', input),
       logout: async () => {
         const generation = sessionGeneration.advance();
+        const capturedRefreshSettlement = captureBrowserRefreshSettlement();
         const exitingUserId = user?.id;
         setLoading(true);
         setAccessToken(null);
         setUser(null);
         clearAppearanceSessionUser(window.localStorage);
+        const firstServerLogout = startLogoutServerInvalidation({
+          capturedRefreshSettlement,
+          isCurrentGeneration: () => sessionGeneration.isCurrent(generation),
+          requestLogout: () => apiRequest('/auth/logout', { method: 'POST' }),
+        });
         await removeAllPrivateQueries(queryClient);
         if (exitingUserId) clearStoredActiveOrganization(window.localStorage, exitingUserId);
-        await waitForBrowserRefreshSettlement();
-        if (!sessionGeneration.isCurrent(generation)) return;
-        await apiRequest('/auth/logout', { method: 'POST' }).catch(() => undefined);
+        await firstServerLogout;
         sessionGeneration.commit(generation, () => setLoading(false));
       },
       request,

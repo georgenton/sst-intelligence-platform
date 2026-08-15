@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createAuthRefreshSingleFlight, createAuthSessionGeneration } from '../lib/auth-refresh.ts';
+import {
+  createAuthRefreshSingleFlight,
+  createAuthSessionGeneration,
+  startLogoutServerInvalidation,
+} from '../lib/auth-refresh.ts';
 
 function deferred() {
   let resolve;
@@ -165,4 +169,180 @@ test('explicit transitions can wait for the active refresh without starting anot
 
   assert.equal(requestCount, 1);
   assert.equal(transitionStarted, true);
+});
+
+test('logout dispatches its first server invalidation while refresh is still pending', async () => {
+  const coordinator = createAuthRefreshSingleFlight();
+  const generation = createAuthSessionGeneration();
+  const barrier = deferred();
+  let refreshSettled = false;
+  let logoutRequestCount = 0;
+  const refresh = coordinator
+    .run(() => barrier.promise)
+    .finally(() => {
+      refreshSettled = true;
+    });
+  const logoutGeneration = generation.advance();
+
+  const firstLogout = startLogoutServerInvalidation({
+    capturedRefreshSettlement: coordinator.currentSettlement(),
+    isCurrentGeneration: () => generation.isCurrent(logoutGeneration),
+    requestLogout: async () => {
+      logoutRequestCount += 1;
+    },
+  });
+
+  assert.equal(logoutRequestCount, 1);
+  assert.equal(refreshSettled, false);
+  await firstLogout;
+  barrier.resolve({ accessToken: 'stale' });
+  await refresh;
+});
+
+test('logout invalidates a replacement cookie after the captured refresh settles', async () => {
+  const coordinator = createAuthRefreshSingleFlight();
+  const generation = createAuthSessionGeneration();
+  const barrier = deferred();
+  let logoutRequestCount = 0;
+  const refresh = coordinator.run(() => barrier.promise);
+  const logoutGeneration = generation.advance();
+  const capturedRefreshSettlement = coordinator.currentSettlement();
+
+  await startLogoutServerInvalidation({
+    capturedRefreshSettlement,
+    isCurrentGeneration: () => generation.isCurrent(logoutGeneration),
+    requestLogout: async () => {
+      logoutRequestCount += 1;
+    },
+  });
+  assert.equal(logoutRequestCount, 1);
+
+  barrier.resolve({ accessToken: 'replacement' });
+  await Promise.all([refresh, capturedRefreshSettlement]);
+  assert.equal(logoutRequestCount, 2);
+});
+
+test('failed captured refresh safely triggers best-effort logout cleanup', async () => {
+  const coordinator = createAuthRefreshSingleFlight();
+  const generation = createAuthSessionGeneration();
+  const barrier = deferred();
+  const failure = new Error('refresh rejected');
+  let logoutRequestCount = 0;
+  let state = { user: null, accessToken: null };
+  const refreshGeneration = generation.capture();
+  const refresh = coordinator
+    .run(() => barrier.promise)
+    .then(
+      (result) => generation.commit(refreshGeneration, () => (state = result)),
+      () => generation.commit(refreshGeneration, () => (state = { user: null, accessToken: null })),
+    );
+  const logoutGeneration = generation.advance();
+  const capturedRefreshSettlement = coordinator.currentSettlement();
+
+  await startLogoutServerInvalidation({
+    capturedRefreshSettlement,
+    isCurrentGeneration: () => generation.isCurrent(logoutGeneration),
+    requestLogout: async () => {
+      logoutRequestCount += 1;
+    },
+  });
+  barrier.reject(failure);
+  await Promise.all([refresh, capturedRefreshSettlement]);
+
+  assert.equal(logoutRequestCount, 2);
+  assert.deepEqual(state, { user: null, accessToken: null });
+  assert.equal(generation.isCurrent(logoutGeneration), true);
+});
+
+test('a newer authentication generation prevents stale logout cleanup', async () => {
+  const coordinator = createAuthRefreshSingleFlight();
+  const generation = createAuthSessionGeneration();
+  const barrier = deferred();
+  let logoutRequestCount = 0;
+  const refresh = coordinator.run(() => barrier.promise);
+  const logoutGeneration = generation.advance();
+  const capturedRefreshSettlement = coordinator.currentSettlement();
+
+  await startLogoutServerInvalidation({
+    capturedRefreshSettlement,
+    isCurrentGeneration: () => generation.isCurrent(logoutGeneration),
+    requestLogout: async () => {
+      logoutRequestCount += 1;
+    },
+  });
+  const loginGeneration = generation.advance();
+  barrier.resolve({ accessToken: 'stale' });
+  await Promise.all([refresh, capturedRefreshSettlement]);
+
+  assert.equal(generation.isCurrent(loginGeneration), true);
+  assert.equal(logoutRequestCount, 1);
+});
+
+test('logout without a pending refresh emits exactly one server request', async () => {
+  const coordinator = createAuthRefreshSingleFlight();
+  const generation = createAuthSessionGeneration();
+  const futureRefreshBarrier = deferred();
+  let logoutRequestCount = 0;
+  const logoutGeneration = generation.advance();
+  const capturedRefreshSettlement = coordinator.currentSettlement();
+
+  assert.equal(capturedRefreshSettlement, null);
+
+  await startLogoutServerInvalidation({
+    capturedRefreshSettlement,
+    isCurrentGeneration: () => generation.isCurrent(logoutGeneration),
+    requestLogout: async () => {
+      logoutRequestCount += 1;
+    },
+  });
+  const futureRefresh = coordinator.run(() => futureRefreshBarrier.promise);
+  futureRefreshBarrier.resolve({ accessToken: 'future' });
+  await futureRefresh;
+
+  assert.equal(logoutRequestCount, 1);
+});
+
+test('a failed first server logout remains best effort', async () => {
+  const failure = new Error('logout unavailable');
+  let logoutRequestCount = 0;
+
+  await startLogoutServerInvalidation({
+    capturedRefreshSettlement: null,
+    isCurrentGeneration: () => true,
+    requestLogout: async () => {
+      logoutRequestCount += 1;
+      throw failure;
+    },
+  });
+
+  assert.equal(logoutRequestCount, 1);
+});
+
+test('a stale refresh rejection cannot clear a newer authenticated generation', async () => {
+  const coordinator = createAuthRefreshSingleFlight();
+  const generation = createAuthSessionGeneration();
+  const barrier = deferred();
+  const failure = new Error('refresh rejected');
+  let state = { user: null, accessToken: null, appearanceUser: null };
+  const refreshGeneration = generation.capture();
+  const refresh = coordinator
+    .run(() => barrier.promise)
+    .catch(() =>
+      generation.commit(refreshGeneration, () => {
+        state = { user: null, accessToken: null, appearanceUser: null };
+      }),
+    );
+
+  const loginGeneration = generation.advance();
+  generation.commit(loginGeneration, () => {
+    state = { user: { id: 'user-b' }, accessToken: 'access-b', appearanceUser: 'user-b' };
+  });
+  barrier.reject(failure);
+  await refresh;
+
+  assert.deepEqual(state, {
+    user: { id: 'user-b' },
+    accessToken: 'access-b',
+    appearanceUser: 'user-b',
+  });
 });
