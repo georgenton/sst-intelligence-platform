@@ -7,6 +7,7 @@ import '@/styles/foundations.css';
 import '@/styles/focus.css';
 import '@/styles/app-shell-command-center.css';
 import '@/styles/inspections-experience.css';
+import '@/styles/technical-risk-experience.css';
 import { Providers } from './providers';
 import { appearanceBootstrapScript } from '@/lib/appearance';
 
