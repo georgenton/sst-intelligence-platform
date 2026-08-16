@@ -50,6 +50,20 @@ describe('applicability rule pack schema', () => {
     expect(() => applicabilityRulePackSchema.parse(arbitraryField)).toThrow();
   });
 
+  it('rejects unknown operators and operands with the wrong type', () => {
+    const unknownOperator = structuredClone(DEMO_APPLICABILITY_RULE_PACK) as unknown as {
+      rules: Array<{ condition: { predicates: Array<Record<string, unknown>> } }>;
+    };
+    unknownOperator.rules[0]!.condition.predicates[0]!.operator = 'SCRIPT';
+    expect(() => applicabilityRulePackSchema.parse(unknownOperator)).toThrow();
+
+    const wrongOperand = structuredClone(DEMO_APPLICABILITY_RULE_PACK) as unknown as {
+      rules: Array<{ condition: { predicates: Array<Record<string, unknown>> } }>;
+    };
+    wrongOperand.rules[0]!.condition.predicates[0]!.value = 'one';
+    expect(() => applicabilityRulePackSchema.parse(wrongOperand)).toThrow();
+  });
+
   it('rejects a demo source disguised as regulatory content', () => {
     expect(() =>
       applicabilityRulePackSchema.parse({
@@ -229,5 +243,11 @@ describe('deterministic applicability evaluation', () => {
     const result = decision(completeProfile, 'DEMO_BASELINE_MANAGEMENT');
     expect(result).toMatchObject({ state: 'MANDATORY', sourceType: 'DEMO' });
     expect(result).not.toHaveProperty('regulatory');
+  });
+
+  it('returns byte-for-byte equivalent data for repeated evaluation', () => {
+    expect(evaluateApplicability(completeProfile, DEMO_APPLICABILITY_RULE_PACK)).toEqual(
+      evaluateApplicability(completeProfile, DEMO_APPLICABILITY_RULE_PACK),
+    );
   });
 });

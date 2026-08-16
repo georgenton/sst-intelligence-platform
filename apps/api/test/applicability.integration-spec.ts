@@ -263,6 +263,10 @@ describe('applicability engine integration', () => {
     await api(owner.token, organizationB)
       .get(`/profile-versions/${profileV1.body.id as string}`)
       .expect(404);
+    await api(owner.token, organizationB)
+      .post('/assessments')
+      .send({ profileVersionId: profileV1.body.id, rulePackVersionId: packV2.id })
+      .expect(404);
 
     const viewer = await register('Applicability Viewer');
     await prisma.membership.create({
