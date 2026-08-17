@@ -113,6 +113,16 @@ export function findLikelyPrivateData(scenarios: readonly SstValidationScenario[
       expression: /\b(?:password|secret|bearer|api[_ -]?key|access[_ -]?token)\b/i,
     },
     {
+      label: 'explicit real-identity marker',
+      expression:
+        /\b(?:REAL_(?:PERSON|CUSTOMER|COMPANY)_IDENTITY|IDENTIDAD_(?:PERSONA|CLIENTE|EMPRESA)_REAL)\b/i,
+    },
+    {
+      label: 'individual medical-information marker',
+      expression:
+        /\b(?:MEDICAL[_ -]?RECORD|CLINICAL[_ -]?HISTORY|PATIENT[_ -]?DIAGNOSIS|EMPLOYEE[_ -]?MEDICAL[_ -]?DIAGNOSIS|HISTORIA[_ -]?CL[IÍ]NICA|REGISTRO[_ -]?M[EÉ]DICO|DIAGN[OÓ]STICO[_ -]?(?:DE[_ -]?)?(?:PACIENTE|INDIVIDUAL|M[EÉ]DICO[_ -]?DE[_ -]?EMPLEADO))\b/i,
+    },
+    {
       label: 'named-person marker',
       expression: /\b(?:sr\.|sra\.|ing\.|dra?\.|anita)\b/i,
     },

@@ -57,7 +57,9 @@ Use `scenarioKind=PSEUDONYMIZED_EXPERT_CASE`, `synthetic=false` and an `EC_EXPER
 The runner applies the same strict schema, never evaluates JavaScript, never calls AI, never uploads
 the case and writes pseudonymized-case reports only to the operating-system temporary directory.
 Automated pattern checks are a guardrail, not a complete DLP system; a human privacy review remains
-required.
+required. The scanner is deterministic and best-effort: successful validation does not guarantee
+anonymization and is not a privacy certification. A human must review every expert case before use,
+and unnecessary personal, customer or person-level medical information must never be included.
 
 ## Closure
 
