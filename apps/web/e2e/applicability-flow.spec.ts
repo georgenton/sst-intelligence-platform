@@ -1,0 +1,136 @@
+import { request as httpRequest } from 'node:http';
+import { networkInterfaces } from 'node:os';
+import { expect, test } from '@playwright/test';
+
+function registerApplicabilityUser(data: {
+  displayName: string;
+  email: string;
+  password: string;
+}) {
+  const body = JSON.stringify(data);
+  const localAddress = Object.values(networkInterfaces())
+    .flatMap((addresses) => addresses ?? [])
+    .find((address) => address.family === 'IPv4' && !address.internal)?.address;
+
+  if (!localAddress) {
+    throw new Error('E2E_NON_LOOPBACK_IPV4_UNAVAILABLE');
+  }
+
+  return new Promise<{ body: string; statusCode: number | undefined }>((resolve, reject) => {
+    const registration = httpRequest(
+      {
+        hostname: localAddress,
+        port: 3101,
+        path: '/api/v1/auth/register',
+        method: 'POST',
+        localAddress,
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(body),
+        },
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () =>
+          resolve({ body: Buffer.concat(chunks).toString('utf8'), statusCode: response.statusCode }),
+        );
+      },
+    );
+
+    registration.on('error', reject);
+    registration.end(body);
+  });
+}
+
+test('perfil versionado, evaluación explícita y trace de aplicabilidad', async ({ page }) => {
+  test.setTimeout(90_000);
+  const suffix = Date.now();
+  const email = `applicability-e2e-${suffix}@example.test`;
+  const password = 'applicability-e2e-password-123';
+
+  const registration = await registerApplicabilityUser({
+    displayName: 'Responsable Aplicabilidad E2E',
+    email,
+    password,
+  });
+  expect(registration.statusCode, registration.body).toBe(201);
+
+  await page.goto('/auth/login');
+  await page.getByLabel('Correo').fill(email);
+  await page.getByLabel('Contraseña').fill(password);
+  await page.getByRole('button', { name: 'Entrar' }).click();
+  await page.getByRole('link', { name: 'Crear organización' }).click();
+  await page.getByLabel('Nombre de empresa').fill(`Aplicabilidad Demo ${suffix}`);
+  await page.getByLabel('Sector').fill('Tecnología');
+  await page.getByRole('button', { name: 'Crear organización' }).click();
+  await expect(page.getByText('Organización creada correctamente.')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Configuración SST', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Aplicabilidad y configuración SST' })).toBeVisible();
+  await expect(page.getByText('Todavía no existe un perfil SST versionado')).toBeVisible();
+  await expect(page.getByText('Aún no se han ejecutado evaluaciones de aplicabilidad')).toBeVisible();
+  await page.getByRole('link', { name: 'Nueva evaluación de aplicabilidad' }).click();
+
+  await page.setViewportSize({ width: 320, height: 844 });
+  await expect(page.getByRole('heading', { name: 'Perfil SST' })).toBeVisible();
+  await page.getByLabel('Personas trabajadoras · opcional').fill('35');
+  await expect(
+    page
+      .getByRole('group', { name: '¿Existen procesos químicos?' })
+      .getByLabel('No tengo información'),
+  ).toBeChecked();
+  await page
+    .getByRole('group', { name: '¿Existen operaciones de alta energía?' })
+    .getByLabel('Sí', { exact: true })
+    .check();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+  await page.getByRole('button', { name: 'Crear versión del perfil' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Versión creada' })).toBeVisible();
+  await expect(page.getByText(/Todavía no existe una evaluación para este flujo/)).toBeVisible();
+  const persistedProfile = page.getByRole('region', { name: 'Confirma la versión persistida' });
+  await expect(persistedProfile.getByText('Ecuador', { exact: true })).toBeVisible();
+  await expect(persistedProfile.getByText('1', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Confirmar versión' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Motor de reglas' })).toBeVisible();
+  await page.getByRole('radio', { name: /Seleccionar Configuración SST demostrativa/ }).check();
+  await expect(page.getByText('DEMO_APPLICABILITY', { exact: true })).toBeVisible();
+  await expect(page.getByText(/No representan normativa ni acreditan cumplimiento legal/).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Confirmar motor' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Evaluar', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Evaluar configuración SST' })).toBeVisible();
+  await Promise.all([
+    page.waitForURL(/\/app\/applicability\/[0-9a-f-]+$/),
+    page.getByRole('button', { name: 'Evaluar configuración SST' }).click(),
+  ]);
+
+  await expect(page.getByRole('heading', { name: 'Evaluación de aplicabilidad' })).toBeVisible();
+  await expect(page.getByText(/No representan normativa ni acreditan cumplimiento legal/).first()).toBeVisible();
+  await expect(page.getByText('Obligatorio en esta demostración').first()).toBeVisible();
+  await expect(page.getByText('Falta información').first()).toBeVisible();
+  await expect(page.getByText('Requiere revisión profesional').first()).toBeVisible();
+
+  const chemicalDecision = page
+    .locator('article.applicability-decision-card')
+    .filter({ hasText: 'Control de procesos químicos' });
+  await chemicalDecision.getByText('Ver por qué').click();
+  await expect(
+    chemicalDecision.getByText('DEMO_CHEMICAL_MANDATORY', { exact: true }).first(),
+  ).toBeVisible();
+  await expect(chemicalDecision.getByText('operations.hasChemicalProcesses', { exact: true }).first()).toBeVisible();
+  await expect(chemicalDecision.getByText('BOOLEAN_IS', { exact: true }).first()).toBeVisible();
+  await expect(chemicalDecision.getByText('Sin información', { exact: true }).first()).toBeVisible();
+  await expect(chemicalDecision.getByText('MISSING', { exact: true }).first()).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+
+  await page.getByRole('link', { name: 'Ver historial' }).click();
+  await expect(page.getByRole('heading', { name: 'Historial de evaluaciones' })).toBeVisible();
+  await expect(page.getByText(/Perfil v1 · DEMO_APPLICABILITY v1\.0\.0/)).toBeVisible();
+});

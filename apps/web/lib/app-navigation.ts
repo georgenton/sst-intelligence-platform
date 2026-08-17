@@ -48,6 +48,13 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
     label: 'Evaluaciones',
     items: [
       {
+        id: 'applicability',
+        label: 'Configuración SST',
+        href: '/app/applicability',
+        group: 'assessments',
+        match: 'segment',
+      },
+      {
         id: 'technical-risk',
         label: 'Riesgo técnico',
         href: '/app/technical-risk',
