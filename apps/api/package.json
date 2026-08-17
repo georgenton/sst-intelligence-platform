@@ -40,6 +40,7 @@
   "devDependencies": {
     "@nestjs/cli": "11.0.16",
     "@nestjs/testing": "11.1.29",
+    "@sst/applicability-scenario-lab": "workspace:*",
     "@sst/typescript-config": "workspace:*",
     "@types/cookie-parser": "1.4.10",
     "@types/express": "5.0.6",

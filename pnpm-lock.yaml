@@ -105,6 +105,9 @@ importers:
       '@nestjs/testing':
         specifier: 11.1.29
         version: 11.1.29(@nestjs/common@11.1.29(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.29)(@nestjs/platform-express@11.1.29)
+      '@sst/applicability-scenario-lab':
+        specifier: workspace:*
+        version: link:../../tools/applicability-scenarios
       '@sst/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -240,6 +243,25 @@ importers:
       react:
         specifier: 19.2.8
         version: 19.2.8
+
+  tools/applicability-scenarios:
+    dependencies:
+      '@sst/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@sst/typescript-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      '@types/node':
+        specifier: 24.10.13
+        version: 24.10.13
+      vitest:
+        specifier: 4.1.0
+        version: 4.1.0(@types/node@24.10.13)(vite@8.2.1(@types/node@24.10.13)(jiti@2.7.0)(terser@5.49.2)(yaml@2.9.0))
 
 packages:
 
