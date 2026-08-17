@@ -165,6 +165,34 @@ enum TechnicalReviewDecision {
   NEEDS_REVISION
 }
 
+enum ApplicabilityState {
+  MANDATORY
+  RECOMMENDED
+  OPTIONAL
+  NOT_APPLICABLE
+  NEEDS_INFORMATION
+  NEEDS_EXPERT_REVIEW
+}
+
+enum ApplicabilityRulePackStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
+enum ApplicabilitySourceType {
+  DEMO
+  REGULATORY
+  STANDARD
+  INTERNAL
+}
+
+enum ApplicabilityRuleResult {
+  TRUE
+  FALSE
+  MISSING
+}
+
 enum InspectionAlertType {
   RECURRENCE
   OVERDUE_ACTION
@@ -184,29 +212,31 @@ enum AlertStatus {
 }
 
 model User {
-  id                           String                        @id @default(uuid()) @db.Uuid
-  email                        String                        @unique
+  id                           String                          @id @default(uuid()) @db.Uuid
+  email                        String                          @unique
   passwordHash                 String
   displayName                  String
-  createdAt                    DateTime                      @default(now())
-  updatedAt                    DateTime                      @updatedAt
+  createdAt                    DateTime                        @default(now())
+  updatedAt                    DateTime                        @updatedAt
   refreshSessions              RefreshSession[]
   memberships                  Membership[]
-  claimedGuidedSessions        GuidedFlowSession[]           @relation("ClaimedBy")
-  auditLogs                    AuditLog[]                    @relation("AuditActor")
+  claimedGuidedSessions        GuidedFlowSession[]             @relation("ClaimedBy")
+  auditLogs                    AuditLog[]                      @relation("AuditActor")
   aiInteractions               AiInteraction[]
   upgradeRequests              UpgradeRequest[]
-  inspections                  Inspection[]                  @relation("InspectionInspector")
-  findingsCreated              InspectionFinding[]           @relation("FindingCreator")
-  actionsAssigned              CorrectiveAction[]            @relation("ActionAssignee")
-  actionsCreated               CorrectiveAction[]            @relation("ActionCreator")
-  actionsVerified              CorrectiveAction[]            @relation("ActionVerifier")
-  evidenceCreated              ActionEvidence[]              @relation("EvidenceCreator")
-  alertsAcknowledged           InspectionAlert[]             @relation("AlertAcknowledger")
-  technicalAssessments         TechnicalAssessment[]         @relation("TechnicalAssessmentCreator")
-  technicalAssessmentsReviewed TechnicalAssessment[]         @relation("TechnicalAssessmentReviewer")
-  technicalEvidenceCreated     TechnicalAssessmentEvidence[] @relation("TechnicalEvidenceCreator")
-  technicalReviews             TechnicalAssessmentReview[]   @relation("TechnicalReviewReviewer")
+  inspections                  Inspection[]                    @relation("InspectionInspector")
+  findingsCreated              InspectionFinding[]             @relation("FindingCreator")
+  actionsAssigned              CorrectiveAction[]              @relation("ActionAssignee")
+  actionsCreated               CorrectiveAction[]              @relation("ActionCreator")
+  actionsVerified              CorrectiveAction[]              @relation("ActionVerifier")
+  evidenceCreated              ActionEvidence[]                @relation("EvidenceCreator")
+  alertsAcknowledged           InspectionAlert[]               @relation("AlertAcknowledger")
+  technicalAssessments         TechnicalAssessment[]           @relation("TechnicalAssessmentCreator")
+  technicalAssessmentsReviewed TechnicalAssessment[]           @relation("TechnicalAssessmentReviewer")
+  technicalEvidenceCreated     TechnicalAssessmentEvidence[]   @relation("TechnicalEvidenceCreator")
+  technicalReviews             TechnicalAssessmentReview[]     @relation("TechnicalReviewReviewer")
+  sstProfileVersions           OrganizationSstProfileVersion[]
+  applicabilityAssessments     ApplicabilityAssessment[]
 }
 
 model RefreshSession {
@@ -229,15 +259,15 @@ model RefreshSession {
 }
 
 model Organization {
-  id                         String                        @id @default(uuid()) @db.Uuid
+  id                         String                          @id @default(uuid()) @db.Uuid
   name                       String
   country                    String
   sector                     String?
-  status                     OrganizationStatus            @default(ACTIVE)
+  status                     OrganizationStatus              @default(ACTIVE)
   demoStartedAt              DateTime?
   demoExpiresAt              DateTime?
-  createdAt                  DateTime                      @default(now())
-  updatedAt                  DateTime                      @updatedAt
+  createdAt                  DateTime                        @default(now())
+  updatedAt                  DateTime                        @updatedAt
   workCenters                WorkCenter[]
   memberships                Membership[]
   invitations                OrganizationInvitation[]
@@ -261,6 +291,10 @@ model Organization {
   technicalResults           TechnicalAssessmentResult[]
   technicalEvidence          TechnicalAssessmentEvidence[]
   technicalReviews           TechnicalAssessmentReview[]
+  sstProfileVersions         OrganizationSstProfileVersion[]
+  applicabilityAssessments   ApplicabilityAssessment[]
+  applicabilityDecisions     ApplicabilityDecision[]
+  applicabilityTraces        ApplicabilityEvaluationTrace[]
 }
 
 model WorkCenter {
@@ -571,6 +605,108 @@ model TechnicalAssessmentReview {
   reviewer       User                    @relation("TechnicalReviewReviewer", fields: [reviewerUserId], references: [id])
 
   @@index([organizationId, assessmentId, createdAt])
+}
+
+model OrganizationSstProfileVersion {
+  id             String                    @id @default(uuid()) @db.Uuid
+  organizationId String                    @db.Uuid
+  version        Int
+  snapshot       Json
+  createdById    String                    @db.Uuid
+  createdAt      DateTime                  @default(now())
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User                      @relation(fields: [createdById], references: [id])
+  assessments    ApplicabilityAssessment[]
+
+  @@unique([organizationId, version])
+  @@index([organizationId, createdAt])
+}
+
+model ApplicabilityRulePackVersion {
+  id              String                      @id @default(uuid()) @db.Uuid
+  key             String
+  name            String
+  version         String
+  schema          Json
+  status          ApplicabilityRulePackStatus @default(DRAFT)
+  sourceType      ApplicabilitySourceType
+  sourceReference String?
+  regulatory      Boolean                     @default(false)
+  isDemo          Boolean                     @default(false)
+  disclaimer      String
+  activatedAt     DateTime?
+  createdAt       DateTime                    @default(now())
+  assessments     ApplicabilityAssessment[]
+
+  @@unique([key, version])
+  @@index([status, key])
+}
+
+model ApplicabilityAssessment {
+  id                String                         @id @default(uuid()) @db.Uuid
+  organizationId    String                         @db.Uuid
+  profileVersionId  String                         @db.Uuid
+  rulePackVersionId String                         @db.Uuid
+  profileSnapshot   Json
+  rulePackSnapshot  Json
+  engineVersion     String
+  createdById       String                         @db.Uuid
+  completedAt       DateTime                       @default(now())
+  createdAt         DateTime                       @default(now())
+  organization      Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profileVersion    OrganizationSstProfileVersion  @relation(fields: [profileVersionId], references: [id])
+  rulePackVersion   ApplicabilityRulePackVersion   @relation(fields: [rulePackVersionId], references: [id])
+  createdBy         User                           @relation(fields: [createdById], references: [id])
+  decisions         ApplicabilityDecision[]
+  traces            ApplicabilityEvaluationTrace[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, profileVersionId])
+  @@index([rulePackVersionId])
+}
+
+model ApplicabilityDecision {
+  id              String                         @id @default(uuid()) @db.Uuid
+  organizationId  String                         @db.Uuid
+  assessmentId    String                         @db.Uuid
+  targetKey       String
+  state           ApplicabilityState
+  reasonCode      String
+  explanation     String
+  sourceType      ApplicabilitySourceType
+  sourceReference String?
+  winningRuleId   String?
+  createdAt       DateTime                       @default(now())
+  organization    Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessment      ApplicabilityAssessment        @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  traces          ApplicabilityEvaluationTrace[]
+
+  @@unique([assessmentId, targetKey])
+  @@index([organizationId, state])
+}
+
+model ApplicabilityEvaluationTrace {
+  id               String                  @id @default(uuid()) @db.Uuid
+  organizationId   String                  @db.Uuid
+  assessmentId     String                  @db.Uuid
+  decisionId       String                  @db.Uuid
+  ruleId           String
+  targetKey        String
+  composition      String
+  ruleResult       ApplicabilityRuleResult
+  configuredState  ApplicabilityState
+  contributedState ApplicabilityState?
+  reasonCode       String
+  explanation      String
+  predicates       Json
+  createdAt        DateTime                @default(now())
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessment       ApplicabilityAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  decision         ApplicabilityDecision   @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, ruleId])
+  @@index([organizationId, assessmentId])
+  @@index([decisionId])
 }
 
 model Membership {

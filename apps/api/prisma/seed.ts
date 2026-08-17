@@ -1,5 +1,5 @@
 import { PrismaClient, FeatureValueType, ModuleKey, PlanKey, Prisma } from '@prisma/client';
-import { DEMO_TECHNICAL_RISK_METHOD } from '@sst/contracts';
+import { DEMO_APPLICABILITY_RULE_PACK, DEMO_TECHNICAL_RISK_METHOD } from '@sst/contracts';
 
 const prisma = new PrismaClient();
 
@@ -203,6 +203,33 @@ async function main() {
       data: {
         isDemo: true,
         disclaimer: DEMO_TECHNICAL_RISK_METHOD.disclaimer,
+      },
+    });
+  }
+
+  const existingApplicabilityPack = await prisma.applicabilityRulePackVersion.findUnique({
+    where: {
+      key_version: {
+        key: DEMO_APPLICABILITY_RULE_PACK.key,
+        version: DEMO_APPLICABILITY_RULE_PACK.version,
+      },
+    },
+    select: { id: true },
+  });
+  if (!existingApplicabilityPack) {
+    await prisma.applicabilityRulePackVersion.create({
+      data: {
+        key: DEMO_APPLICABILITY_RULE_PACK.key,
+        name: DEMO_APPLICABILITY_RULE_PACK.name,
+        version: DEMO_APPLICABILITY_RULE_PACK.version,
+        schema: DEMO_APPLICABILITY_RULE_PACK as Prisma.InputJsonValue,
+        status: 'ACTIVE',
+        sourceType: DEMO_APPLICABILITY_RULE_PACK.source.type,
+        sourceReference: DEMO_APPLICABILITY_RULE_PACK.source.reference,
+        regulatory: DEMO_APPLICABILITY_RULE_PACK.regulatory,
+        isDemo: DEMO_APPLICABILITY_RULE_PACK.isDemo,
+        disclaimer: DEMO_APPLICABILITY_RULE_PACK.disclaimer,
+        activatedAt: new Date(),
       },
     });
   }
