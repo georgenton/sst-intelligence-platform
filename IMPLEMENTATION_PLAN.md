@@ -34,6 +34,22 @@
 9. Instalar, migrar, sembrar y verificar lint, tipos, pruebas y builds.
 10. Implementar Inspecciones Inteligentes V1: matriz demo determinística, hallazgos, acciones,
     verificación, recurrencia, alertas, analítica y experiencia web móvil.
+11. Implementar Technical Risk Engine + Experience con métodos versionados, trazabilidad y revisión.
+12. Implementar Applicability Engine + Experience con perfiles, snapshots y seis estados.
+13. Validar Applicability V1 con el laboratorio multiempresa sintético antes de ampliar el dominio.
+
+## Adaptive SST roadmap
+
+- Completado: foundation, Inspections Engine + Experience, Technical Risk Engine + Experience y
+  Applicability Engine + Experience.
+- Actual: PR #20, Multi-Company Applicability Validation Lab V1.
+- Siguiente: PR #21 Current State & Evidence Baseline V1.
+- Después: PR #22 Gap Assessment Engine V1.
+- Después: PR #23 Depth Resolver + Inspection Configuration Proposal V1.
+- Después: PR #24 Configuration Activation + MOC V1.
+
+El contenido regulatorio ecuatoriano avanza en un stream controlado de fuentes. Descubrimiento,
+extracción, revisión técnica, revisión legal y aprobación de reglas son gates distintos.
 
 ## Riesgos
 
@@ -63,6 +79,13 @@
 - [x] `pnpm check`, integración y E2E verificados.
 - [x] Commits Conventional Commits creados después de verificaciones exitosas.
 - [x] Inspecciones Inteligentes V1 con aislamiento, entitlement y reglas determinísticas.
+- [x] Technical Risk Engine + Experience.
+- [x] Applicability Engine + Experience.
+- [x] Multi-Company Applicability Validation Lab V1.
+- [ ] Current State & Evidence Baseline V1 (planificado para PR #21).
+- [ ] Gap Assessment Engine V1 (planificado para PR #22).
+- [ ] Depth Resolver y propuesta de configuración (planificado para PR #23).
+- [ ] Activación de configuración y MOC (planificado para PR #24).
 
 ## Definición de terminado
 
