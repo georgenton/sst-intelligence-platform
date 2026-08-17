@@ -8,6 +8,8 @@ coverage/
 !.env.example
 playwright-report/
 test-results/
+.artifacts/
+validation/private-scenarios/
 *.tsbuildinfo
 apps/api/prisma/*.db
 .DS_Store

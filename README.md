@@ -44,6 +44,7 @@ El modelo de amenazas y sesión está documentado en `docs/security/web-session-
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm validate:sst-scenarios
 pnpm test:integration
 pnpm test:e2e
 pnpm build
@@ -52,7 +53,12 @@ pnpm db:deploy
 pnpm db:seed
 ```
 
-`pnpm check` ejecuta lint, tipos, unitarias y build. Integración necesita PostgreSQL y E2E necesita
+`pnpm validate:sst-scenarios` valida las ocho empresas sintéticas contra el pack demo exacto y genera
+reportes ignorados por Git en `.artifacts/applicability-scenarios/`. Puede seleccionar un escenario con
+`pnpm validate:sst-scenarios --scenario EC_DEMO_CHEMICAL_PHARMA` o recibir JSON local estricto con
+`--input`. Casos expertos pseudonimizados permanecen fuera del repositorio.
+
+`pnpm check` ejecuta lint, tipos, unitarias, el laboratorio de escenarios y build. Integración necesita PostgreSQL y E2E necesita
 además Chromium (`pnpm --filter @sst/web exec playwright install chromium`).
 
 ## Organización
@@ -69,7 +75,10 @@ packages/
   typescript-config/
   testing/
 docs/
-  adr/ product/ deployment/
+  README.md  índice canónico
+  adr/ architecture/ domain/ product/ regulatory/ validation/ deployment/
+tools/
+  applicability-scenarios/ laboratorio determinístico sin red
 infra/
   docker/
 ```

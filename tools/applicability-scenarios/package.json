@@ -1,0 +1,32 @@
+{
+  "name": "@sst/applicability-scenario-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src --max-warnings=0",
+    "lint:fix": "eslint src --fix",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "validate": "pnpm build && node dist/cli.js"
+  },
+  "dependencies": {
+    "@sst/contracts": "workspace:*",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@sst/typescript-config": "workspace:*",
+    "@types/node": "24.10.13",
+    "vitest": "4.1.0"
+  }
+}
