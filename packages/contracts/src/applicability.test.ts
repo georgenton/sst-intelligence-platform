@@ -5,7 +5,9 @@ import {
   applicabilityRulePackSchema,
   evaluateApplicability,
   type ApplicabilityRulePack,
+  type ApplicabilityState,
   type OrganizationSstProfile,
+  type PredicateResult,
 } from './applicability';
 
 const completeProfile: OrganizationSstProfile = {
@@ -26,6 +28,37 @@ function decision(profile: OrganizationSstProfile, targetKey: string) {
   return evaluateApplicability(profile, DEMO_APPLICABILITY_RULE_PACK).decisions.find(
     (candidate) => candidate.targetKey === targetKey,
   )!;
+}
+
+function matchingRule(id: string, state: ApplicabilityState) {
+  return {
+    id,
+    targetKey: 'DEMO_PRECEDENCE_MATRIX',
+    condition: {
+      mode: 'ALL' as const,
+      predicates: [
+        {
+          field: 'organization.workCenterCount' as const,
+          operator: 'EQUALS' as const,
+          value: 2,
+        },
+      ],
+    },
+    state,
+    reasonCode: `${id}_MATCH`,
+    explanation: `Coincidencia ${id}.`,
+  };
+}
+
+function triStateProfile(first: PredicateResult, second: PredicateResult): OrganizationSstProfile {
+  return {
+    schemaVersion: '1.0.0',
+    organization: { country: 'Ecuador', workCenterCount: 1 },
+    operations: {
+      ...(first === 'MISSING' ? {} : { hasChemicalProcesses: first === 'TRUE' }),
+      ...(second === 'MISSING' ? {} : { hasHighEnergyOperations: second === 'TRUE' }),
+    },
+  };
 }
 
 describe('applicability rule pack schema', () => {
@@ -178,42 +211,105 @@ describe('deterministic applicability evaluation', () => {
     });
   });
 
-  it('applies ANY tri-state semantics without treating missing as false', () => {
+  it.each<
+    [
+      firstState: ApplicabilityState,
+      secondState: ApplicabilityState,
+      expectedState: ApplicabilityState,
+      expectedWinningRuleId: string,
+    ]
+  >([
+    ['MANDATORY', 'RECOMMENDED', 'MANDATORY', 'RULE_FIRST_MANDATORY'],
+    ['MANDATORY', 'NEEDS_INFORMATION', 'MANDATORY', 'RULE_FIRST_MANDATORY'],
+    ['NEEDS_EXPERT_REVIEW', 'MANDATORY', 'NEEDS_EXPERT_REVIEW', 'RULE_FIRST_EXPERT'],
+    ['RECOMMENDED', 'OPTIONAL', 'RECOMMENDED', 'RULE_FIRST_RECOMMENDED'],
+    ['OPTIONAL', 'NOT_APPLICABLE', 'OPTIONAL', 'RULE_FIRST_OPTIONAL'],
+  ])(
+    'applies precedence for %s vs %s independently of rule order',
+    (firstState, secondState, expectedState, expectedWinningRuleId) => {
+      const firstRule = matchingRule(
+        expectedWinningRuleId.startsWith('RULE_FIRST')
+          ? expectedWinningRuleId
+          : `RULE_FIRST_${firstState}`,
+        firstState,
+      );
+      const secondRule = matchingRule(
+        expectedWinningRuleId.startsWith('RULE_SECOND')
+          ? expectedWinningRuleId
+          : `RULE_SECOND_${secondState}`,
+        secondState,
+      );
+      const pack: ApplicabilityRulePack = {
+        ...DEMO_APPLICABILITY_RULE_PACK,
+        rules: [firstRule, secondRule],
+      };
+      const forward = evaluateApplicability(completeProfile, pack).decisions[0];
+      const reversed = evaluateApplicability(completeProfile, {
+        ...pack,
+        rules: [...pack.rules].reverse(),
+      }).decisions[0];
+
+      expect(forward).toEqual(reversed);
+      expect(forward).toMatchObject({
+        state: expectedState,
+        winningRuleId: expectedWinningRuleId,
+      });
+    },
+  );
+
+  it.each<
+    [
+      mode: 'ALL' | 'ANY',
+      first: PredicateResult,
+      second: PredicateResult,
+      expected: PredicateResult,
+    ]
+  >([
+    ['ALL', 'TRUE', 'TRUE', 'TRUE'],
+    ['ALL', 'TRUE', 'FALSE', 'FALSE'],
+    ['ALL', 'TRUE', 'MISSING', 'MISSING'],
+    ['ALL', 'FALSE', 'MISSING', 'FALSE'],
+    ['ALL', 'MISSING', 'MISSING', 'MISSING'],
+    ['ANY', 'FALSE', 'FALSE', 'FALSE'],
+    ['ANY', 'TRUE', 'FALSE', 'TRUE'],
+    ['ANY', 'TRUE', 'MISSING', 'TRUE'],
+    ['ANY', 'FALSE', 'MISSING', 'MISSING'],
+    ['ANY', 'MISSING', 'MISSING', 'MISSING'],
+  ])('combines %s(%s, %s) as %s', (mode, first, second, expected) => {
     const pack: ApplicabilityRulePack = {
       ...DEMO_APPLICABILITY_RULE_PACK,
       rules: [
         {
-          id: 'DEMO_ANY_TRI_STATE',
-          targetKey: 'DEMO_ANY_RESULT',
+          id: 'DEMO_TRI_STATE_MATRIX',
+          targetKey: 'DEMO_TRI_STATE_RESULT',
           condition: {
-            mode: 'ANY',
+            mode,
             predicates: [
-              { field: 'organization.sector', operator: 'EQUALS', value: 'Industrial' },
               {
                 field: 'operations.hasChemicalProcesses',
+                operator: 'BOOLEAN_IS',
+                value: true,
+              },
+              {
+                field: 'operations.hasHighEnergyOperations',
                 operator: 'BOOLEAN_IS',
                 value: true,
               },
             ],
           },
           state: 'RECOMMENDED',
-          reasonCode: 'ANY_MATCH',
-          explanation: 'Coincidencia ANY.',
+          reasonCode: 'TRI_STATE_MATCH',
+          explanation: 'Coincidencia de matriz tri-state.',
         },
       ],
     };
-    const missingProfile: OrganizationSstProfile = {
-      schemaVersion: '1.0.0',
-      organization: { country: 'Ecuador', sector: 'Servicios', workCenterCount: 1 },
-      operations: {},
-    };
-    expect(evaluateApplicability(missingProfile, pack).decisions[0]?.state).toBe(
-      'NEEDS_INFORMATION',
-    );
+
+    const result = evaluateApplicability(triStateProfile(first, second), pack).decisions[0];
+
     expect(
-      evaluateApplicability({ ...missingProfile, operations: { hasChemicalProcesses: true } }, pack)
-        .decisions[0]?.state,
-    ).toBe('RECOMMENDED');
+      result?.trace[0]?.predicates.map(({ result: predicateResult }) => predicateResult),
+    ).toEqual([first, second]);
+    expect(result?.trace[0]?.result).toBe(expected);
   });
 
   it('can produce every supported state using only the demo pack', () => {
