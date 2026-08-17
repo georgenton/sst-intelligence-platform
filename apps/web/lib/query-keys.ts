@@ -68,6 +68,14 @@ export const queryKeys = {
         'assessment',
         assessmentId,
       ] as const,
+    applicabilityProfileVersions: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'applicability', 'profile-versions'] as const,
+    applicabilityRulePacks: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'applicability', 'rule-packs'] as const,
+    applicabilityAssessments: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'applicability', 'assessments'] as const,
+    applicabilityAssessment: (organizationId: string, assessmentId: string) =>
+      [...privateRoot, 'org', organizationId, 'applicability', 'assessment', assessmentId] as const,
   },
 } as const;
 
