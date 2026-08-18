@@ -1,5 +1,21 @@
-import { PrismaClient, FeatureValueType, ModuleKey, PlanKey, Prisma } from '@prisma/client';
+import {
+  PrismaClient,
+  FeatureValueType,
+  ModuleKey,
+  PlanKey,
+  Prisma,
+  type RegulatoryCandidateStatus,
+  type RegulatoryDocumentType,
+  type RegulatoryRelationshipReviewStatus,
+  type RegulatoryRelationshipType,
+  type RegulatorySupersessionStatus,
+} from '@prisma/client';
 import { DEMO_APPLICABILITY_RULE_PACK, DEMO_TECHNICAL_RISK_METHOD } from '@sst/contracts';
+import {
+  REGULATORY_SOURCE_RECORDED_AT,
+  REGULATORY_SOURCE_RELATIONSHIPS_V1,
+  REGULATORY_SOURCE_V1,
+} from './regulatory-source-reference-data';
 
 const prisma = new PrismaClient();
 
@@ -26,6 +42,7 @@ const features = [
   ['demo.duration_days', 'Duración de demostración', 'INTEGER'],
   ['ai.monthly_actions', 'Acciones mensuales de IA', 'INTEGER'],
   ['module.inspections', 'Módulo de inspecciones', 'BOOLEAN'],
+  ['module.applicability', 'Módulo de aplicabilidad y fuentes regulatorias', 'BOOLEAN'],
   ['module.technical_risk', 'Módulo de riesgo técnico', 'BOOLEAN'],
   ['module.work_permits', 'Módulo de permisos', 'BOOLEAN'],
   ['module.psychosocial', 'Módulo psicosocial', 'BOOLEAN'],
@@ -40,6 +57,7 @@ const planValues: Record<PlanKey, Record<string, string>> = {
     'demo.duration_days': '14',
     'ai.monthly_actions': '0',
     'module.inspections': 'false',
+    'module.applicability': 'true',
     'module.technical_risk': 'false',
     'module.work_permits': 'false',
     'module.psychosocial': 'false',
@@ -52,6 +70,7 @@ const planValues: Record<PlanKey, Record<string, string>> = {
     'demo.duration_days': '14',
     'ai.monthly_actions': '25',
     'module.inspections': 'true',
+    'module.applicability': 'true',
     'module.technical_risk': 'false',
     'module.work_permits': 'false',
     'module.psychosocial': 'false',
@@ -64,6 +83,7 @@ const planValues: Record<PlanKey, Record<string, string>> = {
     'demo.duration_days': '21',
     'ai.monthly_actions': '150',
     'module.inspections': 'true',
+    'module.applicability': 'true',
     'module.technical_risk': 'true',
     'module.work_permits': 'true',
     'module.psychosocial': 'true',
@@ -76,6 +96,7 @@ const planValues: Record<PlanKey, Record<string, string>> = {
     'demo.duration_days': '30',
     'ai.monthly_actions': '1000',
     'module.inspections': 'true',
+    'module.applicability': 'true',
     'module.technical_risk': 'true',
     'module.work_permits': 'true',
     'module.psychosocial': 'true',
@@ -233,6 +254,58 @@ async function main() {
       },
     });
   }
+
+  const sourceIds = new Map<string, string>();
+  for (const source of REGULATORY_SOURCE_V1) {
+    const row = await prisma.regulatorySource.upsert({
+      where: { sourceKey: source.sourceKey },
+      update: {},
+      create: {
+        id: source.id,
+        sourceKey: source.sourceKey,
+        countryCode: source.countryCode,
+        issuer: source.issuer,
+        documentType: source.documentType as RegulatoryDocumentType,
+        referenceNumber: source.referenceNumber,
+        canonicalTitle: source.canonicalTitle,
+      },
+      select: { id: true },
+    });
+    sourceIds.set(source.sourceKey, row.id);
+  }
+
+  await prisma.regulatorySourceVersion.createMany({
+    data: REGULATORY_SOURCE_V1.map((source, index) => ({
+      id: `a2000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      sourceId: sourceIds.get(source.sourceKey)!,
+      catalogVersion: 1,
+      candidateStatus: source.candidateStatus as RegulatoryCandidateStatus,
+      officialDocumentLocated: source.officialDocumentLocated,
+      officialUrl: source.officialUrl,
+      publicationDate: null,
+      effectiveFrom: null,
+      effectiveTo: null,
+      supersessionStatus: source.supersessionStatus as RegulatorySupersessionStatus,
+      readyForExtraction: false,
+      readyForRules: false,
+      reviewNotes: source.reviewNotes,
+      recordedAt: REGULATORY_SOURCE_RECORDED_AT,
+    })),
+    skipDuplicates: true,
+  });
+
+  await prisma.regulatorySourceRelationship.createMany({
+    data: REGULATORY_SOURCE_RELATIONSHIPS_V1.map((relationship) => ({
+      id: relationship.id,
+      fromSourceId: sourceIds.get(relationship.fromSourceKey)!,
+      toSourceId: sourceIds.get(relationship.toSourceKey)!,
+      relationshipType: relationship.relationshipType as RegulatoryRelationshipType,
+      reviewStatus: relationship.reviewStatus as RegulatoryRelationshipReviewStatus,
+      notes: relationship.notes,
+      createdAt: REGULATORY_SOURCE_RECORDED_AT,
+    })),
+    skipDuplicates: true,
+  });
 }
 
 main()
