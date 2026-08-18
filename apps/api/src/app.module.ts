@@ -14,6 +14,7 @@ import { HealthService } from './health.service';
 import { InspectionsModule } from './inspections/inspections.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RegulatorySourceModule } from './regulatory-sources/regulatory-source.module';
 import { SolutionFinderModule } from './solution-finder/solution-finder.module';
 import { TechnicalRiskModule } from './technical-risk/technical-risk.module';
 
@@ -42,6 +43,7 @@ import { TechnicalRiskModule } from './technical-risk/technical-risk.module';
     CatalogModule,
     AiModule,
     ApplicabilityModule,
+    RegulatorySourceModule,
     SolutionFinderModule,
     DashboardModule,
     InspectionsModule,
