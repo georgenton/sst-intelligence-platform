@@ -1,5 +1,21 @@
-import { PrismaClient, FeatureValueType, ModuleKey, PlanKey, Prisma } from '@prisma/client';
+import {
+  PrismaClient,
+  FeatureValueType,
+  ModuleKey,
+  PlanKey,
+  Prisma,
+  type RegulatoryCandidateStatus,
+  type RegulatoryDocumentType,
+  type RegulatoryRelationshipReviewStatus,
+  type RegulatoryRelationshipType,
+  type RegulatorySupersessionStatus,
+} from '@prisma/client';
 import { DEMO_APPLICABILITY_RULE_PACK, DEMO_TECHNICAL_RISK_METHOD } from '@sst/contracts';
+import {
+  REGULATORY_SOURCE_RECORDED_AT,
+  REGULATORY_SOURCE_RELATIONSHIPS_V1,
+  REGULATORY_SOURCE_V1,
+} from './regulatory-source-reference-data';
 
 const prisma = new PrismaClient();
 
@@ -233,6 +249,58 @@ async function main() {
       },
     });
   }
+
+  const sourceIds = new Map<string, string>();
+  for (const source of REGULATORY_SOURCE_V1) {
+    const row = await prisma.regulatorySource.upsert({
+      where: { sourceKey: source.sourceKey },
+      update: {},
+      create: {
+        id: source.id,
+        sourceKey: source.sourceKey,
+        countryCode: source.countryCode,
+        issuer: source.issuer,
+        documentType: source.documentType as RegulatoryDocumentType,
+        referenceNumber: source.referenceNumber,
+        canonicalTitle: source.canonicalTitle,
+      },
+      select: { id: true },
+    });
+    sourceIds.set(source.sourceKey, row.id);
+  }
+
+  await prisma.regulatorySourceVersion.createMany({
+    data: REGULATORY_SOURCE_V1.map((source, index) => ({
+      id: `a2000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      sourceId: sourceIds.get(source.sourceKey)!,
+      catalogVersion: 1,
+      candidateStatus: source.candidateStatus as RegulatoryCandidateStatus,
+      officialDocumentLocated: source.officialDocumentLocated,
+      officialUrl: source.officialUrl,
+      publicationDate: null,
+      effectiveFrom: null,
+      effectiveTo: null,
+      supersessionStatus: source.supersessionStatus as RegulatorySupersessionStatus,
+      readyForExtraction: false,
+      readyForRules: false,
+      reviewNotes: source.reviewNotes,
+      recordedAt: REGULATORY_SOURCE_RECORDED_AT,
+    })),
+    skipDuplicates: true,
+  });
+
+  await prisma.regulatorySourceRelationship.createMany({
+    data: REGULATORY_SOURCE_RELATIONSHIPS_V1.map((relationship) => ({
+      id: relationship.id,
+      fromSourceId: sourceIds.get(relationship.fromSourceKey)!,
+      toSourceId: sourceIds.get(relationship.toSourceKey)!,
+      relationshipType: relationship.relationshipType as RegulatoryRelationshipType,
+      reviewStatus: relationship.reviewStatus as RegulatoryRelationshipReviewStatus,
+      notes: relationship.notes,
+      createdAt: REGULATORY_SOURCE_RECORDED_AT,
+    })),
+    skipDuplicates: true,
+  });
 }
 
 main()

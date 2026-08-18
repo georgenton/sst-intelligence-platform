@@ -340,3 +340,21 @@ test('reconciliation preserves private cache when the active tenant remains vali
     tenant: 'org-b',
   });
 });
+
+test('regulatory source responses are organization-scoped and removed before a membership transition', async () => {
+  const queryClient = new QueryClient();
+  const sourceAKey = queryKeys.organization.regulatorySources('org-a', '');
+  const sourceBKey = queryKeys.organization.regulatorySources('org-b', '');
+  queryClient.setQueryData(sourceAKey, [{ sourceKey: 'EC_SOURCE_VISIBLE_TO_A' }]);
+  let activeOrganizationId = 'org-a';
+
+  assert.notDeepEqual(sourceAKey, sourceBKey);
+  await isolateOrganizationTransition(queryClient, 'org-a', 'org-b', () => {
+    activeOrganizationId = 'org-b';
+    assert.equal(queryClient.getQueryData(sourceBKey), undefined);
+  });
+
+  assert.equal(activeOrganizationId, 'org-b');
+  assert.equal(queryClient.getQueryData(sourceAKey), undefined);
+  assert.equal(queryClient.getQueryData(sourceBKey), undefined);
+});
