@@ -40,16 +40,14 @@
 
 ## Adaptive SST roadmap
 
-- Completado: foundation, Inspections Engine + Experience, Technical Risk Engine + Experience y
-  Applicability Engine + Experience.
-- Actual: PR #20, Multi-Company Applicability Validation Lab V1.
-- Siguiente: PR #21 Current State & Evidence Baseline V1.
-- Después: PR #22 Gap Assessment Engine V1.
-- Después: PR #23 Depth Resolver + Inspection Configuration Proposal V1.
-- Después: PR #24 Configuration Activation + MOC V1.
+- Completado: plataforma, Inspections, Technical Risk, Applicability y Multi-Company Validation Lab.
+- Track paralelo actual: Regulatory Source Foundation V1.
+- Pendiente de validación experta: decisiones de Profile V2 y Current State & Evidence Baseline.
+- Después: Gap Assessment, Depth Resolver + Configuration Proposal y Configuration Activation + MOC.
 
-El contenido regulatorio ecuatoriano avanza en un stream controlado de fuentes. Descubrimiento,
-extracción, revisión técnica, revisión legal y aprobación de reglas son gates distintos.
+Current State no fue cancelado; espera evidencia experta. El contenido regulatorio ecuatoriano
+avanza en un stream controlado: fuente, versión, extracción, definición de requerimiento, revisión
+técnica, revisión legal, redacción de reglas, pruebas y aprobación son gates distintos.
 
 ## Riesgos
 
@@ -82,10 +80,11 @@ extracción, revisión técnica, revisión legal y aprobación de reglas son gat
 - [x] Technical Risk Engine + Experience.
 - [x] Applicability Engine + Experience.
 - [x] Multi-Company Applicability Validation Lab V1.
-- [ ] Current State & Evidence Baseline V1 (planificado para PR #21).
-- [ ] Gap Assessment Engine V1 (planificado para PR #22).
-- [ ] Depth Resolver y propuesta de configuración (planificado para PR #23).
-- [ ] Activación de configuración y MOC (planificado para PR #24).
+- [ ] Regulatory Source Foundation V1 (track paralelo actual).
+- [ ] Current State & Evidence Baseline V1 (pendiente de validación experta).
+- [ ] Gap Assessment Engine V1.
+- [ ] Depth Resolver y propuesta de configuración.
+- [ ] Activación de configuración y MOC.
 
 ## Definición de terminado
 

@@ -2,49 +2,72 @@
 
 ## Purpose and boundary
 
-Adaptive SST separates deterministic applicability from operational context, current state,
-inspection depth, service delivery and commercial limits. The sequence intentionally validates the
-existing synthetic engine with different company profiles before adding new production domains.
+Adaptive SST separates deterministic applicability, source provenance, operational context, current
+state, inspection depth, configuration and activation. Capability gates—not pull-request numbers—set
+the delivery sequence.
 
-The current `DEMO_APPLICABILITY` pack is synthetic and non-regulatory. Its outputs do not represent
-legal applicability in Ecuador. No real rule pack may be published without a located official source,
-versioned extraction, technical review, legal review, rule tests and explicit approval.
+The current `DEMO_APPLICABILITY` pack remains synthetic and non-regulatory. No real rule pack may be
+published without an identified source, immutable source version, provision extraction, requirement
+definition, technical review, legal review, rule tests and explicit approval.
 
 ## Delivery state
 
-Completed:
+### Completed
 
-- platform and multi-tenant foundation;
-- Intelligent Inspections Engine and Experience;
-- Technical Risk Engine and Experience;
-- Applicability Engine and Experience.
+- Platform and multi-tenant foundation
+- Intelligent Inspections Engine and Experience
+- Technical Risk Engine and Experience
+- Applicability Engine and Experience
+- Multi-Company Applicability Validation Lab
 
-Current:
+### Current parallel track
 
-- PR #20 — Multi-Company Applicability Validation Lab V1.
+- Regulatory Source Foundation V1
 
-Planned sequence after expert scenario validation:
+### Pending expert validation
 
-1. PR #21 — Current State & Evidence Baseline V1.
-2. PR #22 — Gap Assessment Engine V1.
-3. PR #23 — Depth Resolver + Inspection Configuration Proposal V1.
-4. PR #24 — Configuration Activation + Management of Change V1.
+- Profile V2 decisions
+- Current State & Evidence Baseline
 
-The regulatory-source domain and real Ecuador content may proceed as a controlled parallel stream,
-but discovery is not authorization for extraction and extraction is not authorization for rules.
+### Then
+
+- Gap Assessment
+- Depth Resolver and Configuration Proposal
+- Configuration Activation and Management of Change
+
+Current State was not cancelled. It waits for expert evidence about scope, taxonomy and proof.
+
+## Regulatory pipeline
+
+```text
+RegulatorySource
+→ RegulatorySourceVersion
+→ Provision Extraction
+→ Requirement Definition
+→ Technical Review
+→ Legal Review
+→ Rule Drafting
+→ Rule Tests
+→ Rule Approval
+→ RulePack Publication
+```
+
+The source-foundation track stops at `RegulatorySourceVersion`. Discovery is not extraction;
+extraction is not approval; and an approved source is not an applicability result.
 
 ## Validation-to-product decisions
 
-The eight committed scenarios reveal profile gaps by frequency, not legal importance. Expert review
-must decide which facts belong at organization or work-center scope, which require technical sources,
-and which need a specialist. Only then may Profile V2 or the next domain increment be proposed.
+The eight synthetic scenarios reveal profile gaps by frequency, not legal importance. Expert review
+must decide which facts belong at organization or work-center scope, which sources deserve priority,
+which current-state questions are meaningful and which decisions require professional judgment.
 
-The next production-domain increment is Current State & Evidence Baseline V1. PR #20 does not add
-current-state tables, gaps, depth calculation, configuration activation or MOC workflows.
+Regulatory Source Foundation remains independent from those decisions: it stores stable source
+identity and editorial provenance without changing Profile V1, the demo evaluator, current state,
+evidence, depth or prioritization.
 
 ## Workstream separation
 
-- Applicability remains independent from budget and purchased plan.
-- Consultant access belongs to the service-model axis and API authorization remains authoritative.
+- Source, applicability, obligation, rule and compliance remain separate concepts.
+- Consultant access belongs to the service-model axis; API authorization remains authoritative.
 - Pricing, partnership and ownership decisions are outside this technical roadmap.
-- Expert observations are evidence for product discovery, not generated rules or legal approval.
+- Expert observations are product-discovery evidence, not generated rules or legal approval.
