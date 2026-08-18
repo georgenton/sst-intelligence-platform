@@ -148,11 +148,16 @@ export function ApplicabilityWorkspace() {
           title="Aplicabilidad y configuración SST"
           description="Consulta perfiles versionados y evaluaciones determinísticas. Los resultados son históricos y no activan una configuración operativa."
           action={
-            canManage ? (
-              <Link className="button" href="/app/applicability/new">
-                Nueva evaluación de aplicabilidad
+            <div className="applicability-detail-actions">
+              <Link className="button secondary" href="/app/applicability/sources">
+                Fuentes de referencia
               </Link>
-            ) : undefined
+              {canManage ? (
+                <Link className="button" href="/app/applicability/new">
+                  Nueva evaluación de aplicabilidad
+                </Link>
+              ) : null}
+            </div>
           }
         />
         <DemoApplicabilityNotice disclaimer={DEMO_APPLICABILITY_DISCLAIMER} />

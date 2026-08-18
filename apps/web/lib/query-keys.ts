@@ -76,6 +76,21 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'applicability', 'assessments'] as const,
     applicabilityAssessment: (organizationId: string, assessmentId: string) =>
       [...privateRoot, 'org', organizationId, 'applicability', 'assessment', assessmentId] as const,
+    regulatorySources: (organizationId: string, filters: string) =>
+      [...privateRoot, 'org', organizationId, 'regulatory-sources', 'list', filters] as const,
+    regulatorySource: (organizationId: string, sourceKey: string) =>
+      [...privateRoot, 'org', organizationId, 'regulatory-sources', 'detail', sourceKey] as const,
+    regulatorySourceVersions: (organizationId: string, sourceKey: string) =>
+      [...privateRoot, 'org', organizationId, 'regulatory-sources', 'versions', sourceKey] as const,
+    regulatorySourceRelationships: (organizationId: string, sourceKey: string) =>
+      [
+        ...privateRoot,
+        'org',
+        organizationId,
+        'regulatory-sources',
+        'relationships',
+        sourceKey,
+      ] as const,
   },
 } as const;
 
