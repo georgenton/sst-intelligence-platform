@@ -341,7 +341,7 @@ test('reconciliation preserves private cache when the active tenant remains vali
   });
 });
 
-test('regulatory source responses are organization-scoped and removed before an unauthorized transition', async () => {
+test('regulatory source responses are organization-scoped and removed before a membership transition', async () => {
   const queryClient = new QueryClient();
   const sourceAKey = queryKeys.organization.regulatorySources('org-a', '');
   const sourceBKey = queryKeys.organization.regulatorySources('org-b', '');

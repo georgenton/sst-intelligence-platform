@@ -9,8 +9,6 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { AccessTokenGuard } from '../auth/access-token.guard';
-import { EntitlementGuard } from '../catalog/entitlement.guard';
-import { RequireEntitlement } from '../catalog/entitlement.decorator';
 import { OrganizationGuard } from '../organizations/organization.guard';
 import { ListRegulatorySourcesQueryDto } from './dto';
 import { RegulatorySourceService } from './regulatory-source.service';
@@ -18,10 +16,9 @@ import { RegulatorySourceService } from './regulatory-source.service';
 @ApiTags('regulatory-sources')
 @ApiBearerAuth()
 @ApiUnauthorizedResponse({ description: 'Se requiere una sesión autenticada.' })
-@ApiForbiddenResponse({ description: 'La membresía o el entitlement no permite esta lectura.' })
+@ApiForbiddenResponse({ description: 'La organización activa no tiene una membresía válida.' })
 @Controller('regulatory-sources')
-@RequireEntitlement('module.applicability')
-@UseGuards(AccessTokenGuard, OrganizationGuard, EntitlementGuard)
+@UseGuards(AccessTokenGuard, OrganizationGuard)
 export class RegulatorySourceController {
   constructor(private readonly regulatorySources: RegulatorySourceService) {}
 

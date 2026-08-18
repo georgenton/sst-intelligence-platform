@@ -54,9 +54,13 @@ initial data contains no `APPROVED_FOR_RULES` source and every initial version h
 ## Global data with tenant access gates
 
 The catalog is global, but every runtime request passes through the authenticated organization
-context. `AccessTokenGuard` authenticates the user, `OrganizationGuard` validates active membership,
-and `EntitlementGuard` requires `module.applicability`. All six existing organization roles may
-read. Organization owners are not platform editors.
+context. `AccessTokenGuard` authenticates the user and `OrganizationGuard` validates active
+membership, mirroring the existing read policy of the Applicability experience. All six existing
+organization roles may read. Organization owners are not platform editors.
+
+Commercial packaging for regulatory-source access is not decided in this increment. A future
+plan-specific entitlement requires a separate product and commercial decision; V1 introduces no
+feature definition or plan grant.
 
 The runtime API exposes only:
 

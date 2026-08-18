@@ -46,10 +46,12 @@ test('routes, async states and narrow reflow are explicit', () => {
   const styles = readFileSync(`${webRoot}/styles/applicability-experience.css`, 'utf8');
   assert.match(component, /Cargando fuentes de referencia/);
   assert.match(component, /No pudimos cargar las fuentes/);
+  assert.match(component, /La API no autorizó esta lectura/);
   assert.match(component, /No hay coincidencias/);
   assert.match(component, /Fuentes candidatas/);
   assert.match(component, /signal/);
   assert.doesNotMatch(component, /Editar fuente|Guardar cambios|Eliminar fuente/);
+  assert.doesNotMatch(component, /module\.applicability|módulo de aplicabilidad/i);
   assert.match(styles, /@media \(max-width: 420px\)/);
   assert.match(styles, /\.regulatory-source-card/);
   assert.doesNotMatch(styles, /min-width:\s*[4-9]\d{2}px/);

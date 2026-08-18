@@ -84,7 +84,7 @@ function RegulatoryQueryError({ error, retry }: { error: Error; retry(): void })
       }
       description={
         denied
-          ? 'La organización activa no tiene habilitado el módulo de aplicabilidad. La API mantiene la decisión de acceso.'
+          ? 'La API no autorizó esta lectura con la sesión y organización activas. Verifica tu acceso o selecciona otra organización.'
           : 'La consulta falló. No se mostrará un estado vacío ni información conservada de otra organización.'
       }
       action={

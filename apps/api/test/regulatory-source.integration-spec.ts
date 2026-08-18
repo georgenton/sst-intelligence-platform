@@ -20,6 +20,57 @@ const INITIAL_SOURCE_KEYS = [
   'EC_IESS_CD_677',
 ] as const;
 
+const BASELINE_PLAN_FEATURES = {
+  FREE: {
+    'ai.monthly_actions': '0',
+    'demo.duration_days': '14',
+    'demo.enabled': 'true',
+    'module.compliance': 'false',
+    'module.inspections': 'false',
+    'module.psychosocial': 'false',
+    'module.technical_risk': 'false',
+    'module.work_permits': 'false',
+    'organization.max_members': '2',
+    'organization.max_work_centers': '1',
+  },
+  STARTER: {
+    'ai.monthly_actions': '25',
+    'demo.duration_days': '14',
+    'demo.enabled': 'true',
+    'module.compliance': 'true',
+    'module.inspections': 'true',
+    'module.psychosocial': 'false',
+    'module.technical_risk': 'false',
+    'module.work_permits': 'false',
+    'organization.max_members': '10',
+    'organization.max_work_centers': '3',
+  },
+  GROWTH: {
+    'ai.monthly_actions': '150',
+    'demo.duration_days': '21',
+    'demo.enabled': 'true',
+    'module.compliance': 'true',
+    'module.inspections': 'true',
+    'module.psychosocial': 'true',
+    'module.technical_risk': 'true',
+    'module.work_permits': 'true',
+    'organization.max_members': '50',
+    'organization.max_work_centers': '12',
+  },
+  ENTERPRISE: {
+    'ai.monthly_actions': '1000',
+    'demo.duration_days': '30',
+    'demo.enabled': 'true',
+    'module.compliance': 'true',
+    'module.inspections': 'true',
+    'module.psychosocial': 'true',
+    'module.technical_risk': 'true',
+    'module.work_permits': 'true',
+    'organization.max_members': '10000',
+    'organization.max_work_centers': '10000',
+  },
+} as const;
+
 describe('regulatory source foundation integration', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -106,17 +157,51 @@ describe('regulatory source foundation integration', () => {
     expect(relationship.reviewStatus).toBe('PENDING_REVIEW');
   });
 
-  it('enforces auth, membership, entitlement and all-role read access over global data', async () => {
+  it('preserves the exact baseline commercial feature and plan assignment matrix', async () => {
+    const featureKeys = await prisma.featureDefinition.findMany({
+      select: { key: true },
+      orderBy: { key: 'asc' },
+    });
+    expect(featureKeys.map(({ key }) => key)).toEqual(
+      Object.keys(BASELINE_PLAN_FEATURES.FREE).sort(),
+    );
+
+    const plans = await prisma.plan.findMany({
+      select: {
+        key: true,
+        planFeatures: {
+          select: { value: true, feature: { select: { key: true } } },
+          orderBy: { feature: { key: 'asc' } },
+        },
+      },
+      orderBy: { key: 'asc' },
+    });
+    const assignments = Object.fromEntries(
+      plans.map((plan) => [
+        plan.key,
+        Object.fromEntries(plan.planFeatures.map(({ feature, value }) => [feature.key, value])),
+      ]),
+    );
+    expect(assignments).toEqual(BASELINE_PLAN_FEATURES);
+  });
+
+  it('enforces auth, membership and all-role read access over global data', async () => {
     await request(app.getHttpServer()).get('/api/v1/regulatory-sources').expect(401);
 
     const owner = await register('Regulatory Owner');
-    const entitledA = await createOrganization(owner.token, 'Entitled A');
-    const entitledB = await createOrganization(owner.token, 'Entitled B');
-    const denied = await createOrganization(owner.token, 'No entitlement');
-    await prisma.subscription.deleteMany({ where: { organizationId: denied } });
+    const organizationA = await createOrganization(owner.token, 'Organization A');
+    const organizationB = await createOrganization(owner.token, 'Organization B');
 
-    const listA = await get(owner.token, entitledA).expect(200);
-    const listB = await get(owner.token, entitledB).expect(200);
+    await request(app.getHttpServer())
+      .get('/api/v1/regulatory-sources')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .expect(403)
+      .expect(({ body }) => {
+        expect(body.message).toBe('Selecciona una organización.');
+      });
+
+    const listA = await get(owner.token, organizationA).expect(200);
+    const listB = await get(owner.token, organizationB).expect(200);
     expect(listA.body).toEqual(listB.body);
     expect(
       listA.body.filter((source: { sourceKey: string }) =>
@@ -126,11 +211,6 @@ describe('regulatory source foundation integration', () => {
     expect(listA.body[0]).not.toHaveProperty('organizationId');
     expect(listA.body[0]).not.toHaveProperty('legalStatus');
     expect(listA.body[0]).not.toHaveProperty('isApplicable');
-    await get(owner.token, denied)
-      .expect(403)
-      .expect(({ body }) => {
-        expect(body.message).toBe('Este módulo no está disponible en el plan actual.');
-      });
 
     const roles: MembershipRole[] = [
       'ORG_OWNER',
@@ -143,15 +223,19 @@ describe('regulatory source foundation integration', () => {
     for (const role of roles) {
       await prisma.membership.update({
         where: {
-          userId_organizationId: { userId: owner.userId, organizationId: entitledA },
+          userId_organizationId: { userId: owner.userId, organizationId: organizationA },
         },
         data: { role },
       });
-      await get(owner.token, entitledA).expect(200);
+      await get(owner.token, organizationA).expect(200);
     }
 
     const outsider = await register('Regulatory Outsider');
-    await get(outsider.token, entitledA).expect(403);
+    await get(outsider.token, organizationA)
+      .expect(403)
+      .expect(({ body }) => {
+        expect(body.message).toBe('No tienes acceso a esta organización.');
+      });
   }, 60_000);
 
   it('exposes safe detail, history and pending relationships without mutation routes', async () => {

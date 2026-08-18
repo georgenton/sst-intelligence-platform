@@ -135,32 +135,6 @@ CREATE TRIGGER "RegulatorySource_sourceKey_immutable"
 BEFORE UPDATE OF "sourceKey" ON "RegulatorySource"
 FOR EACH ROW EXECUTE FUNCTION "prevent_regulatory_source_key_change"();
 
--- Existing deployed organizations resolve catalog access through the same
--- applicability entitlement. Fresh databases converge through the seed below.
-INSERT INTO "FeatureDefinition" (
-  "id", "key", "description", "valueType", "createdAt", "updatedAt"
-)
-VALUES (
-  'a4000000-0000-4000-8000-000000000001',
-  'module.applicability',
-  'Módulo de aplicabilidad y fuentes regulatorias',
-  'BOOLEAN',
-  CURRENT_TIMESTAMP,
-  CURRENT_TIMESTAMP
-)
-ON CONFLICT ("key") DO NOTHING;
-
-INSERT INTO "PlanFeature" ("id", "planId", "featureId", "value")
-SELECT
-  md5('module.applicability:' || "Plan"."id"::text)::uuid,
-  "Plan"."id",
-  "FeatureDefinition"."id",
-  'true'
-FROM "Plan"
-CROSS JOIN "FeatureDefinition"
-WHERE "FeatureDefinition"."key" = 'module.applicability'
-ON CONFLICT ("planId", "featureId") DO NOTHING;
-
 INSERT INTO "RegulatorySource" (
   "id", "sourceKey", "countryCode", "issuer", "documentType", "referenceNumber",
   "canonicalTitle", "createdAt", "updatedAt"
