@@ -165,9 +165,21 @@ test('perfil versionado, evaluación explícita y trace de aplicabilidad', async
   ).toBeVisible();
   await expect(page.getByText('Versión de catálogo 1')).toBeVisible();
   await expect(page.getByText('No lista para reglas')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Contenido estructurado' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Disposiciones' })).toBeVisible();
+  await expect(page.getByText('No hay contenido estructurado todavía.')).toBeVisible();
+  await expect(page.getByText('No hay requisitos estructurados todavía.')).toBeVisible();
+  await expect(page.getByText(/no significa que no existan requisitos legales/i)).toHaveCount(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
   await page.getByRole('link', { name: 'Volver al catálogo' }).click();
   await expect(page.getByRole('heading', { name: 'Fuentes de referencia' })).toBeVisible();
+  await page.getByRole('link', { name: 'Requisitos estructurados' }).click();
+  await expect(page.getByRole('heading', { name: 'Requisitos estructurados' })).toBeVisible();
+  await expect(page.getByText(/No decide si aplica a una organización/)).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 720 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
 });
