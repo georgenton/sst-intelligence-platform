@@ -236,6 +236,50 @@ enum RegulatoryRelationshipReviewStatus {
   REJECTED
 }
 
+enum RegulatoryProvisionLocatorType {
+  ARTICLE
+  SECTION
+  NUMERAL
+  ANNEX
+  TABLE
+  OTHER
+}
+
+enum RegulatoryProvisionEditorialStatus {
+  DRAFT
+  EXTRACTED
+  TECHNICAL_REVIEW_PENDING
+  LEGAL_REVIEW_PENDING
+  APPROVED
+  REJECTED
+  SUPERSEDED
+}
+
+enum RegulatoryRequirementEditorialStatus {
+  DRAFT
+  TECHNICAL_REVIEW_PENDING
+  LEGAL_REVIEW_PENDING
+  APPROVED_FOR_RULE_DRAFTING
+  REJECTED
+  SUPERSEDED
+}
+
+enum RegulatoryRequirementScopeHint {
+  UNKNOWN
+  ORGANIZATION
+  WORK_CENTER
+  AREA_PROCESS
+  ACTIVITY
+  ASSET
+  MULTI_SCOPE
+}
+
+enum RegulatoryRequirementRelationshipType {
+  PRIMARY_SOURCE
+  SUPPORTING_SOURCE
+  RELATED_SOURCE
+}
+
 enum InspectionAlertType {
   RECURRENCE
   OVERDUE_ACTION
@@ -786,10 +830,63 @@ model RegulatorySourceVersion {
   reviewNotes             String?
   recordedAt              DateTime                     @default(now())
   source                  RegulatorySource             @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  provisions              RegulatoryProvision[]
 
   @@unique([sourceId, catalogVersion])
   @@index([candidateStatus, recordedAt])
   @@index([sourceId, recordedAt])
+}
+
+model RegulatoryProvision {
+  id                    String                             @id @default(uuid()) @db.Uuid
+  sourceVersionId       String                             @db.Uuid
+  provisionKey          String                             @db.VarChar(160)
+  locatorType           RegulatoryProvisionLocatorType
+  locatorLabel          String                             @db.VarChar(240)
+  heading               String?                            @db.VarChar(500)
+  summary               String?                            @db.VarChar(1000)
+  editorialStatus       RegulatoryProvisionEditorialStatus
+  supersedesProvisionId String?                            @unique @db.Uuid
+  createdAt             DateTime                           @default(now())
+  sourceVersion         RegulatorySourceVersion            @relation(fields: [sourceVersionId], references: [id], onDelete: Restrict)
+  supersedesProvision   RegulatoryProvision?               @relation("RegulatoryProvisionReplacement", fields: [supersedesProvisionId], references: [id], onDelete: Restrict)
+  supersededByProvision RegulatoryProvision?               @relation("RegulatoryProvisionReplacement")
+  requirementSources    RegulatoryRequirementSource[]
+
+  @@unique([sourceVersionId, provisionKey])
+  @@index([sourceVersionId, editorialStatus])
+  @@index([provisionKey])
+}
+
+model RegulatoryRequirement {
+  id                      String                               @id @default(uuid()) @db.Uuid
+  requirementKey          String                               @unique @db.VarChar(160)
+  title                   String                               @db.VarChar(240)
+  description             String                               @db.VarChar(2000)
+  editorialStatus         RegulatoryRequirementEditorialStatus
+  scopeHint               RegulatoryRequirementScopeHint       @default(UNKNOWN)
+  supersedesRequirementId String?                              @unique @db.Uuid
+  createdAt               DateTime                             @default(now())
+  supersedesRequirement   RegulatoryRequirement?               @relation("RegulatoryRequirementReplacement", fields: [supersedesRequirementId], references: [id], onDelete: Restrict)
+  supersededByRequirement RegulatoryRequirement?               @relation("RegulatoryRequirementReplacement")
+  sources                 RegulatoryRequirementSource[]
+
+  @@index([editorialStatus, createdAt])
+  @@index([scopeHint])
+}
+
+model RegulatoryRequirementSource {
+  id               String                                @id @default(uuid()) @db.Uuid
+  requirementId    String                                @db.Uuid
+  provisionId      String                                @db.Uuid
+  relationshipType RegulatoryRequirementRelationshipType
+  createdAt        DateTime                              @default(now())
+  requirement      RegulatoryRequirement                 @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  provision        RegulatoryProvision                   @relation(fields: [provisionId], references: [id], onDelete: Restrict)
+
+  @@unique([requirementId, provisionId, relationshipType])
+  @@index([requirementId, relationshipType])
+  @@index([provisionId, relationshipType])
 }
 
 model RegulatorySourceRelationship {

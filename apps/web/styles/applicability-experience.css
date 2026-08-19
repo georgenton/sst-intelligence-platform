@@ -985,6 +985,107 @@ label.applicability-rule-pack {
   gap: var(--space-3);
 }
 
+.regulatory-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.regulatory-structured-content {
+  border-color: var(--border-default);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-card);
+}
+
+.regulatory-structured-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.regulatory-structured-grid > section,
+.regulatory-empty-state,
+.regulatory-content-card {
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
+  background: var(--surface-sunken);
+}
+
+.regulatory-structured-grid > section {
+  padding: var(--space-4);
+}
+
+.regulatory-subsection-heading,
+.regulatory-content-card dl > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.regulatory-subsection-heading h3,
+.regulatory-content-card h2,
+.regulatory-content-card h3,
+.regulatory-content-card h4,
+.regulatory-content-card p,
+.regulatory-content-card dl,
+.regulatory-empty-state p {
+  margin: 0;
+}
+
+.regulatory-content-list,
+.regulatory-requirement-grid {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.regulatory-content-list {
+  margin-top: var(--space-3);
+}
+
+.regulatory-requirement-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+}
+
+.regulatory-empty-state,
+.regulatory-content-card {
+  padding: var(--space-3);
+}
+
+.regulatory-empty-state {
+  margin-top: var(--space-3);
+}
+
+.regulatory-empty-state p,
+.regulatory-content-card p,
+.regulatory-content-card small,
+.regulatory-content-card dt {
+  color: var(--text-secondary);
+}
+
+.regulatory-content-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.regulatory-content-card a {
+  color: var(--text-link);
+  font-weight: var(--weight-semibold);
+}
+
+.regulatory-content-card dl {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.regulatory-content-card dd {
+  margin: 0;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+
 .regulatory-version-card > .regulatory-status {
   justify-self: end;
 }
@@ -1052,7 +1153,8 @@ label.applicability-rule-pack {
   .regulatory-filters,
   .regulatory-source-card dl,
   .regulatory-source-identity dl,
-  .regulatory-version-card dl {
+  .regulatory-version-card dl,
+  .regulatory-structured-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -1093,9 +1195,12 @@ label.applicability-rule-pack {
   .regulatory-filters,
   .regulatory-source-identity,
   .regulatory-relationships,
+  .regulatory-structured-content,
+  .regulatory-structured-grid > section,
   .regulatory-source-card,
   .regulatory-version-card,
-  .regulatory-relationships article {
+  .regulatory-relationships article,
+  .regulatory-content-card {
     padding: var(--space-3);
   }
 
@@ -1107,7 +1212,9 @@ label.applicability-rule-pack {
   }
 
   .regulatory-filters .button,
-  .regulatory-source-identity > .button {
+  .regulatory-source-identity > .button,
+  .regulatory-header-actions,
+  .regulatory-header-actions .button {
     width: 100%;
   }
 }

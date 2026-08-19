@@ -7,11 +7,19 @@ import type {
   RegulatorySourceDetail,
   RegulatorySourceListItem,
   RegulatorySourceRelationshipRecord,
+  RegulatorySourceProvision,
   RegulatorySourceVersionRecord,
 } from '@sst/contracts';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
+import {
+  REGULATORY_CONTENT_EMPTY_COPY,
+  REGULATORY_EDITORIAL_REPLACEMENT_COPY,
+  regulatoryProvisionLocatorTypeLabels,
+  regulatoryProvisionStatusLabels,
+  regulatoryRequirementStatusLabels,
+} from '@/lib/regulatory-content-experience';
 import {
   formatCatalogDate,
   REGULATORY_SOURCE_BOUNDARY_COPY,
@@ -75,20 +83,27 @@ function RegulatoryAccessGate({
 }
 
 function RegulatoryQueryError({ error, retry }: { error: Error; retry(): void }) {
+  const unauthorized = error instanceof ApiClientError && error.status === 401;
   const denied = error instanceof ApiClientError && error.status === 403;
   return (
     <ApplicabilityStatePanel
       kind="error"
       title={
-        denied ? 'Catálogo no disponible para esta organización' : 'No pudimos cargar las fuentes'
+        unauthorized
+          ? 'Lectura no autorizada'
+          : denied
+            ? 'Catálogo no disponible para esta organización'
+            : 'No pudimos cargar las fuentes'
       }
       description={
-        denied
-          ? 'La API no autorizó esta lectura con la sesión y organización activas. Verifica tu acceso o selecciona otra organización.'
-          : 'La consulta falló. No se mostrará un estado vacío ni información conservada de otra organización.'
+        unauthorized
+          ? 'La sesión actual no permite consultar el catálogo.'
+          : denied
+            ? 'La API no autorizó esta lectura con la sesión y organización activas. Verifica tu acceso o selecciona otra organización.'
+            : 'La consulta falló. No se mostrará un estado vacío ni información conservada de otra organización.'
       }
       action={
-        denied ? undefined : (
+        unauthorized || denied ? undefined : (
           <button className="button secondary" type="button" onClick={retry}>
             Reintentar
           </button>
@@ -137,9 +152,14 @@ export function RegulatorySourceCatalog() {
           title="Fuentes de referencia"
           description="Catálogo versionado de fuentes candidatas de Ecuador. La consulta es de solo lectura."
           action={
-            <Link className="button secondary" href="/app/applicability">
-              Volver a Configuración SST
-            </Link>
+            <div className="regulatory-header-actions">
+              <Link className="button secondary" href="/app/applicability/requirements">
+                Requisitos estructurados
+              </Link>
+              <Link className="button secondary" href="/app/applicability">
+                Volver a Configuración SST
+              </Link>
+            </div>
           }
         />
         <CatalogBoundaryNotice />
@@ -352,12 +372,35 @@ export function RegulatorySourceDetailView({ sourceKey }: { sourceKey: string })
     enabled,
     retry: shouldRetryGet,
   });
-  const firstError = detail.error ?? versions.error ?? relationships.error;
+  const structuredContent = useQuery({
+    queryKey: queryKeys.organization.regulatorySourceProvisions(organizationId, sourceKey),
+    queryFn: ({ signal }) =>
+      api.request<RegulatorySourceProvision[]>(`/regulatory-sources/${encodedKey}/provisions`, {
+        signal,
+      }),
+    enabled,
+    retry: shouldRetryGet,
+  });
+  const firstError =
+    detail.error ?? versions.error ?? relationships.error ?? structuredContent.error;
+  const structuredRows = structuredContent.data ?? [];
+  const relatedRequirements = Array.from(
+    new Map(
+      structuredRows.flatMap((row) =>
+        row.requirements.map(
+          ({ requirement }) => [requirement.requirementKey, requirement] as const,
+        ),
+      ),
+    ).values(),
+  );
 
   return (
     <RegulatoryAccessGate api={api}>
       <div className="regulatory-source-page stack">
-        {detail.isLoading || versions.isLoading || relationships.isLoading ? (
+        {detail.isLoading ||
+        versions.isLoading ||
+        relationships.isLoading ||
+        structuredContent.isLoading ? (
           <ApplicabilitySkeleton label="Cargando metadata de la fuente" />
         ) : firstError ? (
           <RegulatoryQueryError
@@ -366,9 +409,10 @@ export function RegulatorySourceDetailView({ sourceKey }: { sourceKey: string })
               void detail.refetch();
               void versions.refetch();
               void relationships.refetch();
+              void structuredContent.refetch();
             }}
           />
-        ) : detail.data && versions.data && relationships.data ? (
+        ) : detail.data && versions.data && relationships.data && structuredContent.data ? (
           <>
             <ApplicabilityPageHeader
               eyebrow="Fuente candidata"
@@ -441,6 +485,85 @@ export function RegulatorySourceDetailView({ sourceKey }: { sourceKey: string })
                 {versions.data.map((version) => (
                   <VersionCard key={version.catalogVersion} version={version} />
                 ))}
+              </div>
+            </section>
+
+            <section className="regulatory-structured-content" aria-labelledby="structured-title">
+              <div className="applicability-section-heading">
+                <div>
+                  <p className="applicability-kicker">Procedencia antes que inferencia</p>
+                  <h2 id="structured-title">Contenido estructurado</h2>
+                </div>
+              </div>
+              <div className="regulatory-structured-grid">
+                <section aria-labelledby="provisions-title">
+                  <div className="regulatory-subsection-heading">
+                    <h3 id="provisions-title">Disposiciones</h3>
+                    <span>{structuredRows.length}</span>
+                  </div>
+                  {structuredRows.length === 0 ? (
+                    <div className="regulatory-empty-state">
+                      <strong>No hay contenido estructurado todavía.</strong>
+                      <p>{REGULATORY_CONTENT_EMPTY_COPY}</p>
+                    </div>
+                  ) : (
+                    <div className="regulatory-content-list">
+                      {structuredRows.map(({ provision, sourceVersion }) => (
+                        <article key={provision.id} className="regulatory-content-card">
+                          <span className="regulatory-status">
+                            {regulatoryProvisionLocatorTypeLabels[provision.locatorType]}
+                          </span>
+                          <h4>{provision.heading ?? provision.locatorLabel}</h4>
+                          <p>{provision.locatorLabel}</p>
+                          {provision.summary ? <p>{provision.summary}</p> : null}
+                          <small>
+                            Versión de catálogo {sourceVersion.catalogVersion} ·{' '}
+                            {regulatoryProvisionStatusLabels[provision.editorialStatus]}
+                          </small>
+                          {provision.supersedesProvisionId ? (
+                            <small>{REGULATORY_EDITORIAL_REPLACEMENT_COPY}</small>
+                          ) : null}
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section aria-labelledby="related-requirements-title">
+                  <div className="regulatory-subsection-heading">
+                    <h3 id="related-requirements-title">Requisitos relacionados</h3>
+                    <span>{relatedRequirements.length}</span>
+                  </div>
+                  {relatedRequirements.length === 0 ? (
+                    <div className="regulatory-empty-state">
+                      <strong>No hay requisitos estructurados todavía.</strong>
+                      <p>{REGULATORY_CONTENT_EMPTY_COPY}</p>
+                    </div>
+                  ) : (
+                    <div className="regulatory-content-list">
+                      {relatedRequirements.map((requirement) => (
+                        <article
+                          key={requirement.requirementKey}
+                          className="regulatory-content-card"
+                        >
+                          <span className="regulatory-status">
+                            {regulatoryRequirementStatusLabels[requirement.editorialStatus]}
+                          </span>
+                          <h4>{requirement.title}</h4>
+                          <p>{requirement.description}</p>
+                          {requirement.supersedesRequirementId ? (
+                            <small>{REGULATORY_EDITORIAL_REPLACEMENT_COPY}</small>
+                          ) : null}
+                          <Link
+                            href={`/app/applicability/requirements/${encodeURIComponent(requirement.requirementKey)}`}
+                          >
+                            Ver procedencia
+                          </Link>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </section>
               </div>
             </section>
 

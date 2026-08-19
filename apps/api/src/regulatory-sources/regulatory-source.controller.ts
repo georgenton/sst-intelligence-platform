@@ -52,4 +52,14 @@ export class RegulatorySourceController {
   relationships(@Param('sourceKey') sourceKey: string) {
     return this.regulatorySources.getRelationships(sourceKey);
   }
+
+  @Get(':sourceKey/provisions')
+  @ApiOperation({
+    summary: 'Lista contenido estructurado ligado a versiones exactas de la fuente.',
+  })
+  @ApiOkResponse({ description: 'Disposiciones editoriales y requisitos relacionados; no reglas.' })
+  @ApiNotFoundResponse({ description: 'Fuente candidata no encontrada.' })
+  provisions(@Param('sourceKey') sourceKey: string) {
+    return this.regulatorySources.getProvisions(sourceKey);
+  }
 }

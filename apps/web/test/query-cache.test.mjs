@@ -358,3 +358,23 @@ test('regulatory source responses are organization-scoped and removed before a m
   assert.equal(queryClient.getQueryData(sourceAKey), undefined);
   assert.equal(queryClient.getQueryData(sourceBKey), undefined);
 });
+
+test('structured regulatory content stays tenant-scoped and is removed on A to B transition', async () => {
+  const queryClient = new QueryClient();
+  const provisionsA = queryKeys.organization.regulatorySourceProvisions('org-a', 'DEMO_SOURCE');
+  const provisionsB = queryKeys.organization.regulatorySourceProvisions('org-b', 'DEMO_SOURCE');
+  const requirementsA = queryKeys.organization.regulatoryRequirements('org-a');
+  const requirementsB = queryKeys.organization.regulatoryRequirements('org-b');
+  queryClient.setQueryData(provisionsA, [{ provisionKey: 'DEMO_ARTICLE_A' }]);
+  queryClient.setQueryData(requirementsA, [{ requirementKey: 'DEMO_REQUIREMENT_001' }]);
+
+  assert.notDeepEqual(provisionsA, provisionsB);
+  assert.notDeepEqual(requirementsA, requirementsB);
+  await isolateOrganizationTransition(queryClient, 'org-a', 'org-b', () => {
+    assert.equal(queryClient.getQueryData(provisionsB), undefined);
+    assert.equal(queryClient.getQueryData(requirementsB), undefined);
+  });
+
+  assert.equal(queryClient.getQueryData(provisionsA), undefined);
+  assert.equal(queryClient.getQueryData(requirementsA), undefined);
+});

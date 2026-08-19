@@ -91,6 +91,26 @@ export const queryKeys = {
         'relationships',
         sourceKey,
       ] as const,
+    regulatorySourceProvisions: (organizationId: string, sourceKey: string) =>
+      [
+        ...privateRoot,
+        'org',
+        organizationId,
+        'regulatory-sources',
+        'provisions',
+        sourceKey,
+      ] as const,
+    regulatoryRequirements: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'regulatory-requirements', 'list'] as const,
+    regulatoryRequirement: (organizationId: string, requirementKey: string) =>
+      [
+        ...privateRoot,
+        'org',
+        organizationId,
+        'regulatory-requirements',
+        'detail',
+        requirementKey,
+      ] as const,
   },
 } as const;
 

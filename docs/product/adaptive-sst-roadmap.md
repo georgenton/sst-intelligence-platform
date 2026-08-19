@@ -19,15 +19,25 @@ definition, technical review, legal review, rule tests and explicit approval.
 - Technical Risk Engine and Experience
 - Applicability Engine and Experience
 - Multi-Company Applicability Validation Lab
+- Regulatory Source Foundation V1
 
 ### Current parallel track
 
-- Regulatory Source Foundation V1
+- Regulatory Provision & Requirement Foundation V1
 
 ### Pending expert validation
 
 - Profile V2 decisions
 - Current State & Evidence Baseline
+- Inspection depth rules
+
+### Future regulatory track
+
+- Controlled provision extraction
+- Requirement review
+- Rule drafting
+- Rule approval
+- Real rule-pack publication
 
 ### Then
 
@@ -52,8 +62,10 @@ RegulatorySource
 → RulePack Publication
 ```
 
-The source-foundation track stops at `RegulatorySourceVersion`. Discovery is not extraction;
-extraction is not approval; and an approved source is not an applicability result.
+The source foundation stops at `RegulatorySourceVersion`. The current parallel foundation adds
+empty, immutable structures for reviewed provisions and requirements, without real Ecuador content.
+Discovery is not extraction; extraction is not approval; a requirement candidate is not a rule;
+and an approved source is not an applicability result.
 
 ## Validation-to-product decisions
 
