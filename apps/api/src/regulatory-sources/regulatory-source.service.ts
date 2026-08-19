@@ -26,6 +26,34 @@ const versionSelect = {
   recordedAt: true,
 } as const;
 
+const sourceVersionReferenceSelect = {
+  catalogVersion: true,
+  candidateStatus: true,
+  recordedAt: true,
+} as const;
+
+const provisionSelect = {
+  id: true,
+  sourceVersionId: true,
+  provisionKey: true,
+  locatorType: true,
+  locatorLabel: true,
+  heading: true,
+  summary: true,
+  editorialStatus: true,
+  createdAt: true,
+} as const;
+
+const requirementSelect = {
+  id: true,
+  requirementKey: true,
+  title: true,
+  description: true,
+  editorialStatus: true,
+  scopeHint: true,
+  createdAt: true,
+} as const;
+
 @Injectable()
 export class RegulatorySourceService {
   constructor(private readonly prisma: PrismaService) {}
@@ -124,6 +152,123 @@ export class RegulatorySourceService {
       },
       orderBy: [{ reviewStatus: 'asc' }, { createdAt: 'asc' }],
     });
+  }
+
+  async getProvisions(sourceKey: string) {
+    const source = await this.requireSource(sourceKey);
+    const provisions = await this.prisma.regulatoryProvision.findMany({
+      where: { sourceVersion: { sourceId: source.id } },
+      select: {
+        ...provisionSelect,
+        sourceVersion: { select: sourceVersionReferenceSelect },
+        requirementSources: {
+          select: {
+            relationshipType: true,
+            requirement: { select: requirementSelect },
+          },
+          orderBy: [{ relationshipType: 'asc' }, { createdAt: 'asc' }],
+        },
+      },
+      orderBy: [
+        { sourceVersion: { catalogVersion: 'desc' } },
+        { locatorLabel: 'asc' },
+        { provisionKey: 'asc' },
+      ],
+    });
+
+    return provisions.map(({ sourceVersion, requirementSources, ...provision }) => ({
+      provision,
+      sourceVersion,
+      requirements: requirementSources,
+    }));
+  }
+
+  async getProvision(provisionId: string) {
+    const row = await this.prisma.regulatoryProvision.findUnique({
+      where: { id: provisionId },
+      select: {
+        ...provisionSelect,
+        sourceVersion: {
+          select: {
+            ...sourceVersionReferenceSelect,
+            source: { select: sourceIdentitySelect },
+          },
+        },
+        requirementSources: {
+          select: {
+            relationshipType: true,
+            requirement: { select: requirementSelect },
+          },
+          orderBy: [{ relationshipType: 'asc' }, { createdAt: 'asc' }],
+        },
+      },
+    });
+    if (!row) throw new NotFoundException('Disposición estructurada no encontrada.');
+    const { sourceVersion, requirementSources, ...provision } = row;
+    const { source, ...version } = sourceVersion;
+    return {
+      provision,
+      sourceVersion: version,
+      source,
+      requirements: requirementSources,
+      semanticBoundary: 'EDITORIAL_LOCATOR_NOT_AUTHORITATIVE_LEGAL_TEXT' as const,
+    };
+  }
+
+  async listRequirements() {
+    const rows = await this.prisma.regulatoryRequirement.findMany({
+      select: {
+        ...requirementSelect,
+        _count: { select: { sources: true } },
+      },
+      orderBy: [{ title: 'asc' }, { requirementKey: 'asc' }],
+    });
+    return rows.map(({ _count, ...requirement }) => ({
+      ...requirement,
+      provenanceCount: _count.sources,
+    }));
+  }
+
+  async getRequirement(requirementKey: string) {
+    const row = await this.prisma.regulatoryRequirement.findUnique({
+      where: { requirementKey },
+      select: {
+        ...requirementSelect,
+        sources: {
+          select: {
+            relationshipType: true,
+            provision: {
+              select: {
+                ...provisionSelect,
+                sourceVersion: {
+                  select: {
+                    ...sourceVersionReferenceSelect,
+                    source: { select: sourceIdentitySelect },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: [{ relationshipType: 'asc' }, { createdAt: 'asc' }],
+        },
+      },
+    });
+    if (!row) throw new NotFoundException('Requisito estructurado no encontrado.');
+    const { sources, ...requirement } = row;
+    return {
+      requirement,
+      provenance: sources.map(({ relationshipType, provision }) => {
+        const { sourceVersion, ...provisionRecord } = provision;
+        const { source, ...version } = sourceVersion;
+        return {
+          relationshipType,
+          provision: provisionRecord,
+          sourceVersion: version,
+          source,
+        };
+      }),
+      semanticBoundary: 'STRUCTURED_CANDIDATE_NOT_APPLICABILITY_DECISION' as const,
+    };
   }
 
   private async requireSource(sourceKey: string) {
