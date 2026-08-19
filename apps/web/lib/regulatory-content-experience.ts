@@ -12,6 +12,8 @@ export const REGULATORY_CONTENT_BOUNDARY_COPY =
 export const REGULATORY_CONTENT_EMPTY_COPY =
   'El contenido de esta fuente todavía no ha sido estructurado y revisado dentro de la plataforma. Esto no significa que no existan requisitos legales.';
 
+export const REGULATORY_EDITORIAL_REPLACEMENT_COPY = 'Reemplaza una versión estructurada anterior';
+
 export const regulatoryProvisionLocatorTypeLabels: Record<RegulatoryProvisionLocatorType, string> =
   {
     ARTICLE: 'Artículo',

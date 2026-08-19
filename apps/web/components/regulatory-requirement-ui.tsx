@@ -7,6 +7,7 @@ import Link from 'next/link';
 import {
   REGULATORY_CONTENT_BOUNDARY_COPY,
   REGULATORY_CONTENT_EMPTY_COPY,
+  REGULATORY_EDITORIAL_REPLACEMENT_COPY,
   regulatoryProvisionStatusLabels,
   regulatoryRequirementRelationshipTypeLabels,
   regulatoryRequirementScopeHintLabels,
@@ -135,6 +136,9 @@ export function RegulatoryRequirementCatalog() {
                 <h2>{requirement.title}</h2>
                 <p>{requirement.description}</p>
                 <small>{requirement.provenanceCount} referencias de procedencia</small>
+                {requirement.supersedesRequirementId ? (
+                  <small>{REGULATORY_EDITORIAL_REPLACEMENT_COPY}</small>
+                ) : null}
                 <Link
                   href={`/app/applicability/requirements/${encodeURIComponent(requirement.requirementKey)}`}
                 >
@@ -183,6 +187,13 @@ export function RegulatoryRequirementDetailView({ requirementKey }: { requiremen
               }
             />
             <RequirementBoundaryNotice />
+            {requirement.data.requirement.supersedesRequirementId ? (
+              <ApplicabilityStatePanel
+                kind="info"
+                title={REGULATORY_EDITORIAL_REPLACEMENT_COPY}
+                description="La relación registra continuidad editorial de la plataforma; no declara una derogación o sustitución jurídica."
+              />
+            ) : null}
             <section
               className="regulatory-source-identity"
               aria-labelledby="requirement-review-title"

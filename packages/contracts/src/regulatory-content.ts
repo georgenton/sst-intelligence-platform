@@ -63,6 +63,7 @@ export const regulatoryProvisionSchema = z
     heading: z.string().trim().min(1).max(500).nullable(),
     summary: z.string().trim().min(1).max(REGULATORY_PROVISION_SUMMARY_MAX_LENGTH).nullable(),
     editorialStatus: regulatoryProvisionEditorialStatusSchema,
+    supersedesProvisionId: z.uuid().nullable(),
     createdAt: z.string().datetime(),
   })
   .strict();
@@ -75,6 +76,7 @@ export const regulatoryRequirementSchema = z
     description: z.string().trim().min(1).max(REGULATORY_REQUIREMENT_DESCRIPTION_MAX_LENGTH),
     editorialStatus: regulatoryRequirementEditorialStatusSchema,
     scopeHint: regulatoryRequirementScopeHintSchema,
+    supersedesRequirementId: z.uuid().nullable(),
     createdAt: z.string().datetime(),
   })
   .strict();

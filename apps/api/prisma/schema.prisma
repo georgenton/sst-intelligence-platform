@@ -838,17 +838,20 @@ model RegulatorySourceVersion {
 }
 
 model RegulatoryProvision {
-  id                 String                             @id @default(uuid()) @db.Uuid
-  sourceVersionId    String                             @db.Uuid
-  provisionKey       String                             @db.VarChar(160)
-  locatorType        RegulatoryProvisionLocatorType
-  locatorLabel       String                             @db.VarChar(240)
-  heading            String?                            @db.VarChar(500)
-  summary            String?                            @db.VarChar(1000)
-  editorialStatus    RegulatoryProvisionEditorialStatus
-  createdAt          DateTime                           @default(now())
-  sourceVersion      RegulatorySourceVersion            @relation(fields: [sourceVersionId], references: [id], onDelete: Restrict)
-  requirementSources RegulatoryRequirementSource[]
+  id                    String                             @id @default(uuid()) @db.Uuid
+  sourceVersionId       String                             @db.Uuid
+  provisionKey          String                             @db.VarChar(160)
+  locatorType           RegulatoryProvisionLocatorType
+  locatorLabel          String                             @db.VarChar(240)
+  heading               String?                            @db.VarChar(500)
+  summary               String?                            @db.VarChar(1000)
+  editorialStatus       RegulatoryProvisionEditorialStatus
+  supersedesProvisionId String?                            @unique @db.Uuid
+  createdAt             DateTime                           @default(now())
+  sourceVersion         RegulatorySourceVersion            @relation(fields: [sourceVersionId], references: [id], onDelete: Restrict)
+  supersedesProvision   RegulatoryProvision?               @relation("RegulatoryProvisionReplacement", fields: [supersedesProvisionId], references: [id], onDelete: Restrict)
+  supersededByProvision RegulatoryProvision?               @relation("RegulatoryProvisionReplacement")
+  requirementSources    RegulatoryRequirementSource[]
 
   @@unique([sourceVersionId, provisionKey])
   @@index([sourceVersionId, editorialStatus])
@@ -856,14 +859,17 @@ model RegulatoryProvision {
 }
 
 model RegulatoryRequirement {
-  id              String                               @id @default(uuid()) @db.Uuid
-  requirementKey  String                               @unique @db.VarChar(160)
-  title           String                               @db.VarChar(240)
-  description     String                               @db.VarChar(2000)
-  editorialStatus RegulatoryRequirementEditorialStatus
-  scopeHint       RegulatoryRequirementScopeHint       @default(UNKNOWN)
-  createdAt       DateTime                             @default(now())
-  sources         RegulatoryRequirementSource[]
+  id                      String                               @id @default(uuid()) @db.Uuid
+  requirementKey          String                               @unique @db.VarChar(160)
+  title                   String                               @db.VarChar(240)
+  description             String                               @db.VarChar(2000)
+  editorialStatus         RegulatoryRequirementEditorialStatus
+  scopeHint               RegulatoryRequirementScopeHint       @default(UNKNOWN)
+  supersedesRequirementId String?                              @unique @db.Uuid
+  createdAt               DateTime                             @default(now())
+  supersedesRequirement   RegulatoryRequirement?               @relation("RegulatoryRequirementReplacement", fields: [supersedesRequirementId], references: [id], onDelete: Restrict)
+  supersededByRequirement RegulatoryRequirement?               @relation("RegulatoryRequirementReplacement")
+  sources                 RegulatoryRequirementSource[]
 
   @@index([editorialStatus, createdAt])
   @@index([scopeHint])

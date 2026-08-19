@@ -5,6 +5,7 @@ import { fileURLToPath, URL } from 'node:url';
 import {
   REGULATORY_CONTENT_BOUNDARY_COPY,
   REGULATORY_CONTENT_EMPTY_COPY,
+  REGULATORY_EDITORIAL_REPLACEMENT_COPY,
   regulatoryRequirementStatusLabels,
 } from '../lib/regulatory-content-experience.ts';
 
@@ -19,6 +20,10 @@ test('structured content copy avoids closed-world and applicability claims', () 
     'Listo para redactar regla',
   );
   assert.doesNotMatch(REGULATORY_CONTENT_BOUNDARY_COPY, /debe cumplir|no aplica|cumple/i);
+  assert.equal(
+    REGULATORY_EDITORIAL_REPLACEMENT_COPY,
+    'Reemplaza una versión estructurada anterior',
+  );
 });
 
 test('secondary requirement routes and provenance UI are present without write controls', () => {
@@ -36,6 +41,7 @@ test('secondary requirement routes and provenance UI are present without write c
   assert.match(sourceUi, /signal/);
   assert.match(requirementUi, /¿De dónde salió\?/);
   assert.match(requirementUi, /sourceVersion\.catalogVersion/);
+  assert.match(`${sourceUi}\n${requirementUi}`, /REGULATORY_EDITORIAL_REPLACEMENT_COPY/);
   assert.match(requirementUi, /signal/);
   assert.doesNotMatch(
     `${sourceUi}\n${requirementUi}`,

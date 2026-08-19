@@ -41,6 +41,7 @@ const provisionSelect = {
   heading: true,
   summary: true,
   editorialStatus: true,
+  supersedesProvisionId: true,
   createdAt: true,
 } as const;
 
@@ -51,6 +52,7 @@ const requirementSelect = {
   description: true,
   editorialStatus: true,
   scopeHint: true,
+  supersedesRequirementId: true,
   createdAt: true,
 } as const;
 

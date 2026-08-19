@@ -139,7 +139,7 @@ describe('regulatory provision and requirement foundation integration', () => {
       .expect(404);
   }, 60_000);
 
-  it('preserves exact v1 provenance after v2 exists and enforces immutable many-to-many links', async () => {
+  it('preserves exact v1 provenance after v2 exists and enforces stable identities', async () => {
     const owner = await register('Regulatory Provenance Owner');
     const organizationId = await createOrganization(owner.token, 'Regulatory Provenance');
     const sourceKey = `DEMO_SYNTHETIC_SOURCE_${suffix.toUpperCase()}`;
@@ -175,7 +175,7 @@ describe('regulatory provision and requirement foundation integration', () => {
           locatorLabel: 'Artículo sintético A',
           heading: 'Gobernanza sintética',
           summary: 'Resumen breve sin texto legal real.',
-          editorialStatus: 'TECHNICAL_REVIEW_PENDING',
+          editorialStatus: 'DRAFT',
         },
       }),
       prisma.regulatoryProvision.create({
@@ -186,7 +186,7 @@ describe('regulatory provision and requirement foundation integration', () => {
           locatorLabel: 'Sección sintética B',
           heading: 'Apoyo sintético',
           summary: null,
-          editorialStatus: 'LEGAL_REVIEW_PENDING',
+          editorialStatus: 'DRAFT',
         },
       }),
     ]);
@@ -195,7 +195,7 @@ describe('regulatory provision and requirement foundation integration', () => {
         requirementKey: `DEMO_REQUIREMENT_001_${suffix.toUpperCase()}`,
         title: 'Requisito sintético de gobernanza',
         description: 'Concepto editorial sintético que no expresa aplicabilidad.',
-        editorialStatus: 'LEGAL_REVIEW_PENDING',
+        editorialStatus: 'DRAFT',
         scopeHint: 'WORK_CENTER',
       },
     });
@@ -207,6 +207,34 @@ describe('regulatory provision and requirement foundation integration', () => {
         editorialStatus: 'DRAFT',
         scopeHint: 'UNKNOWN',
       },
+    });
+    await prisma.regulatoryProvision.update({
+      where: { id: provisionA.id },
+      data: { editorialStatus: 'EXTRACTED' },
+    });
+    await prisma.regulatoryProvision.update({
+      where: { id: provisionA.id },
+      data: { editorialStatus: 'TECHNICAL_REVIEW_PENDING' },
+    });
+    await prisma.regulatoryProvision.update({
+      where: { id: provisionB.id },
+      data: { editorialStatus: 'EXTRACTED' },
+    });
+    await prisma.regulatoryProvision.update({
+      where: { id: provisionB.id },
+      data: { editorialStatus: 'TECHNICAL_REVIEW_PENDING' },
+    });
+    await prisma.regulatoryProvision.update({
+      where: { id: provisionB.id },
+      data: { editorialStatus: 'LEGAL_REVIEW_PENDING' },
+    });
+    await prisma.regulatoryRequirement.update({
+      where: { id: requirement.id },
+      data: { editorialStatus: 'TECHNICAL_REVIEW_PENDING' },
+    });
+    await prisma.regulatoryRequirement.update({
+      where: { id: requirement.id },
+      data: { editorialStatus: 'LEGAL_REVIEW_PENDING' },
     });
     await prisma.regulatoryRequirementSource.createMany({
       data: [
@@ -346,29 +374,11 @@ describe('regulatory provision and requirement foundation integration', () => {
         data: { requirementKey: `${requirement.requirementKey}_CHANGED` },
       }),
     ).rejects.toThrow();
-    const primaryLink = await prisma.regulatoryRequirementSource.findUniqueOrThrow({
-      where: {
-        requirementId_provisionId_relationshipType: {
-          requirementId: requirement.id,
-          provisionId: provisionA.id,
-          relationshipType: 'PRIMARY_SOURCE',
-        },
-      },
-    });
-    await expect(
-      prisma.regulatoryRequirementSource.update({
-        where: { id: primaryLink.id },
-        data: { relationshipType: 'RELATED_SOURCE' },
-      }),
-    ).rejects.toThrow();
     await expect(
       prisma.regulatoryProvision.delete({ where: { id: provisionA.id } }),
     ).rejects.toThrow();
     await expect(
       prisma.regulatoryRequirement.delete({ where: { id: requirement.id } }),
-    ).rejects.toThrow();
-    await expect(
-      prisma.regulatoryRequirementSource.delete({ where: { id: primaryLink.id } }),
     ).rejects.toThrow();
     await expect(
       prisma.regulatorySourceVersion.delete({ where: { id: versionOne.id } }),
@@ -386,5 +396,452 @@ describe('regulatory provision and requirement foundation integration', () => {
       { provision: { sourceVersionId: versionOne.id } },
       { provision: { sourceVersionId: versionOne.id } },
     ]);
+  }, 60_000);
+
+  it('supports reviewed editorial lifecycles, explicit replacements and provenance freezing', async () => {
+    const owner = await register('Regulatory Lifecycle Owner');
+    const organizationId = await createOrganization(owner.token, 'Regulatory Lifecycle');
+    const sourceKey = `DEMO_LIFECYCLE_SOURCE_${suffix.toUpperCase()}`;
+    const source = await prisma.regulatorySource.create({
+      data: {
+        sourceKey,
+        countryCode: 'EC',
+        issuer: 'Emisor sintético de ciclo editorial',
+        documentType: 'OTHER',
+        referenceNumber: `LIFECYCLE-${suffix}`,
+        canonicalTitle: 'Fuente sintética para ciclo editorial',
+        versions: {
+          create: [
+            {
+              catalogVersion: 1,
+              candidateStatus: 'TECHNICAL_REVIEW_PENDING',
+              officialDocumentLocated: false,
+              supersessionStatus: 'UNKNOWN_REVIEW_REQUIRED',
+              readyForExtraction: false,
+              readyForRules: false,
+              reviewNotes: 'Snapshot sintético v1.',
+            },
+            {
+              catalogVersion: 2,
+              candidateStatus: 'LEGAL_REVIEW_PENDING',
+              officialDocumentLocated: false,
+              supersessionStatus: 'UNKNOWN_REVIEW_REQUIRED',
+              readyForExtraction: false,
+              readyForRules: false,
+              reviewNotes: 'Snapshot sintético v2.',
+            },
+          ],
+        },
+      },
+      include: { versions: { orderBy: { catalogVersion: 'asc' } } },
+    });
+    const versionOne = source.versions[0]!;
+    const versionTwo = source.versions[1]!;
+
+    const provision = await prisma.regulatoryProvision.create({
+      data: {
+        sourceVersionId: versionOne.id,
+        provisionKey: `DEMO_LIFECYCLE_PROVISION_${suffix.toUpperCase()}`,
+        locatorType: 'ARTICLE',
+        locatorLabel: 'Artículo sintético inicial',
+        heading: 'Borrador inicial',
+        summary: 'Resumen inicial.',
+        editorialStatus: 'DRAFT',
+      },
+    });
+    const editedProvision = await prisma.regulatoryProvision.update({
+      where: { id: provision.id },
+      data: { heading: 'Borrador revisado', summary: 'Resumen revisado.' },
+    });
+    expect(editedProvision).toMatchObject({
+      heading: 'Borrador revisado',
+      summary: 'Resumen revisado.',
+      editorialStatus: 'DRAFT',
+    });
+    await expect(
+      prisma.regulatoryProvision.update({
+        where: { id: provision.id },
+        data: { provisionKey: `${provision.provisionKey}_CHANGED` },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      prisma.regulatoryProvision.update({
+        where: { id: provision.id },
+        data: { sourceVersionId: versionTwo.id },
+      }),
+    ).rejects.toThrow();
+
+    const invalidProvision = await prisma.regulatoryProvision.create({
+      data: {
+        sourceVersionId: versionOne.id,
+        provisionKey: `DEMO_INVALID_PROVISION_${suffix.toUpperCase()}`,
+        locatorType: 'SECTION',
+        locatorLabel: 'Salto inválido',
+        editorialStatus: 'DRAFT',
+      },
+    });
+    await expect(
+      prisma.regulatoryProvision.update({
+        where: { id: invalidProvision.id },
+        data: { editorialStatus: 'APPROVED' },
+      }),
+    ).rejects.toThrow();
+
+    for (const editorialStatus of [
+      'EXTRACTED',
+      'TECHNICAL_REVIEW_PENDING',
+      'LEGAL_REVIEW_PENDING',
+      'APPROVED',
+    ] as const) {
+      await prisma.regulatoryProvision.update({
+        where: { id: provision.id },
+        data: { editorialStatus },
+      });
+    }
+    await expect(
+      prisma.regulatoryProvision.update({
+        where: { id: provision.id },
+        data: { heading: 'Cambio posterior' },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      prisma.regulatoryProvision.update({
+        where: { id: provision.id },
+        data: { summary: 'Cambio posterior.' },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      prisma.regulatoryProvision.update({
+        where: { id: provision.id },
+        data: { provisionKey: `${provision.provisionKey}_APPROVED_CHANGE` },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      prisma.regulatoryProvision.update({
+        where: { id: provision.id },
+        data: { sourceVersionId: versionTwo.id },
+      }),
+    ).rejects.toThrow();
+
+    const selfProvisionId = '22000000-0000-4000-8000-000000000101';
+    await expect(
+      prisma.regulatoryProvision.create({
+        data: {
+          id: selfProvisionId,
+          sourceVersionId: versionOne.id,
+          provisionKey: `DEMO_SELF_PROVISION_${suffix.toUpperCase()}`,
+          locatorType: 'ARTICLE',
+          locatorLabel: 'Autorrelación inválida',
+          editorialStatus: 'DRAFT',
+          supersedesProvisionId: selfProvisionId,
+        },
+      }),
+    ).rejects.toThrow();
+
+    const replacementProvision = await prisma.regulatoryProvision.create({
+      data: {
+        sourceVersionId: versionTwo.id,
+        provisionKey: `DEMO_REPLACEMENT_PROVISION_${suffix.toUpperCase()}`,
+        locatorType: 'ARTICLE',
+        locatorLabel: 'Artículo sintético reemplazante',
+        heading: 'Nuevo artefacto estructurado',
+        summary: 'Reemplazo editorial explícito.',
+        editorialStatus: 'DRAFT',
+        supersedesProvisionId: provision.id,
+      },
+    });
+    expect(replacementProvision.supersedesProvisionId).toBe(provision.id);
+    await expect(
+      prisma.regulatoryProvision.update({
+        where: { id: provision.id },
+        data: { supersedesProvisionId: replacementProvision.id },
+      }),
+    ).rejects.toThrow();
+    const supersededProvision = await prisma.regulatoryProvision.update({
+      where: { id: provision.id },
+      data: { editorialStatus: 'SUPERSEDED' },
+    });
+    expect(supersededProvision.editorialStatus).toBe('SUPERSEDED');
+    await expect(
+      prisma.regulatoryProvision.update({
+        where: { id: provision.id },
+        data: { heading: 'Cambio terminal' },
+      }),
+    ).rejects.toThrow();
+
+    const rejectedProvision = await prisma.regulatoryProvision.create({
+      data: {
+        sourceVersionId: versionOne.id,
+        provisionKey: `DEMO_REJECTED_PROVISION_${suffix.toUpperCase()}`,
+        locatorType: 'OTHER',
+        locatorLabel: 'Disposición descartada',
+        editorialStatus: 'DRAFT',
+      },
+    });
+    await prisma.regulatoryProvision.update({
+      where: { id: rejectedProvision.id },
+      data: { editorialStatus: 'REJECTED' },
+    });
+    await expect(
+      prisma.regulatoryProvision.update({
+        where: { id: rejectedProvision.id },
+        data: { heading: 'No reutilizar' },
+      }),
+    ).rejects.toThrow();
+
+    const requirement = await prisma.regulatoryRequirement.create({
+      data: {
+        requirementKey: `DEMO_LIFECYCLE_REQUIREMENT_${suffix.toUpperCase()}`,
+        title: 'Requisito borrador',
+        description: 'Descripción inicial.',
+        editorialStatus: 'DRAFT',
+        scopeHint: 'UNKNOWN',
+      },
+    });
+    const editedRequirement = await prisma.regulatoryRequirement.update({
+      where: { id: requirement.id },
+      data: {
+        title: 'Requisito revisado',
+        description: 'Descripción revisada.',
+        scopeHint: 'WORK_CENTER',
+      },
+    });
+    expect(editedRequirement).toMatchObject({
+      title: 'Requisito revisado',
+      description: 'Descripción revisada.',
+      scopeHint: 'WORK_CENTER',
+    });
+    await expect(
+      prisma.regulatoryRequirement.update({
+        where: { id: requirement.id },
+        data: { requirementKey: `${requirement.requirementKey}_CHANGED` },
+      }),
+    ).rejects.toThrow();
+
+    const editableLink = await prisma.regulatoryRequirementSource.create({
+      data: {
+        requirementId: requirement.id,
+        provisionId: provision.id,
+        relationshipType: 'PRIMARY_SOURCE',
+      },
+    });
+    const changedLink = await prisma.regulatoryRequirementSource.update({
+      where: { id: editableLink.id },
+      data: { relationshipType: 'SUPPORTING_SOURCE' },
+    });
+    expect(changedLink.relationshipType).toBe('SUPPORTING_SOURCE');
+    await prisma.regulatoryRequirementSource.delete({ where: { id: editableLink.id } });
+    const approvedLink = await prisma.regulatoryRequirementSource.create({
+      data: {
+        requirementId: requirement.id,
+        provisionId: provision.id,
+        relationshipType: 'PRIMARY_SOURCE',
+      },
+    });
+
+    const invalidRequirement = await prisma.regulatoryRequirement.create({
+      data: {
+        requirementKey: `DEMO_INVALID_REQUIREMENT_${suffix.toUpperCase()}`,
+        title: 'Salto inválido',
+        description: 'Debe recorrer las revisiones.',
+        editorialStatus: 'DRAFT',
+        scopeHint: 'UNKNOWN',
+      },
+    });
+    await prisma.regulatoryRequirementSource.create({
+      data: {
+        requirementId: invalidRequirement.id,
+        provisionId: replacementProvision.id,
+        relationshipType: 'PRIMARY_SOURCE',
+      },
+    });
+    await expect(
+      prisma.regulatoryRequirement.update({
+        where: { id: invalidRequirement.id },
+        data: { editorialStatus: 'APPROVED_FOR_RULE_DRAFTING' },
+      }),
+    ).rejects.toThrow();
+
+    const noProvenanceRequirement = await prisma.regulatoryRequirement.create({
+      data: {
+        requirementKey: `DEMO_NO_PROVENANCE_${suffix.toUpperCase()}`,
+        title: 'Sin procedencia',
+        description: 'No puede aprobarse.',
+        editorialStatus: 'DRAFT',
+        scopeHint: 'UNKNOWN',
+      },
+    });
+    await prisma.regulatoryRequirement.update({
+      where: { id: noProvenanceRequirement.id },
+      data: { editorialStatus: 'TECHNICAL_REVIEW_PENDING' },
+    });
+    await prisma.regulatoryRequirement.update({
+      where: { id: noProvenanceRequirement.id },
+      data: { editorialStatus: 'LEGAL_REVIEW_PENDING' },
+    });
+    await expect(
+      prisma.regulatoryRequirement.update({
+        where: { id: noProvenanceRequirement.id },
+        data: { editorialStatus: 'APPROVED_FOR_RULE_DRAFTING' },
+      }),
+    ).rejects.toThrow();
+
+    for (const editorialStatus of [
+      'TECHNICAL_REVIEW_PENDING',
+      'LEGAL_REVIEW_PENDING',
+      'APPROVED_FOR_RULE_DRAFTING',
+    ] as const) {
+      await prisma.regulatoryRequirement.update({
+        where: { id: requirement.id },
+        data: { editorialStatus },
+      });
+    }
+    await expect(
+      prisma.regulatoryRequirement.update({
+        where: { id: requirement.id },
+        data: { title: 'Cambio posterior' },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      prisma.regulatoryRequirement.update({
+        where: { id: requirement.id },
+        data: { description: 'Cambio posterior.' },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      prisma.regulatoryRequirement.update({
+        where: { id: requirement.id },
+        data: { scopeHint: 'ORGANIZATION' },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      prisma.regulatoryRequirementSource.create({
+        data: {
+          requirementId: requirement.id,
+          provisionId: replacementProvision.id,
+          relationshipType: 'SUPPORTING_SOURCE',
+        },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      prisma.regulatoryRequirementSource.update({
+        where: { id: approvedLink.id },
+        data: { relationshipType: 'SUPPORTING_SOURCE' },
+      }),
+    ).rejects.toThrow();
+    await expect(
+      prisma.regulatoryRequirementSource.delete({ where: { id: approvedLink.id } }),
+    ).rejects.toThrow();
+
+    const selfRequirementId = '22000000-0000-4000-8000-000000000102';
+    await expect(
+      prisma.regulatoryRequirement.create({
+        data: {
+          id: selfRequirementId,
+          requirementKey: `DEMO_SELF_REQUIREMENT_${suffix.toUpperCase()}`,
+          title: 'Autorrelación inválida',
+          description: 'No debe persistir.',
+          editorialStatus: 'DRAFT',
+          scopeHint: 'UNKNOWN',
+          supersedesRequirementId: selfRequirementId,
+        },
+      }),
+    ).rejects.toThrow();
+
+    const replacementRequirement = await prisma.regulatoryRequirement.create({
+      data: {
+        requirementKey: `DEMO_REPLACEMENT_REQUIREMENT_${suffix.toUpperCase()}`,
+        title: 'Requisito reemplazante',
+        description: 'Nueva versión estructurada.',
+        editorialStatus: 'DRAFT',
+        scopeHint: 'ACTIVITY',
+        supersedesRequirementId: requirement.id,
+      },
+    });
+    expect(replacementRequirement.supersedesRequirementId).toBe(requirement.id);
+    const replacementLink = await prisma.regulatoryRequirementSource.create({
+      data: {
+        requirementId: replacementRequirement.id,
+        provisionId: replacementProvision.id,
+        relationshipType: 'PRIMARY_SOURCE',
+      },
+    });
+    for (const editorialStatus of [
+      'TECHNICAL_REVIEW_PENDING',
+      'LEGAL_REVIEW_PENDING',
+      'APPROVED_FOR_RULE_DRAFTING',
+    ] as const) {
+      await prisma.regulatoryRequirement.update({
+        where: { id: replacementRequirement.id },
+        data: { editorialStatus },
+      });
+    }
+    await expect(
+      prisma.regulatoryRequirement.update({
+        where: { id: requirement.id },
+        data: { supersedesRequirementId: replacementRequirement.id },
+      }),
+    ).rejects.toThrow();
+    const supersededRequirement = await prisma.regulatoryRequirement.update({
+      where: { id: requirement.id },
+      data: { editorialStatus: 'SUPERSEDED' },
+    });
+    expect(supersededRequirement.editorialStatus).toBe('SUPERSEDED');
+
+    const oldRequirementDetail = await authorizedGet(
+      owner.token,
+      organizationId,
+      `/regulatory-requirements/${requirement.requirementKey}`,
+    ).expect(200);
+    const newRequirementDetail = await authorizedGet(
+      owner.token,
+      organizationId,
+      `/regulatory-requirements/${replacementRequirement.requirementKey}`,
+    ).expect(200);
+    expect(oldRequirementDetail.body).toMatchObject({
+      requirement: { editorialStatus: 'SUPERSEDED', supersedesRequirementId: null },
+      provenance: [
+        expect.objectContaining({ provision: expect.objectContaining({ id: provision.id }) }),
+      ],
+    });
+    expect(newRequirementDetail.body).toMatchObject({
+      requirement: {
+        editorialStatus: 'APPROVED_FOR_RULE_DRAFTING',
+        supersedesRequirementId: requirement.id,
+      },
+      provenance: [
+        expect.objectContaining({
+          provision: expect.objectContaining({ id: replacementProvision.id }),
+        }),
+      ],
+    });
+    expect(replacementLink.requirementId).toBe(replacementRequirement.id);
+
+    const provisionDetail = await authorizedGet(
+      owner.token,
+      organizationId,
+      `/regulatory-provisions/${replacementProvision.id}`,
+    ).expect(200);
+    expect(provisionDetail.body.provision.supersedesProvisionId).toBe(provision.id);
+
+    const rejectedRequirement = await prisma.regulatoryRequirement.create({
+      data: {
+        requirementKey: `DEMO_REJECTED_REQUIREMENT_${suffix.toUpperCase()}`,
+        title: 'Requisito descartado',
+        description: 'No se reutiliza.',
+        editorialStatus: 'DRAFT',
+        scopeHint: 'UNKNOWN',
+      },
+    });
+    await prisma.regulatoryRequirement.update({
+      where: { id: rejectedRequirement.id },
+      data: { editorialStatus: 'REJECTED' },
+    });
+    await expect(
+      prisma.regulatoryRequirement.update({
+        where: { id: rejectedRequirement.id },
+        data: { title: 'No reutilizar' },
+      }),
+    ).rejects.toThrow();
   }, 60_000);
 });

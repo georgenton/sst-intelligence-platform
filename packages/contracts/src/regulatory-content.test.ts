@@ -17,6 +17,7 @@ const provision = {
   heading: 'Gobernanza sintética',
   summary: 'Resumen editorial sintético y breve.',
   editorialStatus: 'TECHNICAL_REVIEW_PENDING' as const,
+  supersedesProvisionId: null,
   createdAt: '2026-08-18T00:00:00.000Z',
 };
 
@@ -27,6 +28,7 @@ const requirement = {
   description: 'Descripción editorial sintética.',
   editorialStatus: 'LEGAL_REVIEW_PENDING' as const,
   scopeHint: 'WORK_CENTER' as const,
+  supersedesRequirementId: null,
   createdAt: '2026-08-18T00:00:00.000Z',
 };
 

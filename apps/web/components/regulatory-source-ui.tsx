@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import {
   REGULATORY_CONTENT_EMPTY_COPY,
+  REGULATORY_EDITORIAL_REPLACEMENT_COPY,
   regulatoryProvisionLocatorTypeLabels,
   regulatoryProvisionStatusLabels,
   regulatoryRequirementStatusLabels,
@@ -519,6 +520,9 @@ export function RegulatorySourceDetailView({ sourceKey }: { sourceKey: string })
                             Versión de catálogo {sourceVersion.catalogVersion} ·{' '}
                             {regulatoryProvisionStatusLabels[provision.editorialStatus]}
                           </small>
+                          {provision.supersedesProvisionId ? (
+                            <small>{REGULATORY_EDITORIAL_REPLACEMENT_COPY}</small>
+                          ) : null}
                         </article>
                       ))}
                     </div>
@@ -547,6 +551,9 @@ export function RegulatorySourceDetailView({ sourceKey }: { sourceKey: string })
                           </span>
                           <h4>{requirement.title}</h4>
                           <p>{requirement.description}</p>
+                          {requirement.supersedesRequirementId ? (
+                            <small>{REGULATORY_EDITORIAL_REPLACEMENT_COPY}</small>
+                          ) : null}
                           <Link
                             href={`/app/applicability/requirements/${encodeURIComponent(requirement.requirementKey)}`}
                           >
