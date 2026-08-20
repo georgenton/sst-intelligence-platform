@@ -14,7 +14,7 @@ CREATE TYPE "AdaptiveScopeKind" AS ENUM ('ORGANIZATION', 'WORK_CENTER');
 CREATE TYPE "AdaptiveTargetCategory" AS ENUM ('GOVERNANCE', 'EMERGENCY_PREPAREDNESS', 'WORKPLACE_CONDITIONS', 'HEALTH_MANAGEMENT', 'HIGH_RISK_WORK', 'CONTRACTOR_COORDINATION', 'INSPECTION', 'TRAINING', 'DOCUMENTATION', 'PROFESSIONAL_REVIEW', 'OTHER');
 
 -- CreateEnum
-CREATE TYPE "AdaptiveRuleDraftStatus" AS ENUM ('DRAFT', 'TECHNICAL_REVIEW_PENDING', 'LEGAL_REVIEW_PENDING', 'READY_TO_PUBLISH', 'REJECTED');
+CREATE TYPE "AdaptiveRuleDraftStatus" AS ENUM ('DRAFT', 'TECHNICAL_REVIEW_PENDING', 'LEGAL_REVIEW_PENDING', 'READY_TO_PUBLISH', 'PUBLISHED', 'REJECTED');
 
 -- CreateEnum
 CREATE TYPE "AdaptiveRuleRequirementType" AS ENUM ('PRIMARY_REQUIREMENT', 'SUPPORTING_REQUIREMENT', 'RELATED_REQUIREMENT');
@@ -129,7 +129,9 @@ CREATE TABLE "AdaptiveRuleVersion" (
     "isDemo" BOOLEAN NOT NULL DEFAULT false,
     "regulatory" BOOLEAN NOT NULL DEFAULT false,
     "demoDisclaimer" VARCHAR(500),
-    "publishedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "sourceDraftId" UUID,
+    "publishedAt" TIMESTAMP(3),
+    "sealedAt" TIMESTAMP(3),
     "supersedesRuleVersionId" UUID,
 
     CONSTRAINT "AdaptiveRuleVersion_pkey" PRIMARY KEY ("id")
@@ -166,7 +168,8 @@ CREATE TABLE "AdaptiveRuleGroupVersion" (
     "activationExpression" JSONB NOT NULL,
     "isDemo" BOOLEAN NOT NULL DEFAULT false,
     "regulatory" BOOLEAN NOT NULL DEFAULT false,
-    "publishedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "publishedAt" TIMESTAMP(3),
+    "sealedAt" TIMESTAMP(3),
     "supersedesGroupVersionId" UUID,
 
     CONSTRAINT "AdaptiveRuleGroupVersion_pkey" PRIMARY KEY ("id")
@@ -202,7 +205,8 @@ CREATE TABLE "AdaptiveRulePackVersion" (
     "isDemo" BOOLEAN NOT NULL DEFAULT false,
     "regulatory" BOOLEAN NOT NULL DEFAULT false,
     "disclaimer" VARCHAR(500) NOT NULL,
-    "publishedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "publishedAt" TIMESTAMP(3),
+    "sealedAt" TIMESTAMP(3),
 
     CONSTRAINT "AdaptiveRulePackVersion_pkey" PRIMARY KEY ("id")
 );
@@ -424,6 +428,9 @@ CREATE UNIQUE INDEX "AdaptiveRuleDraft_ruleDefinitionId_revision_key" ON "Adapti
 CREATE UNIQUE INDEX "AdaptiveRuleVersion_supersedesRuleVersionId_key" ON "AdaptiveRuleVersion"("supersedesRuleVersionId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "AdaptiveRuleVersion_sourceDraftId_key" ON "AdaptiveRuleVersion"("sourceDraftId");
+
+-- CreateIndex
 CREATE INDEX "AdaptiveRuleVersion_regulatory_isDemo_publishedAt_idx" ON "AdaptiveRuleVersion"("regulatory", "isDemo", "publishedAt");
 
 -- CreateIndex
@@ -550,6 +557,9 @@ ALTER TABLE "AdaptiveRuleDraft" ADD CONSTRAINT "AdaptiveRuleDraft_ruleDefinition
 ALTER TABLE "AdaptiveRuleVersion" ADD CONSTRAINT "AdaptiveRuleVersion_ruleDefinitionId_fkey" FOREIGN KEY ("ruleDefinitionId") REFERENCES "AdaptiveRuleDefinition"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "AdaptiveRuleVersion" ADD CONSTRAINT "AdaptiveRuleVersion_sourceDraftId_fkey" FOREIGN KEY ("sourceDraftId") REFERENCES "AdaptiveRuleDraft"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "AdaptiveRuleVersion" ADD CONSTRAINT "AdaptiveRuleVersion_supersedesRuleVersionId_fkey" FOREIGN KEY ("supersedesRuleVersionId") REFERENCES "AdaptiveRuleVersion"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -640,6 +650,9 @@ ALTER TABLE "AdaptiveEvaluationRun" ADD CONSTRAINT "AdaptiveEvaluationRun_organi
 ALTER TABLE "AdaptiveEvaluationRun" ADD CONSTRAINT "AdaptiveEvaluationRun_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "AdaptiveConfigurationSession"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "AdaptiveEvaluationRun" ADD CONSTRAINT "AdaptiveEvaluationRun_packVersionId_fkey" FOREIGN KEY ("packVersionId") REFERENCES "AdaptiveRulePackVersion"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "AdaptiveGeneratedQuestion" ADD CONSTRAINT "AdaptiveGeneratedQuestion_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -705,19 +718,34 @@ ALTER TABLE "AdaptiveRuleVersion"
   ADD CONSTRAINT "AdaptiveRuleVersion_demo_regulatory_exclusive"
   CHECK ("isDemo" <> "regulatory"),
   ADD CONSTRAINT "AdaptiveRuleVersion_demo_disclaimer_required"
-  CHECK (NOT "isDemo" OR length(trim(coalesce("demoDisclaimer", ''))) > 0);
+  CHECK (NOT "isDemo" OR length(trim(coalesce("demoDisclaimer", ''))) > 0),
+  ADD CONSTRAINT "AdaptiveRuleVersion_seal_consistency"
+  CHECK (("sealedAt" IS NULL AND "publishedAt" IS NULL) OR ("sealedAt" IS NOT NULL AND "publishedAt" IS NOT NULL));
 
 ALTER TABLE "AdaptiveRuleGroupVersion"
   ADD CONSTRAINT "AdaptiveGroupVersion_no_self_supersession"
   CHECK ("supersedesGroupVersionId" IS NULL OR "supersedesGroupVersionId" <> "id"),
   ADD CONSTRAINT "AdaptiveGroupVersion_demo_regulatory_exclusive"
-  CHECK ("isDemo" <> "regulatory");
+  CHECK ("isDemo" <> "regulatory"),
+  ADD CONSTRAINT "AdaptiveGroupVersion_seal_consistency"
+  CHECK (("sealedAt" IS NULL AND "publishedAt" IS NULL) OR ("sealedAt" IS NOT NULL AND "publishedAt" IS NOT NULL));
 
 ALTER TABLE "AdaptiveRulePackVersion"
   ADD CONSTRAINT "AdaptiveRulePackVersion_demo_regulatory_exclusive"
   CHECK ("isDemo" <> "regulatory"),
   ADD CONSTRAINT "AdaptiveRulePackVersion_disclaimer_required"
-  CHECK (length(trim("disclaimer")) > 0);
+  CHECK (length(trim("disclaimer")) > 0),
+  ADD CONSTRAINT "AdaptiveRulePackVersion_seal_consistency"
+  CHECK (("sealedAt" IS NULL AND "publishedAt" IS NULL) OR ("sealedAt" IS NOT NULL AND "publishedAt" IS NOT NULL)),
+  ADD CONSTRAINT "AdaptiveRulePackVersion_sha256_hash"
+  CHECK ("contentHash" ~ '^sha256:[0-9a-f]{64}$');
+
+ALTER TABLE "AdaptiveEvaluationRun"
+  ADD CONSTRAINT "AdaptiveEvaluationRun_sha256_hashes"
+  CHECK (
+    "inputHash" ~ '^sha256:[0-9a-f]{64}$'
+    AND "outputHash" ~ '^sha256:[0-9a-f]{64}$'
+  );
 
 ALTER TABLE "AdaptiveCurrentStateEvidence"
   ADD CONSTRAINT "AdaptiveEvidence_exact_content"
@@ -736,13 +764,219 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER adaptive_fact_version_immutable BEFORE UPDATE OR DELETE ON "AdaptiveFactVersion" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_immutable_change();
 CREATE TRIGGER adaptive_target_version_immutable BEFORE UPDATE OR DELETE ON "AdaptiveConfigurationTargetVersion" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_immutable_change();
-CREATE TRIGGER adaptive_rule_version_immutable BEFORE UPDATE OR DELETE ON "AdaptiveRuleVersion" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_immutable_change();
-CREATE TRIGGER adaptive_group_version_immutable BEFORE UPDATE OR DELETE ON "AdaptiveRuleGroupVersion" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_immutable_change();
-CREATE TRIGGER adaptive_pack_version_immutable BEFORE UPDATE OR DELETE ON "AdaptiveRulePackVersion" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_immutable_change();
 CREATE TRIGGER adaptive_evaluation_run_immutable BEFORE UPDATE OR DELETE ON "AdaptiveEvaluationRun" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_immutable_change();
 CREATE TRIGGER adaptive_generated_question_immutable BEFORE UPDATE OR DELETE ON "AdaptiveGeneratedQuestion" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_immutable_change();
 CREATE TRIGGER adaptive_proposal_immutable BEFORE UPDATE OR DELETE ON "AdaptiveConfigurationProposal" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_immutable_change();
 CREATE TRIGGER adaptive_item_immutable BEFORE UPDATE OR DELETE ON "AdaptiveConfigurationItem" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_immutable_change();
+
+-- Version aggregates are assembled while unsealed and become immutable atomically at seal time.
+CREATE FUNCTION enforce_adaptive_version_seal() RETURNS trigger AS $$
+DECLARE
+  invalid_count integer;
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW."sealedAt" IS NOT NULL OR NEW."publishedAt" IS NOT NULL THEN
+      RAISE EXCEPTION 'adaptive aggregate must be built before sealing';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF OLD."sealedAt" IS NOT NULL THEN
+    RAISE EXCEPTION 'adaptive sealed aggregate is immutable';
+  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  IF NEW."sealedAt" IS NULL THEN RETURN NEW; END IF;
+  IF NEW."publishedAt" IS NULL THEN
+    RAISE EXCEPTION 'adaptive sealed aggregate requires publishedAt';
+  END IF;
+
+  IF NEW."isDemo" = NEW."regulatory" THEN
+    RAISE EXCEPTION 'adaptive aggregate requires exactly one publication boundary';
+  END IF;
+
+  IF TG_TABLE_NAME = 'AdaptiveRuleVersion' THEN
+    IF NEW."sourceDraftId" IS NULL OR NOT EXISTS (
+      SELECT 1 FROM "AdaptiveRuleDraft" d
+      WHERE d."id" = NEW."sourceDraftId"
+        AND d."ruleDefinitionId" = NEW."ruleDefinitionId"
+        AND d."status" = 'READY_TO_PUBLISH'
+    ) THEN
+      RAISE EXCEPTION 'adaptive rule publication requires READY_TO_PUBLISH source draft';
+    END IF;
+    IF NEW."isDemo" AND NULLIF(btrim(NEW."demoDisclaimer"), '') IS NULL THEN
+      RAISE EXCEPTION 'DEMO adaptive rule requires disclaimer';
+    END IF;
+    IF NEW."supersedesRuleVersionId" IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM "AdaptiveRuleVersion" predecessor
+      WHERE predecessor."id" = NEW."supersedesRuleVersionId"
+        AND predecessor."ruleDefinitionId" = NEW."ruleDefinitionId"
+        AND predecessor."sealedAt" IS NOT NULL
+    ) THEN
+      RAISE EXCEPTION 'adaptive rule predecessor must be sealed and share its definition';
+    END IF;
+    IF NEW."regulatory" THEN
+      IF NOT EXISTS (SELECT 1 FROM "AdaptiveRuleRequirement" rr WHERE rr."ruleVersionId" = NEW."id") THEN
+        RAISE EXCEPTION 'regulatory adaptive rule requires provenance';
+      END IF;
+      SELECT count(*) INTO invalid_count
+      FROM "AdaptiveRuleRequirement" rr
+      JOIN "RegulatoryRequirement" r ON r."id" = rr."requirementId"
+      WHERE rr."ruleVersionId" = NEW."id"
+        AND r."editorialStatus" <> 'APPROVED_FOR_RULE_DRAFTING';
+      IF invalid_count > 0 THEN
+        RAISE EXCEPTION 'regulatory adaptive rule requires approved requirements';
+      END IF;
+    END IF;
+  ELSIF TG_TABLE_NAME = 'AdaptiveRuleGroupVersion' THEN
+    IF NEW."supersedesGroupVersionId" IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM "AdaptiveRuleGroupVersion" predecessor
+      WHERE predecessor."id" = NEW."supersedesGroupVersionId"
+        AND predecessor."groupDefinitionId" = NEW."groupDefinitionId"
+        AND predecessor."sealedAt" IS NOT NULL
+    ) THEN
+      RAISE EXCEPTION 'adaptive group predecessor must be sealed and share its definition';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM "AdaptiveRuleGroupRule" gr WHERE gr."groupVersionId" = NEW."id") THEN
+      RAISE EXCEPTION 'adaptive group requires rule membership';
+    END IF;
+    SELECT count(*) INTO invalid_count
+    FROM "AdaptiveRuleGroupRule" gr
+    JOIN "AdaptiveRuleVersion" r ON r."id" = gr."ruleVersionId"
+    WHERE gr."groupVersionId" = NEW."id"
+      AND (r."sealedAt" IS NULL OR r."isDemo" <> NEW."isDemo" OR r."regulatory" <> NEW."regulatory");
+    IF invalid_count > 0 THEN
+      RAISE EXCEPTION 'adaptive group contains unpublished or boundary-incompatible rule';
+    END IF;
+  ELSIF TG_TABLE_NAME = 'AdaptiveRulePackVersion' THEN
+    IF NEW."isDemo" AND NULLIF(btrim(NEW."disclaimer"), '') IS NULL THEN
+      RAISE EXCEPTION 'DEMO adaptive pack requires disclaimer';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM "AdaptiveRulePackFact" x WHERE x."packVersionId" = NEW."id")
+      OR NOT EXISTS (SELECT 1 FROM "AdaptiveRulePackTarget" x WHERE x."packVersionId" = NEW."id")
+      OR NOT EXISTS (SELECT 1 FROM "AdaptiveRulePackRule" x WHERE x."packVersionId" = NEW."id")
+      OR NOT EXISTS (SELECT 1 FROM "AdaptiveRulePackGroup" x WHERE x."packVersionId" = NEW."id") THEN
+      RAISE EXCEPTION 'adaptive pack requires complete membership';
+    END IF;
+    SELECT count(*) INTO invalid_count
+    FROM "AdaptiveRulePackRule" pr
+    JOIN "AdaptiveRuleVersion" r ON r."id" = pr."ruleVersionId"
+    WHERE pr."packVersionId" = NEW."id"
+      AND (r."sealedAt" IS NULL OR r."isDemo" <> NEW."isDemo" OR r."regulatory" <> NEW."regulatory");
+    IF invalid_count > 0 THEN
+      RAISE EXCEPTION 'adaptive pack contains unpublished or boundary-incompatible rule';
+    END IF;
+    SELECT count(*) INTO invalid_count
+    FROM "AdaptiveRulePackGroup" pg
+    JOIN "AdaptiveRuleGroupVersion" g ON g."id" = pg."groupVersionId"
+    WHERE pg."packVersionId" = NEW."id"
+      AND (g."sealedAt" IS NULL OR g."isDemo" <> NEW."isDemo" OR g."regulatory" <> NEW."regulatory");
+    IF invalid_count > 0 THEN
+      RAISE EXCEPTION 'adaptive pack contains unpublished or boundary-incompatible group';
+    END IF;
+    SELECT count(*) INTO invalid_count
+    FROM "AdaptiveRulePackTarget" pt
+    JOIN "AdaptiveConfigurationTargetVersion" t ON t."id" = pt."targetVersionId"
+    WHERE pt."packVersionId" = NEW."id"
+      AND t."isDemo" <> NEW."isDemo";
+    IF invalid_count > 0 THEN
+      RAISE EXCEPTION 'adaptive pack contains boundary-incompatible target';
+    END IF;
+    IF EXISTS (
+      SELECT 1
+      FROM "AdaptiveRulePackGroup" pg
+      JOIN "AdaptiveRuleGroupRule" gr ON gr."groupVersionId" = pg."groupVersionId"
+      LEFT JOIN "AdaptiveRulePackRule" pr
+        ON pr."packVersionId" = pg."packVersionId" AND pr."ruleVersionId" = gr."ruleVersionId"
+      WHERE pg."packVersionId" = NEW."id" AND pr."ruleVersionId" IS NULL
+    ) THEN
+      RAISE EXCEPTION 'adaptive pack group references rule outside pack membership';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER adaptive_rule_version_seal BEFORE INSERT OR UPDATE OR DELETE ON "AdaptiveRuleVersion" FOR EACH ROW EXECUTE FUNCTION enforce_adaptive_version_seal();
+CREATE TRIGGER adaptive_group_version_seal BEFORE INSERT OR UPDATE OR DELETE ON "AdaptiveRuleGroupVersion" FOR EACH ROW EXECUTE FUNCTION enforce_adaptive_version_seal();
+CREATE TRIGGER adaptive_pack_version_seal BEFORE INSERT OR UPDATE OR DELETE ON "AdaptiveRulePackVersion" FOR EACH ROW EXECUTE FUNCTION enforce_adaptive_version_seal();
+
+CREATE FUNCTION prevent_adaptive_sealed_join_change() RETURNS trigger AS $$
+DECLARE
+  parent_id uuid;
+  old_parent_id uuid;
+  parent_sealed_at timestamp;
+BEGIN
+  IF TG_TABLE_NAME = 'AdaptiveRuleRequirement' THEN
+    parent_id := CASE WHEN TG_OP = 'DELETE' THEN OLD."ruleVersionId" ELSE NEW."ruleVersionId" END;
+    IF TG_OP = 'UPDATE' THEN old_parent_id := OLD."ruleVersionId"; END IF;
+    SELECT "sealedAt" INTO parent_sealed_at FROM "AdaptiveRuleVersion" WHERE "id" = parent_id;
+  ELSIF TG_TABLE_NAME = 'AdaptiveRuleGroupRule' THEN
+    parent_id := CASE WHEN TG_OP = 'DELETE' THEN OLD."groupVersionId" ELSE NEW."groupVersionId" END;
+    IF TG_OP = 'UPDATE' THEN old_parent_id := OLD."groupVersionId"; END IF;
+    SELECT "sealedAt" INTO parent_sealed_at FROM "AdaptiveRuleGroupVersion" WHERE "id" = parent_id;
+  ELSE
+    parent_id := CASE WHEN TG_OP = 'DELETE' THEN OLD."packVersionId" ELSE NEW."packVersionId" END;
+    IF TG_OP = 'UPDATE' THEN old_parent_id := OLD."packVersionId"; END IF;
+    SELECT "sealedAt" INTO parent_sealed_at FROM "AdaptiveRulePackVersion" WHERE "id" = parent_id;
+  END IF;
+  IF parent_sealed_at IS NOT NULL THEN
+    RAISE EXCEPTION 'adaptive sealed aggregate membership is immutable';
+  END IF;
+  IF old_parent_id IS NOT NULL AND old_parent_id <> parent_id THEN
+    IF TG_TABLE_NAME = 'AdaptiveRuleRequirement' THEN
+      SELECT "sealedAt" INTO parent_sealed_at FROM "AdaptiveRuleVersion" WHERE "id" = old_parent_id;
+    ELSIF TG_TABLE_NAME = 'AdaptiveRuleGroupRule' THEN
+      SELECT "sealedAt" INTO parent_sealed_at FROM "AdaptiveRuleGroupVersion" WHERE "id" = old_parent_id;
+    ELSE
+      SELECT "sealedAt" INTO parent_sealed_at FROM "AdaptiveRulePackVersion" WHERE "id" = old_parent_id;
+    END IF;
+    IF parent_sealed_at IS NOT NULL THEN
+      RAISE EXCEPTION 'adaptive sealed aggregate membership is immutable';
+    END IF;
+  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER adaptive_rule_requirement_immutable BEFORE INSERT OR UPDATE OR DELETE ON "AdaptiveRuleRequirement" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_sealed_join_change();
+CREATE TRIGGER adaptive_group_rule_immutable BEFORE INSERT OR UPDATE OR DELETE ON "AdaptiveRuleGroupRule" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_sealed_join_change();
+CREATE TRIGGER adaptive_pack_fact_immutable BEFORE INSERT OR UPDATE OR DELETE ON "AdaptiveRulePackFact" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_sealed_join_change();
+CREATE TRIGGER adaptive_pack_target_immutable BEFORE INSERT OR UPDATE OR DELETE ON "AdaptiveRulePackTarget" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_sealed_join_change();
+CREATE TRIGGER adaptive_pack_rule_immutable BEFORE INSERT OR UPDATE OR DELETE ON "AdaptiveRulePackRule" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_sealed_join_change();
+CREATE TRIGGER adaptive_pack_group_immutable BEFORE INSERT OR UPDATE OR DELETE ON "AdaptiveRulePackGroup" FOR EACH ROW EXECUTE FUNCTION prevent_adaptive_sealed_join_change();
+
+CREATE FUNCTION enforce_adaptive_published_draft() RETURNS trigger AS $$
+BEGIN
+  IF TG_OP <> 'INSERT' AND OLD."status" = 'PUBLISHED' THEN
+    RAISE EXCEPTION 'published adaptive rule draft is immutable';
+  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  IF NEW."status" = 'PUBLISHED' AND NOT EXISTS (
+    SELECT 1 FROM "AdaptiveRuleVersion" v
+    WHERE v."sourceDraftId" = NEW."id" AND v."sealedAt" IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'adaptive draft requires sealed published version';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER adaptive_published_draft_immutable BEFORE INSERT OR UPDATE OR DELETE ON "AdaptiveRuleDraft" FOR EACH ROW EXECUTE FUNCTION enforce_adaptive_published_draft();
+
+CREATE FUNCTION require_adaptive_sealed_session_pack() RETURNS trigger AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM "AdaptiveRulePackVersion" p
+    WHERE p."id" = NEW."rulePackVersionId" AND p."sealedAt" IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'adaptive session requires sealed rule pack version';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER adaptive_session_sealed_pack BEFORE INSERT OR UPDATE OF "rulePackVersionId" ON "AdaptiveConfigurationSession" FOR EACH ROW EXECUTE FUNCTION require_adaptive_sealed_session_pack();
 
 -- Answers may change only while their session is collecting information.
 CREATE FUNCTION enforce_adaptive_answer_mutability() RETURNS trigger AS $$

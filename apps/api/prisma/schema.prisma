@@ -333,6 +333,7 @@ enum AdaptiveRuleDraftStatus {
   TECHNICAL_REVIEW_PENDING
   LEGAL_REVIEW_PENDING
   READY_TO_PUBLISH
+  PUBLISHED
   REJECTED
 }
 
@@ -1106,6 +1107,7 @@ model AdaptiveRuleDraft {
   createdAt           DateTime                @default(now())
   updatedAt           DateTime                @updatedAt
   ruleDefinition      AdaptiveRuleDefinition  @relation(fields: [ruleDefinitionId], references: [id], onDelete: Restrict)
+  publishedVersion    AdaptiveRuleVersion?    @relation("AdaptiveRuleSourceDraft")
 
   @@unique([ruleDefinitionId, revision])
   @@index([status, updatedAt])
@@ -1119,9 +1121,12 @@ model AdaptiveRuleVersion {
   isDemo                  Boolean                   @default(false)
   regulatory              Boolean                   @default(false)
   demoDisclaimer          String?                   @db.VarChar(500)
-  publishedAt             DateTime                  @default(now())
+  sourceDraftId           String?                   @unique @db.Uuid
+  publishedAt             DateTime?
+  sealedAt                DateTime?
   supersedesRuleVersionId String?                   @unique @db.Uuid
   ruleDefinition          AdaptiveRuleDefinition    @relation(fields: [ruleDefinitionId], references: [id], onDelete: Restrict)
+  sourceDraft             AdaptiveRuleDraft?        @relation("AdaptiveRuleSourceDraft", fields: [sourceDraftId], references: [id], onDelete: Restrict)
   supersedesRuleVersion   AdaptiveRuleVersion?      @relation("AdaptiveRuleVersionReplacement", fields: [supersedesRuleVersionId], references: [id], onDelete: Restrict)
   supersededByRuleVersion AdaptiveRuleVersion?      @relation("AdaptiveRuleVersionReplacement")
   requirements            AdaptiveRuleRequirement[]
@@ -1162,7 +1167,8 @@ model AdaptiveRuleGroupVersion {
   activationExpression     Json
   isDemo                   Boolean                     @default(false)
   regulatory               Boolean                     @default(false)
-  publishedAt              DateTime                    @default(now())
+  publishedAt              DateTime?
+  sealedAt                 DateTime?
   supersedesGroupVersionId String?                     @unique @db.Uuid
   groupDefinition          AdaptiveRuleGroupDefinition @relation(fields: [groupDefinitionId], references: [id], onDelete: Restrict)
   supersedesGroupVersion   AdaptiveRuleGroupVersion?   @relation("AdaptiveGroupVersionReplacement", fields: [supersedesGroupVersionId], references: [id], onDelete: Restrict)
@@ -1203,13 +1209,15 @@ model AdaptiveRulePackVersion {
   isDemo              Boolean                        @default(false)
   regulatory          Boolean                        @default(false)
   disclaimer          String                         @db.VarChar(500)
-  publishedAt         DateTime                       @default(now())
+  publishedAt         DateTime?
+  sealedAt            DateTime?
   packDefinition      AdaptiveRulePackDefinition     @relation(fields: [packDefinitionId], references: [id], onDelete: Restrict)
   groups              AdaptiveRulePackGroup[]
   rules               AdaptiveRulePackRule[]
   facts               AdaptiveRulePackFact[]
   targets             AdaptiveRulePackTarget[]
   sessions            AdaptiveConfigurationSession[]
+  evaluationRuns      AdaptiveEvaluationRun[]
 
   @@unique([packDefinitionId, version])
   @@unique([packDefinitionId, contentHash])
@@ -1339,6 +1347,7 @@ model AdaptiveEvaluationRun {
   createdAt       DateTime                       @default(now())
   organization    Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   session         AdaptiveConfigurationSession   @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  packVersion     AdaptiveRulePackVersion        @relation(fields: [packVersionId], references: [id], onDelete: Restrict)
   questions       AdaptiveGeneratedQuestion[]
   proposal        AdaptiveConfigurationProposal?
 

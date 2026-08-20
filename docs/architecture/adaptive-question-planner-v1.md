@@ -15,5 +15,7 @@ business questions. Multiple unresolved rules needing the same fact in the same 
 question with every related rule/target reference.
 
 Ordering is stable: group priority, scope order, fact priority and fact key. Limits cap expression
-depth, predicates, rules, groups, scopes, facts and generated questions. Historical question text,
-choices and rationale live on each immutable evaluation run.
+depth, predicates, rules, groups, scopes, facts and generated questions. At the 100-question boundary
+the complete set is returned; an over-limit result raises `ADAPTIVE_LIMIT_EXCEEDED` before any run is
+persisted. Questions are never silently sliced. Historical question text, choices and rationale live
+on each immutable evaluation run.

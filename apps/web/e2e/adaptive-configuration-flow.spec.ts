@@ -81,7 +81,9 @@ test('preguntas adaptativas, propuesta por centro y estado actual declarado', as
   await expect(page.getByRole('heading', { name: 'Configuración dinámica' })).toBeVisible();
   await page.getByRole('link', { name: 'Nueva sesión dinámica' }).click();
   await page.getByLabel('Versión del perfil').selectOption({ index: 1 });
-  await page.getByLabel('Pack publicado').selectOption({ index: 1 });
+  await page
+    .getByLabel('Pack publicado')
+    .selectOption({ label: 'Configuración SST adaptativa DEMO · v1.0.0' });
   await page.getByLabel('Personas y salud').check();
   await expect(page.getByText(/reglas sintéticas de demostración/i).first()).toBeVisible();
   await page.getByRole('button', { name: 'Iniciar sesión dinámica' }).click();

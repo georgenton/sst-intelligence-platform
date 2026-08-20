@@ -14,13 +14,16 @@ import {
   DEMO_ADAPTIVE_RULE_PACK,
   DEMO_APPLICABILITY_RULE_PACK,
   DEMO_TECHNICAL_RISK_METHOD,
-  adaptiveContentHash,
+  adaptivePackContentHash,
+  normalizeAdaptiveGroupVersion,
+  normalizeAdaptiveRuleVersion,
 } from '@sst/contracts';
 import {
   REGULATORY_SOURCE_RECORDED_AT,
   REGULATORY_SOURCE_RELATIONSHIPS_V1,
   REGULATORY_SOURCE_V1,
 } from './regulatory-source-reference-data';
+import { assertPublishedVersionMatches } from '../src/adaptive-configuration/adaptive-reference-integrity';
 
 const prisma = new PrismaClient();
 
@@ -41,26 +44,44 @@ async function provisionAdaptiveDemoReferenceData() {
       where: {
         factDefinitionId_version: { factDefinitionId: definition.id, version: fact.version },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        valueType: true,
+        questionText: true,
+        helpText: true,
+        unknownAllowed: true,
+        collectionMode: true,
+        validation: true,
+        choiceOptions: true,
+        priority: true,
+      },
     });
+    const factPayload = {
+      valueType: fact.valueType,
+      questionText: fact.questionText,
+      helpText: fact.helpText,
+      unknownAllowed: fact.unknownAllowed,
+      collectionMode: fact.collectionMode,
+      validation: {
+        ...(fact.min === undefined ? {} : { min: fact.min }),
+        ...(fact.max === undefined ? {} : { max: fact.max }),
+        ...(fact.maxLength === undefined ? {} : { maxLength: fact.maxLength }),
+      },
+      choiceOptions: fact.choices,
+      priority: fact.priority,
+    };
+    if (existing)
+      assertPublishedVersionMatches(`FACT:${fact.factKey}:${fact.version}`, existing, {
+        id: existing.id,
+        ...factPayload,
+      });
     const version =
       existing ??
       (await prisma.adaptiveFactVersion.create({
         data: {
           factDefinitionId: definition.id,
           version: fact.version,
-          valueType: fact.valueType,
-          questionText: fact.questionText,
-          helpText: fact.helpText,
-          unknownAllowed: fact.unknownAllowed,
-          collectionMode: fact.collectionMode,
-          validation: {
-            ...(fact.min === undefined ? {} : { min: fact.min }),
-            ...(fact.max === undefined ? {} : { max: fact.max }),
-            ...(fact.maxLength === undefined ? {} : { maxLength: fact.maxLength }),
-          },
-          choiceOptions: fact.choices,
-          priority: fact.priority,
+          ...factPayload,
         },
         select: { id: true },
       }));
@@ -82,20 +103,36 @@ async function provisionAdaptiveDemoReferenceData() {
           version: target.version,
         },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        category: true,
+        currentStateQuestion: true,
+        evidenceSuggestions: true,
+        isDemo: true,
+      },
     });
+    const targetPayload = {
+      title: target.title,
+      description: target.description,
+      category: target.category,
+      currentStateQuestion: target.currentStateQuestion,
+      evidenceSuggestions: target.evidenceSuggestions,
+      isDemo: true,
+    };
+    if (existing)
+      assertPublishedVersionMatches(`TARGET:${target.targetKey}:${target.version}`, existing, {
+        id: existing.id,
+        ...targetPayload,
+      });
     const version =
       existing ??
       (await prisma.adaptiveConfigurationTargetVersion.create({
         data: {
           targetDefinitionId: definition.id,
           version: target.version,
-          title: target.title,
-          description: target.description,
-          category: target.category,
-          currentStateQuestion: target.currentStateQuestion,
-          evidenceSuggestions: target.evidenceSuggestions,
-          isDemo: true,
+          ...targetPayload,
         },
         select: { id: true },
       }));
@@ -104,20 +141,21 @@ async function provisionAdaptiveDemoReferenceData() {
 
   const ruleVersionIds = new Map<string, string>();
   for (const rule of DEMO_ADAPTIVE_RULE_PACK.rules) {
+    const normalizedRule = normalizeAdaptiveRuleVersion(rule);
     const definition = await prisma.adaptiveRuleDefinition.upsert({
       where: { ruleKey: rule.ruleKey },
       update: {},
       create: { ruleKey: rule.ruleKey },
       select: { id: true },
     });
-    await prisma.adaptiveRuleDraft.upsert({
+    const draft = await prisma.adaptiveRuleDraft.upsert({
       where: { ruleDefinitionId_revision: { ruleDefinitionId: definition.id, revision: 1 } },
       update: {},
       create: {
         ruleDefinitionId: definition.id,
         revision: 1,
         status: 'READY_TO_PUBLISH',
-        schema: rule as Prisma.InputJsonValue,
+        schema: normalizedRule as Prisma.InputJsonValue,
         isDemo: true,
         regulatory: false,
         demoDisclaimer: DEMO_ADAPTIVE_RULE_PACK.disclaimer,
@@ -125,30 +163,90 @@ async function provisionAdaptiveDemoReferenceData() {
         legalReviewedAt: new Date(),
       },
     });
+    assertPublishedVersionMatches(
+      `RULE_DRAFT:${rule.ruleKey}:1`,
+      {
+        schema: draft.schema,
+        isDemo: draft.isDemo,
+        regulatory: draft.regulatory,
+        demoDisclaimer: draft.demoDisclaimer,
+      },
+      {
+        schema: normalizedRule,
+        isDemo: true,
+        regulatory: false,
+        demoDisclaimer: DEMO_ADAPTIVE_RULE_PACK.disclaimer,
+      },
+    );
     const existing = await prisma.adaptiveRuleVersion.findUnique({
       where: {
         ruleDefinitionId_version: { ruleDefinitionId: definition.id, version: rule.version },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        schema: true,
+        isDemo: true,
+        regulatory: true,
+        demoDisclaimer: true,
+        sourceDraftId: true,
+        sealedAt: true,
+      },
     });
-    const version =
-      existing ??
-      (await prisma.adaptiveRuleVersion.create({
-        data: {
-          ruleDefinitionId: definition.id,
-          version: rule.version,
-          schema: rule as Prisma.InputJsonValue,
+    if (existing) {
+      assertPublishedVersionMatches(
+        `RULE:${rule.ruleKey}:${rule.version}`,
+        {
+          schema: existing.schema,
+          isDemo: existing.isDemo,
+          regulatory: existing.regulatory,
+          demoDisclaimer: existing.demoDisclaimer,
+          sourceDraftId: existing.sourceDraftId,
+        },
+        {
+          schema: normalizedRule,
           isDemo: true,
           regulatory: false,
           demoDisclaimer: DEMO_ADAPTIVE_RULE_PACK.disclaimer,
+          sourceDraftId: draft.id,
+        },
+      );
+      if (!existing.sealedAt)
+        throw new Error(`PUBLISHED_VERSION_DRIFT:RULE_UNSEALED:${rule.ruleKey}`);
+    }
+    let versionId = existing?.id;
+    if (!versionId) {
+      const createdVersion = await prisma.adaptiveRuleVersion.create({
+        data: {
+          ruleDefinitionId: definition.id,
+          version: rule.version,
+          schema: normalizedRule as Prisma.InputJsonValue,
+          isDemo: true,
+          regulatory: false,
+          demoDisclaimer: DEMO_ADAPTIVE_RULE_PACK.disclaimer,
+          sourceDraftId: draft.id,
         },
         select: { id: true },
-      }));
-    ruleVersionIds.set(rule.ruleKey, version.id);
+      });
+      versionId = createdVersion.id;
+      const now = new Date();
+      await prisma.adaptiveRuleVersion.update({
+        where: { id: versionId },
+        data: { publishedAt: now, sealedAt: now },
+      });
+      await prisma.adaptiveRuleDraft.update({
+        where: { id: draft.id },
+        data: { status: 'PUBLISHED' },
+      });
+    }
+    ruleVersionIds.set(rule.ruleKey, versionId);
   }
 
   const groupVersionIds = new Map<string, string>();
   for (const group of DEMO_ADAPTIVE_RULE_PACK.groups) {
+    const normalizedGroup = normalizeAdaptiveGroupVersion(group);
+    const expectedRuleVersionIds = normalizedGroup.ruleKeys.map((ruleKey) =>
+      ruleVersionIds.get(ruleKey)!,
+    );
     const definition = await prisma.adaptiveRuleGroupDefinition.upsert({
       where: { groupKey: group.groupKey },
       update: {},
@@ -159,32 +257,76 @@ async function provisionAdaptiveDemoReferenceData() {
       where: {
         groupDefinitionId_version: { groupDefinitionId: definition.id, version: group.version },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        title: true,
+        priority: true,
+        scopeMode: true,
+        activationExpression: true,
+        isDemo: true,
+        regulatory: true,
+        sealedAt: true,
+        groupRules: { select: { ruleVersionId: true, sortOrder: true } },
+      },
     });
-    const version =
-      existing ??
-      (await prisma.adaptiveRuleGroupVersion.create({
+    if (existing) {
+      assertPublishedVersionMatches(
+        `GROUP:${group.groupKey}:${group.version}`,
+        {
+          title: existing.title,
+          priority: existing.priority,
+          scopeMode: existing.scopeMode,
+          activationExpression: existing.activationExpression,
+          isDemo: existing.isDemo,
+          regulatory: existing.regulatory,
+          ruleVersionIds: existing.groupRules
+            .sort((left, right) => left.sortOrder - right.sortOrder)
+            .map(({ ruleVersionId }) => ruleVersionId),
+        },
+        {
+          title: normalizedGroup.title,
+          priority: normalizedGroup.priority,
+          scopeMode: normalizedGroup.scopeMode,
+          activationExpression: normalizedGroup.activation,
+          isDemo: true,
+          regulatory: false,
+          ruleVersionIds: expectedRuleVersionIds,
+        },
+      );
+      if (!existing.sealedAt)
+        throw new Error(`PUBLISHED_VERSION_DRIFT:GROUP_UNSEALED:${group.groupKey}`);
+    }
+    let versionId = existing?.id;
+    if (!versionId) {
+      const createdVersion = await prisma.adaptiveRuleGroupVersion.create({
         data: {
           groupDefinitionId: definition.id,
           version: group.version,
-          title: group.title,
-          priority: group.priority,
-          scopeMode: group.scopeMode,
-          activationExpression: group.activation as Prisma.InputJsonValue,
+          title: normalizedGroup.title,
+          priority: normalizedGroup.priority,
+          scopeMode: normalizedGroup.scopeMode,
+          activationExpression: normalizedGroup.activation as Prisma.InputJsonValue,
           isDemo: true,
           regulatory: false,
         },
         select: { id: true },
-      }));
-    groupVersionIds.set(group.groupKey, version.id);
-    await prisma.adaptiveRuleGroupRule.createMany({
-      data: group.ruleKeys.map((ruleKey, sortOrder) => ({
-        groupVersionId: version.id,
-        ruleVersionId: ruleVersionIds.get(ruleKey)!,
-        sortOrder,
-      })),
-      skipDuplicates: true,
-    });
+      });
+      versionId = createdVersion.id;
+      const createdVersionId = createdVersion.id;
+      await prisma.adaptiveRuleGroupRule.createMany({
+        data: expectedRuleVersionIds.map((ruleVersionId, sortOrder) => ({
+          groupVersionId: createdVersionId,
+          ruleVersionId,
+          sortOrder,
+        })),
+      });
+      const now = new Date();
+      await prisma.adaptiveRuleGroupVersion.update({
+        where: { id: createdVersionId },
+        data: { publishedAt: now, sealedAt: now },
+      });
+    }
+    groupVersionIds.set(group.groupKey, versionId);
   }
 
   const packDefinition = await prisma.adaptiveRulePackDefinition.upsert({
@@ -196,59 +338,128 @@ async function provisionAdaptiveDemoReferenceData() {
     },
     select: { id: true },
   });
-  const packContentHash = adaptiveContentHash(DEMO_ADAPTIVE_RULE_PACK);
-  let packVersion = await prisma.adaptiveRulePackVersion.findUnique({
+  const packContentHash = adaptivePackContentHash(DEMO_ADAPTIVE_RULE_PACK, {
+    factVersions: DEMO_ADAPTIVE_RULE_PACK.factVersions.map((fact) => ({
+      id: factVersionIds.get(fact.factKey)!,
+      factKey: fact.factKey,
+      version: fact.version,
+    })),
+    targetVersions: DEMO_ADAPTIVE_RULE_PACK.targetVersions.map((target) => ({
+      id: targetVersionIds.get(target.targetKey)!,
+      targetKey: target.targetKey,
+      version: target.version,
+    })),
+    ruleVersions: DEMO_ADAPTIVE_RULE_PACK.rules.map((rule) => ({
+      id: ruleVersionIds.get(rule.ruleKey)!,
+      ruleKey: rule.ruleKey,
+      version: rule.version,
+    })),
+    groupVersions: DEMO_ADAPTIVE_RULE_PACK.groups.map((group) => ({
+      id: groupVersionIds.get(group.groupKey)!,
+      groupKey: group.groupKey,
+      version: group.version,
+    })),
+  });
+  const packVersion = await prisma.adaptiveRulePackVersion.findUnique({
     where: {
       packDefinitionId_version: {
         packDefinitionId: packDefinition.id,
         version: DEMO_ADAPTIVE_RULE_PACK.version,
       },
     },
-    select: { id: true },
-  });
-  packVersion ??= await prisma.adaptiveRulePackVersion.create({
-    data: {
-      packDefinitionId: packDefinition.id,
-      version: DEMO_ADAPTIVE_RULE_PACK.version,
-      engineSchemaVersion: DEMO_ADAPTIVE_RULE_PACK.engineSchemaVersion,
-      schema: DEMO_ADAPTIVE_RULE_PACK as Prisma.InputJsonValue,
-      contentHash: packContentHash,
+    select: {
+      id: true,
+      engineSchemaVersion: true,
+      schema: true,
+      contentHash: true,
       isDemo: true,
-      regulatory: false,
-      disclaimer: DEMO_ADAPTIVE_RULE_PACK.disclaimer,
+      regulatory: true,
+      disclaimer: true,
+      sealedAt: true,
+      facts: { select: { factVersionId: true } },
+      targets: { select: { targetVersionId: true } },
+      rules: { select: { ruleVersionId: true } },
+      groups: { select: { groupVersionId: true } },
     },
-    select: { id: true },
   });
-  await Promise.all([
-    prisma.adaptiveRulePackFact.createMany({
-      data: [...factVersionIds.values()].map((factVersionId) => ({
-        packVersionId: packVersion.id,
-        factVersionId,
-      })),
-      skipDuplicates: true,
-    }),
-    prisma.adaptiveRulePackTarget.createMany({
-      data: [...targetVersionIds.values()].map((targetVersionId) => ({
-        packVersionId: packVersion.id,
-        targetVersionId,
-      })),
-      skipDuplicates: true,
-    }),
-    prisma.adaptiveRulePackRule.createMany({
-      data: [...ruleVersionIds.values()].map((ruleVersionId) => ({
-        packVersionId: packVersion.id,
-        ruleVersionId,
-      })),
-      skipDuplicates: true,
-    }),
-    prisma.adaptiveRulePackGroup.createMany({
-      data: [...groupVersionIds.values()].map((groupVersionId) => ({
-        packVersionId: packVersion.id,
-        groupVersionId,
-      })),
-      skipDuplicates: true,
-    }),
-  ]);
+  let packVersionId: string;
+  if (packVersion) {
+    packVersionId = packVersion.id;
+    assertPublishedVersionMatches(
+      `PACK:${DEMO_ADAPTIVE_RULE_PACK.packKey}:1.0.0`,
+      {
+        engineSchemaVersion: packVersion.engineSchemaVersion,
+        schema: packVersion.schema,
+        contentHash: packVersion.contentHash,
+        isDemo: packVersion.isDemo,
+        regulatory: packVersion.regulatory,
+        disclaimer: packVersion.disclaimer,
+        facts: packVersion.facts.map(({ factVersionId }) => factVersionId).sort(),
+        targets: packVersion.targets.map(({ targetVersionId }) => targetVersionId).sort(),
+        rules: packVersion.rules.map(({ ruleVersionId }) => ruleVersionId).sort(),
+        groups: packVersion.groups.map(({ groupVersionId }) => groupVersionId).sort(),
+      },
+      {
+        engineSchemaVersion: DEMO_ADAPTIVE_RULE_PACK.engineSchemaVersion,
+        schema: DEMO_ADAPTIVE_RULE_PACK,
+        contentHash: packContentHash,
+        isDemo: true,
+        regulatory: false,
+        disclaimer: DEMO_ADAPTIVE_RULE_PACK.disclaimer,
+        facts: [...factVersionIds.values()].sort(),
+        targets: [...targetVersionIds.values()].sort(),
+        rules: [...ruleVersionIds.values()].sort(),
+        groups: [...groupVersionIds.values()].sort(),
+      },
+    );
+    if (!packVersion.sealedAt) throw new Error('PUBLISHED_VERSION_DRIFT:PACK_UNSEALED');
+  } else {
+    const createdPackVersion = await prisma.adaptiveRulePackVersion.create({
+      data: {
+        packDefinitionId: packDefinition.id,
+        version: DEMO_ADAPTIVE_RULE_PACK.version,
+        engineSchemaVersion: DEMO_ADAPTIVE_RULE_PACK.engineSchemaVersion,
+        schema: DEMO_ADAPTIVE_RULE_PACK as Prisma.InputJsonValue,
+        contentHash: packContentHash,
+        isDemo: true,
+        regulatory: false,
+        disclaimer: DEMO_ADAPTIVE_RULE_PACK.disclaimer,
+      },
+      select: { id: true },
+    });
+    packVersionId = createdPackVersion.id;
+    await Promise.all([
+      prisma.adaptiveRulePackFact.createMany({
+        data: [...factVersionIds.values()].map((factVersionId) => ({
+          packVersionId,
+          factVersionId,
+        })),
+      }),
+      prisma.adaptiveRulePackTarget.createMany({
+        data: [...targetVersionIds.values()].map((targetVersionId) => ({
+          packVersionId,
+          targetVersionId,
+        })),
+      }),
+      prisma.adaptiveRulePackRule.createMany({
+        data: [...ruleVersionIds.values()].map((ruleVersionId) => ({
+          packVersionId,
+          ruleVersionId,
+        })),
+      }),
+      prisma.adaptiveRulePackGroup.createMany({
+        data: [...groupVersionIds.values()].map((groupVersionId) => ({
+          packVersionId,
+          groupVersionId,
+        })),
+      }),
+    ]);
+    const now = new Date();
+    await prisma.adaptiveRulePackVersion.update({
+      where: { id: packVersionId },
+      data: { publishedAt: now, sealedAt: now },
+    });
+  }
 }
 
 const modules = [

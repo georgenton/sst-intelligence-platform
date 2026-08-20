@@ -1,4 +1,5 @@
 import { Type } from 'class-transformer';
+import { ADAPTIVE_LIMITS } from '@sst/contracts';
 import {
   ArrayMaxSize,
   IsArray,
@@ -28,7 +29,11 @@ const strategicPriorityValues = [
 export class CreateAdaptiveSessionDto {
   @IsUUID() profileVersionId!: string;
   @IsUUID() rulePackVersionId!: string;
-  @IsOptional() @IsArray() @ArrayMaxSize(100) @IsUUID('4', { each: true }) workCenterIds?: string[];
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(ADAPTIVE_LIMITS.workCentersPerSession)
+  @IsUUID('4', { each: true })
+  workCenterIds?: string[];
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(strategicPriorityValues.length)
@@ -45,7 +50,7 @@ export class AdaptiveAnswerDto {
 export class SubmitAdaptiveAnswersDto {
   @Type(() => Number) @IsInt() @Min(0) expectedSessionRevision!: number;
   @IsArray()
-  @ArrayMaxSize(100)
+  @ArrayMaxSize(ADAPTIVE_LIMITS.answersPerRequest)
   @ValidateNested({ each: true })
   @Type(() => AdaptiveAnswerDto)
   answers!: AdaptiveAnswerDto[];

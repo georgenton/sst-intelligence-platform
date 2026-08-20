@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@sst/typescript-config": "workspace:*",
+    "@types/node": "24.10.13",
     "vitest": "4.1.0"
   }
 }

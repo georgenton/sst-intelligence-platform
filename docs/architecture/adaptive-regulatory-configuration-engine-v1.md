@@ -29,9 +29,39 @@ append-only run, question snapshot, proposal and configuration items.
 
 ## Publication boundary
 
+Publication follows `BUILD → VALIDATE → SEAL`. Rule, Group and Pack versions are assembled while
+unsealed; the internal publication service validates their complete membership and boundary before
+setting `publishedAt` and `sealedAt`. A sealed aggregate consists of the parent version plus every
+provenance/membership join. Database triggers reject parent updates/deletes and join
+inserts/updates/deletes, including direct Prisma or SQL attempts. New sessions accept only sealed
+Pack Versions.
+
 Editable rule drafts move through technical and legal review before immutable publication. A real
-regulatory rule requires at least one `APPROVED_FOR_RULE_DRAFTING` requirement and exact provenance.
-The V1 pack is DEMO, non-regulatory and carries a mandatory disclaimer.
+regulatory rule requires at least one exact requirement and every linked requirement must be
+`APPROVED_FOR_RULE_DRAFTING` at seal time. A successful publication records `sourceDraftId` and
+moves the draft to terminal `PUBLISHED`; a later rule version starts from a new draft and never
+rewrites its predecessor. Group publication accepts only sealed Rule Version IDs. Pack publication
+validates all Fact, Target, Rule and Group memberships, group-to-rule closure, and a uniform DEMO or
+regulatory boundary. The V1 pack is DEMO, non-regulatory and carries a mandatory disclaimer.
+
+## Canonical audit hashes
+
+Pack content, evaluation input and evaluation output use `sha256:<64 lowercase hex>`. Their
+normalizers are schema-aware: Fact/Target/Rule/Group membership, related keys, traces and other
+semantic sets are sorted; `ALL` and `ANY` clauses are recursively sorted because those operators are
+commutative. Intentionally ordered values remain ordered, including question display order, choice
+display order, explicit priorities and scope order. Pack hashes include exact version identities and
+complete executable content. Input hashes include the exact Pack Version/content hash, scope
+snapshots, Fact Version IDs, sources and typed values. Output hashes normalize semantic result sets
+without erasing product ordering.
+
+## Finite runtime envelope
+
+V1 caps AST depth at 5, clauses per expression at 20, predicates per pack at 500, rules at 200,
+groups at 30, fact versions at 100, target versions at 100, scopes per evaluation at 101, facts per
+evaluation at 2,000, generated questions at 100, answers per request at 100, selected work centers at
+100 and evaluation runs per session at 100. Crossing an engine capacity boundary returns
+`ADAPTIVE_LIMIT_EXCEEDED`; questions and runs are never silently truncated or deleted.
 
 ## Current state and activation
 

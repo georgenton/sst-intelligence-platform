@@ -1,6 +1,30 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
 export const ADAPTIVE_ENGINE_VERSION = '1.0.0' as const;
+export const ADAPTIVE_LIMITS = {
+  expressionDepth: 5,
+  clausesPerExpression: 20,
+  predicatesPerPack: 500,
+  rulesPerPack: 200,
+  groupsPerPack: 30,
+  factVersionsPerPack: 100,
+  targetVersionsPerPack: 100,
+  scopesPerEvaluation: 101,
+  factsPerEvaluation: 2_000,
+  questionsPerRun: 100,
+  answersPerRequest: 100,
+  workCentersPerSession: 100,
+  evaluationRunsPerSession: 100,
+} as const;
+
+export class AdaptiveLimitExceededError extends Error {
+  readonly code = 'ADAPTIVE_LIMIT_EXCEEDED';
+
+  constructor(readonly limit: keyof typeof ADAPTIVE_LIMITS) {
+    super(`ADAPTIVE_LIMIT_EXCEEDED:${limit}`);
+  }
+}
 export const ADAPTIVE_DEMO_DISCLAIMER =
   'Reglas sintéticas de demostración. No representan normativa ecuatoriana ni acreditan cumplimiento legal.';
 
@@ -133,7 +157,7 @@ export const adaptiveTargetVersionSchema = z
     ]),
     currentStateQuestion: z.string().trim().min(1).max(240),
     evidenceSuggestions: z.array(z.enum(ADAPTIVE_EVIDENCE_SUGGESTIONS)).max(10),
-    isDemo: z.literal(true),
+    isDemo: z.boolean(),
   })
   .strict();
 export type AdaptiveTargetVersionContract = z.infer<typeof adaptiveTargetVersionSchema>;
@@ -170,7 +194,7 @@ export const adaptiveExpressionSchema: z.ZodType<AdaptiveExpression> = z.lazy(()
       .object({
         kind: z.literal('GROUP'),
         mode: z.enum(['ALL', 'ANY']),
-        clauses: z.array(adaptiveExpressionSchema).min(1).max(20),
+        clauses: z.array(adaptiveExpressionSchema).min(1).max(ADAPTIVE_LIMITS.clausesPerExpression),
       })
       .strict(),
   ]),
@@ -203,7 +227,7 @@ export const adaptiveRuleGroupVersionSchema = z
     priority: z.number().int().min(0).max(10_000),
     scopeMode: z.enum(['ORGANIZATION', 'EACH_WORK_CENTER']),
     activation: adaptiveExpressionSchema,
-    ruleKeys: z.array(stableKeySchema).min(1).max(100),
+    ruleKeys: z.array(stableKeySchema).min(1).max(ADAPTIVE_LIMITS.rulesPerPack),
     isDemo: z.boolean(),
     regulatory: z.boolean(),
   })
@@ -219,10 +243,16 @@ export const adaptiveRulePackSchema = z
     isDemo: z.boolean(),
     regulatory: z.boolean(),
     disclaimer: z.string().trim().min(1).max(500),
-    factVersions: z.array(adaptiveFactVersionSchema).min(1).max(100),
-    targetVersions: z.array(adaptiveTargetVersionSchema).min(1).max(100),
-    groups: z.array(adaptiveRuleGroupVersionSchema).min(1).max(30),
-    rules: z.array(adaptiveRuleVersionSchema).min(1).max(200),
+    factVersions: z
+      .array(adaptiveFactVersionSchema)
+      .min(1)
+      .max(ADAPTIVE_LIMITS.factVersionsPerPack),
+    targetVersions: z
+      .array(adaptiveTargetVersionSchema)
+      .min(1)
+      .max(ADAPTIVE_LIMITS.targetVersionsPerPack),
+    groups: z.array(adaptiveRuleGroupVersionSchema).min(1).max(ADAPTIVE_LIMITS.groupsPerPack),
+    rules: z.array(adaptiveRuleVersionSchema).min(1).max(ADAPTIVE_LIMITS.rulesPerPack),
   })
   .strict()
   .superRefine((pack, context) => {
@@ -250,6 +280,7 @@ export const adaptiveRulePackSchema = z
 export type AdaptiveRulePackContract = z.infer<typeof adaptiveRulePackSchema>;
 
 export type AdaptiveScopeInput = {
+  scopeId?: string;
   scopeKey: string;
   kind: AdaptiveScopeKind;
   order: number;
@@ -260,7 +291,14 @@ export type AdaptiveScopeInput = {
 export type AdaptiveFactInput = {
   scopeKey: string;
   factKey: string;
+  factVersionId?: string;
+  source?: string;
   value: AdaptiveFactValue;
+};
+
+export type AdaptiveEvaluationAuditContext = {
+  packVersionId: string;
+  packContentHash: string;
 };
 
 export type AdaptivePredicateTrace = {
@@ -340,24 +378,173 @@ const depthPrecedence: Record<AdaptiveDepth, number> = {
   UNDETERMINED: 10,
 };
 
-function stable(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+function canonicalString(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalString).join(',')}]`;
   if (value && typeof value === 'object') {
     return `{${Object.entries(value)
       .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${stable(item)}`)
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalString(item)}`)
       .join(',')}}`;
   }
   return JSON.stringify(value);
 }
 
 export function adaptiveContentHash(value: unknown): string {
-  let hash = 2166136261;
-  for (const char of stable(value)) {
-    hash ^= char.charCodeAt(0);
-    hash = Math.imul(hash, 16777619);
-  }
-  return `fnv1a32:${(hash >>> 0).toString(16).padStart(8, '0')}`;
+  return `sha256:${createHash('sha256').update(canonicalString(value)).digest('hex')}`;
+}
+
+function canonicalOrder<T>(values: T[]): T[] {
+  return [...values].sort((left, right) =>
+    canonicalString(left).localeCompare(canonicalString(right)),
+  );
+}
+
+export function normalizeAdaptiveExpression(expression: AdaptiveExpression): AdaptiveExpression {
+  if (expression.kind === 'PREDICATE') return { ...expression };
+  return {
+    kind: 'GROUP',
+    mode: expression.mode,
+    clauses: canonicalOrder(expression.clauses.map(normalizeAdaptiveExpression)),
+  };
+}
+
+export function normalizeAdaptiveRuleVersion(
+  rule: AdaptiveRuleVersionContract,
+): AdaptiveRuleVersionContract {
+  return { ...rule, condition: normalizeAdaptiveExpression(rule.condition) };
+}
+
+export function normalizeAdaptiveGroupVersion(
+  group: AdaptiveRuleGroupVersionContract,
+): AdaptiveRuleGroupVersionContract {
+  return {
+    ...group,
+    activation: normalizeAdaptiveExpression(group.activation),
+    ruleKeys: [...group.ruleKeys].sort(),
+  };
+}
+
+export function normalizeAdaptivePackVersion(
+  pack: AdaptiveRulePackContract,
+): AdaptiveRulePackContract {
+  return {
+    ...pack,
+    factVersions: [...pack.factVersions].sort((left, right) =>
+      `${left.factKey}:${left.version}`.localeCompare(`${right.factKey}:${right.version}`),
+    ),
+    targetVersions: [...pack.targetVersions]
+      .map((target) => ({
+        ...target,
+        evidenceSuggestions: [...target.evidenceSuggestions].sort(),
+      }))
+      .sort((left, right) =>
+        `${left.targetKey}:${left.version}`.localeCompare(`${right.targetKey}:${right.version}`),
+      ),
+    rules: pack.rules
+      .map(normalizeAdaptiveRuleVersion)
+      .sort((left, right) =>
+        `${left.ruleKey}:${left.version}`.localeCompare(`${right.ruleKey}:${right.version}`),
+      ),
+    groups: pack.groups
+      .map(normalizeAdaptiveGroupVersion)
+      .sort((left, right) =>
+        `${left.groupKey}:${left.version}`.localeCompare(`${right.groupKey}:${right.version}`),
+      ),
+  };
+}
+
+export type AdaptivePackVersionIdentities = {
+  factVersions: Array<{ id: string; factKey: string; version: string }>;
+  targetVersions: Array<{ id: string; targetKey: string; version: string }>;
+  ruleVersions: Array<{ id: string; ruleKey: string; version: string }>;
+  groupVersions: Array<{ id: string; groupKey: string; version: string }>;
+};
+
+export function adaptivePackContentHash(
+  pack: AdaptiveRulePackContract,
+  identities?: AdaptivePackVersionIdentities,
+): string {
+  return adaptiveContentHash({
+    pack: normalizeAdaptivePackVersion(pack),
+    identities: identities
+      ? {
+          factVersions: canonicalOrder(identities.factVersions),
+          targetVersions: canonicalOrder(identities.targetVersions),
+          ruleVersions: canonicalOrder(identities.ruleVersions),
+          groupVersions: canonicalOrder(identities.groupVersions),
+        }
+      : null,
+  });
+}
+
+function normalizeEvaluationInput(input: {
+  pack: AdaptiveRulePackContract;
+  scopes: AdaptiveScopeInput[];
+  facts: AdaptiveFactInput[];
+  auditContext?: AdaptiveEvaluationAuditContext;
+}) {
+  const factVersions = new Map(input.pack.factVersions.map((fact) => [fact.factKey, fact.version]));
+  return {
+    engineVersion: ADAPTIVE_ENGINE_VERSION,
+    pack: {
+      packKey: input.pack.packKey,
+      version: input.pack.version,
+      packVersionId: input.auditContext?.packVersionId ?? null,
+      contentHash: input.auditContext?.packContentHash ?? adaptivePackContentHash(input.pack),
+    },
+    scopes: canonicalOrder(
+      input.scopes.map((scope) => ({
+        scopeId: scope.scopeId ?? null,
+        scopeKey: scope.scopeKey,
+        kind: scope.kind,
+        order: scope.order,
+        workCenterId: scope.workCenterId ?? null,
+        displayName: scope.displayName,
+      })),
+    ),
+    facts: canonicalOrder(
+      input.facts.map((fact) => ({
+        scopeKey: fact.scopeKey,
+        factKey: fact.factKey,
+        factVersionId: fact.factVersionId ?? null,
+        factVersion: factVersions.get(fact.factKey) ?? null,
+        source: fact.source ?? null,
+        value: fact.value,
+      })),
+    ),
+  };
+}
+
+function normalizeRuleTrace(trace: AdaptiveRuleTrace): AdaptiveRuleTrace {
+  return {
+    ...trace,
+    predicates: canonicalOrder(trace.predicates),
+  };
+}
+
+function normalizeEvaluationOutput(
+  output: Omit<AdaptiveEvaluationResult, 'inputHash' | 'outputHash'>,
+) {
+  return {
+    engineVersion: output.engineVersion,
+    groups: canonicalOrder(output.groups),
+    ruleTraces: canonicalOrder(output.ruleTraces.map(normalizeRuleTrace)),
+    questions: output.questions.map((question) => ({
+      ...question,
+      relatedRuleKeys: [...question.relatedRuleKeys].sort(),
+      relatedTargetKeys: [...question.relatedTargetKeys].sort(),
+    })),
+    items: canonicalOrder(
+      output.items.map((item) => ({
+        ...item,
+        ruleKeys: [...item.ruleKeys].sort(),
+        missingFactKeys: [...item.missingFactKeys].sort(),
+        evidenceSuggestions: [...item.evidenceSuggestions].sort(),
+        traces: canonicalOrder(item.traces.map(normalizeRuleTrace)),
+      })),
+    ),
+    missingFacts: canonicalOrder(output.missingFacts),
+  };
 }
 
 export function validateAdaptiveFactValue(
@@ -464,7 +651,8 @@ function evaluateExpression(
   factMap: Map<string, AdaptiveFactValue>,
   depth = 1,
 ): ExpressionResult {
-  if (depth > 5) throw new Error('Adaptive expression exceeds maximum depth');
+  if (depth > ADAPTIVE_LIMITS.expressionDepth)
+    throw new AdaptiveLimitExceededError('expressionDepth');
   if (expression.kind === 'PREDICATE') return evaluatePredicate(expression, scope, factMap);
   const children = expression.clauses.map((clause) =>
     evaluateExpression(clause, scope, factMap, depth + 1),
@@ -495,34 +683,58 @@ function factCanAffectRules(fact: AdaptiveFactVersionContract) {
 export function validateAdaptivePack(
   packInput: AdaptiveRulePackContract,
 ): AdaptiveRulePackContract {
-  const pack = adaptiveRulePackSchema.parse(packInput);
+  const parsed = adaptiveRulePackSchema.parse(packInput);
+  const pack = {
+    ...parsed,
+    rules: parsed.rules.map(normalizeAdaptiveRuleVersion),
+    groups: parsed.groups.map(normalizeAdaptiveGroupVersion),
+  };
   const facts = new Map(pack.factVersions.map((fact) => [fact.factKey, fact]));
   const targets = new Set(pack.targetVersions.map((target) => target.targetKey));
   const rules = new Map(pack.rules.map((rule) => [rule.ruleKey, rule]));
   let predicateCount = 0;
-  const visit = (expression: AdaptiveExpression, stackDepth = 1) => {
-    if (stackDepth > 5) throw new Error('Adaptive expression exceeds maximum depth');
+  const visit = (
+    expression: AdaptiveExpression,
+    scopeMode: AdaptiveRuleGroupVersionContract['scopeMode'],
+    stackDepth = 1,
+  ) => {
+    if (stackDepth > ADAPTIVE_LIMITS.expressionDepth)
+      throw new AdaptiveLimitExceededError('expressionDepth');
     if (expression.kind === 'PREDICATE') {
       predicateCount += 1;
       const fact = facts.get(expression.factKey);
       if (!fact) throw new Error(`Unknown fact ${expression.factKey}`);
       if (!factCanAffectRules(fact))
         throw new Error(`Context-only fact cannot affect rules: ${fact.factKey}`);
+      if (
+        (fact.defaultScope === 'ORGANIZATION' && expression.factScope !== 'ORGANIZATION') ||
+        (fact.defaultScope === 'WORK_CENTER' &&
+          (expression.factScope !== 'CURRENT_SCOPE' || scopeMode !== 'EACH_WORK_CENTER'))
+      )
+        throw new Error(`Fact scope mismatch: ${fact.factKey}`);
       return;
     }
-    expression.clauses.forEach((clause) => visit(clause, stackDepth + 1));
+    expression.clauses.forEach((clause) => visit(clause, scopeMode, stackDepth + 1));
   };
   for (const group of pack.groups) {
-    visit(group.activation);
+    visit(group.activation, group.scopeMode);
     for (const ruleKey of group.ruleKeys)
       if (!rules.has(ruleKey)) throw new Error(`Unknown rule ${ruleKey}`);
   }
   for (const rule of pack.rules) {
-    visit(rule.condition);
+    visit(rule.condition, rule.scopeMode);
     if (!targets.has(rule.targetKey)) throw new Error(`Unknown target ${rule.targetKey}`);
-    if (rule.regulatory || !rule.isDemo) throw new Error('V1 pack contains DEMO rules only');
   }
-  if (predicateCount > 500) throw new Error('Adaptive pack exceeds predicate limit');
+  if (
+    pack.rules.some((rule) => rule.isDemo !== pack.isDemo || rule.regulatory !== pack.regulatory) ||
+    pack.groups.some(
+      (group) => group.isDemo !== pack.isDemo || group.regulatory !== pack.regulatory,
+    ) ||
+    pack.targetVersions.some((target) => target.isDemo !== pack.isDemo)
+  )
+    throw new Error('Pack contains boundary-incompatible content');
+  if (predicateCount > ADAPTIVE_LIMITS.predicatesPerPack)
+    throw new AdaptiveLimitExceededError('predicatesPerPack');
   return pack;
 }
 
@@ -530,10 +742,13 @@ export function evaluateAdaptiveConfiguration(input: {
   pack: AdaptiveRulePackContract;
   scopes: AdaptiveScopeInput[];
   facts: AdaptiveFactInput[];
+  auditContext?: AdaptiveEvaluationAuditContext;
 }): AdaptiveEvaluationResult {
   const pack = validateAdaptivePack(input.pack);
-  if (input.scopes.length > 101) throw new Error('Adaptive session exceeds scope limit');
-  if (input.facts.length > 2_000) throw new Error('Adaptive session exceeds fact limit');
+  if (input.scopes.length > ADAPTIVE_LIMITS.scopesPerEvaluation)
+    throw new AdaptiveLimitExceededError('scopesPerEvaluation');
+  if (input.facts.length > ADAPTIVE_LIMITS.factsPerEvaluation)
+    throw new AdaptiveLimitExceededError('factsPerEvaluation');
   const scopes = [...input.scopes].sort(
     (left, right) => left.order - right.order || left.scopeKey.localeCompare(right.scopeKey),
   );
@@ -687,31 +902,31 @@ export function evaluateAdaptiveConfiguration(input: {
         left.targetKey.localeCompare(right.targetKey),
     );
 
-  const questions = [...questionNeeds.values()]
-    .sort(
-      (left, right) =>
-        left.priority - right.priority ||
-        left.scope.order - right.scope.order ||
-        left.fact.priority - right.fact.priority ||
-        left.fact.factKey.localeCompare(right.fact.factKey),
-    )
-    .slice(0, 100)
-    .map((need): AdaptiveGeneratedQuestionResult => ({
-      scopeKey: need.scope.scopeKey,
-      factKey: need.fact.factKey,
-      questionText: need.fact.questionText,
-      helpText: need.fact.helpText,
-      valueType: need.fact.valueType,
-      unknownAllowed: need.fact.unknownAllowed,
-      choices: need.fact.choices,
-      whyAsked: `Ayuda a resolver ${[...need.groups].sort().join(', ')} dentro de esta propuesta DEMO.`,
-      relatedRuleKeys: [...need.rules].sort(),
-      relatedTargetKeys: [...need.targets].sort(),
-      groupPriority: need.priority,
-      factPriority: need.fact.priority,
-    }));
+  const orderedQuestionNeeds = [...questionNeeds.values()].sort(
+    (left, right) =>
+      left.priority - right.priority ||
+      left.scope.order - right.scope.order ||
+      left.fact.priority - right.fact.priority ||
+      left.fact.factKey.localeCompare(right.fact.factKey),
+  );
+  if (orderedQuestionNeeds.length > ADAPTIVE_LIMITS.questionsPerRun)
+    throw new AdaptiveLimitExceededError('questionsPerRun');
+  const questions = orderedQuestionNeeds.map((need): AdaptiveGeneratedQuestionResult => ({
+    scopeKey: need.scope.scopeKey,
+    factKey: need.fact.factKey,
+    questionText: need.fact.questionText,
+    helpText: need.fact.helpText,
+    valueType: need.fact.valueType,
+    unknownAllowed: need.fact.unknownAllowed,
+    choices: need.fact.choices,
+    whyAsked: `Ayuda a resolver ${[...need.groups].sort().join(', ')} dentro de esta propuesta DEMO.`,
+    relatedRuleKeys: [...need.rules].sort(),
+    relatedTargetKeys: [...need.targets].sort(),
+    groupPriority: need.priority,
+    factPriority: need.fact.priority,
+  }));
   const missingFacts = questions.map(({ scopeKey, factKey }) => ({ scopeKey, factKey }));
-  const base = {
+  const base: Omit<AdaptiveEvaluationResult, 'inputHash' | 'outputHash'> = {
     engineVersion: ADAPTIVE_ENGINE_VERSION,
     groups,
     ruleTraces: traces,
@@ -721,14 +936,8 @@ export function evaluateAdaptiveConfiguration(input: {
   };
   return {
     ...base,
-    inputHash: adaptiveContentHash({
-      pack: [pack.packKey, pack.version],
-      scopes,
-      facts: [...input.facts].sort((left, right) =>
-        `${left.scopeKey}:${left.factKey}`.localeCompare(`${right.scopeKey}:${right.factKey}`),
-      ),
-    }),
-    outputHash: adaptiveContentHash(base),
+    inputHash: adaptiveContentHash(normalizeEvaluationInput({ ...input, pack, scopes })),
+    outputHash: adaptiveContentHash(normalizeEvaluationOutput(base)),
   };
 }
 
