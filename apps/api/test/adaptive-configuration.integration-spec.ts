@@ -328,6 +328,7 @@ describe('adaptive configuration integration', () => {
           isDemo: historicalPack.isDemo,
           regulatory: historicalPack.regulatory,
           disclaimer: historicalPack.disclaimer,
+          publishedAt: new Date('2000-01-01T00:00:00.000Z'),
         },
       }));
     expect({ factV2: factV2.version, ruleV2: ruleV2.version, targetV2: targetV2.version }).toEqual({
