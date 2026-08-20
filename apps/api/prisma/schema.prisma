@@ -280,6 +280,104 @@ enum RegulatoryRequirementRelationshipType {
   RELATED_SOURCE
 }
 
+enum AdaptiveFactCategory {
+  ORGANIZATION_PROFILE
+  WORKFORCE
+  WORK_CENTER_CONTEXT
+  INFRASTRUCTURE
+  OPERATION
+  HIGH_RISK_WORK
+  CONTRACTORS
+  ACTIVITY
+  STRATEGIC_PRIORITY
+  OTHER
+}
+
+enum AdaptiveFactValueType {
+  BOOLEAN
+  INTEGER
+  DECIMAL
+  SHORT_TEXT
+  SINGLE_CHOICE
+  MULTI_CHOICE
+}
+
+enum AdaptiveFactCollectionMode {
+  DERIVED_ONLY
+  USER_ASKABLE
+  DERIVED_OR_USER
+  CONTEXT_ONLY
+}
+
+enum AdaptiveScopeKind {
+  ORGANIZATION
+  WORK_CENTER
+}
+
+enum AdaptiveTargetCategory {
+  GOVERNANCE
+  EMERGENCY_PREPAREDNESS
+  WORKPLACE_CONDITIONS
+  HEALTH_MANAGEMENT
+  HIGH_RISK_WORK
+  CONTRACTOR_COORDINATION
+  INSPECTION
+  TRAINING
+  DOCUMENTATION
+  PROFESSIONAL_REVIEW
+  OTHER
+}
+
+enum AdaptiveRuleDraftStatus {
+  DRAFT
+  TECHNICAL_REVIEW_PENDING
+  LEGAL_REVIEW_PENDING
+  READY_TO_PUBLISH
+  REJECTED
+}
+
+enum AdaptiveRuleRequirementType {
+  PRIMARY_REQUIREMENT
+  SUPPORTING_REQUIREMENT
+  RELATED_REQUIREMENT
+}
+
+enum AdaptiveSessionStatus {
+  COLLECTING_INFORMATION
+  READY_TO_PROPOSE
+  FINALIZED
+  CANCELLED
+}
+
+enum AdaptiveAnswerSource {
+  DERIVED_PROFILE
+  DERIVED_ORGANIZATION
+  DERIVED_WORK_CENTER
+  USER_DECLARED
+  EXPERT_DECLARED
+}
+
+enum AdaptiveReviewDepth {
+  BASIC_VISIBLE
+  TECHNICAL
+  SYSTEMIC
+  UNDETERMINED
+}
+
+enum AdaptiveCurrentStateStatus {
+  UNKNOWN
+  NOT_IMPLEMENTED
+  PLANNED
+  IN_PROGRESS
+  PARTIALLY_IMPLEMENTED
+  IMPLEMENTED
+}
+
+enum AdaptiveCurrentStateEvidenceType {
+  NOTE
+  EXTERNAL_LINK
+}
+
 enum InspectionAlertType {
   RECURRENCE
   OVERDUE_ACTION
@@ -299,31 +397,35 @@ enum AlertStatus {
 }
 
 model User {
-  id                           String                          @id @default(uuid()) @db.Uuid
-  email                        String                          @unique
+  id                           String                            @id @default(uuid()) @db.Uuid
+  email                        String                            @unique
   passwordHash                 String
   displayName                  String
-  createdAt                    DateTime                        @default(now())
-  updatedAt                    DateTime                        @updatedAt
+  createdAt                    DateTime                          @default(now())
+  updatedAt                    DateTime                          @updatedAt
   refreshSessions              RefreshSession[]
   memberships                  Membership[]
-  claimedGuidedSessions        GuidedFlowSession[]             @relation("ClaimedBy")
-  auditLogs                    AuditLog[]                      @relation("AuditActor")
+  claimedGuidedSessions        GuidedFlowSession[]               @relation("ClaimedBy")
+  auditLogs                    AuditLog[]                        @relation("AuditActor")
   aiInteractions               AiInteraction[]
   upgradeRequests              UpgradeRequest[]
-  inspections                  Inspection[]                    @relation("InspectionInspector")
-  findingsCreated              InspectionFinding[]             @relation("FindingCreator")
-  actionsAssigned              CorrectiveAction[]              @relation("ActionAssignee")
-  actionsCreated               CorrectiveAction[]              @relation("ActionCreator")
-  actionsVerified              CorrectiveAction[]              @relation("ActionVerifier")
-  evidenceCreated              ActionEvidence[]                @relation("EvidenceCreator")
-  alertsAcknowledged           InspectionAlert[]               @relation("AlertAcknowledger")
-  technicalAssessments         TechnicalAssessment[]           @relation("TechnicalAssessmentCreator")
-  technicalAssessmentsReviewed TechnicalAssessment[]           @relation("TechnicalAssessmentReviewer")
-  technicalEvidenceCreated     TechnicalAssessmentEvidence[]   @relation("TechnicalEvidenceCreator")
-  technicalReviews             TechnicalAssessmentReview[]     @relation("TechnicalReviewReviewer")
+  inspections                  Inspection[]                      @relation("InspectionInspector")
+  findingsCreated              InspectionFinding[]               @relation("FindingCreator")
+  actionsAssigned              CorrectiveAction[]                @relation("ActionAssignee")
+  actionsCreated               CorrectiveAction[]                @relation("ActionCreator")
+  actionsVerified              CorrectiveAction[]                @relation("ActionVerifier")
+  evidenceCreated              ActionEvidence[]                  @relation("EvidenceCreator")
+  alertsAcknowledged           InspectionAlert[]                 @relation("AlertAcknowledger")
+  technicalAssessments         TechnicalAssessment[]             @relation("TechnicalAssessmentCreator")
+  technicalAssessmentsReviewed TechnicalAssessment[]             @relation("TechnicalAssessmentReviewer")
+  technicalEvidenceCreated     TechnicalAssessmentEvidence[]     @relation("TechnicalEvidenceCreator")
+  technicalReviews             TechnicalAssessmentReview[]       @relation("TechnicalReviewReviewer")
   sstProfileVersions           OrganizationSstProfileVersion[]
   applicabilityAssessments     ApplicabilityAssessment[]
+  adaptiveSessions             AdaptiveConfigurationSession[]    @relation("AdaptiveSessionCreator")
+  adaptiveAnswers              AdaptiveFactAnswer[]              @relation("AdaptiveAnswerAuthor")
+  adaptiveDeclarations         AdaptiveCurrentStateDeclaration[] @relation("AdaptiveDeclarationAuthor")
+  adaptiveEvidence             AdaptiveCurrentStateEvidence[]    @relation("AdaptiveEvidenceAuthor")
 }
 
 model RefreshSession {
@@ -346,15 +448,15 @@ model RefreshSession {
 }
 
 model Organization {
-  id                         String                          @id @default(uuid()) @db.Uuid
+  id                         String                            @id @default(uuid()) @db.Uuid
   name                       String
   country                    String
   sector                     String?
-  status                     OrganizationStatus              @default(ACTIVE)
+  status                     OrganizationStatus                @default(ACTIVE)
   demoStartedAt              DateTime?
   demoExpiresAt              DateTime?
-  createdAt                  DateTime                        @default(now())
-  updatedAt                  DateTime                        @updatedAt
+  createdAt                  DateTime                          @default(now())
+  updatedAt                  DateTime                          @updatedAt
   workCenters                WorkCenter[]
   memberships                Membership[]
   invitations                OrganizationInvitation[]
@@ -382,21 +484,31 @@ model Organization {
   applicabilityAssessments   ApplicabilityAssessment[]
   applicabilityDecisions     ApplicabilityDecision[]
   applicabilityTraces        ApplicabilityEvaluationTrace[]
+  adaptiveSessions           AdaptiveConfigurationSession[]
+  adaptiveScopes             AdaptiveSessionScope[]
+  adaptiveAnswers            AdaptiveFactAnswer[]
+  adaptiveRuns               AdaptiveEvaluationRun[]
+  adaptiveQuestions          AdaptiveGeneratedQuestion[]
+  adaptiveProposals          AdaptiveConfigurationProposal[]
+  adaptiveItems              AdaptiveConfigurationItem[]
+  adaptiveDeclarations       AdaptiveCurrentStateDeclaration[]
+  adaptiveEvidence           AdaptiveCurrentStateEvidence[]
 }
 
 model WorkCenter {
-  id                   String                @id @default(uuid()) @db.Uuid
-  organizationId       String                @db.Uuid
+  id                   String                 @id @default(uuid()) @db.Uuid
+  organizationId       String                 @db.Uuid
   name                 String
   city                 String?
-  isDemo               Boolean               @default(false)
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  isDemo               Boolean                @default(false)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  organization         Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   workAreas            WorkArea[]
   inspections          Inspection[]
   findings             InspectionFinding[]
   technicalAssessments TechnicalAssessment[]
+  adaptiveScopes       AdaptiveSessionScope[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -695,15 +807,16 @@ model TechnicalAssessmentReview {
 }
 
 model OrganizationSstProfileVersion {
-  id             String                    @id @default(uuid()) @db.Uuid
-  organizationId String                    @db.Uuid
-  version        Int
-  snapshot       Json
-  createdById    String                    @db.Uuid
-  createdAt      DateTime                  @default(now())
-  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy      User                      @relation(fields: [createdById], references: [id])
-  assessments    ApplicabilityAssessment[]
+  id               String                         @id @default(uuid()) @db.Uuid
+  organizationId   String                         @db.Uuid
+  version          Int
+  snapshot         Json
+  createdById      String                         @db.Uuid
+  createdAt        DateTime                       @default(now())
+  organization     Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy        User                           @relation(fields: [createdById], references: [id])
+  assessments      ApplicabilityAssessment[]
+  adaptiveSessions AdaptiveConfigurationSession[]
 
   @@unique([organizationId, version])
   @@index([organizationId, createdAt])
@@ -870,6 +983,7 @@ model RegulatoryRequirement {
   supersedesRequirement   RegulatoryRequirement?               @relation("RegulatoryRequirementReplacement", fields: [supersedesRequirementId], references: [id], onDelete: Restrict)
   supersededByRequirement RegulatoryRequirement?               @relation("RegulatoryRequirementReplacement")
   sources                 RegulatoryRequirementSource[]
+  adaptiveRules           AdaptiveRuleRequirement[]
 
   @@index([editorialStatus, createdAt])
   @@index([scopeHint])
@@ -903,6 +1017,430 @@ model RegulatorySourceRelationship {
   @@unique([fromSourceId, toSourceId, relationshipType])
   @@index([fromSourceId, reviewStatus])
   @@index([toSourceId, reviewStatus])
+}
+
+model AdaptiveFactDefinition {
+  id           String                @id @default(uuid()) @db.Uuid
+  factKey      String                @unique @db.VarChar(160)
+  category     AdaptiveFactCategory
+  defaultScope AdaptiveScopeKind
+  createdAt    DateTime              @default(now())
+  versions     AdaptiveFactVersion[]
+
+  @@index([category, factKey])
+}
+
+model AdaptiveFactVersion {
+  id                      String                      @id @default(uuid()) @db.Uuid
+  factDefinitionId        String                      @db.Uuid
+  version                 String                      @db.VarChar(32)
+  valueType               AdaptiveFactValueType
+  questionText            String                      @db.VarChar(240)
+  helpText                String                      @db.VarChar(500)
+  unknownAllowed          Boolean                     @default(true)
+  collectionMode          AdaptiveFactCollectionMode
+  validation              Json
+  choiceOptions           Json
+  priority                Int                         @default(100)
+  publishedAt             DateTime                    @default(now())
+  supersedesFactVersionId String?                     @unique @db.Uuid
+  factDefinition          AdaptiveFactDefinition      @relation(fields: [factDefinitionId], references: [id], onDelete: Restrict)
+  supersedesFactVersion   AdaptiveFactVersion?        @relation("AdaptiveFactVersionReplacement", fields: [supersedesFactVersionId], references: [id], onDelete: Restrict)
+  supersededByFactVersion AdaptiveFactVersion?        @relation("AdaptiveFactVersionReplacement")
+  packFacts               AdaptiveRulePackFact[]
+  answers                 AdaptiveFactAnswer[]
+  questions               AdaptiveGeneratedQuestion[]
+
+  @@unique([factDefinitionId, version])
+  @@index([factDefinitionId, publishedAt])
+}
+
+model AdaptiveConfigurationTargetDefinition {
+  id        String                               @id @default(uuid()) @db.Uuid
+  targetKey String                               @unique @db.VarChar(160)
+  createdAt DateTime                             @default(now())
+  versions  AdaptiveConfigurationTargetVersion[]
+}
+
+model AdaptiveConfigurationTargetVersion {
+  id                        String                                @id @default(uuid()) @db.Uuid
+  targetDefinitionId        String                                @db.Uuid
+  version                   String                                @db.VarChar(32)
+  title                     String                                @db.VarChar(160)
+  description               String                                @db.VarChar(500)
+  category                  AdaptiveTargetCategory
+  currentStateQuestion      String                                @db.VarChar(240)
+  evidenceSuggestions       Json
+  isDemo                    Boolean                               @default(false)
+  publishedAt               DateTime                              @default(now())
+  supersedesTargetVersionId String?                               @unique @db.Uuid
+  targetDefinition          AdaptiveConfigurationTargetDefinition @relation(fields: [targetDefinitionId], references: [id], onDelete: Restrict)
+  supersedesTargetVersion   AdaptiveConfigurationTargetVersion?   @relation("AdaptiveTargetVersionReplacement", fields: [supersedesTargetVersionId], references: [id], onDelete: Restrict)
+  supersededByTargetVersion AdaptiveConfigurationTargetVersion?   @relation("AdaptiveTargetVersionReplacement")
+  packTargets               AdaptiveRulePackTarget[]
+  items                     AdaptiveConfigurationItem[]
+
+  @@unique([targetDefinitionId, version])
+  @@index([targetDefinitionId, publishedAt])
+}
+
+model AdaptiveRuleDefinition {
+  id        String                @id @default(uuid()) @db.Uuid
+  ruleKey   String                @unique @db.VarChar(160)
+  createdAt DateTime              @default(now())
+  drafts    AdaptiveRuleDraft[]
+  versions  AdaptiveRuleVersion[]
+}
+
+model AdaptiveRuleDraft {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  ruleDefinitionId    String                  @db.Uuid
+  revision            Int
+  status              AdaptiveRuleDraftStatus @default(DRAFT)
+  schema              Json
+  isDemo              Boolean                 @default(false)
+  regulatory          Boolean                 @default(false)
+  demoDisclaimer      String?                 @db.VarChar(500)
+  technicalReviewedAt DateTime?
+  legalReviewedAt     DateTime?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  ruleDefinition      AdaptiveRuleDefinition  @relation(fields: [ruleDefinitionId], references: [id], onDelete: Restrict)
+
+  @@unique([ruleDefinitionId, revision])
+  @@index([status, updatedAt])
+}
+
+model AdaptiveRuleVersion {
+  id                      String                    @id @default(uuid()) @db.Uuid
+  ruleDefinitionId        String                    @db.Uuid
+  version                 String                    @db.VarChar(32)
+  schema                  Json
+  isDemo                  Boolean                   @default(false)
+  regulatory              Boolean                   @default(false)
+  demoDisclaimer          String?                   @db.VarChar(500)
+  publishedAt             DateTime                  @default(now())
+  supersedesRuleVersionId String?                   @unique @db.Uuid
+  ruleDefinition          AdaptiveRuleDefinition    @relation(fields: [ruleDefinitionId], references: [id], onDelete: Restrict)
+  supersedesRuleVersion   AdaptiveRuleVersion?      @relation("AdaptiveRuleVersionReplacement", fields: [supersedesRuleVersionId], references: [id], onDelete: Restrict)
+  supersededByRuleVersion AdaptiveRuleVersion?      @relation("AdaptiveRuleVersionReplacement")
+  requirements            AdaptiveRuleRequirement[]
+  groupRules              AdaptiveRuleGroupRule[]
+  packRules               AdaptiveRulePackRule[]
+
+  @@unique([ruleDefinitionId, version])
+  @@index([regulatory, isDemo, publishedAt])
+}
+
+model AdaptiveRuleRequirement {
+  id               String                      @id @default(uuid()) @db.Uuid
+  ruleVersionId    String                      @db.Uuid
+  requirementId    String                      @db.Uuid
+  relationshipType AdaptiveRuleRequirementType
+  createdAt        DateTime                    @default(now())
+  ruleVersion      AdaptiveRuleVersion         @relation(fields: [ruleVersionId], references: [id], onDelete: Restrict)
+  requirement      RegulatoryRequirement       @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+
+  @@unique([ruleVersionId, requirementId, relationshipType])
+  @@index([requirementId, relationshipType])
+}
+
+model AdaptiveRuleGroupDefinition {
+  id        String                     @id @default(uuid()) @db.Uuid
+  groupKey  String                     @unique @db.VarChar(160)
+  createdAt DateTime                   @default(now())
+  versions  AdaptiveRuleGroupVersion[]
+}
+
+model AdaptiveRuleGroupVersion {
+  id                       String                      @id @default(uuid()) @db.Uuid
+  groupDefinitionId        String                      @db.Uuid
+  version                  String                      @db.VarChar(32)
+  title                    String                      @db.VarChar(160)
+  priority                 Int
+  scopeMode                String                      @db.VarChar(32)
+  activationExpression     Json
+  isDemo                   Boolean                     @default(false)
+  regulatory               Boolean                     @default(false)
+  publishedAt              DateTime                    @default(now())
+  supersedesGroupVersionId String?                     @unique @db.Uuid
+  groupDefinition          AdaptiveRuleGroupDefinition @relation(fields: [groupDefinitionId], references: [id], onDelete: Restrict)
+  supersedesGroupVersion   AdaptiveRuleGroupVersion?   @relation("AdaptiveGroupVersionReplacement", fields: [supersedesGroupVersionId], references: [id], onDelete: Restrict)
+  supersededByGroupVersion AdaptiveRuleGroupVersion?   @relation("AdaptiveGroupVersionReplacement")
+  groupRules               AdaptiveRuleGroupRule[]
+  packGroups               AdaptiveRulePackGroup[]
+
+  @@unique([groupDefinitionId, version])
+  @@index([priority, publishedAt])
+}
+
+model AdaptiveRuleGroupRule {
+  groupVersionId String                   @db.Uuid
+  ruleVersionId  String                   @db.Uuid
+  sortOrder      Int
+  groupVersion   AdaptiveRuleGroupVersion @relation(fields: [groupVersionId], references: [id], onDelete: Restrict)
+  ruleVersion    AdaptiveRuleVersion      @relation(fields: [ruleVersionId], references: [id], onDelete: Restrict)
+
+  @@id([groupVersionId, ruleVersionId])
+  @@index([ruleVersionId])
+}
+
+model AdaptiveRulePackDefinition {
+  id        String                    @id @default(uuid()) @db.Uuid
+  packKey   String                    @unique @db.VarChar(160)
+  name      String                    @db.VarChar(160)
+  createdAt DateTime                  @default(now())
+  versions  AdaptiveRulePackVersion[]
+}
+
+model AdaptiveRulePackVersion {
+  id                  String                         @id @default(uuid()) @db.Uuid
+  packDefinitionId    String                         @db.Uuid
+  version             String                         @db.VarChar(32)
+  engineSchemaVersion String                         @db.VarChar(32)
+  schema              Json
+  contentHash         String                         @db.VarChar(100)
+  isDemo              Boolean                        @default(false)
+  regulatory          Boolean                        @default(false)
+  disclaimer          String                         @db.VarChar(500)
+  publishedAt         DateTime                       @default(now())
+  packDefinition      AdaptiveRulePackDefinition     @relation(fields: [packDefinitionId], references: [id], onDelete: Restrict)
+  groups              AdaptiveRulePackGroup[]
+  rules               AdaptiveRulePackRule[]
+  facts               AdaptiveRulePackFact[]
+  targets             AdaptiveRulePackTarget[]
+  sessions            AdaptiveConfigurationSession[]
+
+  @@unique([packDefinitionId, version])
+  @@unique([packDefinitionId, contentHash])
+  @@index([isDemo, regulatory, publishedAt])
+}
+
+model AdaptiveRulePackGroup {
+  packVersionId  String                   @db.Uuid
+  groupVersionId String                   @db.Uuid
+  packVersion    AdaptiveRulePackVersion  @relation(fields: [packVersionId], references: [id], onDelete: Restrict)
+  groupVersion   AdaptiveRuleGroupVersion @relation(fields: [groupVersionId], references: [id], onDelete: Restrict)
+
+  @@id([packVersionId, groupVersionId])
+  @@index([groupVersionId])
+}
+
+model AdaptiveRulePackRule {
+  packVersionId String                  @db.Uuid
+  ruleVersionId String                  @db.Uuid
+  packVersion   AdaptiveRulePackVersion @relation(fields: [packVersionId], references: [id], onDelete: Restrict)
+  ruleVersion   AdaptiveRuleVersion     @relation(fields: [ruleVersionId], references: [id], onDelete: Restrict)
+
+  @@id([packVersionId, ruleVersionId])
+  @@index([ruleVersionId])
+}
+
+model AdaptiveRulePackFact {
+  packVersionId String                  @db.Uuid
+  factVersionId String                  @db.Uuid
+  packVersion   AdaptiveRulePackVersion @relation(fields: [packVersionId], references: [id], onDelete: Restrict)
+  factVersion   AdaptiveFactVersion     @relation(fields: [factVersionId], references: [id], onDelete: Restrict)
+
+  @@id([packVersionId, factVersionId])
+  @@index([factVersionId])
+}
+
+model AdaptiveRulePackTarget {
+  packVersionId   String                             @db.Uuid
+  targetVersionId String                             @db.Uuid
+  packVersion     AdaptiveRulePackVersion            @relation(fields: [packVersionId], references: [id], onDelete: Restrict)
+  targetVersion   AdaptiveConfigurationTargetVersion @relation(fields: [targetVersionId], references: [id], onDelete: Restrict)
+
+  @@id([packVersionId, targetVersionId])
+  @@index([targetVersionId])
+}
+
+model AdaptiveConfigurationSession {
+  id                String                          @id @default(uuid()) @db.Uuid
+  organizationId    String                          @db.Uuid
+  profileVersionId  String                          @db.Uuid
+  rulePackVersionId String                          @db.Uuid
+  status            AdaptiveSessionStatus           @default(COLLECTING_INFORMATION)
+  sessionRevision   Int                             @default(0)
+  createdById       String                          @db.Uuid
+  createdAt         DateTime                        @default(now())
+  updatedAt         DateTime                        @updatedAt
+  finalizedAt       DateTime?
+  organization      Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  profileVersion    OrganizationSstProfileVersion   @relation(fields: [profileVersionId], references: [id], onDelete: Restrict)
+  rulePackVersion   AdaptiveRulePackVersion         @relation(fields: [rulePackVersionId], references: [id], onDelete: Restrict)
+  createdBy         User                            @relation("AdaptiveSessionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  scopes            AdaptiveSessionScope[]
+  answers           AdaptiveFactAnswer[]
+  runs              AdaptiveEvaluationRun[]
+  proposals         AdaptiveConfigurationProposal[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+}
+
+model AdaptiveSessionScope {
+  id                  String                       @id @default(uuid()) @db.Uuid
+  organizationId      String                       @db.Uuid
+  sessionId           String                       @db.Uuid
+  scopeKey            String                       @db.VarChar(200)
+  kind                AdaptiveScopeKind
+  workCenterId        String?                      @db.Uuid
+  displayNameSnapshot String                       @db.VarChar(240)
+  activeSnapshot      Boolean                      @default(true)
+  sortOrder           Int
+  createdAt           DateTime                     @default(now())
+  organization        Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  session             AdaptiveConfigurationSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  workCenter          WorkCenter?                  @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  answers             AdaptiveFactAnswer[]
+  questions           AdaptiveGeneratedQuestion[]
+  items               AdaptiveConfigurationItem[]
+
+  @@unique([sessionId, scopeKey])
+  @@index([organizationId, sessionId])
+  @@index([workCenterId])
+}
+
+model AdaptiveFactAnswer {
+  id             String                       @id @default(uuid()) @db.Uuid
+  organizationId String                       @db.Uuid
+  sessionId      String                       @db.Uuid
+  scopeId        String                       @db.Uuid
+  factVersionId  String                       @db.Uuid
+  typedValue     Json
+  source         AdaptiveAnswerSource
+  answeredById   String                       @db.Uuid
+  answeredAt     DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+  organization   Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  session        AdaptiveConfigurationSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  scope          AdaptiveSessionScope         @relation(fields: [scopeId], references: [id], onDelete: Restrict)
+  factVersion    AdaptiveFactVersion          @relation(fields: [factVersionId], references: [id], onDelete: Restrict)
+  answeredBy     User                         @relation("AdaptiveAnswerAuthor", fields: [answeredById], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, scopeId, factVersionId])
+  @@index([organizationId, sessionId])
+}
+
+model AdaptiveEvaluationRun {
+  id              String                         @id @default(uuid()) @db.Uuid
+  organizationId  String                         @db.Uuid
+  sessionId       String                         @db.Uuid
+  runNumber       Int
+  sessionRevision Int
+  engineVersion   String                         @db.VarChar(32)
+  packVersionId   String                         @db.Uuid
+  inputSnapshot   Json
+  outputSnapshot  Json
+  inputHash       String                         @db.VarChar(100)
+  outputHash      String                         @db.VarChar(100)
+  createdAt       DateTime                       @default(now())
+  organization    Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  session         AdaptiveConfigurationSession   @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  questions       AdaptiveGeneratedQuestion[]
+  proposal        AdaptiveConfigurationProposal?
+
+  @@unique([sessionId, runNumber])
+  @@index([organizationId, sessionId, createdAt])
+}
+
+model AdaptiveGeneratedQuestion {
+  id                    String                @id @default(uuid()) @db.Uuid
+  organizationId        String                @db.Uuid
+  evaluationRunId       String                @db.Uuid
+  scopeId               String                @db.Uuid
+  factVersionId         String                @db.Uuid
+  questionText          String                @db.VarChar(240)
+  helpText              String                @db.VarChar(500)
+  answerChoices         Json
+  whyAsked              String                @db.VarChar(500)
+  relatedRuleVersions   Json
+  relatedTargetVersions Json
+  sortOrder             Int
+  createdAt             DateTime              @default(now())
+  organization          Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  evaluationRun         AdaptiveEvaluationRun @relation(fields: [evaluationRunId], references: [id], onDelete: Restrict)
+  scope                 AdaptiveSessionScope  @relation(fields: [scopeId], references: [id], onDelete: Restrict)
+  factVersion           AdaptiveFactVersion   @relation(fields: [factVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([evaluationRunId, scopeId, factVersionId])
+  @@index([organizationId, evaluationRunId, sortOrder])
+}
+
+model AdaptiveConfigurationProposal {
+  id              String                       @id @default(uuid()) @db.Uuid
+  organizationId  String                       @db.Uuid
+  sessionId       String                       @db.Uuid
+  evaluationRunId String                       @unique @db.Uuid
+  proposalVersion Int
+  createdAt       DateTime                     @default(now())
+  organization    Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  session         AdaptiveConfigurationSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  evaluationRun   AdaptiveEvaluationRun        @relation(fields: [evaluationRunId], references: [id], onDelete: Restrict)
+  items           AdaptiveConfigurationItem[]
+
+  @@unique([sessionId, proposalVersion])
+  @@index([organizationId, sessionId, createdAt])
+}
+
+model AdaptiveConfigurationItem {
+  id                    String                             @id @default(uuid()) @db.Uuid
+  organizationId        String                             @db.Uuid
+  proposalId            String                             @db.Uuid
+  scopeId               String                             @db.Uuid
+  targetVersionId       String                             @db.Uuid
+  state                 ApplicabilityState
+  minimumDepth          AdaptiveReviewDepth
+  professionalReview    Boolean                            @default(false)
+  reason                String                             @db.VarChar(500)
+  ruleVersionProvenance Json
+  requirementProvenance Json
+  evidenceSuggestions   Json
+  missingFacts          Json
+  trace                 Json
+  createdAt             DateTime                           @default(now())
+  organization          Organization                       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  proposal              AdaptiveConfigurationProposal      @relation(fields: [proposalId], references: [id], onDelete: Restrict)
+  scope                 AdaptiveSessionScope               @relation(fields: [scopeId], references: [id], onDelete: Restrict)
+  targetVersion         AdaptiveConfigurationTargetVersion @relation(fields: [targetVersionId], references: [id], onDelete: Restrict)
+  currentState          AdaptiveCurrentStateDeclaration?
+
+  @@unique([proposalId, scopeId, targetVersionId])
+  @@index([organizationId, proposalId])
+}
+
+model AdaptiveCurrentStateDeclaration {
+  id             String                         @id @default(uuid()) @db.Uuid
+  organizationId String                         @db.Uuid
+  itemId         String                         @unique @db.Uuid
+  status         AdaptiveCurrentStateStatus
+  declaredById   String                         @db.Uuid
+  declaredAt     DateTime                       @default(now())
+  updatedAt      DateTime                       @updatedAt
+  organization   Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  item           AdaptiveConfigurationItem      @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  declaredBy     User                           @relation("AdaptiveDeclarationAuthor", fields: [declaredById], references: [id], onDelete: Restrict)
+  evidence       AdaptiveCurrentStateEvidence[]
+
+  @@index([organizationId, itemId])
+}
+
+model AdaptiveCurrentStateEvidence {
+  id             String                           @id @default(uuid()) @db.Uuid
+  organizationId String                           @db.Uuid
+  declarationId  String                           @db.Uuid
+  type           AdaptiveCurrentStateEvidenceType
+  note           String?                          @db.VarChar(1000)
+  externalUrl    String?                          @db.VarChar(1000)
+  declaredById   String                           @db.Uuid
+  declaredAt     DateTime                         @default(now())
+  organization   Organization                     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  declaration    AdaptiveCurrentStateDeclaration  @relation(fields: [declarationId], references: [id], onDelete: Restrict)
+  declaredBy     User                             @relation("AdaptiveEvidenceAuthor", fields: [declaredById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, declarationId, declaredAt])
 }
 
 model Membership {
