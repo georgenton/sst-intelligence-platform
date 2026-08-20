@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { Prisma } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -214,6 +215,145 @@ describe('adaptive configuration integration', () => {
     expect(proposal.body.items.length).toBeGreaterThan(0);
     expect(proposal.body).not.toHaveProperty('score');
     const item = proposal.body.items[0];
+
+    const historicalQuestion = await prisma.adaptiveGeneratedQuestion.findFirstOrThrow({
+      where: { evaluationRunId: run1.id },
+      include: { factVersion: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+    const historicalRun = await prisma.adaptiveEvaluationRun.findUniqueOrThrow({
+      where: { id: run1.id },
+    });
+    const historicalItem = await prisma.adaptiveConfigurationItem.findFirstOrThrow({
+      where: { proposalId },
+      include: { targetVersion: true },
+    });
+    const historicalRule = await prisma.adaptiveRulePackRule.findFirstOrThrow({
+      where: { packVersionId: pack.id },
+      include: { ruleVersion: true },
+      orderBy: { ruleVersion: { publishedAt: 'asc' } },
+    });
+    const historicalPack = await prisma.adaptiveRulePackVersion.findUniqueOrThrow({
+      where: { id: pack.id },
+    });
+    const versioningSnapshot = {
+      questionFactVersionId: historicalQuestion.factVersionId,
+      questionText: historicalQuestion.questionText,
+      runPackVersionId: historicalRun.packVersionId,
+      runOutput: historicalRun.outputSnapshot,
+      itemTargetVersionId: historicalItem.targetVersionId,
+      itemTargetTitle: historicalItem.targetVersion.title,
+    };
+    const testVersion = '99.0.0-test';
+    const factV2 =
+      (await prisma.adaptiveFactVersion.findUnique({
+        where: {
+          factDefinitionId_version: {
+            factDefinitionId: historicalQuestion.factVersion.factDefinitionId,
+            version: testVersion,
+          },
+        },
+      })) ??
+      (await prisma.adaptiveFactVersion.create({
+        data: {
+          factDefinitionId: historicalQuestion.factVersion.factDefinitionId,
+          version: testVersion,
+          valueType: historicalQuestion.factVersion.valueType,
+          questionText: 'Redacción v2 que no debe reescribir la pregunta histórica',
+          helpText: historicalQuestion.factVersion.helpText,
+          unknownAllowed: historicalQuestion.factVersion.unknownAllowed,
+          collectionMode: historicalQuestion.factVersion.collectionMode,
+          validation: historicalQuestion.factVersion.validation as Prisma.InputJsonValue,
+          choiceOptions: historicalQuestion.factVersion.choiceOptions as Prisma.InputJsonValue,
+          priority: historicalQuestion.factVersion.priority,
+        },
+      }));
+    const ruleV2 =
+      (await prisma.adaptiveRuleVersion.findUnique({
+        where: {
+          ruleDefinitionId_version: {
+            ruleDefinitionId: historicalRule.ruleVersion.ruleDefinitionId,
+            version: testVersion,
+          },
+        },
+      })) ??
+      (await prisma.adaptiveRuleVersion.create({
+        data: {
+          ruleDefinitionId: historicalRule.ruleVersion.ruleDefinitionId,
+          version: testVersion,
+          schema: historicalRule.ruleVersion.schema as Prisma.InputJsonValue,
+          isDemo: historicalRule.ruleVersion.isDemo,
+          regulatory: historicalRule.ruleVersion.regulatory,
+          demoDisclaimer: historicalRule.ruleVersion.demoDisclaimer,
+        },
+      }));
+    const targetV2 =
+      (await prisma.adaptiveConfigurationTargetVersion.findUnique({
+        where: {
+          targetDefinitionId_version: {
+            targetDefinitionId: historicalItem.targetVersion.targetDefinitionId,
+            version: testVersion,
+          },
+        },
+      })) ??
+      (await prisma.adaptiveConfigurationTargetVersion.create({
+        data: {
+          targetDefinitionId: historicalItem.targetVersion.targetDefinitionId,
+          version: testVersion,
+          title: `${historicalItem.targetVersion.title} v2`,
+          description: historicalItem.targetVersion.description,
+          category: historicalItem.targetVersion.category,
+          currentStateQuestion: historicalItem.targetVersion.currentStateQuestion,
+          evidenceSuggestions: historicalItem.targetVersion
+            .evidenceSuggestions as Prisma.InputJsonValue,
+          isDemo: historicalItem.targetVersion.isDemo,
+        },
+      }));
+    const packV2 =
+      (await prisma.adaptiveRulePackVersion.findUnique({
+        where: {
+          packDefinitionId_version: {
+            packDefinitionId: historicalPack.packDefinitionId,
+            version: testVersion,
+          },
+        },
+      })) ??
+      (await prisma.adaptiveRulePackVersion.create({
+        data: {
+          packDefinitionId: historicalPack.packDefinitionId,
+          version: testVersion,
+          engineSchemaVersion: historicalPack.engineSchemaVersion,
+          schema: historicalPack.schema as Prisma.InputJsonValue,
+          contentHash: `${historicalPack.contentHash}-v2-test`,
+          isDemo: historicalPack.isDemo,
+          regulatory: historicalPack.regulatory,
+          disclaimer: historicalPack.disclaimer,
+        },
+      }));
+    expect({ factV2: factV2.version, ruleV2: ruleV2.version, targetV2: targetV2.version }).toEqual({
+      factV2: testVersion,
+      ruleV2: testVersion,
+      targetV2: testVersion,
+    });
+    expect(packV2.version).toBe(testVersion);
+    const preservedQuestion = await prisma.adaptiveGeneratedQuestion.findUniqueOrThrow({
+      where: { id: historicalQuestion.id },
+    });
+    const preservedRun = await prisma.adaptiveEvaluationRun.findUniqueOrThrow({
+      where: { id: historicalRun.id },
+    });
+    const preservedItem = await prisma.adaptiveConfigurationItem.findUniqueOrThrow({
+      where: { id: historicalItem.id },
+      include: { targetVersion: true },
+    });
+    expect({
+      questionFactVersionId: preservedQuestion.factVersionId,
+      questionText: preservedQuestion.questionText,
+      runPackVersionId: preservedRun.packVersionId,
+      runOutput: preservedRun.outputSnapshot,
+      itemTargetVersionId: preservedItem.targetVersionId,
+      itemTargetTitle: preservedItem.targetVersion.title,
+    }).toEqual(versioningSnapshot);
 
     for (const status of [
       'UNKNOWN',
