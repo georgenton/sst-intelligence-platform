@@ -49,3 +49,11 @@ OfficialDocumentArtifact
 ```
 
 No LLM extraction call is implemented.
+
+## Core question-copy correction discovered by the pilot
+
+Early shadow evaluation exposed that a regulatory pack inherited DEMO-specific `whyAsked` copy.
+The approved repair is commit `b2e4b3b041bb80a4a5cbbdfbcbbd56e269a3d11c`. It separates neutral
+engine-owned regulatory rationale from the editorial wrapper's candidate disclaimer. This was a
+presentation and audit-semantic correction: rule predicates, truth evaluation, state precedence and
+configuration decisions did not change.
