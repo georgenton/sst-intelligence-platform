@@ -1006,7 +1006,7 @@ export const DEMO_ADAPTIVE_FACT_VERSIONS: AdaptiveFactVersionContract[] = [
     'ORGANIZATION',
     'INTEGER',
     '¿Cuántas personas trabajan en total?',
-    { collectionMode: 'DERIVED_ONLY', min: 1, max: 10_000_000, priority: 3 },
+    { collectionMode: 'DERIVED_OR_USER', min: 1, max: 10_000_000, priority: 3 },
   ),
   fact(
     'organization.workCenterCount',
