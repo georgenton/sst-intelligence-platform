@@ -1,5 +1,29 @@
 export const REGULATORY_SOURCE_RECORDED_AT = new Date('2026-08-18T00:00:00.000Z');
 
+export const MDT_2024_196_SOURCE_V2 = {
+  id: 'a2000000-0000-4000-8000-000000000012',
+  sourceKey: 'EC_MDT_2024_196',
+  catalogVersion: 2,
+  candidateStatus: 'APPROVED_FOR_EXTRACTION',
+  officialDocumentLocated: true,
+  officialUrl:
+    'https://www.trabajo.gob.ec/wp-content/uploads/2024/10/ACUERDO-MINISTERIAL-NRO.-MDT-2024-196-signed.pdf',
+  officialDocumentSha256: 'sha256:4fe2da2ddf2b730c0c9e56e321d5a817f94b98d6d9f9e02bb97c18f2cc47473d',
+  officialDocumentRetrievedAt: '2026-08-21T16:45:34.000Z',
+  officialDocumentMediaType: 'application/pdf',
+  officialPublicationReference:
+    'Cuarto Suplemento al Registro Oficial No. 691, 26 de noviembre de 2024',
+  publicationDate: '2024-11-26T00:00:00.000Z',
+  effectiveFrom: null,
+  effectiveTo: null,
+  supersessionStatus: 'UNKNOWN_REVIEW_REQUIRED',
+  readyForExtraction: true,
+  readyForRules: false,
+  reviewNotes:
+    'Identidad y huella del documento oficial verificadas. La vigencia, aplicabilidad e interpretación requieren revisión técnica y jurídica.',
+  recordedAt: '2026-08-21T16:45:34.000Z',
+} as const;
+
 export const REGULATORY_SOURCE_V1 = [
   {
     id: 'a1000000-0000-4000-8000-000000000001',

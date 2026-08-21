@@ -62,7 +62,7 @@ describe('regulatory provision and requirement foundation integration', () => {
     expect(await prisma.regulatoryRequirement.count()).toBe(0);
     expect(await prisma.regulatoryRequirementSource.count()).toBe(0);
     expect(await prisma.regulatorySource.count()).toBe(11);
-    expect(await prisma.regulatorySourceVersion.count()).toBe(11);
+    expect(await prisma.regulatorySourceVersion.count()).toBe(12);
     expect(await prisma.regulatorySourceRelationship.count()).toBe(1);
     expect(await prisma.featureDefinition.count({ where: { key: 'module.applicability' } })).toBe(
       0,

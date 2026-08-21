@@ -1140,22 +1140,26 @@ model RegulatorySource {
 }
 
 model RegulatorySourceVersion {
-  id                      String                       @id @default(uuid()) @db.Uuid
-  sourceId                String                       @db.Uuid
-  catalogVersion          Int
-  candidateStatus         RegulatoryCandidateStatus
-  officialDocumentLocated Boolean                      @default(false)
-  officialUrl             String?
-  publicationDate         DateTime?                    @db.Date
-  effectiveFrom           DateTime?                    @db.Date
-  effectiveTo             DateTime?                    @db.Date
-  supersessionStatus      RegulatorySupersessionStatus
-  readyForExtraction      Boolean                      @default(false)
-  readyForRules           Boolean                      @default(false)
-  reviewNotes             String?
-  recordedAt              DateTime                     @default(now())
-  source                  RegulatorySource             @relation(fields: [sourceId], references: [id], onDelete: Restrict)
-  provisions              RegulatoryProvision[]
+  id                           String                       @id @default(uuid()) @db.Uuid
+  sourceId                     String                       @db.Uuid
+  catalogVersion               Int
+  candidateStatus              RegulatoryCandidateStatus
+  officialDocumentLocated      Boolean                      @default(false)
+  officialUrl                  String?
+  officialDocumentSha256       String?                      @db.VarChar(71)
+  officialDocumentRetrievedAt  DateTime?
+  officialDocumentMediaType    String?                      @db.VarChar(100)
+  officialPublicationReference String?                      @db.VarChar(500)
+  publicationDate              DateTime?                    @db.Date
+  effectiveFrom                DateTime?                    @db.Date
+  effectiveTo                  DateTime?                    @db.Date
+  supersessionStatus           RegulatorySupersessionStatus
+  readyForExtraction           Boolean                      @default(false)
+  readyForRules                Boolean                      @default(false)
+  reviewNotes                  String?
+  recordedAt                   DateTime                     @default(now())
+  source                       RegulatorySource             @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  provisions                   RegulatoryProvision[]
 
   @@unique([sourceId, catalogVersion])
   @@index([candidateStatus, recordedAt])

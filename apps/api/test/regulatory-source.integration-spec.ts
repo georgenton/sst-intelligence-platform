@@ -129,10 +129,30 @@ describe('regulatory source foundation integration', () => {
     expect(sources.map((source) => source.sourceKey).sort()).toEqual(
       [...INITIAL_SOURCE_KEYS].sort(),
     );
-    expect(sources.every((source) => source.versions.length === 1)).toBe(true);
+    expect(
+      sources.every((source) =>
+        source.sourceKey === 'EC_MDT_2024_196'
+          ? source.versions.length === 2
+          : source.versions.length === 1,
+      ),
+    ).toBe(true);
     expect(
       sources.flatMap((source) => source.versions).every((version) => !version.readyForRules),
     ).toBe(true);
+
+    const pilotSource = sources.find((source) => source.sourceKey === 'EC_MDT_2024_196');
+    expect(pilotSource?.versions[1]).toMatchObject({
+      catalogVersion: 2,
+      candidateStatus: 'APPROVED_FOR_EXTRACTION',
+      officialDocumentLocated: true,
+      officialDocumentSha256:
+        'sha256:4fe2da2ddf2b730c0c9e56e321d5a817f94b98d6d9f9e02bb97c18f2cc47473d',
+      officialDocumentMediaType: 'application/pdf',
+      officialPublicationReference:
+        'Cuarto Suplemento al Registro Oficial No. 691, 26 de noviembre de 2024',
+      readyForExtraction: true,
+      readyForRules: false,
+    });
 
     const rejected = sources.find(
       (source) => source.sourceKey === 'EC_IESS_CD_527_INTERVIEW_REFERENCE',
