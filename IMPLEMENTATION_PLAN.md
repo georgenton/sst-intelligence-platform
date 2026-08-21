@@ -37,11 +37,15 @@
 11. Implementar Technical Risk Engine + Experience con métodos versionados, trazabilidad y revisión.
 12. Implementar Applicability Engine + Experience con perfiles, snapshots y seis estados.
 13. Validar Applicability V1 con el laboratorio multiempresa sintético antes de ampliar el dominio.
+14. Implementar Regulatory Source y Provision/Requirement Foundation sin contenido legal real.
+15. Implementar Adaptive Regulatory Reasoning & Configuration Engine V1 con hechos, reglas, preguntas,
+    sesiones, propuestas y estado actual DEMO versionados.
 
 ## Adaptive SST roadmap
 
 - Completado: plataforma, Inspections, Technical Risk, Applicability y Multi-Company Validation Lab.
-- Track paralelo actual: Regulatory Source Foundation V1.
+- Completado: Regulatory Source y Regulatory Provision & Requirement Foundation.
+- Actual: Adaptive Regulatory Reasoning & Configuration Engine V1.
 - Pendiente de validación experta: decisiones de Profile V2 y Current State & Evidence Baseline.
 - Después: Gap Assessment, Depth Resolver + Configuration Proposal y Configuration Activation + MOC.
 
@@ -80,7 +84,9 @@ técnica, revisión legal, redacción de reglas, pruebas y aprobación son gates
 - [x] Technical Risk Engine + Experience.
 - [x] Applicability Engine + Experience.
 - [x] Multi-Company Applicability Validation Lab V1.
-- [ ] Regulatory Source Foundation V1 (track paralelo actual).
+- [x] Regulatory Source Foundation V1.
+- [x] Regulatory Provision & Requirement Foundation V1.
+- [x] Adaptive Regulatory Reasoning & Configuration Engine V1.
 - [ ] Current State & Evidence Baseline V1 (pendiente de validación experta).
 - [ ] Gap Assessment Engine V1.
 - [ ] Depth Resolver y propuesta de configuración.

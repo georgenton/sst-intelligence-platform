@@ -20,10 +20,11 @@ definition, technical review, legal review, rule tests and explicit approval.
 - Applicability Engine and Experience
 - Multi-Company Applicability Validation Lab
 - Regulatory Source Foundation V1
-
-### Current parallel track
-
 - Regulatory Provision & Requirement Foundation V1
+
+### Current
+
+- Adaptive Regulatory Reasoning & Configuration Engine V1
 
 ### Pending expert validation
 
@@ -35,6 +36,12 @@ definition, technical review, legal review, rule tests and explicit approval.
 
 - Controlled provision extraction
 - Requirement review
+- Real rule-pack pilot
+- Organization-wide Current State Baseline
+- Gap Engine
+- Depth validation
+- Configuration Activation
+- Management of Change
 - Rule drafting
 - Rule approval
 - Real rule-pack publication

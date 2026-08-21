@@ -43,6 +43,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm validate:sst-scenarios
+      - run: pnpm validate:adaptive-sst
       - run: pnpm test:integration
       - run: pnpm build
       - run: pnpm --filter @sst/web exec playwright install --with-deps chromium

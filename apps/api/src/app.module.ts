@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AiModule } from './ai/ai.module';
+import { AdaptiveConfigurationModule } from './adaptive-configuration/adaptive-configuration.module';
 import { ApplicabilityModule } from './applicability/applicability.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
@@ -42,6 +43,7 @@ import { TechnicalRiskModule } from './technical-risk/technical-risk.module';
     OrganizationsModule,
     CatalogModule,
     AiModule,
+    AdaptiveConfigurationModule,
     ApplicabilityModule,
     RegulatorySourceModule,
     SolutionFinderModule,

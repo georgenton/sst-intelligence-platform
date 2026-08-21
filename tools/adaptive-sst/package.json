@@ -1,26 +1,20 @@
 {
-  "name": "@sst/contracts",
+  "name": "@sst/adaptive-sst-validator",
   "version": "0.1.0",
   "private": true,
   "type": "commonjs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "require": "./dist/index.js",
-      "default": "./dist/index.js"
-    }
-  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src --max-warnings=0",
     "lint:fix": "eslint src --fix",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run",
+    "validate": "pnpm build && node dist/cli.js"
   },
   "dependencies": {
-    "zod": "4.4.3"
+    "@sst/contracts": "workspace:*"
   },
   "devDependencies": {
     "@sst/typescript-config": "workspace:*",

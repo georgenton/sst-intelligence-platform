@@ -76,6 +76,48 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'applicability', 'assessments'] as const,
     applicabilityAssessment: (organizationId: string, assessmentId: string) =>
       [...privateRoot, 'org', organizationId, 'applicability', 'assessment', assessmentId] as const,
+    adaptiveRulePacks: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'adaptive-configuration', 'rule-packs'] as const,
+    adaptiveSessions: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'adaptive-configuration', 'sessions'] as const,
+    adaptiveSession: (organizationId: string, sessionId: string) =>
+      [
+        ...privateRoot,
+        'org',
+        organizationId,
+        'adaptive-configuration',
+        'session',
+        sessionId,
+      ] as const,
+    adaptiveQuestions: (organizationId: string, sessionId: string) =>
+      [
+        ...privateRoot,
+        'org',
+        organizationId,
+        'adaptive-configuration',
+        'questions',
+        sessionId,
+      ] as const,
+    adaptiveRuns: (organizationId: string, sessionId: string) =>
+      [...privateRoot, 'org', organizationId, 'adaptive-configuration', 'runs', sessionId] as const,
+    adaptiveProposals: (organizationId: string, sessionId: string) =>
+      [
+        ...privateRoot,
+        'org',
+        organizationId,
+        'adaptive-configuration',
+        'proposals',
+        sessionId,
+      ] as const,
+    adaptiveProposal: (organizationId: string, proposalId: string) =>
+      [
+        ...privateRoot,
+        'org',
+        organizationId,
+        'adaptive-configuration',
+        'proposal',
+        proposalId,
+      ] as const,
     regulatorySources: (organizationId: string, filters: string) =>
       [...privateRoot, 'org', organizationId, 'regulatory-sources', 'list', filters] as const,
     regulatorySource: (organizationId: string, sourceKey: string) =>

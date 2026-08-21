@@ -13,6 +13,12 @@ validation reports remain in `.artifacts/` and are not source documentation.
 - [Depth Resolver proposal](domain/depth-resolver-proposal.md)
 - [Expert Applicability Validation Protocol V1](validation/anita-expert-validation-protocol-v1.md)
 - [Ecuador regulatory-source candidates V1](regulatory/ecuador-source-candidates-v1.md)
+- [Adaptive Regulatory Configuration Engine V1](architecture/adaptive-regulatory-configuration-engine-v1.md)
+- [Adaptive Question Planner V1](architecture/adaptive-question-planner-v1.md)
+- [Adaptive Fact Catalog V1](domain/adaptive-fact-catalog-v1.md)
+- [Adaptive Configuration Session V1](domain/adaptive-configuration-session-v1.md)
+- [Adaptive Rule Authoring and Publication V1](regulatory/adaptive-rule-authoring-publication-v1.md)
+- [Anita validation findings — round 1](product/anita-validation-findings-round1.md)
 
 ## Architecture and operations
 

@@ -149,6 +149,9 @@ export function ApplicabilityWorkspace() {
           description="Consulta perfiles versionados y evaluaciones determinísticas. Los resultados son históricos y no activan una configuración operativa."
           action={
             <div className="applicability-detail-actions">
+              <Link className="button secondary" href="/app/applicability/adaptive">
+                Configuración dinámica
+              </Link>
               <Link className="button secondary" href="/app/applicability/sources">
                 Fuentes de referencia
               </Link>

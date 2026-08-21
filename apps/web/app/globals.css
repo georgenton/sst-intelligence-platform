@@ -256,6 +256,170 @@ h2 {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 10px;
 }
+
+.adaptive-workspace {
+  min-width: 0;
+}
+.adaptive-demo-notice {
+  border: 1px solid var(--demo-banner-border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  background: var(--warning);
+  color: var(--demo-banner-fg);
+}
+.adaptive-demo-notice p {
+  margin: 6px 0 0;
+}
+.adaptive-section,
+.adaptive-proposal,
+.adaptive-question-flow,
+.adaptive-start-form {
+  display: grid;
+  gap: 18px;
+}
+.adaptive-section-heading,
+.adaptive-session-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.adaptive-session-summary {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: var(--surface-card);
+}
+.adaptive-session-list,
+.adaptive-proposal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 16px;
+}
+.adaptive-session-card,
+.adaptive-proposal-item,
+.adaptive-question-card,
+.adaptive-start-form fieldset,
+.adaptive-question-flow fieldset,
+.adaptive-current-state fieldset {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
+  background: var(--surface-card);
+}
+.adaptive-session-card,
+.adaptive-proposal-item,
+.adaptive-question-card,
+.adaptive-current-state,
+.adaptive-evidence-list {
+  display: grid;
+  gap: 12px;
+}
+.adaptive-session-card h3,
+.adaptive-proposal-item h4 {
+  margin: 0;
+}
+.adaptive-session-card dl,
+.adaptive-proposal-item dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.adaptive-session-card dl div,
+.adaptive-proposal-item dl div {
+  display: grid;
+  gap: 4px;
+}
+.adaptive-session-card dt,
+.adaptive-proposal-item dt {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+.adaptive-session-card dd,
+.adaptive-proposal-item dd {
+  margin: 0;
+  font-weight: 700;
+}
+.adaptive-start-form fieldset,
+.adaptive-question-flow fieldset,
+.adaptive-current-state fieldset {
+  display: grid;
+  gap: 10px;
+}
+.adaptive-start-form legend,
+.adaptive-question-flow legend,
+.adaptive-current-state legend {
+  padding-inline: 6px;
+  font-weight: 800;
+}
+.adaptive-start-form label,
+.adaptive-question-card label,
+.adaptive-current-state label {
+  font-weight: 700;
+}
+.adaptive-start-form input,
+.adaptive-start-form select,
+.adaptive-question-card input,
+.adaptive-question-card select,
+.adaptive-current-state input,
+.adaptive-current-state select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border-interactive);
+  border-radius: 9px;
+  padding: 9px 11px;
+  color: var(--ink);
+  background: var(--surface-card);
+}
+.adaptive-question-card details,
+.adaptive-proposal-item details {
+  min-width: 0;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.adaptive-question-card summary,
+.adaptive-proposal-item summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.adaptive-proposal-scope {
+  display: grid;
+  gap: 12px;
+}
+.adaptive-proposal-item pre {
+  max-width: 100%;
+  overflow: auto;
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface-inverse);
+  color: var(--text-inverse);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.adaptive-current-state {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.adaptive-evidence-list a {
+  color: var(--brand);
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .adaptive-section-heading,
+  .adaptive-session-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .adaptive-session-card .button,
+  .adaptive-start-form .button,
+  .adaptive-question-flow .button {
+    width: 100%;
+  }
+}
 .check {
   display: flex;
   gap: 9px;
