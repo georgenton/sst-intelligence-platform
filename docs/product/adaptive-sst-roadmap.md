@@ -25,10 +25,11 @@ definition, technical review, legal review, rule tests and explicit approval.
 - Multi-Company Applicability Validation Lab
 - Regulatory Source Foundation V1
 - Regulatory Provision & Requirement Foundation V1
+- Adaptive Regulatory Reasoning & Configuration Engine V1
 
 ### Current
 
-- Adaptive Regulatory Reasoning & Configuration Engine V1
+- Controlled Real Regulatory Pilot — MDT-2024-196
 
 ### Pending expert validation
 
@@ -36,11 +37,16 @@ definition, technical review, legal review, rule tests and explicit approval.
 - Current State & Evidence Baseline
 - Inspection depth rules
 
+### Next after expert review
+
+- Approved provision content
+- Approved requirement content
+- First real regulatory RuleVersion
+- First real regulatory PackVersion
+- Runtime pilot with a synthetic organization
+
 ### Future regulatory track
 
-- Controlled provision extraction
-- Requirement review
-- Real rule-pack pilot
 - Organization-wide Current State Baseline
 - Gap Engine
 - Depth validation
@@ -49,6 +55,9 @@ definition, technical review, legal review, rule tests and explicit approval.
 - Rule drafting
 - Rule approval
 - Real rule-pack publication
+
+Large-scale regulatory ingestion remains out of scope until the controlled pilot and expert review
+close successfully.
 
 ### Then
 

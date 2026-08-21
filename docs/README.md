@@ -18,6 +18,11 @@ validation reports remain in `.artifacts/` and are not source documentation.
 - [Adaptive Fact Catalog V1](domain/adaptive-fact-catalog-v1.md)
 - [Adaptive Configuration Session V1](domain/adaptive-configuration-session-v1.md)
 - [Adaptive Rule Authoring and Publication V1](regulatory/adaptive-rule-authoring-publication-v1.md)
+- [Controlled Real Regulatory Pilot V1](regulatory/real-regulatory-pilot-v1.md)
+- [Official source verification](regulatory/official-source-verification.md)
+- [Editorial manifest format](regulatory/editorial-manifest-format.md)
+- [Candidate shadow evaluation](regulatory/shadow-evaluation.md)
+- [Anita validation round 2](product/anita-validation-round2-regulatory-pilot.md)
 - [Anita validation findings — round 1](product/anita-validation-findings-round1.md)
 
 ## Architecture and operations
