@@ -1,0 +1,165 @@
+[
+  {
+    "ruleDefinitionId": "b3000000-0000-4000-8000-000000000001",
+    "draftId": "b4000000-0000-4000-8000-000000000001",
+    "revision": 1,
+    "status": "TECHNICAL_REVIEW_PENDING",
+    "technicalExpertDecision": "PENDING",
+    "legalReviewDecision": "PENDING",
+    "requirementKeys": ["MDT_2024_196_SST_RESPONSIBLE_REGISTRATION"],
+    "rule": {
+      "ruleKey": "MDT_2024_196_SST_RESPONSIBLE_REGISTRATION_RULE",
+      "version": "1.0.0",
+      "groupKey": "MDT_2024_196_WORKER_BANDS",
+      "scopeMode": "ORGANIZATION",
+      "condition": {
+        "kind": "PREDICATE",
+        "factKey": "organization.totalWorkerCount",
+        "factScope": "ORGANIZATION",
+        "operator": "NUMBER_GTE",
+        "value": 1
+      },
+      "targetKey": "SST_RESPONSIBLE_REGISTRATION",
+      "state": "MANDATORY",
+      "minimumDepth": "BASIC_VISIBLE",
+      "professionalReview": true,
+      "reasonCode": "MDT_2024_196_ART_18_19_RESPONSIBLE",
+      "explanation": "Esta regla se deriva de los artículos 18 y 19 del MDT-2024-196 y requiere revisión profesional antes de publicarse.",
+      "isDemo": false,
+      "regulatory": true
+    }
+  },
+  {
+    "ruleDefinitionId": "b3000000-0000-4000-8000-000000000002",
+    "draftId": "b4000000-0000-4000-8000-000000000002",
+    "revision": 1,
+    "status": "TECHNICAL_REVIEW_PENDING",
+    "technicalExpertDecision": "PENDING",
+    "legalReviewDecision": "PENDING",
+    "requirementKeys": ["MDT_2024_196_PREVENTION_PLAN_REGISTRATION"],
+    "rule": {
+      "ruleKey": "MDT_2024_196_PREVENTION_PLAN_1_TO_10_RULE",
+      "version": "1.0.0",
+      "groupKey": "MDT_2024_196_WORKER_BANDS",
+      "scopeMode": "ORGANIZATION",
+      "condition": {
+        "kind": "GROUP",
+        "mode": "ALL",
+        "clauses": [
+          {
+            "kind": "PREDICATE",
+            "factKey": "organization.totalWorkerCount",
+            "factScope": "ORGANIZATION",
+            "operator": "NUMBER_GTE",
+            "value": 1
+          },
+          {
+            "kind": "PREDICATE",
+            "factKey": "organization.totalWorkerCount",
+            "factScope": "ORGANIZATION",
+            "operator": "NUMBER_LTE",
+            "value": 10
+          }
+        ]
+      },
+      "targetKey": "PREVENTION_PLAN_REGISTRATION",
+      "state": "MANDATORY",
+      "minimumDepth": "BASIC_VISIBLE",
+      "professionalReview": true,
+      "reasonCode": "MDT_2024_196_ART_18_PLAN",
+      "explanation": "Esta regla se deriva del artículo 18 del MDT-2024-196 y requiere revisión profesional antes de publicarse.",
+      "isDemo": false,
+      "regulatory": true
+    }
+  },
+  {
+    "ruleDefinitionId": "b3000000-0000-4000-8000-000000000003",
+    "draftId": "b4000000-0000-4000-8000-000000000003",
+    "revision": 1,
+    "status": "TECHNICAL_REVIEW_PENDING",
+    "technicalExpertDecision": "PENDING",
+    "legalReviewDecision": "PENDING",
+    "requirementKeys": ["MDT_2024_196_HYGIENE_SAFETY_REGULATION_REGISTRATION"],
+    "rule": {
+      "ruleKey": "MDT_2024_196_HYGIENE_SAFETY_REGULATION_GT_10_RULE",
+      "version": "1.0.0",
+      "groupKey": "MDT_2024_196_WORKER_BANDS",
+      "scopeMode": "ORGANIZATION",
+      "condition": {
+        "kind": "PREDICATE",
+        "factKey": "organization.totalWorkerCount",
+        "factScope": "ORGANIZATION",
+        "operator": "NUMBER_GTE",
+        "value": 11
+      },
+      "targetKey": "HYGIENE_SAFETY_REGULATION_REGISTRATION",
+      "state": "MANDATORY",
+      "minimumDepth": "BASIC_VISIBLE",
+      "professionalReview": true,
+      "reasonCode": "MDT_2024_196_ART_19_REGULATION",
+      "explanation": "Esta regla se deriva del artículo 19 del MDT-2024-196 y requiere revisión profesional antes de publicarse.",
+      "isDemo": false,
+      "regulatory": true
+    }
+  },
+  {
+    "ruleDefinitionId": "b3000000-0000-4000-8000-000000000004",
+    "draftId": "b4000000-0000-4000-8000-000000000004",
+    "revision": 1,
+    "status": "TECHNICAL_REVIEW_PENDING",
+    "technicalExpertDecision": "PENDING",
+    "legalReviewDecision": "PENDING",
+    "requirementKeys": ["MDT_2024_196_PSYCHOSOCIAL_PROGRAM_REGISTRATION"],
+    "rule": {
+      "ruleKey": "MDT_2024_196_PSYCHOSOCIAL_PROGRAM_GT_10_RULE",
+      "version": "1.0.0",
+      "groupKey": "MDT_2024_196_WORKER_BANDS",
+      "scopeMode": "ORGANIZATION",
+      "condition": {
+        "kind": "PREDICATE",
+        "factKey": "organization.totalWorkerCount",
+        "factScope": "ORGANIZATION",
+        "operator": "NUMBER_GTE",
+        "value": 11
+      },
+      "targetKey": "PSYCHOSOCIAL_PROGRAM_REGISTRATION",
+      "state": "MANDATORY",
+      "minimumDepth": "BASIC_VISIBLE",
+      "professionalReview": true,
+      "reasonCode": "MDT_2024_196_ART_19_PSYCHOSOCIAL",
+      "explanation": "Esta regla se deriva del artículo 19 del MDT-2024-196 y requiere revisión profesional antes de publicarse.",
+      "isDemo": false,
+      "regulatory": true
+    }
+  },
+  {
+    "ruleDefinitionId": "b3000000-0000-4000-8000-000000000005",
+    "draftId": "b4000000-0000-4000-8000-000000000005",
+    "revision": 1,
+    "status": "TECHNICAL_REVIEW_PENDING",
+    "technicalExpertDecision": "PENDING",
+    "legalReviewDecision": "PENDING",
+    "requirementKeys": ["MDT_2024_196_ANNUAL_TRAINING_PLAN_REGISTRATION"],
+    "rule": {
+      "ruleKey": "MDT_2024_196_ANNUAL_TRAINING_PLAN_GT_10_RULE",
+      "version": "1.0.0",
+      "groupKey": "MDT_2024_196_WORKER_BANDS",
+      "scopeMode": "ORGANIZATION",
+      "condition": {
+        "kind": "PREDICATE",
+        "factKey": "organization.totalWorkerCount",
+        "factScope": "ORGANIZATION",
+        "operator": "NUMBER_GTE",
+        "value": 11
+      },
+      "targetKey": "ANNUAL_TRAINING_PLAN_REGISTRATION",
+      "state": "MANDATORY",
+      "minimumDepth": "BASIC_VISIBLE",
+      "professionalReview": true,
+      "reasonCode": "MDT_2024_196_ART_19_TRAINING",
+      "explanation": "Esta regla se deriva del artículo 19 del MDT-2024-196 y requiere revisión profesional antes de publicarse.",
+      "isDemo": false,
+      "regulatory": true
+    }
+  }
+]

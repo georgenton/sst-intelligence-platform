@@ -7,3 +7,4 @@ export * from './regulatory-source.js';
 export * from './regulatory-content.js';
 export * from './adaptive-configuration.js';
 export * from './risk-methodology.js';
+export * from './regulatory-pilot.js';

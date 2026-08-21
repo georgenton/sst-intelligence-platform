@@ -18,6 +18,7 @@
     "prisma:reset": "prisma migrate reset",
     "reference:sync": "node dist/reference-data/reference-sync.cli.js",
     "production:release": "pnpm prisma:deploy && pnpm reference:sync",
+    "regulatory:import-pilot": "ts-node --transpile-only --project prisma/tsconfig.seed.json prisma/regulatory-pilot-import-cli.ts",
     "test:reference-sync": "node test/reference-sync.integration.mjs"
   },
   "dependencies": {

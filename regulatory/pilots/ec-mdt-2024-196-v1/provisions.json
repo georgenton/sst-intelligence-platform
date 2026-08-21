@@ -1,0 +1,28 @@
+[
+  {
+    "candidateId": "b1000000-0000-4000-8000-000000000018",
+    "provisionKey": "MDT_2024_196_ART_18",
+    "sourceKey": "EC_MDT_2024_196",
+    "sourceCatalogVersion": 2,
+    "officialDocumentSha256": "sha256:4fe2da2ddf2b730c0c9e56e321d5a817f94b98d6d9f9e02bb97c18f2cc47473d",
+    "locatorType": "ARTICLE",
+    "locatorLabel": "Artículo 18",
+    "heading": "Registros para empleadores con 1 a 10 trabajadores",
+    "summary": "Candidato editorial sobre la solicitud de aprobación y el registro, notificación o reporte en la plataforma ministerial para empleadores con 1 a 10 trabajadores.",
+    "editorialStatus": "TECHNICAL_REVIEW_PENDING",
+    "reviewNotes": "Confirmar con revisión técnica y jurídica el alcance de cada literal y su relación con otras normas antes de aprobar requisitos o reglas."
+  },
+  {
+    "candidateId": "b1000000-0000-4000-8000-000000000019",
+    "provisionKey": "MDT_2024_196_ART_19",
+    "sourceKey": "EC_MDT_2024_196",
+    "sourceCatalogVersion": 2,
+    "officialDocumentSha256": "sha256:4fe2da2ddf2b730c0c9e56e321d5a817f94b98d6d9f9e02bb97c18f2cc47473d",
+    "locatorType": "ARTICLE",
+    "locatorLabel": "Artículo 19",
+    "heading": "Registros para empleadores con más de 10 trabajadores",
+    "summary": "Candidato editorial sobre la solicitud de aprobación y el registro, notificación o reporte en la plataforma ministerial para empleadores con más de 10 trabajadores.",
+    "editorialStatus": "TECHNICAL_REVIEW_PENDING",
+    "reviewNotes": "Confirmar con revisión técnica y jurídica el alcance de cada literal y sus dependencias antes de aprobar requisitos o reglas."
+  }
+]

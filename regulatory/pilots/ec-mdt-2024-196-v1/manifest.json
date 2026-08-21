@@ -1,0 +1,13 @@
+{
+  "pilotKey": "EC_MDT_2024_196_V1",
+  "pilotVersion": "1.0.0",
+  "status": "TECHNICAL_REVIEW_PENDING",
+  "materialFiles": [
+    "source.json",
+    "provisions.json",
+    "requirements.json",
+    "rule-drafts.json",
+    "shadow-pack.json"
+  ],
+  "manifestSha256": "sha256:d5cd0e5abeba1e2e22e126f076347a2ad126df3df32fd5d8b8014093f6503917"
+}
