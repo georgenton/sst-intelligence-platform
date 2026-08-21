@@ -6,7 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
-const INITIAL_SOURCE_KEYS = [
+const CORPUS_SOURCE_KEYS = [
   'EC_MDT_2024_196',
   'EC_MDT_2024_196_ANNEX_1',
   'EC_MDT_2024_196_ANNEX_2',
@@ -18,6 +18,10 @@ const INITIAL_SOURCE_KEYS = [
   'EC_IESS_CD_517',
   'EC_IESS_CD_527_INTERVIEW_REFERENCE',
   'EC_IESS_CD_677',
+  'EC_IESS_CD_692',
+  'EC_CAN_DECISION_584',
+  'EC_CAN_RESOLUTION_957',
+  'EC_MDT_2025_122_CONSTRUCTION',
 ] as const;
 
 const BASELINE_PLAN_FEATURES = {
@@ -119,21 +123,26 @@ describe('regulatory source foundation integration', () => {
       .set('x-organization-id', organizationId);
   }
 
-  it('provisions exactly the 11 candidates with conservative safety metadata', async () => {
+  it('provisions exactly the 15 review-corpus sources with conservative safety metadata', async () => {
     const sources = await prisma.regulatorySource.findMany({
-      where: { sourceKey: { in: [...INITIAL_SOURCE_KEYS] } },
+      where: { sourceKey: { in: [...CORPUS_SOURCE_KEYS] } },
       include: { versions: { orderBy: { catalogVersion: 'asc' } } },
       orderBy: { sourceKey: 'asc' },
     });
-    expect(sources).toHaveLength(11);
+    expect(sources).toHaveLength(15);
     expect(sources.map((source) => source.sourceKey).sort()).toEqual(
-      [...INITIAL_SOURCE_KEYS].sort(),
+      [...CORPUS_SOURCE_KEYS].sort(),
     );
+    const singleVersionKeys = new Set([
+      'EC_CAN_DECISION_584',
+      'EC_CAN_RESOLUTION_957',
+      'EC_IESS_CD_527_INTERVIEW_REFERENCE',
+      'EC_IESS_CD_692',
+      'EC_MDT_2025_122_CONSTRUCTION',
+    ]);
     expect(
-      sources.every((source) =>
-        source.sourceKey === 'EC_MDT_2024_196'
-          ? source.versions.length === 2
-          : source.versions.length === 1,
+      sources.every(
+        (source) => source.versions.length === (singleVersionKeys.has(source.sourceKey) ? 1 : 2),
       ),
     ).toBe(true);
     expect(
@@ -175,6 +184,43 @@ describe('regulatory source foundation integration', () => {
       },
     });
     expect(relationship.reviewStatus).toBe('PENDING_REVIEW');
+
+    const amendment = await prisma.regulatorySourceRelationship.findUniqueOrThrow({
+      where: {
+        fromSourceId_toSourceId_relationshipType: {
+          fromSourceId: sources.find((source) => source.sourceKey === 'EC_IESS_CD_692')!.id,
+          toSourceId: sources.find((source) => source.sourceKey === 'EC_IESS_CD_513')!.id,
+          relationshipType: 'POSSIBLE_AMENDMENT',
+        },
+      },
+    });
+    expect(amendment.reviewStatus).toBe('CONFIRMED');
+    expect(
+      sources.find((source) => source.sourceKey === 'EC_MDT_2025_122_CONSTRUCTION')?.versions[0],
+    ).toMatchObject({
+      candidateStatus: 'APPROVED_FOR_EXTRACTION',
+      officialDocumentSha256:
+        'sha256:5a91139893f97fdd2214b471563cdd47d8f539c1773c90520319d51c0284e5f0',
+      readyForExtraction: true,
+      readyForRules: false,
+    });
+    const unstructuredCorpusSourceKeys = CORPUS_SOURCE_KEYS.filter(
+      (sourceKey) => sourceKey !== 'EC_MDT_2024_196',
+    );
+    expect(
+      await prisma.regulatoryProvision.count({
+        where: { sourceVersion: { source: { sourceKey: { in: unstructuredCorpusSourceKeys } } } },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.regulatoryRequirementSource.count({
+        where: {
+          provision: {
+            sourceVersion: { source: { sourceKey: { in: unstructuredCorpusSourceKeys } } },
+          },
+        },
+      }),
+    ).toBe(0);
   });
 
   it('preserves the exact baseline commercial feature and plan assignment matrix', async () => {
@@ -225,9 +271,9 @@ describe('regulatory source foundation integration', () => {
     expect(listA.body).toEqual(listB.body);
     expect(
       listA.body.filter((source: { sourceKey: string }) =>
-        INITIAL_SOURCE_KEYS.includes(source.sourceKey as (typeof INITIAL_SOURCE_KEYS)[number]),
+        CORPUS_SOURCE_KEYS.includes(source.sourceKey as (typeof CORPUS_SOURCE_KEYS)[number]),
       ),
-    ).toHaveLength(11);
+    ).toHaveLength(15);
     expect(listA.body[0]).not.toHaveProperty('organizationId');
     expect(listA.body[0]).not.toHaveProperty('legalStatus');
     expect(listA.body[0]).not.toHaveProperty('isApplicable');
