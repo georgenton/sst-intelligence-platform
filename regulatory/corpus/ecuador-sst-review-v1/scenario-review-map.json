@@ -1,0 +1,168 @@
+{
+  "outputType": "SUGGESTED_SOURCES_FOR_REVIEW",
+  "applicabilityBoundary": "REVIEW_SOURCE_IS_NOT_APPLICABLE_RULE",
+  "scenarios": [
+    {
+      "scenarioKey": "small-services",
+      "displayName": "Pequeña empresa de servicios — 6 personas",
+      "heading": "Fuentes que proponemos revisar para este caso",
+      "sourceSuggestions": [
+        {
+          "sourceKey": "EC_MDT_2024_196",
+          "reviewReason": "Fuente general de SST con una interpretación candidata limitada a los artículos 18 y 19.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_EXECUTIVE_DECREE_255",
+          "reviewReason": "Fuente general del marco SST.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_LABOR_CODE",
+          "reviewReason": "Fuente general laboral relacionada con SST.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_CAN_DECISION_584",
+          "reviewReason": "Instrumento andino relacionado con SST.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "POSSIBLE_REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_CAN_RESOLUTION_957",
+          "reviewReason": "Reglamento andino relacionado con SST.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "POSSIBLE_REVIEW_SOURCE"
+        }
+      ],
+      "missingSourcePrompt": "¿Falta algún documento que tú revisarías?",
+      "exclusionPrompt": "¿Hay algún documento aquí que no usarías para este caso?"
+    },
+    {
+      "scenarioKey": "chemical-pharma",
+      "displayName": "Empresa química/farmacéutica — 80 personas",
+      "heading": "Fuentes que proponemos revisar para este caso",
+      "sourceSuggestions": [
+        {
+          "sourceKey": "EC_MDT_2024_196",
+          "reviewReason": "Fuente general de SST con una interpretación candidata limitada a los artículos 18 y 19.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_EXECUTIVE_DECREE_255",
+          "reviewReason": "Fuente general del marco SST.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_MDT_2024_196_ANNEX_3",
+          "reviewReason": "Anexo técnico relacionado con SST y procesos con riesgos químicos.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_MSP_00004_2026_SISAT",
+          "reviewReason": "Fuente relacionada con salud en el trabajo.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_IESS_CD_513",
+          "reviewReason": "Fuente relacionada con riesgos del trabajo.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "POSSIBLE_REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_IESS_CD_692",
+          "reviewReason": "Reforma relacionada con la fuente de riesgos del trabajo C.D. 513.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "POSSIBLE_REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_CAN_DECISION_584",
+          "reviewReason": "Instrumento andino relacionado con SST.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "POSSIBLE_REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_CAN_RESOLUTION_957",
+          "reviewReason": "Reglamento andino relacionado con SST.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "POSSIBLE_REVIEW_SOURCE"
+        }
+      ],
+      "missingSourcePrompt": "¿Falta algún documento que tú revisarías?",
+      "exclusionPrompt": "¿Hay algún documento aquí que no usarías para este caso?"
+    },
+    {
+      "scenarioKey": "construction",
+      "displayName": "Empresa de construcción — 18 personas",
+      "heading": "Fuentes que proponemos revisar para este caso",
+      "sourceSuggestions": [
+        {
+          "sourceKey": "EC_MDT_2025_122_CONSTRUCTION",
+          "reviewReason": "Fuente específica del sector construcción.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_MDT_2024_196",
+          "reviewReason": "Fuente general de SST con una interpretación candidata limitada a los artículos 18 y 19.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_EXECUTIVE_DECREE_255",
+          "reviewReason": "Fuente general del marco SST.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_LABOR_CODE",
+          "reviewReason": "Fuente general laboral relacionada con SST.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_MDT_2024_196_ANNEX_1",
+          "reviewReason": "Anexo de verificación relacionado con SST.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "POSSIBLE_REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_MDT_2024_196_ANNEX_3",
+          "reviewReason": "Anexo técnico relacionado con SST.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "POSSIBLE_REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_CAN_DECISION_584",
+          "reviewReason": "Instrumento andino relacionado con SST.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "POSSIBLE_REVIEW_SOURCE"
+        },
+        {
+          "sourceKey": "EC_CAN_RESOLUTION_957",
+          "reviewReason": "Reglamento andino relacionado con SST.",
+          "status": "PENDING_EXPERT_REVIEW",
+          "presentation": "POSSIBLE_REVIEW_SOURCE"
+        }
+      ],
+      "missingSourcePrompt": "¿Falta algún documento que tú revisarías?",
+      "exclusionPrompt": "¿Hay algún documento aquí que no usarías para este caso?"
+    }
+  ],
+  "missingSourceCapture": {
+    "type": "MISSING_SOURCE_REFERENCE",
+    "title": "",
+    "issuer": "",
+    "referenceNumber": "",
+    "whyRelevant": "",
+    "scenario": "",
+    "expertNotes": ""
+  }
+}

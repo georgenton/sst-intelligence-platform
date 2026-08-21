@@ -1,0 +1,24 @@
+{
+  "corpusKey": "ECUADOR_SST_MULTI_SOURCE_REVIEW_V1",
+  "corpusVersion": "1.0.0",
+  "status": "REVIEW_ONLY",
+  "sourceFiles": [
+    "sources/ec-can-decision-584.json",
+    "sources/ec-can-resolution-957.json",
+    "sources/ec-executive-decree-255.json",
+    "sources/ec-iess-cd-513.json",
+    "sources/ec-iess-cd-517.json",
+    "sources/ec-iess-cd-527-interview-reference.json",
+    "sources/ec-iess-cd-677.json",
+    "sources/ec-iess-cd-692.json",
+    "sources/ec-labor-code.json",
+    "sources/ec-mdt-2024-196-annex-1.json",
+    "sources/ec-mdt-2024-196-annex-2.json",
+    "sources/ec-mdt-2024-196-annex-3.json",
+    "sources/ec-mdt-2024-196.json",
+    "sources/ec-mdt-2025-122-construction.json",
+    "sources/ec-msp-00004-2026-sisat.json"
+  ],
+  "materialFiles": ["relationships.json", "scenario-review-map.json"],
+  "corpusSha256": "sha256:5e2924d5c0dee77427fe4a4bc30c0856ff9875558a03226b678d841e059807c8"
+}

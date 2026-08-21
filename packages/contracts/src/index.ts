@@ -8,3 +8,4 @@ export * from './regulatory-content.js';
 export * from './adaptive-configuration.js';
 export * from './risk-methodology.js';
 export * from './regulatory-pilot.js';
+export * from './regulatory-review-corpus.js';

@@ -13,6 +13,7 @@
     "test": "vitest run",
     "validate": "pnpm build && node dist/cli.js",
     "review-bundle": "pnpm build && node dist/review-bundle-cli.js",
+    "review-corpus": "pnpm build && node dist/review-corpus-cli.js",
     "verify-source": "pnpm build && node dist/source-verifier-cli.js"
   },
   "dependencies": {

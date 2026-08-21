@@ -26,6 +26,7 @@ import {
 } from './regulatory-source-reference-data';
 import { assertPublishedVersionMatches } from '../src/adaptive-configuration/adaptive-reference-integrity';
 import { syncGlobalReferenceData } from '../src/reference-data/risk-methodology-reference-sync';
+import { provisionRegulatoryReviewCorpus } from './regulatory-review-corpus-reference-data';
 
 const prisma = new PrismaClient();
 
@@ -811,6 +812,8 @@ async function main() {
     })),
     skipDuplicates: true,
   });
+
+  await provisionRegulatoryReviewCorpus(prisma);
 
   await provisionAdaptiveDemoReferenceData();
 }
