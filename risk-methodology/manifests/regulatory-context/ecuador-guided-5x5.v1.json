@@ -1,0 +1,27 @@
+{
+  "contextKey": "EC_GUIDED_5X5_CONTEXT",
+  "contextVersion": "1.0.0",
+  "jurisdiction": "EC",
+  "methodKey": "GUIDED_5X5",
+  "methodVersion": "1.0.0",
+  "relationship": "CONTEXT_NOT_LEGAL_ENDORSEMENT",
+  "regulatorySourceReferences": [
+    {
+      "sourceKey": "EC_EXECUTIVE_DECREE_255",
+      "locator": "Artículo 47 — metodologías reconocidas para identificación y evaluación",
+      "officialUrl": "https://www.trabajo.gob.ec/wp-content/uploads/2024/01/DECRETO-EJECUTIVO-255-REGLAMENTO-DE-SEGURIDAD-Y-SALUD-DE-LOS-TRABAJADORES.pdf",
+      "reviewStatus": "PENDING"
+    },
+    {
+      "sourceKey": "EC_MDT_2024_196_ANNEX_1",
+      "locator": "Lista de verificación SST — metodología reconocida/validada y riesgo residual",
+      "officialUrl": "https://www.trabajo.gob.ec/wp-content/uploads/2025/04/Anexo-1_Lista-de-Verificacion-SST-signed-signed_08042025.pdf",
+      "reviewStatus": "PENDING"
+    }
+  ],
+  "statement": "Una matriz 5×5 organizacional requiere reconocimiento y validación aplicables. Este candidato genérico no es un método oficial ecuatoriano.",
+  "technicalReviewStatus": "PENDING",
+  "legalReviewStatus": "PENDING",
+  "officialSutMethodOptions": "PENDING",
+  "contentHash": "10d3c058c8c7dac180a49f95af42f7933cbd3fb7ac525c54ccee92b15f6dbe8e"
+}

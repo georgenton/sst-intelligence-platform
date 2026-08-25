@@ -1,0 +1,19 @@
+{
+  "methodKey": "DEMO_5X5",
+  "semanticVersion": "1.0.0",
+  "displayName": "Matriz demostrativa 5×5 histórica",
+  "methodKind": "INSPECTION_FINDING_RISK",
+  "calculationProviderKey": "HISTORICAL_DEMO_5X5",
+  "calculationProviderVersion": "1.0.0",
+  "inputSchemaVersion": "1.0.0",
+  "resultSchemaVersion": "1.0.0",
+  "isDemo": true,
+  "regulatory": false,
+  "publicationStatus": "PUBLISHED",
+  "technicalReviewStatus": "PENDING",
+  "legalReviewStatus": "NOT_APPLICABLE",
+  "sourceReferences": [],
+  "regulatoryContextReferences": [],
+  "disclaimer": "Método histórico demostrativo. No constituye metodología ecuatoriana validada y sus resultados existentes no se recalculan.",
+  "contentHash": "6fe9d271921d5cc8c9690afc2f55592079c1f4ca28c2a6a04e23e51486919ea2"
+}

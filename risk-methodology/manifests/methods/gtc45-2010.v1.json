@@ -1,0 +1,24 @@
+{
+  "methodKey": "GTC45_2010",
+  "semanticVersion": "1.0.0",
+  "displayName": "GTC 45 — edición 2010",
+  "methodKind": "HAZARD_RISK_ASSESSMENT",
+  "calculationProviderKey": "GTC45_2010_CANONICAL",
+  "calculationProviderVersion": "1.0.0",
+  "inputSchemaVersion": "1.0.0",
+  "resultSchemaVersion": "1.0.0",
+  "isDemo": true,
+  "regulatory": false,
+  "publicationStatus": "CANDIDATE",
+  "technicalReviewStatus": "PENDING",
+  "legalReviewStatus": "PENDING",
+  "sourceReferences": [
+    {
+      "sourceKey": "CO_GTC45_2010",
+      "sourceVersion": "1.0.0"
+    }
+  ],
+  "regulatoryContextReferences": ["EC_GTC45_2010_CONTEXT"],
+  "disclaimer": "Metodología técnica colombiana candidata para revisión. No es ley ecuatoriana ni está aprobada para producción.",
+  "contentHash": "7effe32a1fca09492228ac462d092d7204be55f144f5a75302bd3bb950d3a8ef"
+}

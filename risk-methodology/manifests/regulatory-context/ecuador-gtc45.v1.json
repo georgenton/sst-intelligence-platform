@@ -1,0 +1,27 @@
+{
+  "contextKey": "EC_GTC45_2010_CONTEXT",
+  "contextVersion": "1.0.0",
+  "jurisdiction": "EC",
+  "methodKey": "GTC45_2010",
+  "methodVersion": "1.0.0",
+  "relationship": "CONTEXT_NOT_LEGAL_ENDORSEMENT",
+  "regulatorySourceReferences": [
+    {
+      "sourceKey": "EC_EXECUTIVE_DECREE_255",
+      "locator": "Artículo 47 — metodologías reconocidas para identificación y evaluación",
+      "officialUrl": "https://www.trabajo.gob.ec/wp-content/uploads/2024/01/DECRETO-EJECUTIVO-255-REGLAMENTO-DE-SEGURIDAD-Y-SALUD-DE-LOS-TRABAJADORES.pdf",
+      "reviewStatus": "PENDING"
+    },
+    {
+      "sourceKey": "EC_MDT_2024_196_ANNEX_1",
+      "locator": "Lista de verificación SST — metodología reconocida/validada y riesgo residual",
+      "officialUrl": "https://www.trabajo.gob.ec/wp-content/uploads/2025/04/Anexo-1_Lista-de-Verificacion-SST-signed-signed_08042025.pdf",
+      "reviewStatus": "PENDING"
+    }
+  ],
+  "statement": "Ecuador exige usar metodologías reconocidas para identificar y evaluar riesgos. Esta relación contextual no demuestra que Ecuador haya adoptado o exigido GTC45.",
+  "technicalReviewStatus": "PENDING",
+  "legalReviewStatus": "PENDING",
+  "officialSutMethodOptions": "PENDING",
+  "contentHash": "30671198a28ed31289cebe64d533ece772abb962cd524b87f6ef93f75d354e0c"
+}
