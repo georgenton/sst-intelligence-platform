@@ -397,6 +397,25 @@ enum AlertStatus {
   RESOLVED
 }
 
+enum InspectionVerificationBasis {
+  RECORDED_EVIDENCE
+  FIELD_OBSERVATION
+  OTHER_JUSTIFIED
+}
+
+enum InspectionSystemicReviewStatus {
+  OPEN
+  IN_REVIEW
+  COMPLETED
+  CANCELED
+}
+
+enum InspectionSystemicReviewSufficiency {
+  YES
+  NO
+  NEEDS_MORE_INFORMATION
+}
+
 model User {
   id                           String                            @id @default(uuid()) @db.Uuid
   email                        String                            @unique
@@ -417,6 +436,8 @@ model User {
   actionsVerified              CorrectiveAction[]                @relation("ActionVerifier")
   evidenceCreated              ActionEvidence[]                  @relation("EvidenceCreator")
   alertsAcknowledged           InspectionAlert[]                 @relation("AlertAcknowledger")
+  systemicReviewsCreated       InspectionSystemicReview[]        @relation("SystemicReviewCreator")
+  systemicReviewsCompleted     InspectionSystemicReview[]        @relation("SystemicReviewCompleter")
   technicalAssessments         TechnicalAssessment[]             @relation("TechnicalAssessmentCreator")
   technicalAssessmentsReviewed TechnicalAssessment[]             @relation("TechnicalAssessmentReviewer")
   technicalEvidenceCreated     TechnicalAssessmentEvidence[]     @relation("TechnicalEvidenceCreator")
@@ -474,6 +495,7 @@ model Organization {
   correctiveActions          CorrectiveAction[]
   actionEvidence             ActionEvidence[]
   inspectionAlerts           InspectionAlert[]
+  inspectionSystemicReviews  InspectionSystemicReview[]
   technicalMethodDefinitions TechnicalMethodDefinition[]
   technicalMethodVersions    TechnicalMethodVersion[]
   technicalAssessments       TechnicalAssessment[]
@@ -502,6 +524,7 @@ model WorkCenter {
   name                 String
   city                 String?
   isDemo               Boolean                @default(false)
+  isActive             Boolean                @default(true)
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
   organization         Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -601,27 +624,31 @@ model InspectionFinding {
 }
 
 model CorrectiveAction {
-  id               String                 @id @default(uuid()) @db.Uuid
-  organizationId   String                 @db.Uuid
-  findingId        String                 @db.Uuid
-  title            String
-  description      String?
-  assignedToUserId String?                @db.Uuid
-  status           CorrectiveActionStatus @default(OPEN)
-  priority         ActionPriority         @default(MEDIUM)
-  dueAt            DateTime?
-  completedAt      DateTime?
-  verifiedAt       DateTime?
-  verifiedByUserId String?                @db.Uuid
-  createdById      String                 @db.Uuid
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
-  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  finding          InspectionFinding      @relation(fields: [findingId], references: [id], onDelete: Cascade)
-  assignedTo       User?                  @relation("ActionAssignee", fields: [assignedToUserId], references: [id])
-  verifiedBy       User?                  @relation("ActionVerifier", fields: [verifiedByUserId], references: [id])
-  createdBy        User                   @relation("ActionCreator", fields: [createdById], references: [id])
-  evidence         ActionEvidence[]
+  id                           String                       @id @default(uuid()) @db.Uuid
+  organizationId               String                       @db.Uuid
+  findingId                    String                       @db.Uuid
+  title                        String
+  description                  String?
+  assignedToUserId             String?                      @db.Uuid
+  status                       CorrectiveActionStatus       @default(OPEN)
+  priority                     ActionPriority               @default(MEDIUM)
+  dueAt                        DateTime?
+  completedAt                  DateTime?
+  verifiedAt                   DateTime?
+  verifiedByUserId             String?                      @db.Uuid
+  verificationBasis            InspectionVerificationBasis?
+  verificationNote             String?
+  selfVerification             Boolean                      @default(false)
+  selfVerificationAcknowledged Boolean                      @default(false)
+  createdById                  String                       @db.Uuid
+  createdAt                    DateTime                     @default(now())
+  updatedAt                    DateTime                     @updatedAt
+  organization                 Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  finding                      InspectionFinding            @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  assignedTo                   User?                        @relation("ActionAssignee", fields: [assignedToUserId], references: [id])
+  verifiedBy                   User?                        @relation("ActionVerifier", fields: [verifiedByUserId], references: [id])
+  createdBy                    User                         @relation("ActionCreator", fields: [createdById], references: [id])
+  evidence                     ActionEvidence[]
 
   @@index([organizationId, findingId])
   @@index([organizationId, status, dueAt])
@@ -645,23 +672,53 @@ model ActionEvidence {
 }
 
 model InspectionAlert {
-  id               String              @id @default(uuid()) @db.Uuid
-  organizationId   String              @db.Uuid
-  findingId        String              @db.Uuid
+  id               String                    @id @default(uuid()) @db.Uuid
+  organizationId   String                    @db.Uuid
+  findingId        String                    @db.Uuid
   type             InspectionAlertType
   severity         AlertSeverity
-  status           AlertStatus         @default(OPEN)
+  status           AlertStatus               @default(OPEN)
   message          String
-  createdAt        DateTime            @default(now())
+  createdAt        DateTime                  @default(now())
   acknowledgedAt   DateTime?
-  acknowledgedById String?             @db.Uuid
-  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  finding          InspectionFinding   @relation(fields: [findingId], references: [id], onDelete: Cascade)
-  acknowledgedBy   User?               @relation("AlertAcknowledger", fields: [acknowledgedById], references: [id])
+  acknowledgedById String?                   @db.Uuid
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  finding          InspectionFinding         @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  acknowledgedBy   User?                     @relation("AlertAcknowledger", fields: [acknowledgedById], references: [id])
+  systemicReview   InspectionSystemicReview?
 
   @@unique([findingId, type])
   @@index([organizationId, status, createdAt])
   @@index([organizationId, type])
+}
+
+model InspectionSystemicReview {
+  id                       String                               @id @default(uuid()) @db.Uuid
+  organizationId           String                               @db.Uuid
+  alertId                  String                               @unique @db.Uuid
+  workCenterId             String                               @db.Uuid
+  workCenterName           String
+  category                 String
+  recurrenceWindowDays     Int
+  relatedFindingIds        Json
+  relatedFindingsSnapshot  Json
+  status                   InspectionSystemicReviewStatus       @default(OPEN)
+  actionsSufficient        InspectionSystemicReviewSufficiency?
+  broaderReviewRecommended Boolean?
+  notes                    String?
+  suspectedFactors         String?
+  createdById              String                               @db.Uuid
+  completedById            String?                              @db.Uuid
+  createdAt                DateTime                             @default(now())
+  updatedAt                DateTime                             @updatedAt
+  completedAt              DateTime?
+  organization             Organization                         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  alert                    InspectionAlert                      @relation(fields: [alertId], references: [id], onDelete: Restrict)
+  createdBy                User                                 @relation("SystemicReviewCreator", fields: [createdById], references: [id])
+  completedBy              User?                                @relation("SystemicReviewCompleter", fields: [completedById], references: [id])
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, workCenterId])
 }
 
 model TechnicalMethodDefinition {
@@ -707,36 +764,39 @@ model TechnicalMethodVersion {
 }
 
 model TechnicalAssessment {
-  id               String                        @id @default(uuid()) @db.Uuid
-  organizationId   String                        @db.Uuid
-  workCenterId     String                        @db.Uuid
-  workAreaId       String?                       @db.Uuid
-  methodVersionId  String                        @db.Uuid
-  methodKey        String
-  methodVersion    String
-  calculationKey   String
-  methodSnapshot   Json
-  title            String
-  description      String?
-  status           TechnicalAssessmentStatus     @default(DRAFT)
-  createdById      String                        @db.Uuid
-  reviewedById     String?                       @db.Uuid
-  startedAt        DateTime?
-  completedAt      DateTime?
-  reviewedAt       DateTime?
-  isDemo           Boolean                       @default(false)
-  createdAt        DateTime                      @default(now())
-  updatedAt        DateTime                      @updatedAt
-  organization     Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  workCenter       WorkCenter                    @relation(fields: [workCenterId], references: [id])
-  workArea         WorkArea?                     @relation(fields: [workAreaId], references: [id])
-  methodVersionRef TechnicalMethodVersion        @relation(fields: [methodVersionId], references: [id])
-  createdBy        User                          @relation("TechnicalAssessmentCreator", fields: [createdById], references: [id])
-  reviewedBy       User?                         @relation("TechnicalAssessmentReviewer", fields: [reviewedById], references: [id])
-  responses        TechnicalAssessmentResponse[]
-  result           TechnicalAssessmentResult?
-  evidence         TechnicalAssessmentEvidence[]
-  reviews          TechnicalAssessmentReview[]
+  id                      String                        @id @default(uuid()) @db.Uuid
+  organizationId          String                        @db.Uuid
+  workCenterId            String                        @db.Uuid
+  workAreaId              String?                       @db.Uuid
+  methodVersionId         String                        @db.Uuid
+  methodKey               String
+  methodVersion           String
+  calculationKey          String
+  methodSnapshot          Json
+  title                   String
+  description             String?
+  status                  TechnicalAssessmentStatus     @default(DRAFT)
+  createdById             String                        @db.Uuid
+  reviewedById            String?                       @db.Uuid
+  startedAt               DateTime?
+  completedAt             DateTime?
+  reviewedAt              DateTime?
+  revisedFromAssessmentId String?                       @unique @db.Uuid
+  isDemo                  Boolean                       @default(false)
+  createdAt               DateTime                      @default(now())
+  updatedAt               DateTime                      @updatedAt
+  organization            Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workCenter              WorkCenter                    @relation(fields: [workCenterId], references: [id])
+  workArea                WorkArea?                     @relation(fields: [workAreaId], references: [id])
+  methodVersionRef        TechnicalMethodVersion        @relation(fields: [methodVersionId], references: [id])
+  createdBy               User                          @relation("TechnicalAssessmentCreator", fields: [createdById], references: [id])
+  reviewedBy              User?                         @relation("TechnicalAssessmentReviewer", fields: [reviewedById], references: [id])
+  responses               TechnicalAssessmentResponse[]
+  result                  TechnicalAssessmentResult?
+  evidence                TechnicalAssessmentEvidence[]
+  reviews                 TechnicalAssessmentReview[]
+  revisedFrom             TechnicalAssessment?          @relation("TechnicalAssessmentRevision", fields: [revisedFromAssessmentId], references: [id], onDelete: Restrict)
+  revision                TechnicalAssessment?          @relation("TechnicalAssessmentRevision")
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, workCenterId])
@@ -793,16 +853,18 @@ model TechnicalAssessmentEvidence {
 }
 
 model TechnicalAssessmentReview {
-  id             String                  @id @default(uuid()) @db.Uuid
-  organizationId String                  @db.Uuid
-  assessmentId   String                  @db.Uuid
-  reviewerUserId String                  @db.Uuid
-  decision       TechnicalReviewDecision
-  comment        String?
-  createdAt      DateTime                @default(now())
-  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  assessment     TechnicalAssessment     @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  reviewer       User                    @relation("TechnicalReviewReviewer", fields: [reviewerUserId], references: [id])
+  id                     String                  @id @default(uuid()) @db.Uuid
+  organizationId         String                  @db.Uuid
+  assessmentId           String                  @db.Uuid
+  reviewerUserId         String                  @db.Uuid
+  decision               TechnicalReviewDecision
+  comment                String?
+  isSelfReview           Boolean                 @default(false)
+  selfReviewAcknowledged Boolean                 @default(false)
+  createdAt              DateTime                @default(now())
+  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessment             TechnicalAssessment     @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  reviewer               User                    @relation("TechnicalReviewReviewer", fields: [reviewerUserId], references: [id])
 
   @@index([organizationId, assessmentId, createdAt])
 }

@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { queryKeys } from '@/lib/query-keys';
+import { humanRoleLabel } from '@/lib/human-lexicon';
 import { useAuth } from './auth-provider';
 import { useOrganization } from './app-shell';
 
@@ -72,7 +73,7 @@ export function MembersView() {
                   <br />
                   <small className="muted">{member.user.email}</small>
                 </span>
-                <StatusBadge>{member.role}</StatusBadge>
+                <StatusBadge>{humanRoleLabel(member.role)}</StatusBadge>
               </div>
             ))
           )}
@@ -81,7 +82,7 @@ export function MembersView() {
           <form className="stack" onSubmit={submit}>
             <h3>Invitar miembro</h3>
             <p className="muted">
-              Desarrollo usa un proveedor de consola; no se envía correo real.
+              La invitación quedará registrada; en esta versión no se envía correo automático.
             </p>
             <div className="field">
               <label htmlFor="invite-email">Correo</label>
@@ -90,11 +91,13 @@ export function MembersView() {
             <div className="field">
               <label htmlFor="invite-role">Rol</label>
               <select id="invite-role" {...register('role')}>
-                <option value="ORG_ADMIN">Administrador</option>
-                <option value="SST_MANAGER">Responsable SST</option>
-                <option value="SST_TECHNICIAN">Técnico SST</option>
-                <option value="CONSULTANT">Consultor</option>
-                <option value="VIEWER">Visor</option>
+                {['ORG_ADMIN', 'SST_MANAGER', 'SST_TECHNICIAN', 'CONSULTANT', 'VIEWER'].map(
+                  (role) => (
+                    <option value={role} key={role}>
+                      {humanRoleLabel(role)}
+                    </option>
+                  ),
+                )}
               </select>
             </div>
             {message && <p role="status">{message}</p>}

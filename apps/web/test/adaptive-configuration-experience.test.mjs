@@ -50,6 +50,6 @@ test('frontend component delegates reasoning and preserves safe evidence renderi
   assert.doesNotMatch(ui, /evaluateAdaptiveConfiguration|statePrecedence|depthPrecedence/);
   assert.match(ui, /target="_blank"/);
   assert.match(ui, /rel="noopener noreferrer"/);
-  assert.match(ui, /Esta información es declarada y todavía no ha sido verificada/);
+  assert.match(ui, /Información proporcionada por la empresa; aún no ha sido verificada/);
   assert.doesNotMatch(ui, /porcentaje de cumplimiento|puntaje de cumplimiento/i);
 });

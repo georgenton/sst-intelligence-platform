@@ -18,6 +18,7 @@ import {
   TECHNICAL_RISK_REVIEW_COPY,
 } from '@/lib/technical-risk-experience';
 import { queryKeys } from '@/lib/query-keys';
+import { AUTHORIZED_TECHNICAL_REVIEWER_LABELS, humanRoleLabel } from '@/lib/human-lexicon';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
 import {
@@ -82,6 +83,8 @@ type TechnicalReview = {
   comment?: string;
   createdAt: string;
   reviewer: { displayName: string };
+  isSelfReview?: boolean;
+  selfReviewAcknowledged?: boolean;
 };
 
 type Assessment = {
@@ -122,6 +125,16 @@ type Assessment = {
     createdBy: { displayName: string };
   }>;
   reviews?: TechnicalReview[];
+  revisedFrom?: {
+    id: string;
+    title: string;
+    status: string;
+    methodVersionId: string;
+    methodKey: string;
+    methodVersion: string;
+    reviews: Array<{ decision: string; comment?: string; createdAt: string }>;
+  };
+  revision?: { id: string; title: string; status: string; createdAt: string };
 };
 
 type Analytics = {
@@ -137,7 +150,7 @@ type Analytics = {
 
 type ListResponse = { items: Assessment[]; analytics: Analytics };
 
-const REVIEW_ROLE_COPY = 'ORG_OWNER, ORG_ADMIN o SST_MANAGER';
+const REVIEW_ROLE_COPY = AUTHORIZED_TECHNICAL_REVIEWER_LABELS;
 
 function allQuestions(schema: TechnicalMethodSchema): TechnicalQuestion[] {
   return schema.sections.flatMap((section) => section.questions);
@@ -169,6 +182,7 @@ function useTechnicalRiskApi() {
     (candidate) => candidate.id === organization.activeId,
   );
   return {
+    userId: auth.user?.id,
     organizationId: organization.activeId,
     organizationName: activeOrganization?.name,
     role: activeOrganization?.memberships[0]?.role,
@@ -188,7 +202,8 @@ function TechnicalRiskAccessGate({
   api: ReturnType<typeof useTechnicalRiskApi>;
   children: React.ReactNode;
 }) {
-  if (api.accessLoading) return <TechnicalRiskSkeleton label="Comprobando acceso a Riesgo técnico" />;
+  if (api.accessLoading)
+    return <TechnicalRiskSkeleton label="Comprobando acceso a Riesgo técnico" />;
   if (!api.organizationId) {
     return (
       <TechnicalRiskState
@@ -269,7 +284,9 @@ export function TechnicalRiskDashboard() {
       {assessments.isLoading || methods.isLoading ? (
         <TechnicalRiskSkeleton label="Cargando workspace de Riesgo técnico" />
       ) : assessments.isError || methods.isError ? (
-        <PageQueryError retry={() => void Promise.all([assessments.refetch(), methods.refetch()])} />
+        <PageQueryError
+          retry={() => void Promise.all([assessments.refetch(), methods.refetch()])}
+        />
       ) : (
         <TechnicalRiskWorkspace
           api={api}
@@ -317,7 +334,7 @@ function TechnicalRiskWorkspace({
         description="Ejecuta métodos versionados, consulta resultados determinísticos y separa claramente la revisión profesional."
         context={
           <p className="technical-risk-context">
-            {api.organizationName ?? 'Organización activa'} · rol {api.role ?? 'sin resolver'}
+            {api.organizationName ?? 'Organización activa'} · {humanRoleLabel(api.role)}
           </p>
         }
         actions={
@@ -335,7 +352,9 @@ function TechnicalRiskWorkspace({
             <p className="technical-risk-kicker">Catálogo activo</p>
             <h2 id="technical-methods-title">Métodos disponibles</h2>
           </div>
-          <span>{methods.length} {methods.length === 1 ? 'versión activa' : 'versiones activas'}</span>
+          <span>
+            {methods.length} {methods.length === 1 ? 'versión activa' : 'versiones activas'}
+          </span>
         </div>
         {methods.length === 0 ? (
           <TechnicalRiskState
@@ -348,14 +367,18 @@ function TechnicalRiskWorkspace({
             {methods.map((method) => (
               <article className="technical-method-card" key={method.id}>
                 <div>
-                  <span className="demo-chip">{method.isDemo ? 'Demostración' : 'Método activo'}</span>
+                  <span className="demo-chip">
+                    {method.isDemo ? 'Demostración' : 'Método activo'}
+                  </span>
                   <h3>{method.name}</h3>
                   <p>{method.description}</p>
                 </div>
                 <dl>
                   <div>
                     <dt>Código</dt>
-                    <dd><code>{method.key}</code></dd>
+                    <dd>
+                      <code>{method.key}</code>
+                    </dd>
                   </div>
                   <div>
                     <dt>Versión</dt>
@@ -373,7 +396,10 @@ function TechnicalRiskWorkspace({
         <TechnicalRiskPermissionState role={api.role} capability="crear o completar evaluaciones" />
       ) : null}
 
-      <section className="technical-workspace-section" aria-labelledby="technical-assessments-title">
+      <section
+        className="technical-workspace-section"
+        aria-labelledby="technical-assessments-title"
+      >
         <div className="technical-section-heading">
           <div>
             <p className="technical-risk-kicker">Workspace operativo</p>
@@ -408,7 +434,7 @@ function TechnicalRiskWorkspace({
           <TechnicalRiskState
             kind="empty"
             title="Aún no existen evaluaciones"
-            description="Crea la primera evaluación con un método activo. El servidor fijará su versión al crearla."
+            description="Crea la primera evaluación con un método activo. Su versión quedará fijada al crearla."
             action={
               canWriteTechnicalRisk(api.role) && methods.length > 0 ? (
                 <Link className="button" href="/app/technical-risk/new">
@@ -423,7 +449,11 @@ function TechnicalRiskWorkspace({
             title="No hay evaluaciones con este filtro"
             description="Los demás estados permanecen disponibles al quitar el filtro."
             action={
-              <button className="button secondary" type="button" onClick={() => onFilterChange('ALL')}>
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => onFilterChange('ALL')}
+              >
                 Ver todas
               </button>
             }
@@ -444,12 +474,17 @@ function TechnicalRiskWorkspace({
                     {assessment.isDemo ? <span className="demo-chip">Demostración</span> : null}
                   </div>
                   <h3>{assessment.title}</h3>
-                  <p>{assessment.workCenter.name}{assessment.workArea ? ` · ${assessment.workArea.name}` : ''}</p>
+                  <p>
+                    {assessment.workCenter.name}
+                    {assessment.workArea ? ` · ${assessment.workArea.name}` : ''}
+                  </p>
                 </div>
                 <dl className="technical-assessment-meta">
                   <div>
                     <dt>Método</dt>
-                    <dd><code>{assessment.methodKey}</code></dd>
+                    <dd>
+                      <code>{assessment.methodKey}</code>
+                    </dd>
                   </div>
                   <div>
                     <dt>Versión</dt>
@@ -480,13 +515,19 @@ function TechnicalRiskWorkspace({
             <section>
               <h3>Por método</h3>
               {analytics.byMethod.map((item) => (
-                <p key={item.methodKey}><code>{item.methodKey}</code><strong>{item.count}</strong></p>
+                <p key={item.methodKey}>
+                  <code>{item.methodKey}</code>
+                  <strong>{item.count}</strong>
+                </p>
               ))}
             </section>
             <section>
               <h3>Por centro</h3>
               {analytics.byCenter.map((item) => (
-                <p key={item.workCenterId ?? item.name}><span>{item.name}</span><strong>{item.count}</strong></p>
+                <p key={item.workCenterId ?? item.name}>
+                  <span>{item.name}</span>
+                  <strong>{item.count}</strong>
+                </p>
               ))}
             </section>
           </div>
@@ -535,7 +576,9 @@ export function NewTechnicalAssessment() {
     retry: shouldRetryGet,
   });
   const selectedMethod = methods.data?.find(({ id }) => id === form.watch('methodVersionId'));
-  const selectedCenter = context.data?.workCenters.find(({ id }) => id === form.watch('workCenterId'));
+  const selectedCenter = context.data?.workCenters.find(
+    ({ id }) => id === form.watch('workCenterId'),
+  );
   const create = useMutation({
     mutationFn: (values: CreateAssessmentForm) =>
       api.request<Assessment>('/technical-risk/assessments', {
@@ -583,7 +626,11 @@ export function NewTechnicalAssessment() {
           kind="empty"
           title="No hay métodos activos"
           description="No se puede crear una evaluación sin una versión activa en el catálogo."
-          action={<Link className="button secondary" href="/app/technical-risk">Volver al workspace</Link>}
+          action={
+            <Link className="button secondary" href="/app/technical-risk">
+              Volver al workspace
+            </Link>
+          }
         />
       ) : (
         <div className="technical-assessment-create stack-lg">
@@ -591,9 +638,17 @@ export function NewTechnicalAssessment() {
             eyebrow={`Riesgo técnico · paso ${step} de 3`}
             title="Nueva evaluación técnica"
             description="Define qué se evaluará y fija una versión real del método. Las respuestas se registran después de crear el borrador."
-            context={<p className="technical-risk-context">{api.organizationName} · {api.role}</p>}
+            context={
+              <p className="technical-risk-context">
+                {api.organizationName} · {humanRoleLabel(api.role)}
+              </p>
+            }
           />
-          <TechnicalProgress current={step} total={3} label={`Paso ${step} de 3 · ${['Método', 'Contexto', 'Confirmación'][step - 1]}`} />
+          <TechnicalProgress
+            current={step}
+            total={3}
+            label={`Paso ${step} de 3 · ${['Método', 'Contexto', 'Confirmación'][step - 1]}`}
+          />
           <form onSubmit={form.handleSubmit((values) => create.mutate(values))} noValidate>
             {step === 1 ? (
               <section className="technical-form-panel" aria-labelledby="create-method-title">
@@ -604,8 +659,12 @@ export function NewTechnicalAssessment() {
                   <select
                     id="technical-method"
                     aria-invalid={Boolean(form.formState.errors.methodVersionId)}
-                    aria-describedby={form.formState.errors.methodVersionId ? 'technical-method-error' : undefined}
-                    {...form.register('methodVersionId', { required: 'Selecciona una versión activa del método.' })}
+                    aria-describedby={
+                      form.formState.errors.methodVersionId ? 'technical-method-error' : undefined
+                    }
+                    {...form.register('methodVersionId', {
+                      required: 'Selecciona una versión activa del método.',
+                    })}
                   >
                     <option value="">Selecciona un método</option>
                     {methods.data!.map((method) => (
@@ -614,7 +673,11 @@ export function NewTechnicalAssessment() {
                       </option>
                     ))}
                   </select>
-                  {form.formState.errors.methodVersionId ? <p className="field-error" id="technical-method-error">{form.formState.errors.methodVersionId.message}</p> : null}
+                  {form.formState.errors.methodVersionId ? (
+                    <p className="field-error" id="technical-method-error">
+                      {form.formState.errors.methodVersionId.message}
+                    </p>
+                  ) : null}
                 </div>
                 {selectedMethod ? (
                   <MethodVersionSummary
@@ -637,19 +700,35 @@ export function NewTechnicalAssessment() {
                     <select
                       id="technical-center"
                       aria-invalid={Boolean(form.formState.errors.workCenterId)}
-                      aria-describedby={form.formState.errors.workCenterId ? 'technical-center-error' : undefined}
-                      {...form.register('workCenterId', { required: 'Selecciona un centro de trabajo.' })}
+                      aria-describedby={
+                        form.formState.errors.workCenterId ? 'technical-center-error' : undefined
+                      }
+                      {...form.register('workCenterId', {
+                        required: 'Selecciona un centro de trabajo.',
+                      })}
                     >
                       <option value="">Selecciona un centro</option>
-                      {context.data!.workCenters.map((center) => <option value={center.id} key={center.id}>{center.name}</option>)}
+                      {context.data!.workCenters.map((center) => (
+                        <option value={center.id} key={center.id}>
+                          {center.name}
+                        </option>
+                      ))}
                     </select>
-                    {form.formState.errors.workCenterId ? <p className="field-error" id="technical-center-error">{form.formState.errors.workCenterId.message}</p> : null}
+                    {form.formState.errors.workCenterId ? (
+                      <p className="field-error" id="technical-center-error">
+                        {form.formState.errors.workCenterId.message}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="technical-field">
                     <label htmlFor="technical-area">Área</label>
                     <select id="technical-area" {...form.register('workAreaId')}>
                       <option value="">Sin área específica</option>
-                      {selectedCenter?.workAreas.map((area) => <option value={area.id} key={area.id}>{area.name}</option>)}
+                      {selectedCenter?.workAreas.map((area) => (
+                        <option value={area.id} key={area.id}>
+                          {area.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -659,18 +738,34 @@ export function NewTechnicalAssessment() {
                     id="technical-title"
                     maxLength={160}
                     aria-invalid={Boolean(form.formState.errors.title)}
-                    aria-describedby={form.formState.errors.title ? 'technical-title-error' : 'technical-title-help'}
+                    aria-describedby={
+                      form.formState.errors.title ? 'technical-title-error' : 'technical-title-help'
+                    }
                     {...form.register('title', {
                       required: 'Escribe un título para identificar la evaluación.',
-                      minLength: { value: 3, message: 'El título debe tener al menos 3 caracteres.' },
+                      minLength: {
+                        value: 3,
+                        message: 'El título debe tener al menos 3 caracteres.',
+                      },
                     })}
                   />
-                  <p className="technical-field-help" id="technical-title-help">Describe claramente qué actividad o contexto se evaluará.</p>
-                  {form.formState.errors.title ? <p className="field-error" id="technical-title-error">{form.formState.errors.title.message}</p> : null}
+                  <p className="technical-field-help" id="technical-title-help">
+                    Describe claramente qué actividad o contexto se evaluará.
+                  </p>
+                  {form.formState.errors.title ? (
+                    <p className="field-error" id="technical-title-error">
+                      {form.formState.errors.title.message}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="technical-field">
                   <label htmlFor="technical-description">Descripción · opcional</label>
-                  <textarea id="technical-description" rows={4} maxLength={2000} {...form.register('description')} />
+                  <textarea
+                    id="technical-description"
+                    rows={4}
+                    maxLength={2000}
+                    {...form.register('description')}
+                  />
                 </div>
               </section>
             ) : null}
@@ -679,24 +774,61 @@ export function NewTechnicalAssessment() {
                 <p className="technical-risk-kicker">Paso 3 de 3</p>
                 <h2 id="create-confirm-title">Confirma el borrador</h2>
                 <dl className="technical-description-list">
-                  <div><dt>Evaluación</dt><dd>{form.getValues('title')}</dd></div>
-                  <div><dt>Centro</dt><dd>{selectedCenter?.name}</dd></div>
-                  <div><dt>Área</dt><dd>{selectedCenter?.workAreas.find(({ id }) => id === form.getValues('workAreaId'))?.name ?? 'Sin área específica'}</dd></div>
-                  <div><dt>Método</dt><dd>{selectedMethod?.name}</dd></div>
-                  <div><dt>Versión fijada</dt><dd className="mono">{selectedMethod?.version}</dd></div>
+                  <div>
+                    <dt>Evaluación</dt>
+                    <dd>{form.getValues('title')}</dd>
+                  </div>
+                  <div>
+                    <dt>Centro</dt>
+                    <dd>{selectedCenter?.name}</dd>
+                  </div>
+                  <div>
+                    <dt>Área</dt>
+                    <dd>
+                      {selectedCenter?.workAreas.find(
+                        ({ id }) => id === form.getValues('workAreaId'),
+                      )?.name ?? 'Sin área específica'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Método</dt>
+                    <dd>{selectedMethod?.name}</dd>
+                  </div>
+                  <div>
+                    <dt>Versión fijada</dt>
+                    <dd className="mono">{selectedMethod?.version}</dd>
+                  </div>
                 </dl>
-                {selectedMethod?.isDemo ? <TechnicalRiskDemoNotice disclaimer={selectedMethod.disclaimer} /> : null}
-                <p className="technical-server-note">El servidor fijará esta versión en el borrador. Iniciar y completar serán acciones posteriores y separadas.</p>
+                {selectedMethod?.isDemo ? (
+                  <TechnicalRiskDemoNotice disclaimer={selectedMethod.disclaimer} />
+                ) : null}
+                <p className="technical-server-note">
+                  Esta versión quedará fijada en el borrador. Iniciar y completar serán acciones
+                  posteriores y separadas.
+                </p>
               </section>
             ) : null}
             {requestError ? <TechnicalInlineMessage>{requestError}</TechnicalInlineMessage> : null}
             <div className="technical-wizard-actions">
-              <button className="button secondary" type="button" disabled={step === 1 || create.isPending} onClick={() => setStep((current) => Math.max(1, current - 1))}>Atrás</button>
-              <Link className="button secondary focus-dim" href="/app/technical-risk">Cancelar</Link>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={step === 1 || create.isPending}
+                onClick={() => setStep((current) => Math.max(1, current - 1))}
+              >
+                Atrás
+              </button>
+              <Link className="button secondary focus-dim" href="/app/technical-risk">
+                Cancelar
+              </Link>
               {step < 3 ? (
-                <button className="button" type="button" onClick={() => void continueCreation()}>Continuar</button>
+                <button className="button" type="button" onClick={() => void continueCreation()}>
+                  Continuar
+                </button>
               ) : (
-                <button className="button" type="submit" disabled={create.isPending}>{create.isPending ? 'Creando borrador…' : 'Crear borrador'}</button>
+                <button className="button" type="submit" disabled={create.isPending}>
+                  {create.isPending ? 'Creando borrador…' : 'Crear borrador'}
+                </button>
               )}
             </div>
           </form>
@@ -710,8 +842,12 @@ export function TechnicalAssessmentDetail({ assessmentId }: { assessmentId: stri
   const api = useTechnicalRiskApi();
   const organizationId = api.organizationId;
   const query = useQuery({
-    queryKey: queryKeys.organization.technicalRiskAssessment(organizationId ?? 'inactive', assessmentId),
-    queryFn: ({ signal }) => api.request<Assessment>(`/technical-risk/assessments/${assessmentId}`, { signal }),
+    queryKey: queryKeys.organization.technicalRiskAssessment(
+      organizationId ?? 'inactive',
+      assessmentId,
+    ),
+    queryFn: ({ signal }) =>
+      api.request<Assessment>(`/technical-risk/assessments/${assessmentId}`, { signal }),
     enabled: Boolean(organizationId && api.moduleEnabled),
     retry: shouldRetryGet,
   });
@@ -722,7 +858,11 @@ export function TechnicalAssessmentDetail({ assessmentId }: { assessmentId: stri
       ) : query.isError || !query.data ? (
         <PageQueryError object="la evaluación" retry={() => void query.refetch()} />
       ) : query.data.status === 'DRAFT' || query.data.status === 'IN_PROGRESS' ? (
-        <TechnicalAssessmentExecution api={api} assessment={query.data} refetch={() => query.refetch()} />
+        <TechnicalAssessmentExecution
+          api={api}
+          assessment={query.data}
+          refetch={() => query.refetch()}
+        />
       ) : (
         <TechnicalAssessmentResult api={api} assessment={query.data} />
       )}
@@ -745,11 +885,18 @@ function TechnicalAssessmentExecution({
     assessment.responses?.map(({ questionKey, value }) => [questionKey, value]) ?? [],
   );
   const answerForm = useForm<TechnicalAnswerValues>({ defaultValues: { answers: initialAnswers } });
-  const evidenceForm = useForm<{ type: 'NOTE' | 'EXTERNAL_LINK'; note: string; externalUrl: string }>({
+  const evidenceForm = useForm<{
+    type: 'NOTE' | 'EXTERNAL_LINK';
+    note: string;
+    externalUrl: string;
+  }>({
     defaultValues: { type: 'NOTE', note: '', externalUrl: '' },
   });
   const [answerErrors, setAnswerErrors] = useState<Record<string, string>>({});
-  const [requestMessage, setRequestMessage] = useState<{ tone: 'error' | 'success' | 'info'; text: string } | null>(null);
+  const [requestMessage, setRequestMessage] = useState<{
+    tone: 'error' | 'success' | 'info';
+    text: string;
+  } | null>(null);
   const answers = answerForm.watch('answers');
   const answeredCount = questions.filter(({ key }) => {
     const value = answers[key];
@@ -759,7 +906,10 @@ function TechnicalAssessmentExecution({
   async function refreshAffectedQueries() {
     await Promise.all([
       queryClient.invalidateQueries({
-        queryKey: queryKeys.organization.technicalRiskAssessment(api.organizationId!, assessment.id),
+        queryKey: queryKeys.organization.technicalRiskAssessment(
+          api.organizationId!,
+          assessment.id,
+        ),
       }),
       queryClient.invalidateQueries({
         queryKey: queryKeys.organization.technicalRiskAssessments(api.organizationId!),
@@ -768,9 +918,13 @@ function TechnicalAssessmentExecution({
   }
 
   const start = useMutation({
-    mutationFn: () => api.request(`/technical-risk/assessments/${assessment.id}/start`, { method: 'POST' }),
+    mutationFn: () =>
+      api.request(`/technical-risk/assessments/${assessment.id}/start`, { method: 'POST' }),
     onSuccess: async () => {
-      setRequestMessage({ tone: 'success', text: 'Evaluación iniciada. El estado vigente es En curso.' });
+      setRequestMessage({
+        tone: 'success',
+        text: 'Evaluación iniciada. El estado vigente es En curso.',
+      });
       await refreshAffectedQueries();
     },
     onError: async (error) => {
@@ -786,7 +940,8 @@ function TechnicalAssessmentExecution({
       const value = answers[question.key];
       const empty = value === undefined || value === null || value === '';
       if (empty) {
-        if (requireAll && question.required) errors[question.key] = technicalQuestionRequiredCopy(question);
+        if (requireAll && question.required)
+          errors[question.key] = technicalQuestionRequiredCopy(question);
         continue;
       }
       if (!isTechnicalAnswerValid(question, value)) {
@@ -816,7 +971,9 @@ function TechnicalAssessmentExecution({
         });
       }
       if (complete) {
-        await api.request(`/technical-risk/assessments/${assessment.id}/complete`, { method: 'POST' });
+        await api.request(`/technical-risk/assessments/${assessment.id}/complete`, {
+          method: 'POST',
+        });
       }
       return complete;
     },
@@ -824,7 +981,7 @@ function TechnicalAssessmentExecution({
       setRequestMessage({
         tone: 'success',
         text: completed
-          ? 'Evaluación completada. El resultado determinístico fue calculado por el servidor.'
+          ? 'Evaluación completada. El resultado determinístico fue calculado automáticamente.'
           : 'Respuestas guardadas. La evaluación permanece En curso.',
       });
       await refreshAffectedQueries();
@@ -849,12 +1006,19 @@ function TechnicalAssessmentExecution({
       }),
     onSuccess: async () => {
       evidenceForm.reset();
-      setRequestMessage({ tone: 'success', text: 'Evidencia guardada. La evaluación permanece En curso.' });
+      setRequestMessage({
+        tone: 'success',
+        text: 'Evidencia guardada. La evaluación permanece En curso.',
+      });
       await queryClient.invalidateQueries({
-        queryKey: queryKeys.organization.technicalRiskAssessment(api.organizationId!, assessment.id),
+        queryKey: queryKeys.organization.technicalRiskAssessment(
+          api.organizationId!,
+          assessment.id,
+        ),
       });
     },
-    onError: (error) => setRequestMessage({ tone: 'error', text: technicalMutationError(error).message }),
+    onError: (error) =>
+      setRequestMessage({ tone: 'error', text: technicalMutationError(error).message }),
   });
 
   const provenance = methodSnapshotProvenance(assessment);
@@ -864,8 +1028,17 @@ function TechnicalAssessmentExecution({
       <TechnicalRiskPageHeader
         eyebrow="Riesgo técnico · ejecución"
         title={assessment.title}
-        description={assessment.status === 'DRAFT' ? 'El borrador aún no está en ejecución.' : 'La evaluación está en curso. Guardar respuestas no completa la evaluación.'}
-        context={<p className="technical-risk-context">{api.organizationName} · {assessment.workCenter.name}{assessment.workArea ? ` · ${assessment.workArea.name}` : ' · sin área específica'}</p>}
+        description={
+          assessment.status === 'DRAFT'
+            ? 'El borrador aún no está en ejecución.'
+            : 'La evaluación está en curso. Guardar respuestas no completa la evaluación.'
+        }
+        context={
+          <p className="technical-risk-context">
+            {api.organizationName} · {assessment.workCenter.name}
+            {assessment.workArea ? ` · ${assessment.workArea.name}` : ' · sin área específica'}
+          </p>
+        }
         actions={<TechnicalAssessmentStatus status={assessment.status} />}
       />
       <MethodVersionSummary
@@ -875,29 +1048,82 @@ function TechnicalAssessmentExecution({
         isDemo={provenance.isDemo}
         disclaimer={provenance.disclaimer}
       />
+      {assessment.revisedFrom?.reviews[0]?.decision === 'NEEDS_REVISION' ? (
+        <section
+          className="technical-start-panel focus-task"
+          aria-labelledby="requested-changes-title"
+        >
+          <div>
+            <p className="technical-risk-kicker">Corrección de una evaluación anterior</p>
+            <h2 id="requested-changes-title">Cambios solicitados</h2>
+            <p>
+              {assessment.revisedFrom.reviews[0].comment ??
+                'Revisa los ajustes solicitados antes de completar esta corrección.'}
+            </p>
+            <p className="muted">
+              Las respuestas anteriores se copiaron como punto de partida editable. La evidencia
+              histórica no se duplicó.
+            </p>
+          </div>
+          <Link
+            className="button secondary"
+            href={`/app/technical-risk/${assessment.revisedFrom.id}`}
+          >
+            Ver evaluación anterior
+          </Link>
+        </section>
+      ) : null}
       {assessment.status === 'DRAFT' ? (
-        <section className="technical-start-panel focus-task" aria-labelledby="technical-start-title">
+        <section
+          className="technical-start-panel focus-task"
+          aria-labelledby="technical-start-title"
+        >
           <div>
             <p className="technical-risk-kicker">Estado actual · Borrador</p>
             <h2 id="technical-start-title">Inicia la ejecución cuando el contexto esté listo</h2>
-            <p>Iniciar cambia el estado a En curso. No calcula el resultado ni registra una revisión profesional.</p>
+            <p>
+              Iniciar cambia el estado a En curso. No calcula el resultado ni registra una revisión
+              profesional.
+            </p>
           </div>
           {canWrite ? (
-            <button className="button" type="button" disabled={start.isPending} onClick={() => start.mutate()}>
+            <button
+              className="button"
+              type="button"
+              disabled={start.isPending}
+              onClick={() => start.mutate()}
+            >
               {start.isPending ? 'Iniciando…' : 'Iniciar evaluación'}
             </button>
           ) : (
-            <TechnicalRiskPermissionState role={api.role} capability="crear o completar evaluaciones" />
+            <TechnicalRiskPermissionState
+              role={api.role}
+              capability="crear o completar evaluaciones"
+            />
           )}
         </section>
       ) : canWrite ? (
         <>
-          <TechnicalProgress current={answeredCount} total={questions.length} label={`${answeredCount} de ${questions.length} preguntas respondidas`} />
-          <form className="technical-questionnaire" onSubmit={(event) => event.preventDefault()} noValidate>
+          <TechnicalProgress
+            current={answeredCount}
+            total={questions.length}
+            label={`${answeredCount} de ${questions.length} preguntas respondidas`}
+          />
+          <form
+            className="technical-questionnaire"
+            onSubmit={(event) => event.preventDefault()}
+            noValidate
+          >
             {assessment.methodSnapshot.schema.sections.map((section, sectionIndex) => (
-              <section className="technical-question-section focus-task" aria-labelledby={`technical-section-${section.key}`} key={section.key}>
+              <section
+                className="technical-question-section focus-task"
+                aria-labelledby={`technical-section-${section.key}`}
+                key={section.key}
+              >
                 <header>
-                  <p className="technical-risk-kicker">Sección {sectionIndex + 1} de {assessment.methodSnapshot.schema.sections.length}</p>
+                  <p className="technical-risk-kicker">
+                    Sección {sectionIndex + 1} de {assessment.methodSnapshot.schema.sections.length}
+                  </p>
                   <h2 id={`technical-section-${section.key}`}>{section.title}</h2>
                 </header>
                 {section.questions.map((question) => (
@@ -911,18 +1137,35 @@ function TechnicalAssessmentExecution({
               </section>
             ))}
           </form>
-          <section className="technical-evidence-panel focus-dim" aria-labelledby="technical-evidence-title">
+          <section
+            className="technical-evidence-panel focus-dim"
+            aria-labelledby="technical-evidence-title"
+          >
             <div className="technical-section-heading">
-              <div><p className="technical-risk-kicker">Opcional</p><h2 id="technical-evidence-title">Evidencia estructurada</h2></div>
+              <div>
+                <p className="technical-risk-kicker">Opcional</p>
+                <h2 id="technical-evidence-title">Evidencia estructurada</h2>
+              </div>
               <span>{assessment.evidence?.length ?? 0} elementos</span>
             </div>
             {assessment.evidence?.map((item) => (
               <p className="technical-evidence-item" key={item.id}>
-                <span>{item.type === 'NOTE' ? item.note : <a href={item.externalUrl} target="_blank" rel="noreferrer">Abrir enlace externo</a>}</span>
+                <span>
+                  {item.type === 'NOTE' ? (
+                    item.note
+                  ) : (
+                    <a href={item.externalUrl} target="_blank" rel="noreferrer">
+                      Abrir enlace externo
+                    </a>
+                  )}
+                </span>
                 <small>{item.createdBy.displayName}</small>
               </p>
             ))}
-            <form className="technical-evidence-form" onSubmit={evidenceForm.handleSubmit((values) => evidence.mutate(values))}>
+            <form
+              className="technical-evidence-form"
+              onSubmit={evidenceForm.handleSubmit((values) => evidence.mutate(values))}
+            >
               <div className="technical-field">
                 <label htmlFor="technical-evidence-type">Tipo de evidencia</label>
                 <select id="technical-evidence-type" {...evidenceForm.register('type')}>
@@ -933,38 +1176,83 @@ function TechnicalAssessmentExecution({
               {evidenceForm.watch('type') === 'NOTE' ? (
                 <div className="technical-field">
                   <label htmlFor="technical-evidence-note">Nota</label>
-                  <textarea id="technical-evidence-note" rows={3} {...evidenceForm.register('note', { required: true, minLength: 1 })} />
+                  <textarea
+                    id="technical-evidence-note"
+                    rows={3}
+                    {...evidenceForm.register('note', { required: true, minLength: 1 })}
+                  />
                 </div>
               ) : (
                 <div className="technical-field">
                   <label htmlFor="technical-evidence-url">Enlace externo HTTPS</label>
-                  <input id="technical-evidence-url" type="url" {...evidenceForm.register('externalUrl', { required: true })} />
+                  <input
+                    id="technical-evidence-url"
+                    type="url"
+                    {...evidenceForm.register('externalUrl', { required: true })}
+                  />
                 </div>
               )}
-              <button className="button secondary" type="submit" disabled={evidence.isPending}>{evidence.isPending ? 'Guardando…' : 'Guardar evidencia'}</button>
+              <button className="button secondary" type="submit" disabled={evidence.isPending}>
+                {evidence.isPending ? 'Guardando…' : 'Guardar evidencia'}
+              </button>
             </form>
           </section>
-          <section className="technical-completion-panel" aria-labelledby="technical-completion-title">
+          <section
+            className="technical-completion-panel"
+            aria-labelledby="technical-completion-title"
+          >
             <div>
               <p className="technical-risk-kicker">Cálculo determinístico</p>
               <h2 id="technical-completion-title">Revisa antes de completar</h2>
-              <p>El servidor calcula el resultado con el método y la versión fijados. Esta interfaz no estima score, nivel ni recomendación.</p>
+              <p>
+                El resultado se calcula con el método y la versión fijados. Esta interfaz no estima
+                la puntuación, el nivel ni la recomendación.
+              </p>
             </div>
             <AnswerSummary questions={questions} answers={answers} />
           </section>
-          {requestMessage ? <TechnicalInlineMessage tone={requestMessage.tone}>{requestMessage.text}</TechnicalInlineMessage> : null}
+          {requestMessage ? (
+            <TechnicalInlineMessage tone={requestMessage.tone}>
+              {requestMessage.text}
+            </TechnicalInlineMessage>
+          ) : null}
           <div className="technical-sticky-actions">
-            <div><strong>Guardar ≠ completar</strong><span>El resultado solo existe después de completar.</span></div>
             <div>
-              <button className="button secondary" type="button" disabled={save.isPending} onClick={() => { if (validateAnswers(false)) save.mutate({ complete: false }); }}>{save.isPending ? 'Guardando…' : 'Guardar respuestas'}</button>
-              <button className="button" type="button" disabled={save.isPending} onClick={() => { if (validateAnswers(true)) save.mutate({ complete: true }); }}>{save.isPending ? 'Procesando…' : 'Completar evaluación'}</button>
+              <strong>Guardar ≠ completar</strong>
+              <span>El resultado solo existe después de completar.</span>
+            </div>
+            <div>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={save.isPending}
+                onClick={() => {
+                  if (validateAnswers(false)) save.mutate({ complete: false });
+                }}
+              >
+                {save.isPending ? 'Guardando…' : 'Guardar respuestas'}
+              </button>
+              <button
+                className="button"
+                type="button"
+                disabled={save.isPending}
+                onClick={() => {
+                  if (validateAnswers(true)) save.mutate({ complete: true });
+                }}
+              >
+                {save.isPending ? 'Procesando…' : 'Completar evaluación'}
+              </button>
             </div>
           </div>
         </>
       ) : (
         <TechnicalRiskPermissionState role={api.role} capability="crear o completar evaluaciones" />
       )}
-      {requestMessage && assessment.status === 'DRAFT' ? <TechnicalInlineMessage tone={requestMessage.tone}>{requestMessage.text}</TechnicalInlineMessage> : null}
+      {requestMessage && assessment.status === 'DRAFT' ? (
+        <TechnicalInlineMessage tone={requestMessage.tone}>
+          {requestMessage.text}
+        </TechnicalInlineMessage>
+      ) : null}
     </div>
   );
 }
@@ -979,7 +1267,8 @@ function technicalQuestionRequiredCopy(question: TechnicalQuestion): string {
 function technicalQuestionInvalidCopy(question: TechnicalQuestion): string {
   if (question.type === 'INTEGER') return 'Ingresa un número entero dentro del rango permitido.';
   if (question.type === 'DECIMAL') return 'Ingresa un número dentro del rango permitido.';
-  if (question.type === 'TEXT') return `El texto debe tener como máximo ${question.maxLength} caracteres.`;
+  if (question.type === 'TEXT')
+    return `El texto debe tener como máximo ${question.maxLength} caracteres.`;
   return `Selecciona una respuesta válida para ${question.label.toLocaleLowerCase('es')}.`;
 }
 
@@ -990,72 +1279,218 @@ function TechnicalAssessmentResult({
   api: ReturnType<typeof useTechnicalRiskApi>;
   assessment: Assessment;
 }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [revisionError, setRevisionError] = useState('');
   const provenance = methodSnapshotProvenance(assessment);
   const questions = allQuestions(assessment.methodSnapshot.schema);
-  const answers = Object.fromEntries(assessment.responses?.map(({ questionKey, value }) => [questionKey, value]) ?? []);
+  const answers = Object.fromEntries(
+    assessment.responses?.map(({ questionKey, value }) => [questionKey, value]) ?? [],
+  );
   const reviewState = technicalReviewState(assessment.status, assessment.reviews);
   const canReview = canReviewTechnicalRisk(api.role);
+  const latestReview = assessment.reviews?.at(-1);
+  const needsRevision = latestReview?.decision === 'NEEDS_REVISION';
+  const createRevision = useMutation({
+    mutationFn: () =>
+      api.request<Assessment>(`/technical-risk/assessments/${assessment.id}/revisions`, {
+        method: 'POST',
+      }),
+    onSuccess: async (revision) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.technicalRiskAssessment(
+            api.organizationId!,
+            assessment.id,
+          ),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.technicalRiskAssessments(api.organizationId!),
+        }),
+      ]);
+      router.push(`/app/technical-risk/${revision.id}`);
+    },
+    onError: (error) => setRevisionError(technicalMutationError(error).message),
+  });
   return (
     <div className="technical-assessment-result stack-lg">
       <TechnicalRiskPageHeader
         eyebrow="Riesgo técnico · resultado"
         title={assessment.title}
         description="Resultado determinístico e histórico de la versión fijada del método. Completar no equivale a revisión profesional."
-        context={<p className="technical-risk-context">{api.organizationName} · {assessment.workCenter.name}{assessment.workArea ? ` · ${assessment.workArea.name}` : ' · sin área específica'}</p>}
+        context={
+          <p className="technical-risk-context">
+            {api.organizationName} · {assessment.workCenter.name}
+            {assessment.workArea ? ` · ${assessment.workArea.name}` : ' · sin área específica'}
+          </p>
+        }
         actions={
-          <Link className={canReview && assessment.status === 'COMPLETED' ? 'button' : 'button secondary'} href={`/app/technical-risk/${assessment.id}/review`}>
-            {assessment.status === 'REVIEWED' ? 'Ver revisión registrada' : canReview ? 'Abrir revisión profesional' : 'Ver contexto de revisión'}
-          </Link>
+          needsRevision ? (
+            assessment.revision ? (
+              <Link className="button" href={`/app/technical-risk/${assessment.revision.id}`}>
+                Abrir corrección
+              </Link>
+            ) : canWriteTechnicalRisk(api.role) ? (
+              <button
+                className="button"
+                type="button"
+                disabled={createRevision.isPending}
+                onClick={() => createRevision.mutate()}
+              >
+                {createRevision.isPending ? 'Creando corrección…' : 'Atender ajustes'}
+              </button>
+            ) : null
+          ) : (
+            <Link
+              className={
+                canReview && assessment.status === 'COMPLETED' ? 'button' : 'button secondary'
+              }
+              href={`/app/technical-risk/${assessment.id}/review`}
+            >
+              {assessment.status === 'REVIEWED'
+                ? 'Ver revisión registrada'
+                : canReview
+                  ? 'Abrir revisión profesional'
+                  : 'Ver contexto de revisión'}
+            </Link>
+          )
         }
       />
+      {revisionError ? <TechnicalInlineMessage>{revisionError}</TechnicalInlineMessage> : null}
+      {needsRevision ? (
+        <section
+          className="technical-start-panel focus-task"
+          aria-labelledby="technical-adjustments-title"
+        >
+          <div>
+            <p className="technical-risk-kicker">Revisión profesional</p>
+            <h2 id="technical-adjustments-title">Requiere ajustes</h2>
+            <p>{latestReview?.comment ?? 'La revisión solicitó cambios.'}</p>
+            <p className="muted">
+              El resultado original permanece intacto. Los cambios se atienden en una nueva
+              evaluación vinculada.
+            </p>
+          </div>
+        </section>
+      ) : null}
       {assessment.isDemo ? <TechnicalRiskDemoNotice disclaimer={provenance.disclaimer} /> : null}
       <section className="technical-result-hero" aria-labelledby="technical-result-title">
         <div>
-          <p className="technical-risk-kicker">Resultado calculado por el servidor</p>
+          <p className="technical-risk-kicker">
+            Resultado calculado automáticamente según el método seleccionado
+          </p>
           <h2 id="technical-result-title">Resultado técnico</h2>
-          <p>El score y el nivel provienen del servidor. No se calculan, estiman ni reinterpretan en el navegador.</p>
+          <p>
+            La puntuación y el nivel quedan registrados sin ser reinterpretados por esta interfaz.
+          </p>
         </div>
         <TechnicalRiskBadge level={assessment.result?.level} score={assessment.result?.score} />
         <dl>
-          <div><dt>Score</dt><dd>{assessment.result?.score ?? 'Sin resultado'}</dd></div>
-          <div><dt>Nivel</dt><dd>{technicalRiskLabel(assessment.result?.level)}</dd></div>
-          <div><dt>Calculado</dt><dd>{formatDateTime(assessment.result?.calculatedAt)}</dd></div>
+          <div>
+            <dt>Puntuación</dt>
+            <dd>{assessment.result?.score ?? 'Sin resultado'}</dd>
+          </div>
+          <div>
+            <dt>Nivel</dt>
+            <dd>{technicalRiskLabel(assessment.result?.level)}</dd>
+          </div>
+          <div>
+            <dt>Calculado</dt>
+            <dd>{formatDateTime(assessment.result?.calculatedAt)}</dd>
+          </div>
         </dl>
       </section>
       <div className="technical-result-layout">
         <div className="technical-result-main">
           <section className="technical-result-section" aria-labelledby="technical-answers-title">
-            <div className="technical-section-heading"><div><p className="technical-risk-kicker">Entradas registradas</p><h2 id="technical-answers-title">Respuestas enviadas</h2></div><span>{questions.length} preguntas</span></div>
+            <div className="technical-section-heading">
+              <div>
+                <p className="technical-risk-kicker">Entradas registradas</p>
+                <h2 id="technical-answers-title">Respuestas enviadas</h2>
+              </div>
+              <span>{questions.length} preguntas</span>
+            </div>
             <AnswerSummary questions={questions} answers={answers} />
           </section>
-          <section className="technical-result-section" aria-labelledby="technical-result-evidence-title">
-            <div className="technical-section-heading"><div><p className="technical-risk-kicker">Soporte</p><h2 id="technical-result-evidence-title">Evidencia estructurada</h2></div><span>{assessment.evidence?.length ?? 0} elementos</span></div>
-            {assessment.evidence?.length ? assessment.evidence.map((item) => (
-              <div className="technical-evidence-item" key={item.id}>
-                <span>{item.type === 'NOTE' ? item.note : <a href={item.externalUrl} target="_blank" rel="noreferrer">Abrir enlace externo</a>}</span>
-                <small>{item.createdBy.displayName}{item.createdAt ? ` · ${formatDateTime(item.createdAt)}` : ''}</small>
+          <section
+            className="technical-result-section"
+            aria-labelledby="technical-result-evidence-title"
+          >
+            <div className="technical-section-heading">
+              <div>
+                <p className="technical-risk-kicker">Soporte</p>
+                <h2 id="technical-result-evidence-title">Evidencia estructurada</h2>
               </div>
-            )) : <p className="muted">Sin evidencia registrada.</p>}
+              <span>{assessment.evidence?.length ?? 0} elementos</span>
+            </div>
+            {assessment.evidence?.length ? (
+              assessment.evidence.map((item) => (
+                <div className="technical-evidence-item" key={item.id}>
+                  <span>
+                    {item.type === 'NOTE' ? (
+                      item.note
+                    ) : (
+                      <a href={item.externalUrl} target="_blank" rel="noreferrer">
+                        Abrir enlace externo
+                      </a>
+                    )}
+                  </span>
+                  <small>
+                    {item.createdBy.displayName}
+                    {item.createdAt ? ` · ${formatDateTime(item.createdAt)}` : ''}
+                  </small>
+                </div>
+              ))
+            ) : (
+              <p className="muted">Sin evidencia registrada.</p>
+            )}
           </section>
         </div>
         <aside className="technical-result-rail" aria-label="Proveniencia y revisión">
-          <MethodVersionSummary name={provenance.name} code={assessment.methodKey} version={provenance.version} isDemo={provenance.isDemo} disclaimer={provenance.disclaimer} />
+          <MethodVersionSummary
+            name={provenance.name}
+            code={assessment.methodKey}
+            version={provenance.version}
+            isDemo={provenance.isDemo}
+            disclaimer={provenance.disclaimer}
+          />
           <section className="technical-review-summary">
             <p className="technical-risk-kicker">Fase separada</p>
             <h2>Revisión profesional</h2>
-            <span className={`technical-status technical-status-${reviewState.tone}`}>{reviewState.label}</span>
+            <span className={`technical-status technical-status-${reviewState.tone}`}>
+              {reviewState.label}
+            </span>
             <p>{reviewState.description}</p>
             <p className="technical-invariant-note">{TECHNICAL_RISK_REVIEW_COPY}</p>
-            {!canReview && assessment.status === 'COMPLETED' ? <TechnicalRiskPermissionState role={api.role} capability="registrar una revisión profesional" /> : null}
+            {!canReview && assessment.status === 'COMPLETED' ? (
+              <TechnicalRiskPermissionState
+                role={api.role}
+                capability="registrar una revisión profesional"
+              />
+            ) : null}
           </section>
           <section className="technical-audit-summary">
             <p className="technical-risk-kicker">Trazabilidad disponible</p>
             <h2>Registro</h2>
             <dl className="technical-description-list">
-              <div><dt>Creada por</dt><dd>{assessment.createdBy.displayName}</dd></div>
-              <div><dt>Creada</dt><dd>{formatDateTime(assessment.createdAt)}</dd></div>
-              <div><dt>Completada</dt><dd>{formatDateTime(assessment.completedAt)}</dd></div>
-              {assessment.reviewedBy ? <div><dt>Revisada por</dt><dd>{assessment.reviewedBy.displayName}</dd></div> : null}
+              <div>
+                <dt>Creada por</dt>
+                <dd>{assessment.createdBy.displayName}</dd>
+              </div>
+              <div>
+                <dt>Creada</dt>
+                <dd>{formatDateTime(assessment.createdAt)}</dd>
+              </div>
+              <div>
+                <dt>Completada</dt>
+                <dd>{formatDateTime(assessment.completedAt)}</dd>
+              </div>
+              {assessment.reviewedBy ? (
+                <div>
+                  <dt>Revisada por</dt>
+                  <dd>{assessment.reviewedBy.displayName}</dd>
+                </div>
+              ) : null}
             </dl>
             <ReviewHistory reviews={assessment.reviews} />
           </section>
@@ -1065,18 +1500,31 @@ function TechnicalAssessmentResult({
   );
 }
 
-type ReviewForm = { decision: '' | 'APPROVED' | 'NEEDS_REVISION'; comment: string };
+type ReviewForm = {
+  decision: '' | 'APPROVED' | 'NEEDS_REVISION';
+  comment: string;
+  selfReviewAcknowledged: boolean;
+};
 
 export function TechnicalAssessmentReview({ assessmentId }: { assessmentId: string }) {
   const api = useTechnicalRiskApi();
   const organizationId = api.organizationId;
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [requestMessage, setRequestMessage] = useState<{ tone: 'error' | 'success' | 'info'; text: string } | null>(null);
-  const form = useForm<ReviewForm>({ defaultValues: { decision: '', comment: '' } });
+  const [requestMessage, setRequestMessage] = useState<{
+    tone: 'error' | 'success' | 'info';
+    text: string;
+  } | null>(null);
+  const form = useForm<ReviewForm>({
+    defaultValues: { decision: '', comment: '', selfReviewAcknowledged: false },
+  });
   const query = useQuery({
-    queryKey: queryKeys.organization.technicalRiskAssessment(organizationId ?? 'inactive', assessmentId),
-    queryFn: ({ signal }) => api.request<Assessment>(`/technical-risk/assessments/${assessmentId}`, { signal }),
+    queryKey: queryKeys.organization.technicalRiskAssessment(
+      organizationId ?? 'inactive',
+      assessmentId,
+    ),
+    queryFn: ({ signal }) =>
+      api.request<Assessment>(`/technical-risk/assessments/${assessmentId}`, { signal }),
     enabled: Boolean(organizationId && api.moduleEnabled),
     retry: shouldRetryGet,
   });
@@ -1085,20 +1533,29 @@ export function TechnicalAssessmentReview({ assessmentId }: { assessmentId: stri
       api.request<TechnicalReview>(`/technical-risk/assessments/${assessmentId}/review`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ decision: values.decision, comment: values.comment || undefined }),
+        body: JSON.stringify({
+          decision: values.decision,
+          comment: values.comment || undefined,
+          selfReviewAcknowledged: values.selfReviewAcknowledged,
+        }),
       }),
     onSuccess: async (review) => {
       setDialogOpen(false);
       setRequestMessage({
         tone: 'success',
-        text: review.decision === 'APPROVED'
-          ? 'Revisión aprobada. La evaluación ahora está Revisada y el resultado técnico no cambió.'
-          : 'Revisión registrada: requiere ajustes. La evaluación permanece Completada.',
+        text:
+          review.decision === 'APPROVED'
+            ? 'Revisión aprobada. La evaluación ahora está Revisada y el resultado técnico no cambió.'
+            : 'Revisión registrada: requiere ajustes. La evaluación permanece Completada.',
       });
-      form.reset({ decision: '', comment: '' });
+      form.reset({ decision: '', comment: '', selfReviewAcknowledged: false });
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.organization.technicalRiskAssessment(organizationId!, assessmentId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.organization.technicalRiskAssessments(organizationId!) }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.technicalRiskAssessment(organizationId!, assessmentId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.technicalRiskAssessments(organizationId!),
+        }),
       ]);
     },
     onError: async (error) => {
@@ -1111,10 +1568,18 @@ export function TechnicalAssessmentReview({ assessmentId }: { assessmentId: stri
   const assessment = query.data;
   const decision = form.watch('decision');
   const canReview = canReviewTechnicalRisk(api.role);
+  const latestReview = assessment?.reviews?.at(-1);
+  const selfReview = assessment?.createdBy.id === api.userId;
+  const elevatedSelfApproval =
+    selfReview &&
+    decision === 'APPROVED' &&
+    (assessment?.result?.level === 'HIGH' || assessment?.result?.level === 'CRITICAL');
 
   async function openConfirmation() {
     setRequestMessage(null);
-    const valid = await form.trigger(['decision', 'comment'], { shouldFocus: true });
+    const valid = await form.trigger(['decision', 'comment', 'selfReviewAcknowledged'], {
+      shouldFocus: true,
+    });
     if (valid) setDialogOpen(true);
   }
 
@@ -1128,8 +1593,12 @@ export function TechnicalAssessmentReview({ assessmentId }: { assessmentId: stri
         <TechnicalRiskState
           kind="info"
           title="La evaluación todavía no está completada"
-          description="La revisión profesional ocurre después de que el servidor calcula el resultado."
-          action={<Link className="button secondary" href={`/app/technical-risk/${assessment.id}`}>Volver a la evaluación</Link>}
+          description="La revisión profesional ocurre después de que el resultado queda calculado."
+          action={
+            <Link className="button secondary" href={`/app/technical-risk/${assessment.id}`}>
+              Volver a la evaluación
+            </Link>
+          }
         />
       ) : (
         <div className="technical-professional-review stack-lg">
@@ -1137,90 +1606,283 @@ export function TechnicalAssessmentReview({ assessmentId }: { assessmentId: stri
             eyebrow="Riesgo técnico · revisión profesional"
             title="Revisión profesional"
             description="Revisa método, versión, contexto, respuestas, evidencia, autor y resultado antes de registrar una decisión explícita."
-            context={<p className="technical-risk-context">{api.organizationName} · {assessment.workCenter.name}{assessment.workArea ? ` · ${assessment.workArea.name}` : ' · sin área específica'}</p>}
-            actions={<Link className="button secondary" href={`/app/technical-risk/${assessment.id}`}>Volver al resultado</Link>}
+            context={
+              <p className="technical-risk-context">
+                {api.organizationName} · {assessment.workCenter.name}
+                {assessment.workArea ? ` · ${assessment.workArea.name}` : ' · sin área específica'}
+              </p>
+            }
+            actions={
+              <Link className="button secondary" href={`/app/technical-risk/${assessment.id}`}>
+                Volver al resultado
+              </Link>
+            }
           />
-          {assessment.isDemo ? <TechnicalRiskDemoNotice disclaimer={assessment.methodSnapshot.disclaimer} /> : null}
+          {assessment.isDemo ? (
+            <TechnicalRiskDemoNotice disclaimer={assessment.methodSnapshot.disclaimer} />
+          ) : null}
           <div className="technical-review-layout">
             <div className="technical-review-evidence">
-              <section className="technical-review-context" aria-labelledby="technical-review-context-title">
-                <div className="technical-section-heading"><div><p className="technical-risk-kicker">Registro inmutable</p><h2 id="technical-review-context-title">Contexto de la evaluación</h2></div><TechnicalAssessmentStatus status={assessment.status} /></div>
+              <section
+                className="technical-review-context"
+                aria-labelledby="technical-review-context-title"
+              >
+                <div className="technical-section-heading">
+                  <div>
+                    <p className="technical-risk-kicker">Registro inmutable</p>
+                    <h2 id="technical-review-context-title">Contexto de la evaluación</h2>
+                  </div>
+                  <TechnicalAssessmentStatus status={assessment.status} />
+                </div>
                 <dl className="technical-description-list two-columns">
-                  <div><dt>Evaluación</dt><dd>{assessment.title}</dd></div>
-                  <div><dt>Autor</dt><dd>{assessment.createdBy.displayName}</dd></div>
-                  <div><dt>Método</dt><dd>{assessment.methodSnapshot.methodName}</dd></div>
-                  <div><dt>Versión fijada</dt><dd className="mono">{assessment.methodVersion}</dd></div>
-                  <div><dt>Resultado</dt><dd>{assessment.result?.score ?? 'Sin resultado'} · {technicalRiskLabel(assessment.result?.level)}</dd></div>
-                  <div><dt>Calculado</dt><dd>{formatDateTime(assessment.result?.calculatedAt)}</dd></div>
+                  <div>
+                    <dt>Evaluación</dt>
+                    <dd>{assessment.title}</dd>
+                  </div>
+                  <div>
+                    <dt>Autor</dt>
+                    <dd>{assessment.createdBy.displayName}</dd>
+                  </div>
+                  <div>
+                    <dt>Método</dt>
+                    <dd>{assessment.methodSnapshot.methodName}</dd>
+                  </div>
+                  <div>
+                    <dt>Versión fijada</dt>
+                    <dd className="mono">{assessment.methodVersion}</dd>
+                  </div>
+                  <div>
+                    <dt>Resultado</dt>
+                    <dd>
+                      {assessment.result?.score ?? 'Sin resultado'} ·{' '}
+                      {technicalRiskLabel(assessment.result?.level)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Calculado</dt>
+                    <dd>{formatDateTime(assessment.result?.calculatedAt)}</dd>
+                  </div>
                 </dl>
               </section>
-              <section className="technical-review-context" aria-labelledby="technical-review-answers-title">
-                <div className="technical-section-heading"><div><p className="technical-risk-kicker">Entradas del método</p><h2 id="technical-review-answers-title">Respuestas</h2></div><TechnicalRiskBadge level={assessment.result?.level} score={assessment.result?.score} /></div>
+              <section
+                className="technical-review-context"
+                aria-labelledby="technical-review-answers-title"
+              >
+                <div className="technical-section-heading">
+                  <div>
+                    <p className="technical-risk-kicker">Entradas del método</p>
+                    <h2 id="technical-review-answers-title">Respuestas</h2>
+                  </div>
+                  <TechnicalRiskBadge
+                    level={assessment.result?.level}
+                    score={assessment.result?.score}
+                  />
+                </div>
                 <AnswerSummary
                   questions={allQuestions(assessment.methodSnapshot.schema)}
-                  answers={Object.fromEntries(assessment.responses?.map(({ questionKey, value }) => [questionKey, value]) ?? [])}
+                  answers={Object.fromEntries(
+                    assessment.responses?.map(({ questionKey, value }) => [questionKey, value]) ??
+                      [],
+                  )}
                 />
               </section>
-              <section className="technical-review-context" aria-labelledby="technical-review-evidence-title">
-                <div className="technical-section-heading"><div><p className="technical-risk-kicker">Soporte disponible</p><h2 id="technical-review-evidence-title">Evidencia</h2></div><span>{assessment.evidence?.length ?? 0} elementos</span></div>
-                {assessment.evidence?.length ? assessment.evidence.map((item) => (
-                  <div className="technical-evidence-item" key={item.id}><span>{item.type === 'NOTE' ? item.note : <a href={item.externalUrl} target="_blank" rel="noreferrer">Abrir enlace externo</a>}</span><small>{item.createdBy.displayName}</small></div>
-                )) : <p className="muted">Sin evidencia registrada.</p>}
+              <section
+                className="technical-review-context"
+                aria-labelledby="technical-review-evidence-title"
+              >
+                <div className="technical-section-heading">
+                  <div>
+                    <p className="technical-risk-kicker">Soporte disponible</p>
+                    <h2 id="technical-review-evidence-title">Evidencia</h2>
+                  </div>
+                  <span>{assessment.evidence?.length ?? 0} elementos</span>
+                </div>
+                {assessment.evidence?.length ? (
+                  assessment.evidence.map((item) => (
+                    <div className="technical-evidence-item" key={item.id}>
+                      <span>
+                        {item.type === 'NOTE' ? (
+                          item.note
+                        ) : (
+                          <a href={item.externalUrl} target="_blank" rel="noreferrer">
+                            Abrir enlace externo
+                          </a>
+                        )}
+                      </span>
+                      <small>{item.createdBy.displayName}</small>
+                    </div>
+                  ))
+                ) : (
+                  <p className="muted">Sin evidencia registrada.</p>
+                )}
               </section>
-              <section className="technical-review-context" aria-labelledby="technical-review-history-title">
-                <div className="technical-section-heading"><div><p className="technical-risk-kicker">Decisiones anteriores</p><h2 id="technical-review-history-title">Historial de revisión</h2></div></div>
+              <section
+                className="technical-review-context"
+                aria-labelledby="technical-review-history-title"
+              >
+                <div className="technical-section-heading">
+                  <div>
+                    <p className="technical-risk-kicker">Decisiones anteriores</p>
+                    <h2 id="technical-review-history-title">Historial de revisión</h2>
+                  </div>
+                </div>
                 <ReviewHistory reviews={assessment.reviews} />
               </section>
             </div>
-            <aside className="technical-review-decision focus-task" aria-label="Decisión profesional">
+            <aside
+              className="technical-review-decision focus-task"
+              aria-label="Decisión profesional"
+            >
               <p className="technical-risk-kicker">Decisión autorizada</p>
-              <h2>{assessment.status === 'REVIEWED' ? 'Revisión registrada' : 'Registrar decisión'}</h2>
+              <h2>
+                {assessment.status === 'REVIEWED' ? 'Revisión registrada' : 'Registrar decisión'}
+              </h2>
               <p>{TECHNICAL_RISK_REVIEW_COPY}</p>
-              <p className="technical-review-role-limit">Aprobar o solicitar cambios: solo {REVIEW_ROLE_COPY}.</p>
-              {requestMessage ? <TechnicalInlineMessage tone={requestMessage.tone}>{requestMessage.text}</TechnicalInlineMessage> : null}
-              {assessment.status === 'REVIEWED' ? (
+              <p className="technical-review-role-limit">
+                Aprobar o solicitar cambios: solo {REVIEW_ROLE_COPY}.
+              </p>
+              {requestMessage ? (
+                <TechnicalInlineMessage tone={requestMessage.tone}>
+                  {requestMessage.text}
+                </TechnicalInlineMessage>
+              ) : null}
+              {assessment.status === 'REVIEWED' || latestReview?.decision === 'NEEDS_REVISION' ? (
                 <ReviewHistory reviews={assessment.reviews?.slice(-1)} />
               ) : !canReview ? (
-                <TechnicalRiskPermissionState role={api.role} capability="registrar una revisión profesional" />
+                <TechnicalRiskPermissionState
+                  role={api.role}
+                  capability="registrar una revisión profesional"
+                />
               ) : (
-                <form onSubmit={(event) => { event.preventDefault(); void openConfirmation(); }} noValidate>
-                  <fieldset className="technical-review-options" aria-describedby={form.formState.errors.decision ? 'technical-review-decision-error' : undefined}>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void openConfirmation();
+                  }}
+                  noValidate
+                >
+                  <fieldset
+                    className="technical-review-options"
+                    aria-describedby={
+                      form.formState.errors.decision ? 'technical-review-decision-error' : undefined
+                    }
+                  >
                     <legend>Decisión</legend>
                     <label>
-                      <input type="radio" value="APPROVED" {...form.register('decision', { required: 'Selecciona una decisión profesional.' })} />
-                      <span><strong>Aprobar revisión</strong><small>Confirma profesionalmente el resultado medido. No cambia el nivel de riesgo.</small></span>
+                      <input
+                        type="radio"
+                        value="APPROVED"
+                        {...form.register('decision', {
+                          required: 'Selecciona una decisión profesional.',
+                        })}
+                      />
+                      <span>
+                        <strong>Aprobar revisión</strong>
+                        <small>
+                          Confirma profesionalmente el resultado medido. No cambia el nivel de
+                          riesgo.
+                        </small>
+                      </span>
                     </label>
                     <label>
-                      <input type="radio" value="NEEDS_REVISION" {...form.register('decision', { required: 'Selecciona una decisión profesional.' })} />
-                      <span><strong>Solicitar cambios</strong><small>Registra que requiere ajustes. El estado permanece Completada.</small></span>
+                      <input
+                        type="radio"
+                        value="NEEDS_REVISION"
+                        {...form.register('decision', {
+                          required: 'Selecciona una decisión profesional.',
+                        })}
+                      />
+                      <span>
+                        <strong>Solicitar cambios</strong>
+                        <small>
+                          Registra que requiere ajustes. El estado permanece Completada.
+                        </small>
+                      </span>
                     </label>
                   </fieldset>
-                  {form.formState.errors.decision ? <p className="field-error" id="technical-review-decision-error">{form.formState.errors.decision.message}</p> : null}
+                  {form.formState.errors.decision ? (
+                    <p className="field-error" id="technical-review-decision-error">
+                      {form.formState.errors.decision.message}
+                    </p>
+                  ) : null}
                   <div className="technical-field">
-                    <label htmlFor="review-comment">Comentario {decision === 'NEEDS_REVISION' ? '' : '· opcional'}</label>
+                    <label htmlFor="review-comment">
+                      Comentario {decision === 'NEEDS_REVISION' ? '' : '· opcional'}
+                    </label>
                     <textarea
                       id="review-comment"
                       rows={5}
                       maxLength={2000}
                       aria-invalid={Boolean(form.formState.errors.comment)}
-                      aria-describedby={form.formState.errors.comment ? 'technical-review-comment-error' : 'technical-review-comment-help'}
+                      aria-describedby={
+                        form.formState.errors.comment
+                          ? 'technical-review-comment-error'
+                          : 'technical-review-comment-help'
+                      }
                       {...form.register('comment', {
-                        validate: (value) => decision !== 'NEEDS_REVISION' || value.trim().length > 0 || 'Explica qué ajustes se requieren.',
+                        validate: (value) => {
+                          if (decision === 'NEEDS_REVISION' && value.trim().length === 0)
+                            return 'Explica qué ajustes se requieren.';
+                          if (elevatedSelfApproval && value.trim().length < 10)
+                            return 'Explica la autorrevisión en al menos 10 caracteres.';
+                          return true;
+                        },
                       })}
                     />
-                    <p className="technical-field-help" id="technical-review-comment-help">El comentario se conserva si la solicitud falla.</p>
-                    {form.formState.errors.comment ? <p className="field-error" id="technical-review-comment-error">{form.formState.errors.comment.message}</p> : null}
+                    <p className="technical-field-help" id="technical-review-comment-help">
+                      El comentario se conserva si la solicitud falla.
+                    </p>
+                    {form.formState.errors.comment ? (
+                      <p className="field-error" id="technical-review-comment-error">
+                        {form.formState.errors.comment.message}
+                      </p>
+                    ) : null}
                   </div>
-                  <button className="button" type="submit" disabled={mutation.isPending}>Registrar decisión</button>
-                  <p className="technical-api-authority">La visibilidad del panel no otorga permiso. La API valida rol, organización y estado.</p>
+                  {selfReview ? (
+                    <div className="technical-inline-message technical-inline-info" role="note">
+                      <strong>Estás revisando una evaluación que tú mismo registraste.</strong>
+                      {elevatedSelfApproval ? (
+                        <label>
+                          <input
+                            type="checkbox"
+                            {...form.register('selfReviewAcknowledged', {
+                              validate: (value) =>
+                                !elevatedSelfApproval || value || 'Confirma la autorrevisión.',
+                            })}
+                          />
+                          Confirmo esta autorrevisión y su trazabilidad.
+                        </label>
+                      ) : null}
+                      {form.formState.errors.selfReviewAcknowledged ? (
+                        <p className="field-error">
+                          {form.formState.errors.selfReviewAcknowledged.message}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <button className="button" type="submit" disabled={mutation.isPending}>
+                    Registrar decisión
+                  </button>
+                  <p className="technical-api-authority">
+                    La visibilidad del panel no otorga permisos; cada operación valida rol,
+                    organización y estado.
+                  </p>
                 </form>
               )}
             </aside>
           </div>
           <TechnicalReviewDialog
             open={dialogOpen}
-            title={decision === 'APPROVED' ? 'Confirmar aprobación profesional' : 'Confirmar solicitud de cambios'}
-            description={decision === 'APPROVED' ? 'La evaluación pasará a Revisada. El score y el nivel técnico no cambiarán.' : 'La decisión se registrará como Requiere ajustes. La evaluación permanecerá Completada.'}
+            title={
+              decision === 'APPROVED'
+                ? 'Confirmar aprobación profesional'
+                : 'Confirmar solicitud de cambios'
+            }
+            description={
+              decision === 'APPROVED'
+                ? 'La evaluación pasará a Revisada. La puntuación y el nivel técnico no cambiarán.'
+                : 'La decisión se registrará como Requiere ajustes. La evaluación permanecerá Completada.'
+            }
             pending={mutation.isPending}
             onClose={() => setDialogOpen(false)}
             onConfirm={() => mutation.mutate(form.getValues())}

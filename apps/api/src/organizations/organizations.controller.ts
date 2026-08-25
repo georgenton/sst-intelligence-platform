@@ -1,10 +1,16 @@
-import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AccessTokenGuard } from '../auth/access-token.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser, ApiRequest } from '../common/request-context';
 import { requestMetadata } from '../common/request-context';
-import { CreateOrganizationDto, InviteMemberDto, UpdateOrganizationDto } from './dto';
+import {
+  CreateOrganizationDto,
+  CreateWorkCenterDto,
+  InviteMemberDto,
+  UpdateOrganizationDto,
+  UpdateWorkCenterDto,
+} from './dto';
 import { OrganizationGuard } from './organization.guard';
 import { OrganizationContext, OrganizationIdParam, Roles } from './organization-context.decorator';
 import { OrganizationsService } from './organizations.service';
@@ -51,6 +57,61 @@ export class OrganizationsController {
   @UseGuards(OrganizationGuard)
   members(@OrganizationContext() organization: { id: string }) {
     return this.organizations.members(organization.id);
+  }
+
+  @Get(':id/work-centers')
+  @OrganizationIdParam()
+  @UseGuards(OrganizationGuard)
+  workCenters(@OrganizationContext() organization: { id: string }) {
+    return this.organizations.workCenters(organization.id);
+  }
+
+  @Get(':id/work-centers/:workCenterId')
+  @OrganizationIdParam()
+  @UseGuards(OrganizationGuard)
+  workCenter(
+    @OrganizationContext() organization: { id: string },
+    @Param('workCenterId') workCenterId: string,
+  ) {
+    return this.organizations.workCenter(organization.id, workCenterId);
+  }
+
+  @Post(':id/work-centers')
+  @OrganizationIdParam()
+  @Roles('ORG_OWNER', 'ORG_ADMIN')
+  @UseGuards(OrganizationGuard, RolesGuard)
+  createWorkCenter(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: CreateWorkCenterDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.organizations.createWorkCenter(
+      organization.id,
+      user.id,
+      body,
+      requestMetadata(request),
+    );
+  }
+
+  @Patch(':id/work-centers/:workCenterId')
+  @OrganizationIdParam()
+  @Roles('ORG_OWNER', 'ORG_ADMIN')
+  @UseGuards(OrganizationGuard, RolesGuard)
+  updateWorkCenter(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('workCenterId') workCenterId: string,
+    @Body() body: UpdateWorkCenterDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.organizations.updateWorkCenter(
+      organization.id,
+      workCenterId,
+      user.id,
+      body,
+      requestMetadata(request),
+    );
   }
 
   @Post(':id/invitations')

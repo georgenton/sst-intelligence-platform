@@ -14,6 +14,7 @@ import {
   profileFieldLabel,
   summarizeDecisionStates,
 } from '@/lib/applicability-experience';
+import { TechnicalDetails } from './technical-details';
 
 export function ApplicabilityPageHeader({
   eyebrow,
@@ -104,22 +105,22 @@ export function ProfileSnapshotSummary({
     <section className="applicability-profile-snapshot" aria-label={heading}>
       <div className="applicability-section-heading">
         <div>
-          <p className="applicability-kicker">Snapshot inmutable</p>
+          <p className="applicability-kicker">Información registrada</p>
           <h2>{heading}</h2>
         </div>
         {version ? <span>Versión {version}</span> : null}
       </div>
       <dl className="applicability-fact-grid">
         <div>
-          <dt>País · derivado por servidor</dt>
+          <dt>País · obtenido de la organización</dt>
           <dd>{profileFactLabel(snapshot.organization.country)}</dd>
         </div>
         <div>
-          <dt>Sector · derivado por servidor</dt>
+          <dt>Sector · obtenido de la organización</dt>
           <dd>{profileFactLabel(snapshot.organization.sector)}</dd>
         </div>
         <div>
-          <dt>Centros de trabajo · derivado por servidor</dt>
+          <dt>Centros de trabajo · obtenidos de la organización</dt>
           <dd>{profileFactLabel(snapshot.organization.workCenterCount)}</dd>
         </div>
         <div>
@@ -162,29 +163,34 @@ export function RulePackCard({
       <div className="applicability-rule-pack__identity">
         <div>
           <span className="applicability-source-badge" data-demo={pack.isDemo}>
-            {pack.isDemo ? 'DEMO' : pack.sourceType}
+            {pack.isDemo ? 'Demostración' : 'Referencia'}
           </span>
           <h3>{pack.name}</h3>
         </div>
-        <code>v{pack.version}</code>
       </div>
-      <dl className="applicability-rule-pack__meta">
-        <div>
-          <dt>Clave</dt>
-          <dd>
-            <code>{pack.key}</code>
-          </dd>
-        </div>
-        <div>
-          <dt>Fuente</dt>
-          <dd>{pack.sourceType}</dd>
-        </div>
-        <div>
-          <dt>Carácter regulatorio</dt>
-          <dd>{pack.regulatory ? 'Sí' : 'No'}</dd>
-        </div>
-      </dl>
       <p>{pack.disclaimer}</p>
+      <TechnicalDetails>
+        <dl className="applicability-rule-pack__meta">
+          <div>
+            <dt>Versión</dt>
+            <dd>{pack.version}</dd>
+          </div>
+          <div>
+            <dt>Identificador</dt>
+            <dd>
+              <code>{pack.key}</code>
+            </dd>
+          </div>
+          <div>
+            <dt>Fuente</dt>
+            <dd>{pack.sourceType}</dd>
+          </div>
+          <div>
+            <dt>Carácter regulatorio</dt>
+            <dd>{pack.regulatory ? 'Sí' : 'No'}</dd>
+          </div>
+        </dl>
+      </TechnicalDetails>
     </>
   );
 
@@ -241,7 +247,7 @@ export function ApplicabilityDecisionSummary({
               <strong>{count}</strong>
               <span>{meta.label}</span>
               <small>
-                <span aria-hidden="true">{meta.symbol}</span> {typedState}
+                <span aria-hidden="true">{meta.symbol}</span> Estado registrado
               </small>
             </div>
           );
@@ -268,22 +274,16 @@ export function ApplicabilityDecisionCard({ decision }: { decision: Applicabilit
         <div>
           <ApplicabilityStateBadge state={decision.state} />
           <h3>{applicabilityTargetLabel(decision.targetKey)}</h3>
-          <code>{decision.targetKey}</code>
         </div>
         <div className="applicability-decision-card__source">
-          <span>{decision.sourceType}</span>
-          {decision.winningRuleId ? (
-            <code>{decision.winningRuleId}</code>
-          ) : (
-            <span>Sin regla ganadora</span>
-          )}
+          <span>Resultado explicable</span>
         </div>
       </div>
       <p>{decision.explanation}</p>
       <p className="applicability-decision-description">{meta.description}</p>
       {decision.state === 'NEEDS_INFORMATION' ? (
         <aside className="applicability-missing-information">
-          <strong>Información que falta en este snapshot</strong>
+          <strong>Información que falta en esta evaluación</strong>
           {missingFields.length > 0 ? (
             <ul>
               {missingFields.map((field) => (
@@ -291,7 +291,7 @@ export function ApplicabilityDecisionCard({ decision }: { decision: Applicabilit
               ))}
             </ul>
           ) : (
-            <p>El trace persistido indica información incompleta.</p>
+            <p>El detalle registrado indica información incompleta.</p>
           )}
           <Link href="/app/applicability/new">Crear nueva versión del perfil</Link>
         </aside>
@@ -303,8 +303,30 @@ export function ApplicabilityDecisionCard({ decision }: { decision: Applicabilit
         </aside>
       ) : null}
       <details className="applicability-trace-disclosure">
-        <summary>Ver por qué</summary>
+        <summary>¿Por qué se obtuvo este resultado?</summary>
         <div className="applicability-trace-list">
+          <dl className="applicability-trace-meta">
+            <div>
+              <dt>Objetivo</dt>
+              <dd>
+                <code>{decision.targetKey}</code>
+              </dd>
+            </div>
+            <div>
+              <dt>Fuente</dt>
+              <dd>{decision.sourceType}</dd>
+            </div>
+            <div>
+              <dt>Regla determinante</dt>
+              <dd>
+                {decision.winningRuleId ? (
+                  <code>{decision.winningRuleId}</code>
+                ) : (
+                  'Sin regla determinante'
+                )}
+              </dd>
+            </div>
+          </dl>
           {decision.traces.map((trace) => (
             <article className="applicability-trace-rule" key={trace.id}>
               <div className="applicability-trace-rule__heading">

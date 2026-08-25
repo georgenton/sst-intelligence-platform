@@ -15,11 +15,9 @@ export function ModuleDetail() {
   if (!item)
     return (
       <Card className="stack">
-        <StatusBadge>ENTITLEMENT REQUERIDO</StatusBadge>
+        <StatusBadge>No incluido</StatusBadge>
         <h2>Este módulo no está habilitado.</h2>
-        <p className="muted">
-          La API no lo incluyó entre los módulos efectivos de la organización.
-        </p>
+        <p className="muted">Tu plan actual no incluye este módulo.</p>
         <div>
           <Link className="button" href="/app/billing">
             Solicitar mejora
@@ -60,7 +58,7 @@ export function ModuleDetail() {
         </p>
         <div>
           <Link className="button" href="/app/billing">
-            Solicitar activación real
+            Solicitar cambio de plan
           </Link>
         </div>
       </Card>

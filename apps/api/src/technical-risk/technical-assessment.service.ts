@@ -47,6 +47,24 @@ const detailInclude = {
     include: { reviewer: { select: { id: true, displayName: true } } },
     orderBy: { createdAt: 'asc' as const },
   },
+  revisedFrom: {
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      methodVersionId: true,
+      methodKey: true,
+      methodVersion: true,
+      reviews: {
+        select: { decision: true, comment: true, createdAt: true },
+        orderBy: { createdAt: 'desc' as const },
+        take: 1,
+      },
+    },
+  },
+  revision: {
+    select: { id: true, title: true, status: true, createdAt: true },
+  },
 } as const;
 
 @Injectable()
@@ -455,10 +473,40 @@ export class TechnicalAssessmentService {
     context: Context,
   ) {
     return this.prisma.$transaction(async (tx) => {
+      const assessment = await tx.technicalAssessment.findFirst({
+        where: { id: assessmentId, organizationId },
+        select: {
+          createdById: true,
+          status: true,
+          reviewedAt: true,
+          result: { select: { level: true } },
+        },
+      });
+      if (!assessment) this.notFound();
+      const isSelfReview = assessment.createdById === reviewerUserId;
+      const isElevatedSelfApproval =
+        isSelfReview &&
+        input.decision === 'APPROVED' &&
+        (assessment.result?.level === 'HIGH' || assessment.result?.level === 'CRITICAL');
+      const comment = input.comment?.trim();
+      if (
+        isElevatedSelfApproval &&
+        (input.selfReviewAcknowledged !== true || !comment || comment.length < 10)
+      ) {
+        throw new BadRequestException({
+          code: 'SELF_REVIEW_ACKNOWLEDGEMENT_REQUIRED',
+          message: 'Confirma la autorrevisión y registra un comentario de al menos 10 caracteres.',
+        });
+      }
       const approved = input.decision === 'APPROVED';
+      const reviewedAt = new Date();
       const claim = await tx.technicalAssessment.updateMany({
-        where: { id: assessmentId, organizationId, status: 'COMPLETED' },
-        data: approved ? { status: 'REVIEWED' } : { updatedAt: new Date() },
+        where: { id: assessmentId, organizationId, status: 'COMPLETED', reviewedAt: null },
+        data: {
+          ...(approved ? { status: 'REVIEWED' as const } : {}),
+          reviewedAt,
+          reviewedById: reviewerUserId,
+        },
       });
       if (claim.count !== 1) {
         const exists = await tx.technicalAssessment.findFirst({
@@ -471,19 +519,15 @@ export class TechnicalAssessmentService {
           message: 'Solo una evaluación completada puede revisarse.',
         });
       }
-      if (approved) {
-        await tx.technicalAssessment.update({
-          where: { id: assessmentId },
-          data: { reviewedAt: new Date(), reviewedById: reviewerUserId },
-        });
-      }
       const review = await tx.technicalAssessmentReview.create({
         data: {
           organizationId,
           assessmentId,
           reviewerUserId,
           decision: input.decision,
-          comment: input.comment?.trim(),
+          comment,
+          isSelfReview,
+          selfReviewAcknowledged: isSelfReview && input.selfReviewAcknowledged === true,
         },
       });
       await tx.auditLog.create({
@@ -493,12 +537,103 @@ export class TechnicalAssessmentService {
           action: 'TECHNICAL_ASSESSMENT_REVIEWED',
           entityType: 'TechnicalAssessmentReview',
           entityId: review.id,
-          metadata: { assessmentId, decision: input.decision },
+          metadata: {
+            assessmentId,
+            decision: input.decision,
+            isSelfReview,
+            selfReviewAcknowledged: isSelfReview && input.selfReviewAcknowledged === true,
+          },
           ...context,
         },
       });
       return review;
     });
+  }
+
+  async createRevision(
+    organizationId: string,
+    sourceAssessmentId: string,
+    userId: string,
+    context: Context,
+  ) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const source = await tx.technicalAssessment.findFirst({
+          where: { id: sourceAssessmentId, organizationId },
+          include: {
+            responses: { orderBy: { createdAt: 'asc' } },
+            reviews: { orderBy: { createdAt: 'desc' }, take: 1 },
+            revision: { select: { id: true } },
+          },
+        });
+        if (!source) this.notFound();
+        if (
+          source.status !== 'COMPLETED' ||
+          source.reviews[0]?.decision !== 'NEEDS_REVISION' ||
+          !source.reviewedAt
+        ) {
+          throw new ConflictException({
+            code: 'REVISION_NOT_REQUESTED',
+            message: 'Esta evaluación no tiene cambios pendientes solicitados por revisión.',
+          });
+        }
+        if (source.revision) {
+          throw new ConflictException({
+            code: 'TECHNICAL_REVISION_ALREADY_EXISTS',
+            message: 'Ya existe una corrección para esta evaluación.',
+          });
+        }
+        const revision = await tx.technicalAssessment.create({
+          data: {
+            organizationId,
+            workCenterId: source.workCenterId,
+            workAreaId: source.workAreaId,
+            methodVersionId: source.methodVersionId,
+            methodKey: source.methodKey,
+            methodVersion: source.methodVersion,
+            calculationKey: source.calculationKey,
+            methodSnapshot: source.methodSnapshot as Prisma.InputJsonValue,
+            title: `${source.title} · Corrección`.slice(0, 160),
+            description: source.description,
+            createdById: userId,
+            isDemo: source.isDemo,
+            revisedFromAssessmentId: source.id,
+            responses: {
+              create: source.responses.map((response) => ({
+                organizationId,
+                questionKey: response.questionKey,
+                value: response.value as Prisma.InputJsonValue,
+              })),
+            },
+          },
+          include: detailInclude,
+        });
+        await tx.auditLog.create({
+          data: {
+            organizationId,
+            actorUserId: userId,
+            action: 'TECHNICAL_ASSESSMENT_REVISION_CREATED',
+            entityType: 'TechnicalAssessment',
+            entityId: revision.id,
+            metadata: {
+              revisedFromAssessmentId: source.id,
+              methodVersionId: source.methodVersionId,
+              evidenceCopied: false,
+            },
+            ...context,
+          },
+        });
+        return revision;
+      });
+    } catch (error) {
+      if (this.isUniqueConstraintError(error)) {
+        throw new ConflictException({
+          code: 'TECHNICAL_REVISION_ALREADY_EXISTS',
+          message: 'Ya existe una corrección para esta evaluación.',
+        });
+      }
+      throw error;
+    }
   }
 
   private async validateLocation(
@@ -508,7 +643,7 @@ export class TechnicalAssessmentService {
     db: Pick<Prisma.TransactionClient, 'workCenter' | 'workArea'> = this.prisma,
   ) {
     const center = await db.workCenter.findFirst({
-      where: { id: workCenterId, organizationId },
+      where: { id: workCenterId, organizationId, isActive: true },
       select: { id: true },
     });
     if (!center) {
@@ -606,5 +741,14 @@ export class TechnicalAssessmentService {
       code: 'TECHNICAL_ASSESSMENT_NOT_EDITABLE',
       message: 'La evaluación técnica ya no admite cambios.',
     });
+  }
+
+  private isUniqueConstraintError(error: unknown): error is { code: string } {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: unknown }).code === 'P2002'
+    );
   }
 }

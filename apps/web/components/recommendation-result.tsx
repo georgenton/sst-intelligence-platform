@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useAuth } from './auth-provider';
 import { queryKeys } from '@/lib/query-keys';
+import { humanModuleLabel, humanPriorityLabel } from '@/lib/human-lexicon';
+import { TechnicalDetails } from './technical-details';
 import { RecommendationSummary, SessionPersistence } from './guided';
 
 type Session = {
@@ -47,7 +49,7 @@ export function RecommendationResult() {
     <div className="stack">
       <RecommendationSummary>
         <div>
-          <StatusBadge>Motor {result.engineVersion}</StatusBadge>
+          <StatusBadge>Recomendación operativa</StatusBadge>
           <h1>{explanation.headline}</h1>
           <p className="muted">{explanation.executiveSummary}</p>
         </div>
@@ -59,11 +61,10 @@ export function RecommendationResult() {
             return (
               <Card className="module-row" key={module.moduleKey}>
                 <div>
-                  <p className="eyebrow">Prioridad {module.priority}</p>
-                  <h3>{module.moduleKey.replaceAll('_', ' ')}</h3>
+                  <p className="eyebrow">Prioridad {humanPriorityLabel(module.priority)}</p>
+                  <h3>{humanModuleLabel(module.moduleKey)}</h3>
                   <p className="muted">{detail?.why ?? module.reasons.join('. ')}</p>
                 </div>
-                <strong>{module.score}/100</strong>
               </Card>
             );
           })}
@@ -73,9 +74,15 @@ export function RecommendationResult() {
           <h3>{result.suggestedPlan}</h3>
           <p>{explanation.rolloutExplanation}</p>
         </Card>
+        <p className="muted">{explanation.disclaimer}</p>
         <p className="muted">
-          <strong>Explicación:</strong> {explanationMode}. {explanation.disclaimer}
+          Esta recomendación orienta módulos comerciales y operativos. No determina aplicabilidad
+          legal, no selecciona una metodología de riesgo y no certifica cumplimiento.
         </p>
+        <TechnicalDetails>
+          <p>Versión del motor: {result.engineVersion}</p>
+          <p>Modo de explicación: {explanationMode}</p>
+        </TechnicalDetails>
       </RecommendationSummary>
       <Card className="stack">
         <h2>Activa un workspace de demostración</h2>

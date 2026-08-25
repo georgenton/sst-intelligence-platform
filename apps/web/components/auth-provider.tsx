@@ -13,6 +13,10 @@ import {
   type PropsWithChildren,
 } from 'react';
 import { clearStoredActiveOrganization } from '@/lib/active-organization-storage';
+import {
+  AuthSessionChangedError,
+  createAuthenticatedRequestCoordinator,
+} from '@/lib/authenticated-request';
 import { clearAppearanceSessionUser, setAppearanceSessionUser } from '@/lib/appearance';
 import {
   captureBrowserRefreshSettlement,
@@ -28,11 +32,17 @@ type Credentials = { email: string; password: string; displayName?: string };
 type AuthContextValue = {
   user: AuthSessionUser | null;
   loading: boolean;
+  sessionEnded: boolean;
   accessToken: string | null;
   login(input: Credentials): Promise<void>;
   register(input: Credentials): Promise<void>;
   logout(): Promise<void>;
-  request<T>(path: string, init?: RequestInit, organizationId?: string): Promise<T>;
+  request<T>(
+    path: string,
+    init?: RequestInit,
+    organizationId?: string,
+    sessionToken?: string,
+  ): Promise<T>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -43,6 +53,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<AuthSessionUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionEnded, setSessionEnded] = useState(false);
+  const sessionRef = useRef<{ user: AuthSessionUser | null; accessToken: string | null }>({
+    user: null,
+    accessToken: null,
+  });
+
+  const commitSession = useCallback((result: { user: AuthSessionUser; accessToken: string }) => {
+    sessionRef.current = result;
+    setUser(result.user);
+    setAccessToken(result.accessToken);
+  }, []);
 
   useEffect(() => {
     const generation = sessionGeneration.capture();
@@ -50,8 +71,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       .then((result) => {
         sessionGeneration.commit(generation, () => {
           setAppearanceSessionUser(window.localStorage, result.user.id);
-          setUser(result.user);
-          setAccessToken(result.accessToken);
+          commitSession(result);
         });
       })
       .catch(() => {
@@ -60,7 +80,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       .finally(() => {
         sessionGeneration.commit(generation, () => setLoading(false));
       });
-  }, [sessionGeneration]);
+  }, [commitSession, sessionGeneration]);
 
   const authenticate = useCallback(
     async (path: '/auth/login' | '/auth/register', input: Credentials) => {
@@ -75,6 +95,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         if (!sessionGeneration.isCurrent(generation)) return;
         if (user?.id !== result.user.id) {
           setLoading(true);
+          sessionRef.current = { user: null, accessToken: null };
           setAccessToken(null);
           await removeAllPrivateQueries(queryClient);
           if (!sessionGeneration.isCurrent(generation)) return;
@@ -82,8 +103,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         }
         sessionGeneration.commit(generation, () => {
           setAppearanceSessionUser(window.localStorage, result.user.id);
-          setUser(result.user);
-          setAccessToken(result.accessToken);
+          commitSession(result);
+          setSessionEnded(false);
           setLoading(false);
         });
       } catch (error: unknown) {
@@ -91,19 +112,57 @@ export function AuthProvider({ children }: PropsWithChildren) {
         throw error;
       }
     },
-    [queryClient, sessionGeneration, user?.id],
+    [commitSession, queryClient, sessionGeneration, user?.id],
   );
 
-  const request = useCallback(
-    <T,>(path: string, init: RequestInit = {}, organizationId?: string) =>
-      apiRequest<T>(path, init, { accessToken: accessToken ?? undefined, organizationId }),
-    [accessToken],
+  const refreshForGeneration = useCallback(
+    async (generation: number) => {
+      const result = await refreshBrowserSession();
+      if (!sessionGeneration.isCurrent(generation)) throw new AuthSessionChangedError();
+      sessionGeneration.commit(generation, () => {
+        setAppearanceSessionUser(window.localStorage, result.user.id);
+        commitSession(result);
+      });
+      return { accessToken: result.accessToken };
+    },
+    [commitSession, sessionGeneration],
+  );
+
+  const invalidateExpiredSession = useCallback(
+    async (generation: number) => {
+      if (!sessionGeneration.isCurrent(generation)) return;
+      sessionGeneration.advance();
+      const exitingUserId = sessionRef.current.user?.id;
+      sessionRef.current = { user: null, accessToken: null };
+      setAccessToken(null);
+      setUser(null);
+      setLoading(false);
+      setSessionEnded(true);
+      clearAppearanceSessionUser(window.localStorage);
+      await removeAllPrivateQueries(queryClient);
+      if (exitingUserId) clearStoredActiveOrganization(window.localStorage, exitingUserId);
+    },
+    [queryClient, sessionGeneration],
+  );
+
+  const request = useMemo(
+    () =>
+      createAuthenticatedRequestCoordinator({
+        getSession: () => ({
+          accessToken: sessionRef.current.accessToken,
+          generation: sessionGeneration.capture(),
+        }),
+        refresh: refreshForGeneration,
+        invalidate: invalidateExpiredSession,
+      }),
+    [invalidateExpiredSession, refreshForGeneration, sessionGeneration],
   );
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       loading,
+      sessionEnded,
       accessToken,
       login: (input) => authenticate('/auth/login', input),
       register: (input) => authenticate('/auth/register', input),
@@ -112,8 +171,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
         const capturedRefreshSettlement = captureBrowserRefreshSettlement();
         const exitingUserId = user?.id;
         setLoading(true);
+        sessionRef.current = { user: null, accessToken: null };
         setAccessToken(null);
         setUser(null);
+        setSessionEnded(false);
         clearAppearanceSessionUser(window.localStorage);
         const firstServerLogout = startLogoutServerInvalidation({
           capturedRefreshSettlement,
@@ -127,7 +188,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
       },
       request,
     }),
-    [accessToken, authenticate, loading, queryClient, request, sessionGeneration, user],
+    [
+      accessToken,
+      authenticate,
+      loading,
+      queryClient,
+      request,
+      sessionEnded,
+      sessionGeneration,
+      user,
+    ],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

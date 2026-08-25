@@ -73,7 +73,7 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
     page.getByRole('button', { name: 'Guardar hallazgo' }).click(),
   ]);
   expect(findingResponse.ok(), await findingResponse.text()).toBe(true);
-  await expect(page.getByText('Resultado calculado por el servidor')).toBeVisible();
+  await expect(page.getByText('Resultado calculado automáticamente')).toBeVisible();
   await expect(page.getByText('Probabilidad 4 × consecuencia 5')).toBeVisible();
   await expect(page.getByText('Crítico').first()).toBeVisible();
   await Promise.all([
@@ -82,13 +82,16 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   ]);
   const findingUrl = page.url();
 
-  await page.getByRole('button', { name: 'Nueva acción' }).click();
-  await page.getByLabel('Acción').fill('Aislar conductor y verificar protección');
-  await page
+  await page.getByRole('button', { name: 'Crear acción correctiva' }).click();
+  const actionDialog = page.getByRole('dialog', { name: 'Crear acción correctiva' });
+  await actionDialog
+    .getByRole('textbox', { name: 'Acción' })
+    .fill('Aislar conductor y verificar protección');
+  await actionDialog
     .getByLabel('Responsable')
-    .selectOption({ label: 'Técnico Inspecciones E2E · ORG_OWNER' });
-  await page.getByLabel('Prioridad').selectOption('URGENT');
-  await page.getByRole('button', { name: 'Guardar acción' }).click();
+    .selectOption({ label: 'Técnico Inspecciones E2E · Propietario' });
+  await actionDialog.getByLabel('Prioridad').selectOption('URGENT');
+  await actionDialog.getByRole('button', { name: 'Guardar acción' }).click();
   await page.getByRole('button', { name: 'Iniciar acción' }).click();
   await page.getByRole('button', { name: 'Añadir evidencia' }).click();
   await page.getByLabel('Nota').fill('Protección aislada y revisada durante la prueba E2E.');
@@ -178,6 +181,8 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
     .getByRole('group', { name: 'Probabilidad residual' })
     .locator('input[value="1"]')
     .check();
+  await page.getByLabel('Base de verificación').selectOption('RECORDED_EVIDENCE');
+  await page.getByLabel('Confirmo esta autoverificación y su trazabilidad.').check();
   await page
     .getByRole('group', { name: 'Consecuencia residual' })
     .locator('input[value="1"]')
@@ -221,4 +226,38 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await expect(
     page.getByText('Este aviso indica recurrencia, no confirma una causa raíz.').first(),
   ).toBeVisible();
+  const recurrenceCard = page
+    .locator('.inspection-alert-card')
+    .filter({ hasText: 'Este aviso indica recurrencia, no confirma una causa raíz.' })
+    .first();
+  await recurrenceCard.getByRole('button', { name: 'Marcar como revisada' }).click();
+  await expect(
+    recurrenceCard.getByText(/Revisada por .*Esto no elimina la recurrencia/),
+  ).toBeVisible();
+  await recurrenceCard.getByRole('button', { name: 'Iniciar revisión sistémica' }).click();
+  const systemicReview = recurrenceCard.locator('section.inspection-form-card');
+  await expect(systemicReview.getByRole('heading', { name: 'Revisión sistémica' })).toBeVisible();
+  await systemicReview
+    .getByLabel('¿Las acciones puntuales parecen suficientes?')
+    .selectOption('NEEDS_MORE_INFORMATION');
+  await systemicReview.getByLabel('¿Se recomienda una revisión más amplia?').selectOption('YES');
+  await systemicReview
+    .getByLabel('Factores sospechados · opcional')
+    .fill('Se requiere análisis profesional adicional de las condiciones repetidas.');
+  const [systemicReviewResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/inspections\/systemic-reviews\/[0-9a-f-]+\/complete$/.test(response.url()),
+    ),
+    systemicReview.getByRole('button', { name: 'Completar revisión sistémica' }).click(),
+  ]);
+  expect(systemicReviewResponse.ok(), await systemicReviewResponse.text()).toBe(true);
+  const completedReview = page.getByRole('region', { name: 'Revisión sistémica' }).filter({
+    hasText: 'Se requiere análisis profesional adicional de las condiciones repetidas.',
+  });
+  await expect(
+    completedReview.locator('.domain-status').filter({ hasText: 'Completada' }),
+  ).toBeVisible();
+  await expect(completedReview.getByText('Completada por', { exact: true })).toBeVisible();
 });

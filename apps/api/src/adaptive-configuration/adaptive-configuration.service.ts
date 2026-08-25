@@ -122,7 +122,7 @@ export class AdaptiveConfigurationService {
           },
         }),
         transaction.workCenter.findMany({
-          where: { organizationId },
+          where: { organizationId, isActive: true },
           select: { id: true, name: true },
           orderBy: [{ name: 'asc' }, { id: 'asc' }],
         }),

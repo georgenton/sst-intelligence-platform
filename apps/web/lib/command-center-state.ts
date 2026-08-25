@@ -39,3 +39,18 @@ export function resolveAttentionState({
     showEmpty: sourcesSettled && !hasKnownAttention,
   };
 }
+
+export type CommandCenterConfigurationState =
+  'loading' | 'unavailable' | 'not-yet-configured' | 'configured';
+
+export function resolveCommandCenterConfigurationState({
+  status,
+  profileVersionCount,
+}: {
+  status: 'pending' | 'error' | 'success';
+  profileVersionCount: number;
+}): CommandCenterConfigurationState {
+  if (status === 'pending') return 'loading';
+  if (status === 'error') return 'unavailable';
+  return profileVersionCount > 0 ? 'configured' : 'not-yet-configured';
+}

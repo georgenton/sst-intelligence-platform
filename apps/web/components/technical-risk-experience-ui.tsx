@@ -20,6 +20,12 @@ import {
   technicalRiskLabel,
   type TechnicalReviewRecord,
 } from '@/lib/technical-risk-experience';
+import {
+  AUTHORIZED_TECHNICAL_REVIEWER_LABELS,
+  AUTHORIZED_TECHNICAL_WRITER_LABELS,
+  humanRoleLabel,
+} from '@/lib/human-lexicon';
+import { TechnicalDetails } from './technical-details';
 
 export type TechnicalAnswerValues = { answers: Record<string, unknown> };
 
@@ -86,13 +92,13 @@ export function TechnicalRiskPermissionState({
 }) {
   const roles =
     capability === 'registrar una revisión profesional'
-      ? 'ORG_OWNER, ORG_ADMIN o SST_MANAGER'
-      : 'ORG_OWNER, ORG_ADMIN, SST_MANAGER, SST_TECHNICIAN o CONSULTANT';
+      ? AUTHORIZED_TECHNICAL_REVIEWER_LABELS
+      : AUTHORIZED_TECHNICAL_WRITER_LABELS;
   return (
     <TechnicalRiskState
       kind="permission"
       title="Acción no disponible para tu rol"
-      description={`Tu rol ${role ?? 'actual'} puede consultar este contexto, pero no ${capability}. Pueden hacerlo: ${roles}. La API valida el permiso en cada operación.`}
+      description={`Tu rol (${humanRoleLabel(role)}) puede consultar este contexto, pero no ${capability}. Pueden hacerlo: ${roles}. Los permisos se validan en cada operación.`}
     />
   );
 }
@@ -102,7 +108,7 @@ export function TechnicalRiskEntitlementState({ planName }: { planName?: string 
     <TechnicalRiskState
       kind="entitlement"
       title="Riesgo técnico no está disponible en este plan"
-      description={`El plan ${planName ?? 'activo'} no incluye el módulo de Riesgo técnico. Un ORG_OWNER u ORG_ADMIN puede revisar Módulos y plan.`}
+      description={`El plan ${planName ?? 'activo'} no incluye el módulo de Riesgo técnico. Un Propietario o Administrador puede revisar Módulos y plan.`}
       action={
         <Link className="button secondary" href="/app/modules">
           Ver módulos y plan
@@ -181,15 +187,27 @@ export function MethodVersionSummary({
   return (
     <section className="technical-method-summary" aria-labelledby="technical-method-summary-title">
       <div>
-        <p className="technical-risk-kicker">Método fijado</p>
+        <p className="technical-risk-kicker">Metodología utilizada</p>
         <h2 id="technical-method-summary-title">{name}</h2>
         <div className="technical-method-identity">
-          {code ? <code>{code}</code> : null}
-          <span>
-            Versión <strong className="mono">{version}</strong>
-          </span>
           {isDemo ? <span className="demo-chip">Demostración</span> : null}
         </div>
+        <TechnicalDetails summary="Ver metodología y detalles">
+          <dl className="technical-description-list">
+            <div>
+              <dt>Versión</dt>
+              <dd>{version}</dd>
+            </div>
+            {code ? (
+              <div>
+                <dt>Identificador</dt>
+                <dd>
+                  <code>{code}</code>
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+        </TechnicalDetails>
       </div>
       {isDemo ? <TechnicalRiskDemoNotice disclaimer={disclaimer} /> : null}
     </section>
@@ -239,9 +257,7 @@ export function TechnicalQuestionField({
   const helpId = useId();
   const errorId = useId();
   const name = `answers.${question.key}` as `answers.${string}`;
-  const describedBy = [helpId, error ? errorId : null]
-    .filter(Boolean)
-    .join(' ');
+  const describedBy = [helpId, error ? errorId : null].filter(Boolean).join(' ');
   const expectation = technicalQuestionExpectation(question);
   return (
     <Controller
@@ -329,7 +345,10 @@ export function TechnicalQuestionField({
           case 'LIKELIHOOD':
           case 'CONSEQUENCE':
             input = (
-              <fieldset className="technical-choice-group technical-scale" aria-describedby={describedBy}>
+              <fieldset
+                className="technical-choice-group technical-scale"
+                aria-describedby={describedBy}
+              >
                 <legend>{question.label}</legend>
                 <div className="technical-scale-options">
                   {Array.from(
@@ -345,7 +364,9 @@ export function TechnicalQuestionField({
                         onChange={() => field.onChange(option)}
                       />
                       <strong>{option}</strong>
-                      <span>{option === question.min ? 'Menor' : option === question.max ? 'Mayor' : ''}</span>
+                      <span>
+                        {option === question.min ? 'Menor' : option === question.max ? 'Mayor' : ''}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -418,7 +439,10 @@ export function ReviewHistory({ reviews }: { reviews?: TechnicalReviewRecord[] }
     <ol className="technical-review-history">
       {reviews.map((review, index) => (
         <li key={`${review.createdAt}-${index}`}>
-          <span className={`technical-review-mark review-${review.decision.toLocaleLowerCase('en')}`} aria-hidden="true" />
+          <span
+            className={`technical-review-mark review-${review.decision.toLocaleLowerCase('en')}`}
+            aria-hidden="true"
+          />
           <div>
             <strong>
               {review.decision === 'APPROVED' ? 'Revisión aprobada' : 'Revisión: requiere ajustes'}

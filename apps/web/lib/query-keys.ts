@@ -29,6 +29,8 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'dashboard'] as const,
     details: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'organization'] as const,
+    workCenters: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'work-centers'] as const,
     members: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'members'] as const,
     entitlements: (organizationId: string) =>

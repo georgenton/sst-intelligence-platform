@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
@@ -40,6 +41,7 @@ const answers = {
 describe('critical platform integration', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let jwt: JwtService;
   const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
   beforeAll(async () => {
@@ -52,10 +54,52 @@ describe('critical platform integration', () => {
     );
     await app.init();
     prisma = app.get(PrismaService);
+    jwt = app.get(JwtService);
   });
 
   afterAll(async () => {
     await app.close();
+  });
+
+  it('recovers an expired access token with the real rotating refresh family', async () => {
+    const email = `auth-liveness-${suffix}@example.test`;
+    const registration = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({ email, displayName: 'Auth Liveness', password: 'auth-liveness-password-123' })
+      .expect(201);
+    const refreshCookies = registration.headers['set-cookie'];
+    if (!refreshCookies?.[0]) throw new Error('Registration did not establish refresh session');
+
+    const expiredAccessToken = await jwt.signAsync(
+      {
+        id: registration.body.user.id as string,
+        email,
+        sub: registration.body.user.id as string,
+      },
+      { expiresIn: -1 },
+    );
+    await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${expiredAccessToken}`)
+      .expect(401);
+
+    const refreshed = await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', refreshCookies[0] as string)
+      .expect(201);
+    const rotatedCookies = refreshed.headers['set-cookie'];
+    if (!rotatedCookies?.[0]) throw new Error('Refresh did not rotate session cookie');
+
+    await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${refreshed.body.accessToken as string}`)
+      .expect(200)
+      .expect(({ body }) => expect(body.email).toBe(email));
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', rotatedCookies[0] as string)
+      .expect(201);
   });
 
   it('covers authentication, tenancy, solution finder, entitlements, demo and audit', async () => {

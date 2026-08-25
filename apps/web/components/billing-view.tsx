@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useAuth } from './auth-provider';
 import { useDashboardData } from './use-app-data';
+import { humanFeatureLabel } from '@/lib/human-lexicon';
 
 export function BillingView() {
   const auth = useAuth();
@@ -32,22 +33,27 @@ export function BillingView() {
     <div className="stack">
       <div>
         <p className="eyebrow">Plan y límites</p>
-        <h2>{dashboard.data.entitlements.plan.name}</h2>
+        <h1>{dashboard.data.entitlements.plan.name}</h1>
         <p className="muted">Cifras provisionales configurables; no representan precios finales.</p>
       </div>
       <div className="grid">
         <Card className="stack">
-          <h3>Entitlements efectivos</h3>
-          {Object.entries(features).map(([key, value]) => (
-            <div className="module-row" key={key}>
-              <code>{key}</code>
-              <StatusBadge>{String(value)}</StatusBadge>
-            </div>
-          ))}
+          <h2>Lo que incluye tu plan</h2>
+          {Object.entries(features)
+            .filter(([key]) => key !== 'ai.monthly_actions')
+            .map(([key, value]) => (
+              <div className="module-row" key={key}>
+                <span>{humanFeatureLabel(key)}</span>
+                <StatusBadge>
+                  {typeof value === 'boolean' ? (value ? 'Activo' : 'No incluido') : String(value)}
+                </StatusBadge>
+              </div>
+            ))}
         </Card>
         <Card>
           <form className="stack" onSubmit={submit}>
-            <h3>Solicitar mejora</h3>
+            <h2>Solicitar cambio de plan</h2>
+            <p>Enviarás una solicitud; el plan no cambiará automáticamente.</p>
             <div className="field">
               <label htmlFor="requestedPlan">Plan de interés</label>
               <select id="requestedPlan" {...register('requestedPlan')}>
@@ -61,7 +67,7 @@ export function BillingView() {
               <textarea id="upgrade-message" rows={4} {...register('message')} />
             </div>
             {message && <p role="status">{message}</p>}
-            <Button disabled={isSubmitting}>Enviar solicitud</Button>
+            <Button disabled={isSubmitting}>Solicitar cambio de plan</Button>
           </form>
         </Card>
       </div>

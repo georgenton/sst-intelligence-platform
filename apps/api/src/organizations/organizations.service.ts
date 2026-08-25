@@ -1,5 +1,10 @@
 import { randomBytes, createHash } from 'node:crypto';
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { MembershipRole } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import type { AuditEvent } from '../audit/audit.service';
@@ -95,6 +100,7 @@ export class OrganizationsService {
             name: true,
             city: true,
             isDemo: true,
+            isActive: true,
             workAreas: {
               where: { isActive: true },
               select: { id: true, name: true },
@@ -112,6 +118,118 @@ export class OrganizationsService {
       data: { name: input.name?.trim(), sector: input.sector?.trim() },
       select: { id: true, name: true, country: true, sector: true },
     });
+  }
+
+  workCenters(organizationId: string) {
+    return this.prisma.workCenter.findMany({
+      where: { organizationId },
+      select: {
+        id: true,
+        name: true,
+        city: true,
+        isActive: true,
+        isDemo: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { workAreas: true, inspections: true, technicalAssessments: true } },
+      },
+      orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
+    });
+  }
+
+  async workCenter(organizationId: string, workCenterId: string) {
+    const center = await this.prisma.workCenter.findFirst({
+      where: { id: workCenterId, organizationId },
+      select: {
+        id: true,
+        name: true,
+        city: true,
+        isActive: true,
+        isDemo: true,
+        createdAt: true,
+        updatedAt: true,
+        workAreas: {
+          select: { id: true, name: true, isActive: true },
+          orderBy: { name: 'asc' },
+        },
+        _count: { select: { inspections: true, findings: true, technicalAssessments: true } },
+      },
+    });
+    if (!center) throw new NotFoundException('Centro de trabajo no encontrado.');
+    return center;
+  }
+
+  async createWorkCenter(
+    organizationId: string,
+    actorUserId: string,
+    input: { name: string; city?: string },
+    context: Context,
+  ) {
+    const current = await this.prisma.workCenter.count({ where: { organizationId } });
+    await this.entitlements.requireCapacity(
+      organizationId,
+      'organization.max_work_centers',
+      current,
+    );
+    try {
+      const center = await this.prisma.workCenter.create({
+        data: {
+          organizationId,
+          name: input.name.trim(),
+          city: input.city?.trim(),
+        },
+        select: { id: true, name: true, city: true, isActive: true, createdAt: true },
+      });
+      await this.audit.record({
+        organizationId,
+        actorUserId,
+        action: 'WORK_CENTER_CREATED',
+        entityType: 'WorkCenter',
+        entityId: center.id,
+        metadata: { name: center.name },
+        ...context,
+      });
+      return center;
+    } catch (error) {
+      if (this.isUniqueConstraintError(error))
+        throw new ConflictException('Ya existe un centro de trabajo con ese nombre.');
+      throw error;
+    }
+  }
+
+  async updateWorkCenter(
+    organizationId: string,
+    workCenterId: string,
+    actorUserId: string,
+    input: { name?: string; city?: string; isActive?: boolean },
+    context: Context,
+  ) {
+    await this.workCenter(organizationId, workCenterId);
+    try {
+      const center = await this.prisma.workCenter.update({
+        where: { id: workCenterId },
+        data: {
+          name: input.name?.trim(),
+          city: input.city?.trim(),
+          isActive: input.isActive,
+        },
+        select: { id: true, name: true, city: true, isActive: true, updatedAt: true },
+      });
+      await this.audit.record({
+        organizationId,
+        actorUserId,
+        action: 'WORK_CENTER_UPDATED',
+        entityType: 'WorkCenter',
+        entityId: center.id,
+        metadata: { name: center.name, isActive: center.isActive },
+        ...context,
+      });
+      return center;
+    } catch (error) {
+      if (this.isUniqueConstraintError(error))
+        throw new ConflictException('Ya existe un centro de trabajo con ese nombre.');
+      throw error;
+    }
   }
 
   members(organizationId: string) {
@@ -175,5 +293,14 @@ export class OrganizationsService {
       ...context,
     });
     return { ...invitation, delivery: 'CONSOLE_DEVELOPMENT_PROVIDER' as const };
+  }
+
+  private isUniqueConstraintError(error: unknown): error is { code: string } {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: unknown }).code === 'P2002'
+    );
   }
 }

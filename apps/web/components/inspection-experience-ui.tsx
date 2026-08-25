@@ -11,6 +11,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
+import { humanRoleLabel } from '@/lib/human-lexicon';
 import type { FieldValues, Path, UseFormRegister } from 'react-hook-form';
 import { statusMeta, type StatusDomain } from '@/lib/inspection-experience';
 
@@ -149,7 +150,7 @@ export function PermissionState({
     <InspectionState
       kind="permission"
       title="Acción no disponible para tu rol"
-      description={`Tu rol ${role ?? 'actual'} puede consultar este registro, pero no ${capability}. Pueden hacerlo: ${authorizedRoles}. La API valida el permiso en cada operación.`}
+      description={`Tu rol (${humanRoleLabel(role)}) puede consultar este registro, pero no ${capability}. Pueden hacerlo: ${authorizedRoles}. Los permisos se validan en cada operación.`}
     />
   );
 }
@@ -159,7 +160,7 @@ export function EntitlementState({ planName }: { planName?: string }) {
     <InspectionState
       kind="entitlement"
       title="Inspecciones no está disponible en este plan"
-      description={`El plan ${planName ?? 'activo'} no incluye el módulo de inspecciones. Un ORG_OWNER u ORG_ADMIN puede revisar Módulos y plan.`}
+      description={`El plan ${planName ?? 'activo'} no incluye el módulo de inspecciones. Un Propietario o Administrador puede revisar Módulos y plan.`}
       action={
         <Link className="button secondary" href="/app/modules">
           Ver módulos y plan

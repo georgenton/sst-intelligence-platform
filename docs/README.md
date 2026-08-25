@@ -26,3 +26,14 @@ validation reports remain in `.artifacts/` and are not source documentation.
 - [Deployment](deployment/)
 - [Security](security/)
 - [Design handoffs](design/)
+
+## Product walkthrough hardening
+
+- [Product Walkthrough Hardening V1.1](product/product-walkthrough-hardening-v1-1.md)
+- [Authenticated request lifecycle V2](architecture/authenticated-request-lifecycle-v2.md)
+- [Human UI language guidelines V1](product/human-ui-language-guidelines-v1.md)
+- [Technical Risk revision workflow V1](domain/technical-risk-revision-workflow-v1.md)
+- [Inspection verification basis V1](domain/inspection-verification-basis-v1.md)
+- [Recurrence systemic review V1](domain/recurrence-systemic-review-v1.md)
+- [Work Center Management V1](product/work-center-management-v1.md)
+- [Risk Methodology hardening compatibility V1](architecture/risk-methodology-hardening-compatibility-v1.md)

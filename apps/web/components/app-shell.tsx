@@ -55,9 +55,11 @@ export function AppShell({ children }: PropsWithChildren) {
   });
 
   useEffect(() => {
-    if (!auth.loading && !auth.user)
-      router.replace(`/auth/login?next=${encodeURIComponent(pathname)}`);
-  }, [auth.loading, auth.user, pathname, router]);
+    if (!auth.loading && !auth.user) {
+      const reason = auth.sessionEnded ? '&reason=session-ended' : '';
+      router.replace(`/auth/login?next=${encodeURIComponent(pathname)}${reason}`);
+    }
+  }, [auth.loading, auth.sessionEnded, auth.user, pathname, router]);
   useEffect(() => setContextNotice(null), [pathname]);
   useEffect(() => {
     if (!userId || !organizations.data || transitionTarget !== undefined) return;

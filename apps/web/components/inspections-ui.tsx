@@ -23,6 +23,12 @@ import {
   type InspectionFilters,
 } from '@/lib/inspection-experience';
 import { queryKeys } from '@/lib/query-keys';
+import {
+  AUTHORIZED_TECHNICAL_REVIEWER_LABELS,
+  AUTHORIZED_TECHNICAL_WRITER_LABELS,
+  humanRoleLabel,
+} from '@/lib/human-lexicon';
+import { presentInspectionRiskMethod } from '@/lib/risk-method-presentation';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
 import {
@@ -41,6 +47,7 @@ import {
   QuestionScale,
 } from './inspection-experience-ui';
 import { useDashboardData } from './use-app-data';
+import { TechnicalDetails } from './technical-details';
 
 type ContextData = {
   workCenters: Array<{
@@ -74,6 +81,10 @@ type Action = {
   assignedToUserId?: string;
   assignedTo?: { id: string; displayName: string };
   verifiedBy?: { id: string; displayName: string };
+  verificationBasis?: 'RECORDED_EVIDENCE' | 'FIELD_OBSERVATION' | 'OTHER_JUSTIFIED';
+  verificationNote?: string;
+  selfVerification?: boolean;
+  selfVerificationAcknowledged?: boolean;
   evidence: ActionEvidence[];
 };
 
@@ -100,7 +111,16 @@ type Finding = {
   workArea?: { id?: string; name: string };
   inspection?: { id: string; title: string; status: string; isDemo: boolean };
   actions: Action[];
-  alerts?: Array<{ id: string; type: string; severity: string; status: string; message: string }>;
+  alerts?: Array<{
+    id: string;
+    type: string;
+    severity: string;
+    status: string;
+    message: string;
+    acknowledgedAt?: string;
+    acknowledgedBy?: { id: string; displayName: string };
+    systemicReview?: { id: string; status: string };
+  }>;
   recurrence?: {
     previousCount: number;
     windowDays: number;
@@ -159,6 +179,9 @@ type AlertList = {
     status: string;
     message: string;
     createdAt?: string;
+    acknowledgedAt?: string;
+    acknowledgedBy?: { id: string; displayName: string };
+    systemicReview?: { id: string; status: string };
     finding: {
       id: string;
       title: string;
@@ -169,6 +192,33 @@ type AlertList = {
     };
   }>;
   total: number;
+};
+
+type SystemicFindingSnapshot = {
+  id: string;
+  title: string;
+  status: string;
+  initialScore: number;
+  initialRiskLevel: string;
+  residualScore?: number | null;
+  residualRiskLevel?: string | null;
+  riskMethodKey: string;
+  riskMethodVersion: string;
+};
+
+type SystemicReview = {
+  id: string;
+  status: string;
+  workCenterName: string;
+  category: FindingCategory;
+  recurrenceWindowDays: number;
+  relatedFindingsSnapshot: SystemicFindingSnapshot[];
+  actionsSufficient?: 'YES' | 'NO' | 'NEEDS_MORE_INFORMATION';
+  broaderReviewRecommended?: boolean;
+  notes?: string;
+  suspectedFactors?: string;
+  completedAt?: string;
+  completedBy?: { displayName: string };
 };
 
 export type InspectionsDashboardFilters = Pick<
@@ -219,8 +269,8 @@ const FINDING_CATEGORY_LABELS: Record<FindingCategory, string> = {
   HOUSEKEEPING: 'Orden y limpieza',
   OTHER: 'Otro',
 };
-const WRITE_ROLE_COPY = 'ORG_OWNER, ORG_ADMIN, SST_MANAGER, SST_TECHNICIAN o CONSULTANT';
-const VERIFY_ROLE_COPY = 'ORG_OWNER, ORG_ADMIN o SST_MANAGER';
+const WRITE_ROLE_COPY = AUTHORIZED_TECHNICAL_WRITER_LABELS;
+const VERIFY_ROLE_COPY = AUTHORIZED_TECHNICAL_REVIEWER_LABELS;
 
 function shouldRetryGet(failureCount: number, error: Error): boolean {
   if (error instanceof ApiClientError && error.status < 500) return false;
@@ -232,8 +282,19 @@ function formatDate(value?: string): string {
   return new Intl.DateTimeFormat('es-EC', { dateStyle: 'medium' }).format(new Date(value));
 }
 
+function resultCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'resultado' : 'resultados'}`;
+}
+
 function labelPriority(value: string): string {
   return { LOW: 'Baja', MEDIUM: 'Media', HIGH: 'Alta', URGENT: 'Urgente' }[value] ?? value;
+}
+
+function riskLevelLabel(value?: string | null): string {
+  return (
+    { LOW: 'Bajo', MODERATE: 'Moderado', HIGH: 'Alto', CRITICAL: 'Crítico' }[value ?? ''] ??
+    'Sin nivel'
+  );
 }
 
 function labelRecurrence(value: string): string {
@@ -242,6 +303,16 @@ function labelRecurrence(value: string): string {
       NONE: 'Sin recurrencia',
       REPEATED: 'Hallazgo recurrente',
       SYSTEMIC_REVIEW_RECOMMENDED: 'Revisión sistémica recomendada',
+    }[value] ?? value
+  );
+}
+
+function verificationBasisLabel(value: string): string {
+  return (
+    {
+      RECORDED_EVIDENCE: 'Evidencia registrada',
+      FIELD_OBSERVATION: 'Observación en campo',
+      OTHER_JUSTIFIED: 'Otra justificación profesional',
     }[value] ?? value
   );
 }
@@ -477,7 +548,7 @@ export function InspectionsDashboard({ filters = {} }: { filters?: InspectionsDa
               <h2 id="inspection-list-title">Inspecciones recientes</h2>
             </div>
             {inspections.data ? (
-              <span aria-live="polite">{inspections.data.total} resultados</span>
+              <span aria-live="polite">{resultCountLabel(inspections.data.total)}</span>
             ) : null}
           </div>
           <div className="inspection-filter-panel focus-dim">
@@ -1090,7 +1161,7 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
           <InspectionPageHeader
             eyebrow="Hallazgo guardado"
             title={created.title}
-            description="El servidor calculó y guardó la valoración con la matriz demostrativa vigente."
+            description="La valoración se calculó y guardó con la metodología demostrativa vigente."
             context={
               <ContextLine>
                 {api.organizationName} · {created.workCenter?.name}
@@ -1100,7 +1171,7 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
           />
           <Card className="inspection-result-card" role="status">
             <div>
-              <p className="eyebrow">Resultado calculado por el servidor</p>
+              <p className="eyebrow">Resultado calculado automáticamente</p>
               <strong className="inspection-result-score">{created.initialScore}</strong>
             </div>
             <div>
@@ -1313,7 +1384,8 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
                   <div className="inspection-server-calculation" role="status">
                     <strong>Valoración preparada</strong>
                     <span>
-                      El servidor calculará y guardará el resultado. La interfaz no estima el nivel.
+                      El resultado se calculará y guardará al continuar. La interfaz no estima el
+                      nivel.
                     </span>
                   </div>
                 </div>
@@ -1404,7 +1476,13 @@ type ActionForm = {
   dueAt: string;
 };
 type EvidenceForm = { type: 'NOTE' | 'EXTERNAL_LINK'; note: string; externalUrl: string };
-type VerifyForm = { likelihood: number | undefined; consequence: number | undefined };
+type VerifyForm = {
+  likelihood: number | undefined;
+  consequence: number | undefined;
+  basis: '' | 'RECORDED_EVIDENCE' | 'FIELD_OBSERVATION' | 'OTHER_JUSTIFIED';
+  note: string;
+  selfVerificationAcknowledged: boolean;
+};
 
 export function FindingDetail({
   inspectionId,
@@ -1444,9 +1522,16 @@ export function FindingDetail({
   });
   const verifyForm = useForm<VerifyForm>({
     mode: 'onBlur',
-    defaultValues: { likelihood: undefined, consequence: undefined },
+    defaultValues: {
+      likelihood: undefined,
+      consequence: undefined,
+      basis: '',
+      note: '',
+      selfVerificationAcknowledged: false,
+    },
   });
   const evidenceType = evidenceForm.watch('type');
+  const verificationBasis = verifyForm.watch('basis');
 
   async function refreshFinding() {
     await Promise.all([
@@ -1537,6 +1622,9 @@ export function FindingDetail({
         body: JSON.stringify({
           likelihood: Number(input.likelihood),
           consequence: Number(input.consequence),
+          basis: input.basis,
+          note: input.note || undefined,
+          selfVerificationAcknowledged: input.selfVerificationAcknowledged,
         }),
       }),
     onSuccess: async () => {
@@ -1556,6 +1644,18 @@ export function FindingDetail({
   const actionProgress = actionProgressMeta(
     finding.data?.actions.map((action) => action.status) ?? [],
   );
+  const methodPresentation = presentInspectionRiskMethod(
+    finding.data?.riskMethodKey ?? 'DEMO_5X5',
+    finding.data?.riskMethodVersion ?? '1.0.0',
+  );
+  const pendingSelfVerification =
+    finding.data?.actions.some(
+      (action) =>
+        action.status === 'PENDING_VERIFICATION' && action.assignedToUserId === api.userId,
+    ) ?? false;
+  const elevatedSelfVerification =
+    pendingSelfVerification &&
+    (finding.data?.initialRiskLevel === 'HIGH' || finding.data?.initialRiskLevel === 'CRITICAL');
 
   return (
     <AccessGate api={api}>
@@ -1595,7 +1695,7 @@ export function FindingDetail({
                   type="button"
                   onClick={() => setShowAction((current) => !current)}
                 >
-                  {showAction ? 'Cerrar formulario' : 'Nueva acción'}
+                  {showAction ? 'Cerrar formulario' : 'Crear acción correctiva'}
                 </button>
               ) : undefined
             }
@@ -1607,10 +1707,25 @@ export function FindingDetail({
             />
             <DomainStatusBadge domain="finding" status={finding.data.status} />
             {finding.data.inspection?.isDemo ? <DemoChip /> : null}
-            <span>
-              Método {finding.data.riskMethodKey ?? 'DEMO_5X5'} · versión{' '}
-              <span className="mono">{finding.data.riskMethodVersion ?? '1.0.0'}</span>
-            </span>
+            <span>Metodología utilizada: {methodPresentation.displayName}</span>
+            <TechnicalDetails summary="Ver metodología y detalles">
+              <dl className="inspection-action-meta">
+                <div>
+                  <dt>Versión</dt>
+                  <dd>{methodPresentation.version}</dd>
+                </div>
+                <div>
+                  <dt>Estado</dt>
+                  <dd>{methodPresentation.statusLabel}</dd>
+                </div>
+                <div>
+                  <dt>Identificador</dt>
+                  <dd>
+                    <code>{methodPresentation.technicalKey}</code>
+                  </dd>
+                </div>
+              </dl>
+            </TechnicalDetails>
           </div>
           <InspectionDemoNotice compact />
           {notice ? (
@@ -1699,86 +1814,91 @@ export function FindingDetail({
                 </div>
               ) : null}
 
-              {showAction ? (
-                <Card className="inspection-form-card">
-                  <form
-                    className="inspection-form"
-                    noValidate
-                    onSubmit={actionForm.handleSubmit((input) => createAction.mutate(input))}
-                  >
-                    <div className="inspection-form-intro">
-                      <p className="eyebrow">Acción correctiva</p>
-                      <h2>Define el siguiente control</h2>
+              <InspectionDialog
+                open={showAction}
+                title="Crear acción correctiva"
+                description="Define el control, la persona responsable y el plazo. Crear la acción no verifica el riesgo residual."
+                onClose={() => {
+                  if (!createAction.isPending) setShowAction(false);
+                }}
+              >
+                <form
+                  className="inspection-form"
+                  noValidate
+                  onSubmit={actionForm.handleSubmit((input) => createAction.mutate(input))}
+                >
+                  <div className="inspection-form-intro">
+                    <p className="eyebrow">Acción correctiva</p>
+                    <h2>Define el siguiente control</h2>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="action-title">Acción</label>
+                    <input
+                      id="action-title"
+                      aria-invalid={Boolean(actionForm.formState.errors.title)}
+                      {...actionForm.register('title', {
+                        required: 'Describe la acción correctiva.',
+                        minLength: { value: 3, message: 'Usa al menos 3 caracteres.' },
+                        maxLength: { value: 160, message: 'Usa como máximo 160 caracteres.' },
+                      })}
+                    />
+                    {actionForm.formState.errors.title ? (
+                      <p className="field-error">{actionForm.formState.errors.title.message}</p>
+                    ) : null}
+                  </div>
+                  <div className="field">
+                    <label htmlFor="action-description">Descripción (opcional)</label>
+                    <textarea
+                      id="action-description"
+                      rows={4}
+                      {...actionForm.register('description')}
+                    />
+                  </div>
+                  <div className="inspection-form-grid">
+                    <div className="field">
+                      <label htmlFor="assignee">Responsable</label>
+                      <select id="assignee" {...actionForm.register('assignedToUserId')}>
+                        <option value="">Sin asignar</option>
+                        {context.data?.members.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.displayName} · {humanRoleLabel(member.role)}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="field">
-                      <label htmlFor="action-title">Acción</label>
-                      <input
-                        id="action-title"
-                        aria-invalid={Boolean(actionForm.formState.errors.title)}
-                        {...actionForm.register('title', {
-                          required: 'Describe la acción correctiva.',
-                          minLength: { value: 3, message: 'Usa al menos 3 caracteres.' },
-                          maxLength: { value: 160, message: 'Usa como máximo 160 caracteres.' },
-                        })}
-                      />
-                      {actionForm.formState.errors.title ? (
-                        <p className="field-error">{actionForm.formState.errors.title.message}</p>
-                      ) : null}
+                      <label htmlFor="priority">Prioridad</label>
+                      <select id="priority" {...actionForm.register('priority')}>
+                        <option value="LOW">Baja</option>
+                        <option value="MEDIUM">Media</option>
+                        <option value="HIGH">Alta</option>
+                        <option value="URGENT">Urgente</option>
+                      </select>
                     </div>
-                    <div className="field">
-                      <label htmlFor="action-description">Descripción (opcional)</label>
-                      <textarea
-                        id="action-description"
-                        rows={4}
-                        {...actionForm.register('description')}
-                      />
-                    </div>
-                    <div className="inspection-form-grid">
-                      <div className="field">
-                        <label htmlFor="assignee">Responsable</label>
-                        <select id="assignee" {...actionForm.register('assignedToUserId')}>
-                          <option value="">Sin asignar</option>
-                          {context.data?.members.map((member) => (
-                            <option key={member.id} value={member.id}>
-                              {member.displayName} · {member.role}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="field">
-                        <label htmlFor="priority">Prioridad</label>
-                        <select id="priority" {...actionForm.register('priority')}>
-                          <option value="LOW">Baja</option>
-                          <option value="MEDIUM">Media</option>
-                          <option value="HIGH">Alta</option>
-                          <option value="URGENT">Urgente</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="field">
-                      <label htmlFor="due">Fecha límite (opcional)</label>
-                      <input id="due" type="datetime-local" {...actionForm.register('dueAt')} />
-                    </div>
-                    <div className="inspection-dialog-actions">
-                      <button
-                        className="button secondary"
-                        type="button"
-                        onClick={() => setShowAction(false)}
-                      >
-                        Cancelar
-                      </button>
-                      <button className="button" disabled={createAction.isPending}>
-                        {createAction.isPending ? 'Guardando…' : 'Guardar acción'}
-                      </button>
-                    </div>
-                  </form>
-                </Card>
-              ) : null}
+                  </div>
+                  <div className="field">
+                    <label htmlFor="due">Fecha límite (opcional)</label>
+                    <input id="due" type="datetime-local" {...actionForm.register('dueAt')} />
+                  </div>
+                  <div className="inspection-dialog-actions">
+                    <button
+                      className="button secondary"
+                      type="button"
+                      onClick={() => setShowAction(false)}
+                    >
+                      Cancelar
+                    </button>
+                    <button className="button" disabled={createAction.isPending}>
+                      {createAction.isPending ? 'Guardando…' : 'Guardar acción'}
+                    </button>
+                  </div>
+                </form>
+              </InspectionDialog>
 
               <section aria-labelledby="corrective-actions-title">
                 <div className="inspection-section-heading">
                   <div>
-                    <p className="eyebrow">Workflow independiente</p>
+                    <p className="eyebrow">Seguimiento</p>
                     <h2 id="corrective-actions-title">
                       Acciones correctivas <span>{finding.data.actions.length}</span>
                     </h2>
@@ -1817,10 +1937,30 @@ export function FindingDetail({
                               <dt>Vencimiento</dt>
                               <dd>{formatDate(action.dueAt)}</dd>
                             </div>
+                            {action.verifiedBy ? (
+                              <div>
+                                <dt>Verificada por</dt>
+                                <dd>
+                                  {action.verifiedBy.displayName} · {formatDate(action.verifiedAt)}
+                                </dd>
+                              </div>
+                            ) : null}
+                            {action.verificationBasis ? (
+                              <div>
+                                <dt>Base de verificación</dt>
+                                <dd>{verificationBasisLabel(action.verificationBasis)}</dd>
+                              </div>
+                            ) : null}
                           </dl>
+                          {action.verificationNote ? <p>{action.verificationNote}</p> : null}
+                          {action.selfVerification ? (
+                            <p className="inspection-invariant-note">
+                              Autoverificación registrada para auditoría.
+                            </p>
+                          ) : null}
                           {action.evidence.length ? (
                             <div className="inspection-evidence-list">
-                              <strong>Evidencia compatible</strong>
+                              <strong>Evidencia registrada</strong>
                               {action.evidence.map((evidence) => (
                                 <div key={evidence.id}>
                                   <span aria-hidden="true">
@@ -1966,8 +2106,8 @@ export function FindingDetail({
                           {nextStep === 'complete' && !canComplete ? (
                             <p className="inspection-permission-inline">
                               {api.role === 'SST_TECHNICIAN'
-                                ? 'Tu rol SST_TECHNICIAN solo puede enviar a verificación acciones asignadas a tu usuario. La API valida esta restricción.'
-                                : `Tu rol ${api.role ?? 'actual'} no puede enviar esta acción a verificación.`}
+                                ? 'Como Técnico SST, solo puedes enviar a verificación las acciones que tienes asignadas.'
+                                : `Tu rol (${humanRoleLabel(api.role)}) no puede enviar esta acción a verificación.`}
                             </p>
                           ) : null}
                           {action.status === 'PENDING_VERIFICATION' ? (
@@ -1989,9 +2129,8 @@ export function FindingDetail({
                       <p className="eyebrow">Paso actual</p>
                       <h2>Verificar riesgo residual</h2>
                       <p>
-                        Registra la valoración observada después de la acción. El servidor calcula
-                        el resultado y cierra el hallazgo solo si se cumplen sus prerrequisitos
-                        actuales.
+                        Registra la valoración observada después de la acción. El resultado se
+                        calcula y el hallazgo se cierra solo si se cumplen sus condiciones actuales.
                       </p>
                     </div>
                     <button className="button" type="button" onClick={() => setShowVerify(true)}>
@@ -2046,8 +2185,8 @@ export function FindingDetail({
                   </li>
                 </ul>
                 <p className="inspection-invariant-note">
-                  La API aplica la regla y hoy cierra automáticamente cuando la verificación
-                  completa los prerrequisitos.
+                  La regla vigente cierra automáticamente cuando la verificación completa los
+                  prerrequisitos.
                 </p>
               </Card>
               {finding.data.alerts?.length ? (
@@ -2058,6 +2197,15 @@ export function FindingDetail({
                       <DomainStatusBadge domain="alert" status={alert.status} />
                       <strong>{alertTypeLabel(alert.type)}</strong>
                       <p>{alert.message}</p>
+                      {alert.acknowledgedAt ? (
+                        <p className="muted">
+                          Revisada por {alert.acknowledgedBy?.displayName ?? 'usuario autorizado'} ·{' '}
+                          {formatDate(alert.acknowledgedAt)}. La señal histórica permanece.
+                        </p>
+                      ) : null}
+                      {alert.systemicReview ? (
+                        <Link href="/app/inspections/alerts">Ver revisión sistémica</Link>
+                      ) : null}
                     </div>
                   ))}
                 </Card>
@@ -2068,7 +2216,7 @@ export function FindingDetail({
           <InspectionDialog
             open={showVerify}
             title="Verificar riesgo residual"
-            description="Registra la probabilidad y la consecuencia observadas después de la acción. El envío de la ejecución y esta verificación son etapas distintas; la verificación queda asociada a tu usuario."
+            description="Valora el riesgo después de aplicar el control. La verificación queda asociada a tu usuario y debe indicar su base profesional."
             onClose={() => {
               if (!verify.isPending) setShowVerify(false);
             }}
@@ -2092,11 +2240,74 @@ export function FindingDetail({
                 register={verifyForm.register}
                 error={verifyForm.formState.errors.consequence?.message}
               />
+              <div className="field">
+                <label htmlFor="verification-basis">Base de verificación</label>
+                <select
+                  id="verification-basis"
+                  aria-invalid={Boolean(verifyForm.formState.errors.basis)}
+                  {...verifyForm.register('basis', {
+                    required: 'Selecciona la base utilizada para verificar.',
+                  })}
+                >
+                  <option value="">Selecciona una opción</option>
+                  <option value="RECORDED_EVIDENCE">Evidencia registrada</option>
+                  <option value="FIELD_OBSERVATION">Observación en campo</option>
+                  <option value="OTHER_JUSTIFIED">Otra justificación profesional</option>
+                </select>
+                {verifyForm.formState.errors.basis ? (
+                  <p className="field-error">{verifyForm.formState.errors.basis.message}</p>
+                ) : null}
+              </div>
+              {verificationBasis === 'FIELD_OBSERVATION' ||
+              verificationBasis === 'OTHER_JUSTIFIED' ? (
+                <div className="field">
+                  <label htmlFor="verification-note">Descripción de la verificación</label>
+                  <textarea
+                    id="verification-note"
+                    rows={4}
+                    maxLength={1000}
+                    {...verifyForm.register('note', {
+                      validate: (value) =>
+                        !['FIELD_OBSERVATION', 'OTHER_JUSTIFIED'].includes(verificationBasis) ||
+                        value.trim().length >= 10 ||
+                        'Describe la verificación en al menos 10 caracteres.',
+                    })}
+                  />
+                  {verifyForm.formState.errors.note ? (
+                    <p className="field-error">{verifyForm.formState.errors.note.message}</p>
+                  ) : null}
+                </div>
+              ) : null}
+              {pendingSelfVerification ? (
+                <div className="inspection-invariant-note" role="note">
+                  <strong>Estás verificando una acción que tenías asignada.</strong>
+                  {elevatedSelfVerification ? (
+                    <label>
+                      <input
+                        type="checkbox"
+                        {...verifyForm.register('selfVerificationAcknowledged', {
+                          validate: (value) =>
+                            !elevatedSelfVerification ||
+                            value ||
+                            'Confirma la autoverificación para continuar.',
+                        })}
+                      />
+                      Confirmo esta autoverificación y su trazabilidad.
+                    </label>
+                  ) : null}
+                  {verifyForm.formState.errors.selfVerificationAcknowledged ? (
+                    <p className="field-error">
+                      {verifyForm.formState.errors.selfVerificationAcknowledged.message}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               <div className="inspection-server-calculation" role="note">
-                <strong>El servidor calcula el resultado</strong>
+                <strong>Resultado automático</strong>
                 <span>
-                  La verificación puede cerrar el hallazgo conforme a la regla vigente y puede
-                  generar una alerta si el riesgo residual permanece alto o crítico.
+                  Calcularemos automáticamente el resultado según la metodología utilizada. La
+                  verificación puede cerrar el hallazgo y generar una señal si el riesgo residual
+                  permanece alto o crítico.
                 </span>
               </div>
               {verify.isError ? (
@@ -2125,6 +2336,205 @@ export function FindingDetail({
   );
 }
 
+function SystemicReviewPanel({
+  api,
+  reviewId,
+}: {
+  api: ReturnType<typeof useInspectionApi>;
+  reviewId: string;
+}) {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: [
+      ...queryKeys.organization.inspectionAlerts(api.organizationId ?? 'inactive'),
+      'systemic-review',
+      reviewId,
+    ],
+    queryFn: ({ signal }) =>
+      api.request<SystemicReview>(`/inspections/systemic-reviews/${reviewId}`, { signal }),
+    enabled: Boolean(api.organizationId),
+    retry: shouldRetryGet,
+  });
+  type SystemicReviewForm = {
+    actionsSufficient: '' | 'YES' | 'NO' | 'NEEDS_MORE_INFORMATION';
+    broaderReviewRecommended: '' | 'YES' | 'NO';
+    notes: string;
+    suspectedFactors: string;
+  };
+  const form = useForm<SystemicReviewForm>({
+    defaultValues: {
+      actionsSufficient: '',
+      broaderReviewRecommended: '',
+      notes: '',
+      suspectedFactors: '',
+    },
+  });
+  const complete = useMutation({
+    mutationFn: (input: SystemicReviewForm) =>
+      api.request<SystemicReview>(`/inspections/systemic-reviews/${reviewId}/complete`, {
+        method: 'POST',
+        body: JSON.stringify({
+          actionsSufficient: input.actionsSufficient,
+          broaderReviewRecommended: input.broaderReviewRecommended === 'YES',
+          notes: input.notes || undefined,
+          suspectedFactors: input.suspectedFactors || undefined,
+        }),
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        query.refetch(),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.inspectionAlerts(api.organizationId!),
+        }),
+      ]);
+    },
+  });
+  if (query.isLoading) return <p role="status">Cargando revisión sistémica…</p>;
+  if (query.isError || !query.data)
+    return <InlineRequestState>No pudimos cargar la revisión sistémica.</InlineRequestState>;
+  const review = query.data;
+  return (
+    <section className="inspection-form-card" aria-labelledby={`systemic-review-${review.id}`}>
+      <div className="inspection-section-heading">
+        <div>
+          <p className="eyebrow">Seguimiento profesional</p>
+          <h4 id={`systemic-review-${review.id}`}>Revisión sistémica</h4>
+        </div>
+        <DomainStatusBadge domain="systemic-review" status={review.status} />
+      </div>
+      <p>
+        {review.workCenterName} · {FINDING_CATEGORY_LABELS[review.category]} · ventana de{' '}
+        {review.recurrenceWindowDays} días
+      </p>
+      <div className="inspection-related-links">
+        {review.relatedFindingsSnapshot.map((item) => {
+          const method = presentInspectionRiskMethod(item.riskMethodKey, item.riskMethodVersion);
+          return (
+            <article key={item.id}>
+              <strong>{item.title}</strong>
+              <p>
+                Riesgo inicial: {item.initialScore} · {riskLevelLabel(item.initialRiskLevel)}
+              </p>
+              <p>
+                Riesgo residual:{' '}
+                {item.residualScore
+                  ? `${item.residualScore} · ${riskLevelLabel(item.residualRiskLevel)}`
+                  : 'Pendiente'}
+              </p>
+              <p>
+                Metodología utilizada: {method.displayName} · versión {method.version}
+              </p>
+            </article>
+          );
+        })}
+      </div>
+      <p className="inspection-invariant-note">
+        Los valores se muestran dentro de su propia metodología; no se comparan escalas de métodos
+        diferentes. Esta revisión no declara una causa raíz.
+      </p>
+      {review.status === 'COMPLETED' ? (
+        <dl className="inspection-action-meta">
+          <div>
+            <dt>Acciones puntuales suficientes</dt>
+            <dd>{systemicSufficiencyLabel(review.actionsSufficient)}</dd>
+          </div>
+          <div>
+            <dt>Revisión más amplia</dt>
+            <dd>{review.broaderReviewRecommended ? 'Recomendada' : 'No recomendada'}</dd>
+          </div>
+          {review.suspectedFactors ? (
+            <div>
+              <dt>Factores sospechados</dt>
+              <dd>{review.suspectedFactors}</dd>
+            </div>
+          ) : null}
+          {review.notes ? (
+            <div>
+              <dt>Notas</dt>
+              <dd>{review.notes}</dd>
+            </div>
+          ) : null}
+          <div>
+            <dt>Completada por</dt>
+            <dd>
+              {review.completedBy?.displayName ?? 'Profesional autorizado'} ·{' '}
+              {formatDate(review.completedAt)}
+            </dd>
+          </div>
+        </dl>
+      ) : (
+        <form
+          className="inspection-form"
+          onSubmit={form.handleSubmit((input) => complete.mutate(input))}
+        >
+          <div className="field">
+            <label htmlFor={`sufficiency-${review.id}`}>
+              ¿Las acciones puntuales parecen suficientes?
+            </label>
+            <select
+              id={`sufficiency-${review.id}`}
+              {...form.register('actionsSufficient', { required: true })}
+            >
+              <option value="">Selecciona una respuesta</option>
+              <option value="YES">Sí</option>
+              <option value="NO">No</option>
+              <option value="NEEDS_MORE_INFORMATION">Se necesita más información</option>
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor={`broader-${review.id}`}>¿Se recomienda una revisión más amplia?</label>
+            <select
+              id={`broader-${review.id}`}
+              {...form.register('broaderReviewRecommended', { required: true })}
+            >
+              <option value="">Selecciona una respuesta</option>
+              <option value="YES">Sí</option>
+              <option value="NO">No</option>
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor={`factors-${review.id}`}>Factores sospechados · opcional</label>
+            <textarea
+              id={`factors-${review.id}`}
+              rows={3}
+              maxLength={2000}
+              {...form.register('suspectedFactors')}
+            />
+            <p className="muted">
+              Registra observaciones profesionales; no se convierten en una causa automática.
+            </p>
+          </div>
+          <div className="field">
+            <label htmlFor={`notes-${review.id}`}>Notas · opcional</label>
+            <textarea
+              id={`notes-${review.id}`}
+              rows={3}
+              maxLength={2000}
+              {...form.register('notes')}
+            />
+          </div>
+          {complete.isError ? (
+            <InlineRequestState>No pudimos completar la revisión sistémica.</InlineRequestState>
+          ) : null}
+          <button className="button" disabled={complete.isPending}>
+            {complete.isPending ? 'Guardando…' : 'Completar revisión sistémica'}
+          </button>
+        </form>
+      )}
+    </section>
+  );
+}
+
+function systemicSufficiencyLabel(value?: string): string {
+  return (
+    {
+      YES: 'Sí',
+      NO: 'No',
+      NEEDS_MORE_INFORMATION: 'Se necesita más información',
+    }[value ?? ''] ?? 'Sin respuesta'
+  );
+}
+
 export function InspectionAlerts({ filters = {} }: { filters?: InspectionAlertFilters }) {
   const api = useInspectionApi();
   const router = useRouter();
@@ -2149,6 +2559,17 @@ export function InspectionAlerts({ filters = {} }: { filters?: InspectionAlertFi
           queryKey: queryKeys.organization.dashboard(organizationId!),
         }),
       ]);
+    },
+  });
+  const createSystemicReview = useMutation({
+    mutationFn: (alertId: string) =>
+      api.request<SystemicReview>(`/inspections/alerts/${alertId}/systemic-review`, {
+        method: 'POST',
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.inspectionAlerts(organizationId!),
+      });
     },
   });
   const activeFilters = filters.status
@@ -2204,7 +2625,7 @@ export function InspectionAlerts({ filters = {} }: { filters?: InspectionAlertFi
                 <p className="eyebrow">Atención operativa</p>
                 <h2 id="alerts-list-title">Señales registradas</h2>
               </div>
-              <span aria-live="polite">{alerts.data.total} resultados</span>
+              <span aria-live="polite">{resultCountLabel(alerts.data.total)}</span>
             </div>
             <div className="inspection-alert-list" data-density="compact">
               {alerts.data.items.map((alert) => (
@@ -2241,14 +2662,36 @@ export function InspectionAlerts({ filters = {} }: { filters?: InspectionAlertFi
                         disabled={acknowledge.isPending}
                         onClick={() => acknowledge.mutate(alert.id)}
                       >
-                        Reconocer alerta
+                        Marcar como revisada
+                      </button>
+                    ) : null}
+                    {alert.type === 'RECURRENCE' &&
+                    !alert.systemicReview &&
+                    canAcknowledgeInspectionAlerts(api.role) ? (
+                      <button
+                        className="button secondary"
+                        type="button"
+                        disabled={createSystemicReview.isPending}
+                        onClick={() => createSystemicReview.mutate(alert.id)}
+                      >
+                        Iniciar revisión sistémica
                       </button>
                     ) : null}
                   </div>
+                  {alert.acknowledgedAt ? (
+                    <p className="inspection-invariant-note">
+                      Revisada por {alert.acknowledgedBy?.displayName ?? 'usuario autorizado'} ·{' '}
+                      {formatDate(alert.acknowledgedAt)}. Esto no elimina la recurrencia.
+                    </p>
+                  ) : null}
+                  {alert.systemicReview ? (
+                    <SystemicReviewPanel api={api} reviewId={alert.systemicReview.id} />
+                  ) : null}
                   {alert.status === 'OPEN' && !canAcknowledgeInspectionAlerts(api.role) ? (
                     <p className="inspection-permission-inline">
-                      Tu rol {api.role ?? 'actual'} puede analizar esta alerta, pero solo{' '}
-                      {VERIFY_ROLE_COPY} pueden reconocerla. La API valida el permiso.
+                      Tu rol ({humanRoleLabel(api.role)}) puede analizar esta señal, pero solo{' '}
+                      {VERIFY_ROLE_COPY} pueden marcarla como revisada. Los permisos se validan en
+                      cada operación.
                     </p>
                   ) : null}
                 </Card>
@@ -2261,7 +2704,7 @@ export function InspectionAlerts({ filters = {} }: { filters?: InspectionAlertFi
             title={
               activeFilters.length ? 'No hay alertas con este estado' : 'No hay alertas abiertas'
             }
-            description="Las recurrencias y los riesgos residuales altos o críticos aparecerán aquí cuando la API los registre."
+            description="Las recurrencias y los riesgos residuales altos o críticos aparecerán aquí cuando se registren."
             action={
               activeFilters.length ? (
                 <button
@@ -2279,6 +2722,9 @@ export function InspectionAlerts({ filters = {} }: { filters?: InspectionAlertFi
           <InlineRequestState>
             No pudimos reconocer la alerta. El registro permanece abierto; vuelve a intentarlo.
           </InlineRequestState>
+        ) : null}
+        {createSystemicReview.isError ? (
+          <InlineRequestState>No pudimos iniciar la revisión sistémica.</InlineRequestState>
         ) : null}
       </div>
     </AccessGate>
@@ -2314,6 +2760,9 @@ export function InspectionAnalytics({ filters = {} }: { filters?: InspectionAnal
       label: FINDING_CATEGORY_LABELS[filters.category as FindingCategory],
     },
   ].filter(Boolean) as Array<{ key: string; label: string }>;
+  const totalFindings =
+    query.data?.findingsByCategory.reduce((total, item) => total + item.count, 0) ?? 0;
+  const closedFindings = Math.max(0, totalFindings - (query.data?.openFindings ?? 0));
 
   function updateFilter(key: keyof InspectionAnalyticsFilters, value: string) {
     const next = { ...filters, [key]: value || undefined };
@@ -2430,11 +2879,13 @@ export function InspectionAnalytics({ filters = {} }: { filters?: InspectionAnal
                   </div>
                   <div className="inspection-metric static">
                     <strong>{query.data.averageDaysOpen}</strong>
-                    <span>Días abiertos en promedio</span>
+                    <span>Días abiertos en promedio · hallazgos abiertos del contexto</span>
                   </div>
                   <div className="inspection-metric static">
-                    <strong>{query.data.percentageClosed}%</strong>
-                    <span>Hallazgos cerrados</span>
+                    <strong>
+                      {closedFindings} de {totalFindings}
+                    </strong>
+                    <span>Hallazgos cerrados · {query.data.percentageClosed}%</span>
                   </div>
                   <div className="inspection-metric static">
                     <strong>{query.data.overdueActions}</strong>
@@ -2472,7 +2923,7 @@ export function InspectionAnalytics({ filters = {} }: { filters?: InspectionAnal
                 <Card id="risk-summary">
                   <h2>Riesgo inicial</h2>
                   <p className="inspection-caption">
-                    Nivel y conteo calculados a partir del resultado almacenado por el servidor.
+                    Nivel y conteo calculados a partir del resultado registrado.
                   </p>
                   {query.data.findingsByRiskLevel.length ? (
                     query.data.findingsByRiskLevel.map((item) => (

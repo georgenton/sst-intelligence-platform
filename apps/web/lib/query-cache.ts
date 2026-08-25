@@ -25,8 +25,7 @@ export function planOrganizationReconciliation(input: {
   }
   const fallbackOrganizationId = input.validOrganizationIds[0] ?? null;
   return {
-    action:
-      input.activeOrganizationId === fallbackOrganizationId ? 'preserve' : 'transition',
+    action: input.activeOrganizationId === fallbackOrganizationId ? 'preserve' : 'transition',
     organizationId: fallbackOrganizationId,
   };
 }

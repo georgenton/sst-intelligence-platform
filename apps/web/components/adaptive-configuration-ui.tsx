@@ -121,7 +121,7 @@ export function AdaptiveConfigurationWorkspace() {
           <ApplicabilityStatePanel
             kind="info"
             title="Consulta de solo lectura"
-            description="Tu membresía puede revisar sesiones y propuestas. Solo OWNER, ADMIN y SST_MANAGER pueden modificarlas."
+            description="Tu membresía puede revisar sesiones y propuestas. Solo Propietarios, Administradores y Responsables SST pueden modificarlas."
           />
         ) : null}
         <section className="adaptive-section" aria-labelledby="adaptive-history-title">
@@ -160,10 +160,7 @@ export function AdaptiveConfigurationWorkspace() {
                         {adaptiveSessionStatusLabel[session.status]}
                       </span>
                       <h3>{session.rulePackVersion.packDefinition.name}</h3>
-                      <p>
-                        Perfil v{session.profileVersion.version} · Pack{' '}
-                        {session.rulePackVersion.version}
-                      </p>
+                      <p>Información de la organización · marco de evaluación</p>
                     </div>
                     <dl>
                       <div>
@@ -193,7 +190,7 @@ export function AdaptiveConfigurationWorkspace() {
             <ApplicabilityStatePanel
               kind="empty"
               title="Todavía no hay sesiones dinámicas"
-              description="El inicio de una sesión toma un perfil SST versionado y un snapshot exacto del pack DEMO."
+              description="Usaremos la información disponible y preguntaremos solo lo necesario para preparar una propuesta."
               action={
                 canManage ? (
                   <Link className="button" href="/app/applicability/adaptive/new">
@@ -251,7 +248,7 @@ export function AdaptiveConfigurationNewSession() {
       <ApplicabilityStatePanel
         kind="error"
         title="No tienes permiso para iniciar una sesión"
-        description="La API reserva esta acción para OWNER, ADMIN y SST_MANAGER."
+        description="Esta acción está disponible para Propietario, Administrador y Responsable SST."
       />
     );
 
@@ -261,7 +258,7 @@ export function AdaptiveConfigurationNewSession() {
         <ApplicabilityPageHeader
           eyebrow="Nueva sesión adaptativa"
           title="Preparar configuración dinámica"
-          description="Selecciona referencias existentes. El servidor incluirá los centros de la organización y sembrará solo hechos autoritativos."
+          description="Usaremos la información que ya conocemos y te preguntaremos solo lo necesario para preparar una propuesta."
           action={
             <Link className="button secondary" href="/app/applicability/adaptive">
               Cancelar
@@ -284,8 +281,8 @@ export function AdaptiveConfigurationNewSession() {
             }}
           >
             <fieldset>
-              <legend>1. Perfil SST versionado</legend>
-              <label htmlFor="adaptive-profile">Versión del perfil</label>
+              <legend>1. Información de la organización</legend>
+              <label htmlFor="adaptive-profile">Información registrada</label>
               <select
                 id="adaptive-profile"
                 required
@@ -295,27 +292,27 @@ export function AdaptiveConfigurationNewSession() {
                 <option value="">Selecciona una versión</option>
                 {profiles.data?.map((profile) => (
                   <option key={profile.id} value={profile.id}>
-                    Perfil v{profile.version}
+                    Información registrada · versión {profile.version}
                   </option>
                 ))}
               </select>
               {selectedProfile ? (
                 <p>
-                  {selectedProfile.snapshot.organization.workCenterCount} centros incluidos según el
-                  perfil; el servidor validará sus identidades actuales.
+                  {selectedProfile.snapshot.organization.workCenterCount} centros incluidos según la
+                  información seleccionada; se validará que sigan disponibles.
                 </p>
               ) : null}
             </fieldset>
             <fieldset>
-              <legend>2. Pack de reglas</legend>
-              <label htmlFor="adaptive-pack">Pack publicado</label>
+              <legend>2. Marco de evaluación</legend>
+              <label htmlFor="adaptive-pack">Marco disponible</label>
               <select
                 id="adaptive-pack"
                 required
                 value={packVersionId}
                 onChange={(event) => setPackVersionId(event.target.value)}
               >
-                <option value="">Selecciona un pack</option>
+                <option value="">Selecciona un marco</option>
                 {packs.data?.map((pack) => (
                   <option key={pack.id} value={pack.id}>
                     {pack.packDefinition.name} · v{pack.version}
@@ -534,9 +531,9 @@ export function AdaptiveConfigurationSessionView({ sessionId }: { sessionId: str
     <AdaptiveAccess>
       <div className="adaptive-workspace stack">
         <ApplicabilityPageHeader
-          eyebrow={`Sesión · revisión ${session.data.sessionRevision}`}
+          eyebrow="Configuración SST"
           title="Configuración dinámica"
-          description={`Perfil v${session.data.profileVersion.version} · ${session.data.rulePackVersion.packDefinition.name} v${session.data.rulePackVersion.version}`}
+          description="Las preguntas y la propuesta se adaptan a la información vigente de la organización."
           action={
             <Link className="button secondary" href="/app/applicability/adaptive">
               Volver al historial
@@ -547,7 +544,7 @@ export function AdaptiveConfigurationSessionView({ sessionId }: { sessionId: str
         <div className="adaptive-session-summary" role="status">
           <strong>{adaptiveSessionStatusLabel[session.data.status]}</strong>
           <span>{latest?.questions.length ?? 0} preguntas pendientes</span>
-          <span>Evaluación {latest ? `#${latest.runNumber}` : 'pendiente'}</span>
+          <span>{latest ? 'Información evaluada' : 'Evaluación pendiente'}</span>
         </div>
         {questionGroups.length ? (
           <form
@@ -559,10 +556,7 @@ export function AdaptiveConfigurationSessionView({ sessionId }: { sessionId: str
             }}
           >
             <h2>Preguntas relevantes</h2>
-            <p>
-              No existe un cuestionario fijo: estas preguntas pueden afectar decisiones aún no
-              resueltas.
-            </p>
+            <p>Las preguntas cambian según lo que vayamos conociendo de tu organización.</p>
             {questionGroups.map((questions) => (
               <fieldset key={questions[0]!.scope.id}>
                 <legend>
@@ -617,6 +611,7 @@ export function AdaptiveConfigurationSessionView({ sessionId }: { sessionId: str
         {proposal.data ? (
           <AdaptiveProposalView
             proposal={proposal.data}
+            preliminary={questionGroups.length > 0}
             canManage={canManage}
             refresh={() =>
               queryClient.invalidateQueries({
@@ -651,11 +646,13 @@ export function AdaptiveConfigurationSessionView({ sessionId }: { sessionId: str
 
 function AdaptiveProposalView({
   proposal,
+  preliminary,
   canManage,
   refresh,
   request,
 }: {
   proposal: AdaptiveProposal;
+  preliminary: boolean;
   canManage: boolean;
   refresh(): Promise<unknown>;
   request: <T>(path: string, init?: RequestInit) => Promise<T>;
@@ -667,10 +664,10 @@ function AdaptiveProposalView({
     <section className="adaptive-proposal" aria-labelledby="adaptive-proposal-title">
       <div className="adaptive-section-heading">
         <div>
-          <p className="applicability-kicker">
-            Snapshot inmutable · versión {proposal.proposalVersion}
-          </p>
-          <h2 id="adaptive-proposal-title">Propuesta de configuración</h2>
+          <p className="applicability-kicker">Configuración sugerida</p>
+          <h2 id="adaptive-proposal-title">
+            {preliminary ? 'Propuesta preliminar' : 'Propuesta de configuración'}
+          </h2>
         </div>
         <span>{proposal.items.length} elementos</span>
       </div>
@@ -781,8 +778,8 @@ function AdaptiveProposalItemCard({
         <pre>{JSON.stringify(item.trace, null, 2)}</pre>
       </details>
       <div className="adaptive-current-state">
-        <strong>Estado actual declarado</strong>
-        <p>Esta información es declarada y todavía no ha sido verificada.</p>
+        <strong>¿La empresa ya cuenta con esto?</strong>
+        <p>Información proporcionada por la empresa; aún no ha sido verificada.</p>
         <label htmlFor={`state-${item.id}`}>{item.targetVersion.currentStateQuestion}</label>
         <select
           id={`state-${item.id}`}
@@ -834,7 +831,8 @@ function AdaptiveProposalItemCard({
             )}
             {canManage ? (
               <fieldset>
-                <legend>Añadir referencia segura</legend>
+                <legend>Añadir evidencia</legend>
+                <p>Puedes registrar una nota o un enlace como evidencia.</p>
                 <label htmlFor={`evidence-type-${item.id}`}>Tipo</label>
                 <select
                   id={`evidence-type-${item.id}`}
@@ -844,10 +842,10 @@ function AdaptiveProposalItemCard({
                   }
                 >
                   <option value="NOTE">Nota</option>
-                  <option value="EXTERNAL_LINK">Enlace externo HTTPS</option>
+                  <option value="EXTERNAL_LINK">Enlace</option>
                 </select>
                 <label htmlFor={`evidence-value-${item.id}`}>
-                  {evidenceType === 'NOTE' ? 'Nota' : 'URL HTTPS'}
+                  {evidenceType === 'NOTE' ? 'Nota' : 'Enlace'}
                 </label>
                 <input
                   id={`evidence-value-${item.id}`}
@@ -862,7 +860,7 @@ function AdaptiveProposalItemCard({
                   disabled={!evidenceValue.trim() || evidenceMutation.isPending}
                   onClick={() => evidenceMutation.mutate()}
                 >
-                  Añadir referencia
+                  Añadir evidencia
                 </button>
               </fieldset>
             ) : null}
