@@ -582,6 +582,112 @@ a.inspection-metric:hover {
   font-size: var(--text-caption);
 }
 
+.risk-method-selection,
+.risk-method-options,
+.risk-control-locations {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.risk-method-selection > legend,
+.risk-method-options > legend,
+.risk-control-locations > legend {
+  color: var(--text-primary);
+  font-weight: 750;
+  margin-bottom: var(--space-2);
+}
+
+.risk-method-card-grid,
+.risk-method-library {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-block: var(--space-4);
+}
+
+.risk-method-card,
+.risk-method-options > label {
+  align-items: flex-start;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  cursor: pointer;
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.risk-method-card:has(input:checked),
+.risk-method-options > label:has(input:checked) {
+  border-color: var(--interactive-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-primary) 22%, transparent);
+}
+
+.risk-method-card > span,
+.risk-method-options > label > span,
+.risk-method-source,
+.risk-method-library-card,
+.inspection-method-heading {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.risk-method-card small,
+.risk-method-card em,
+.risk-method-options small,
+.inspection-method-heading small,
+.risk-method-source span {
+  color: var(--text-tertiary);
+}
+
+.risk-method-card em {
+  font-size: var(--text-caption);
+}
+
+.risk-method-options {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.risk-method-cues {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  padding: var(--space-3);
+}
+
+.risk-method-cues summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.risk-method-cues label {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.risk-control-locations {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.risk-method-library-card {
+  align-content: start;
+}
+
+.risk-method-library-card section {
+  border-top: 1px solid var(--border-default);
+  padding-top: var(--space-4);
+}
+
+.inspection-method-heading {
+  border-left: 3px solid var(--interactive-primary);
+  padding-left: var(--space-3);
+}
+
 .inspection-sticky-actions {
   position: sticky;
   bottom: var(--space-3);
@@ -1153,7 +1259,10 @@ a.inspection-metric:hover {
   .inspection-form-grid,
   .inspection-analytics-grid,
   .inspection-risk-pair,
-  .inspection-context-rail {
+  .inspection-context-rail,
+  .risk-method-card-grid,
+  .risk-method-library,
+  .risk-control-locations {
     grid-template-columns: minmax(0, 1fr);
   }
 

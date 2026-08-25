@@ -62,6 +62,14 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         match: 'segment',
         requiredFeature: 'module.technical_risk',
       },
+      {
+        id: 'risk-methods',
+        label: 'Metodologías',
+        href: '/app/risk-methods',
+        group: 'assessments',
+        match: 'segment',
+        requiredFeature: 'module.inspections',
+      },
     ],
   },
   {

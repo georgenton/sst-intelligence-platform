@@ -33,6 +33,7 @@ test('nested application routes retain the correct active parent item', () => {
     ['/app/applicability/sources/EC_IESS_CD_527_INTERVIEW_REFERENCE', 'applicability'],
     ['/app/applicability/assessment-a', 'applicability'],
     ['/app/technical-risk/assessment-a/review', 'technical-risk'],
+    ['/app/risk-methods', 'risk-methods'],
     ['/app/modules/TECHNICAL_RISK', 'modules'],
     ['/app/settings/members', 'members'],
   ];

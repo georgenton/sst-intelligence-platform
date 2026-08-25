@@ -35,3 +35,20 @@ test('systemic presentation keeps method identities separate without cross-metho
     false,
   );
 });
+
+test('finite renderer registry includes the three reviewed runtime methods', () => {
+  assert.equal(inspectionRiskMethodRenderer('GUIDED_5X5'), 'guided-five-by-five');
+  assert.equal(inspectionRiskMethodRenderer('GTC45_2010'), 'gtc45-2010');
+  assert.deepEqual(presentInspectionRiskMethod('GUIDED_5X5', '1.0.0'), {
+    displayName: 'Matriz 5×5 guiada',
+    version: '1.0.0',
+    isDemo: true,
+    statusLabel: 'Candidata DEMO',
+    technicalKey: 'GUIDED_5X5',
+    contextSummary: 'Juicio profesional guiado con probabilidad y severidad humana.',
+  });
+  assert.match(
+    presentInspectionRiskMethod('GTC45_2010', '1.0.0').contextSummary,
+    /no implica adopción legal ecuatoriana/,
+  );
+});

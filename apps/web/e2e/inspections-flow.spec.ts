@@ -49,6 +49,7 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await page.getByLabel('Área (opcional)').selectOption({ label: 'Planta A' });
   await page.getByLabel('Título').fill(`Inspección de campo ${suffix}`);
   await page.getByLabel('Descripción').fill('Recorrido operacional E2E.');
+  await page.getByRole('radio', { name: /Matriz demostrativa 5×5 histórica/ }).check();
   await Promise.all([
     page.waitForURL(/\/app\/inspections\/[0-9a-f-]+$/),
     page.getByRole('button', { name: 'Crear inspección' }).click(),
