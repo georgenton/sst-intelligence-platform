@@ -1,142 +1,68 @@
-# Risk Methodology Engine V1 — Phase 1 foundation
+# Risk Methodology Engine V1
 
-## Baseline gate
+## Runtime scope
 
-`origin/main` is `4be72e28a37cb78da0743d98a3e4c3fc7c5fc2a2` and does not contain Product
-Walkthrough Hardening V1. This increment therefore stops before production persistence, API, seed,
-Inspections runtime, Technical Risk runtime and UI integration. The contracts and manifests in this
-phase are non-runtime review material.
+The inspection runtime supports three exact, versioned methods:
 
-## Separation of layers
+- `DEMO_5X5@1.0.0`, the unchanged historical calculation;
+- `GUIDED_5X5@1.0.0`, candidate/demo with professional rationale;
+- `GTC45_2010@1.0.0`, candidate/demo-review based on the supplied technical source.
 
-> LAW/REGULATION tells us what obligations and context to consider. METHODOLOGY tells us how a risk
-> is evaluated. EXPERT GUIDANCE helps a professional apply the methodology.
-
-These layers are not interchangeable:
+The following identities remain separate:
 
 ```text
-RegulatorySourceVersion
-        │ context only
-        ▼
-RiskMethodRegulatoryContext ──► RiskMethodVersion ◄── MethodologySourceVersion
-                                      │
-                                      ├── deterministic provider
-                                      └── optional ExpertGuidanceVersion (non-scoring)
-                                                        │
-                                                        ▼
-                                             Assessment instance/snapshot
+RegulatorySourceVersion (law/context)
+        !=
+MethodologySourceVersion (technical source)
+        !=
+RiskMethodVersion (deterministic provider contract)
+        !=
+RiskMethodExpertGuidanceVersion (non-scoring help)
+        !=
+InspectionFinding (tenant-private assessment instance)
 ```
 
-GTC45 is a Colombian technical methodology source. It is not Ecuadorian law. A corporate 5×5
-workbook is neither an official Ecuador method nor a generic product default.
+No AI, database formula, renderer or regulatory context chooses or changes a score.
 
-## Bounded domains proposed
+## Persistence and immutability
 
-### Methodology source
+`MethodologySource`, `RiskMethodDefinition` and their versions are global reference records with no
+`organizationId`. Source links, candidate expert guidance and jurisdiction context point to an
+exact `RiskMethodVersion`. Published source, method and guidance versions are protected from
+update/delete by PostgreSQL triggers. Corrections require a new version.
 
-Global `MethodologySource` identity and immutable `MethodologySourceVersion` metadata:
+Seed uses stable UUIDs and compares complete manifests. A second seed creates no duplicates;
+same-version content drift raises `RISK_METHOD_REFERENCE_DRIFT`.
 
-- stable source key and version;
-- title, issuer, origin country and document type;
-- edition and publication date;
-- source fingerprint;
-- source/review/publication status;
-- licensing or reproduction note;
-- verified official URL when one exists.
+## Assessment binding
 
-It has no `organizationId` and is separate from `RegulatorySource`.
+A new inspection explicitly selects an available method version. The inspection stores its UUID
+and manifest snapshot. Every new finding copies the exact UUID/snapshot and persists method-specific
+input, deterministic output and explanation. Reads never resolve `latest`.
 
-### Risk method
+Historical inspections/findings are backfilled to `DEMO_5X5@1.0.0` without recalculating their
+stored likelihood, consequence, score, level or residual values.
 
-Global or future tenant-scoped `RiskMethodDefinition` with immutable versions:
+Residual valuation stores a second input/output and uses the initial exact method UUID. The API
+rejects a different UUID and the database has a same-method check. Guided residual rationale is new;
+the initial rationale is never silently reused.
 
-- method identity and semantic version;
-- one finite method kind;
-- provider key plus provider version;
-- input/result schema versions;
-- DEMO and regulatory flags;
-- independent publication, technical-review and legal-review states;
-- methodology-source and regulatory-context references;
-- disclaimer and content hash.
+## Tenant and analytics boundaries
 
-V1 method kinds remain finite:
+Inputs, rationales, results, evidence and residual values remain tenant-private and all requests use
+the authenticated organization context. Global catalog reads do not contain tenant data.
 
-- `INSPECTION_FINDING_RISK`;
-- `HAZARD_RISK_ASSESSMENT`.
+Recurrence remains organization + work center + category + 90 days. Systemic-review snapshots now
+include method identity. Raw numeric results from different methods are never ranked or compared.
 
-There is no no-code formula builder, dynamic evaluation or arbitrary database formula.
+## Technical Risk compatibility
 
-### Expert guidance
+The finite provider-registry pattern is shared conceptually, but `TechnicalAssessment` and
+`InspectionFinding` keep independent models, APIs, authorization and lifecycle. Existing Technical
+Risk versions were not migrated or rewritten.
 
-`RiskMethodExpertGuidanceVersion` is versioned separately. Its questions and help text may capture
-professional observations, but every help definition declares `affectsCanonicalScore=false`.
+## Deferred
 
-### Assessment
-
-An assessment must store the exact method-version UUID and an immutable snapshot. Initial and
-residual valuations keep distinct inputs/outputs but must reference the same exact version. Method
-selection never resolves “latest” after creation.
-
-## Provider boundary
-
-The proposed pure interface exposes:
-
-- `validateInput()`;
-- `calculate()`;
-- `explainResult()`;
-- `validateResidualInput()`;
-- `calculateResidual()`.
-
-Registry identity is `providerKey + providerVersion`. Providers are compiled and explicitly
-registered. JSON can describe finite inputs and explanations, but cannot execute formulas.
-
-The existing Technical Risk registry is a useful primitive. A later runtime increment can share its
-registry mechanics, while keeping `TechnicalAssessment` and `InspectionFinding` as separate
-aggregates and lifecycles.
-
-## Historical preservation
-
-`DEMO_5X5@1.0.0` remains unchanged. The existing `calculateDemoRisk` output, thresholds, stored
-finding fields and historical residual values are not migrated or recalculated. Its Phase 1 manifest
-only records identity and the future wrapper boundary.
-
-## Tenant boundary
-
-Global:
-
-- methodology-source definitions and versions;
-- approved method definitions and versions;
-- provider registry;
-- candidate expert-guidance definitions;
-- jurisdiction context metadata.
-
-Tenant-specific in a future runtime increment:
-
-- enabled methods and preferences;
-- organization-defined criteria/threshold versions;
-- assessments, rationales, controls and evidence;
-- initial/residual snapshots.
-
-Every tenant query must continue using the authenticated organization context. No organization
-criteria may fall back to another tenant.
-
-## Phase 1 deliverables and deferred runtime
-
-Delivered here:
-
-- Zod contracts and provider interface proposal;
-- finite GTC45 and guided-5×5 specification oracles for boundary fixtures;
-- hashed candidate manifests;
-- exact-version residual contract;
-- synthetic comparison fixture;
-- review documentation and ignored expert pack.
-
-Deferred until Product Walkthrough Hardening V1 is merged:
-
-- Prisma models/migrations and seed;
-- provider registration in NestJS;
-- method enablement/preferences;
-- Inspection and Technical Risk API integration;
-- method-selection and guided valuation UI;
-- technical-source library routes;
-- production deployment and preview.
+Organization defaults, allowed-method policies, program-level selection, mixed methods within an
+inspection program and reviewed acceptability policies require separate increments and expert
+decisions.

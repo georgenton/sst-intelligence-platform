@@ -30,8 +30,8 @@ These records support a general recognized-method principle. They do not establi
 officially endorses GTC45 or this product's GUIDED_5X5 candidate.
 
 The source identities already exist as `EC_EXECUTIVE_DECREE_255` and
-`EC_MDT_2024_196_ANNEX_1`. Phase 1 context manifests reference them without adding provisions,
-requirements or rules.
+`EC_MDT_2024_196_ANNEX_1`. Runtime context records reference them editorially without adding
+provisions, requirements or rules.
 
 ## Risk classifications and residual matrix
 

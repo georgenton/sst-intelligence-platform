@@ -1,103 +1,39 @@
-# GTC45 2010 provider specification — candidate
+# GTC45 2010 provider V1 — candidate runtime
 
-## Status and source
+## Identity and source
 
-- Method: `GTC45_2010@1.0.0`.
-- Provider proposal: `GTC45_2010_CANONICAL@1.0.0`.
-- State: CANDIDATE / DEMO-REVIEW.
-- Regulatory: false.
-- Technical review: PENDING.
-- Legal review: PENDING.
-- Source: user-provided GTC 45, 2010-12-15, Primera actualización.
-- SHA-256: `99a387729fd3a73a93dbc06a44ac5be0a7eedd8999f26b709c0cbf794f823973`.
+`GTC45_2010@1.0.0` uses the compiled provider `GTC45_2010_CANONICAL@1.0.0`. It is DEMO-safe,
+technical/legal review PENDING, non-regulatory and not an Ecuadorian legal endorsement.
 
-The source prohibits reproduction. The repository stores no PDF and no full source text. This
-specification contains only numeric constants, short labels, paraphrased guidance and provenance.
+The source record contains only title, issuer, edition, publication metadata, fingerprint
+`99a387729fd3a73a93dbc06a44ac5be0a7eedd8999f26b709c0cbf794f823973`, review state and a
+reproduction notice. No PDF, extracted full text or long table is stored.
 
-## Canonical finite inputs
+## Deterministic inputs and trace
 
-### Deficiency (ND)
+- ND: 10 very high, 6 high, 2 medium, LOW special.
+- NE: 4 continuous, 3 frequent, 2 occasional, 1 sporadic.
+- Numeric path: `NP = ND × NE` with bands 24–40, 10–20, 6–8 and 2–4.
+- NC: 100, 60, 25, 10.
+- Numeric path: `NR = NP × NC` with intervention I 600–4000, II 150–500, III 40–120, IV 20.
 
-| Selection |               ND | Handling                          |
-| --------- | ---------------: | --------------------------------- |
-| Very high |               10 | Normal calculation                |
-| High      |                6 | Normal calculation                |
-| Medium    |                2 | Normal calculation                |
-| Low       | No numeric value | Direct risk/intervention level IV |
+LOW does not become zero. It produces `deficiencyValue=null`, no numeric NP/NR and the explicit
+`LOW_DEFICIENCY_DIRECT_TO_IV` trace. Every result persists selected criteria, NP/band, NC, NR,
+intervention level, acceptability null and method/version disclosure.
 
-LOW must never be encoded as ND=0. It produces no numeric NP or NR in this specification.
+Acceptability is a separate policy and remains
+`ORGANIZATION_CRITERIA_REQUIRED`; the provider does not invent an Ecuadorian acceptance table.
 
-### Exposure (NE)
+## Existing controls and guidance
 
-- 4 Continuous: sustained or repeated exposure during the workday.
-- 3 Frequent: exposure several times during the workday.
-- 2 Occasional: exposure at some point for a short period.
-- 1 Sporadic: eventual exposure.
+Existing controls may be described at source, medium and individual/person locations. These are
+control locations, not inferred root causes. Product copy uses “control related to the person,” not
+blame language.
 
-### Probability
-
-For numeric ND, `NP = ND × NE`.
-
-- Very high: 24–40.
-- High: 10–20.
-- Medium: 6–8.
-- Low: 2–4.
-
-Values in gaps are invalid for the finite provider. Boundary tests cover both ends of every band.
-
-### Consequence (NC)
-
-- 100 Mortal/catastrophic.
-- 60 Very serious, irreversible harm.
-- 25 Serious, temporary incapacity.
-- 10 Minor, without incapacity.
-
-Human consequence is primary. The provider does not copy corporate operational or financial
-thresholds.
-
-### Risk and intervention
-
-For numeric ND, `NR = NP × NC`.
-
-- I: 600–4000.
-- II: 150–500.
-- III: 40–120.
-- IV: 20.
-
-The provider accepts only results reachable from finite ND, NE and NC options. It rejects values in
-the numeric gaps rather than guessing a level.
-
-## Acceptability remains separate
-
-The guide shows an example framework, but the organization must establish acceptance criteria with
-applicable context and interested-party input. Phase 1 therefore returns:
-
-- `acceptability=null`;
-- `acceptabilityPolicy=ORGANIZATION_CRITERIA_REQUIRED`.
-
-No Ecuadorian acceptance rule is inferred.
-
-## Context proposal
-
-Future assessment input can retain process, place, activity, task, routine/non-routine, hazard,
-possible effects, source/medium/individual controls, people exposed, worst consequence, optional
-reviewed requirement reference and proposed controls. Only ND, NE and NC drive the canonical V1
-calculation.
-
-Existing controls by source, medium and individual remain control-location categories. They are not
-root-cause findings.
-
-## Control proposals
-
-The future surface may structure human-selected proposals as elimination, substitution,
-engineering, administrative/warning/signage and PPE. The provider never chooses a control.
+Anita Guidance V1 can retain source-condition, control-effectiveness and event-history observations.
+They never set ND, NE or NC and are excluded from formula authority.
 
 ## Residual
 
-Residual revaluation uses the same exact method-version UUID. It preserves initial inputs/output,
-control changes and residual inputs/output. No record is overwritten.
-
-## Phase 1 implementation boundary
-
-`calculateGtc45Specification` is a pure specification oracle used by fixtures and tests. It is not
-registered in NestJS, seeded, exposed by API or selectable in production.
+Residual GTC45 valuation uses the same exact method version, stores post-control inputs and a new
+professional rationale, and never overwrites initial input/output.

@@ -20,7 +20,7 @@ Required UI notice:
 - SHA-256: `ef6423b6a2017c76e961902d90dbe6aa2b65dc0567eaeab276a3e82722bf2a8c`.
 - It contains organization-specific business wording and financial thresholds.
 - No company name, corporate wording or USD threshold is committed as a generic default.
-- Phase 1 retains only generic concepts: multiple impact dimensions, history, exposure, control
+- The runtime retains only generic concepts: multiple impact dimensions, history, exposure, control
   coverage/failure and human dependency.
 - Future organization-defined thresholds must be tenant-scoped and versioned.
 
