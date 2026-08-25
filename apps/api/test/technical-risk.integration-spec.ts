@@ -652,7 +652,11 @@ describe('technical risk integration', () => {
       .post(`/api/v1/technical-risk/assessments/${assessmentId}/review`)
       .set('Authorization', `Bearer ${token}`)
       .set('x-organization-id', orgAId)
-      .send({ decision: 'APPROVED', comment: 'Revisión profesional de integración.' })
+      .send({
+        decision: 'APPROVED',
+        comment: 'Revisión profesional de integración.',
+        selfReviewAcknowledged: true,
+      })
       .expect(201);
     const reviewed = await request(app.getHttpServer())
       .get(`/api/v1/technical-risk/assessments/${assessmentId}`)
@@ -795,6 +799,265 @@ describe('technical risk integration', () => {
     }
   }, 60_000);
 
+  it('creates one linear correction with the exact method version and audits self-review', async () => {
+    const { context, headers, createReady } = mutationRaceContext;
+    const sourceId = await createReady('Evaluación que requiere corrección');
+    await headers(
+      request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${sourceId}/complete`),
+    ).expect(201);
+    await headers(
+      request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${sourceId}/review`),
+    )
+      .send({ decision: 'NEEDS_REVISION', comment: 'Ajustar la probabilidad observada.' })
+      .expect(201);
+    await headers(
+      request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${sourceId}/review`),
+    )
+      .send({
+        decision: 'APPROVED',
+        comment: 'No debe aprobar la versión sin cambios.',
+        selfReviewAcknowledged: true,
+      })
+      .expect(409);
+
+    const corrections = await Promise.all([
+      headers(
+        request(app.getHttpServer()).post(
+          `/api/v1/technical-risk/assessments/${sourceId}/revisions`,
+        ),
+      ),
+      headers(
+        request(app.getHttpServer()).post(
+          `/api/v1/technical-risk/assessments/${sourceId}/revisions`,
+        ),
+      ),
+    ]);
+    expect(corrections.map(({ status }) => status).sort()).toEqual([201, 409]);
+    expect(
+      await prisma.technicalAssessment.count({ where: { revisedFromAssessmentId: sourceId } }),
+    ).toBe(1);
+    const correction = corrections.find(({ status }) => status === 201)!;
+    const correctionId = correction.body.id as string;
+    const source = await prisma.technicalAssessment.findUniqueOrThrow({
+      where: { id: sourceId },
+      include: { responses: true, result: true, reviews: true, revision: true },
+    });
+    expect(correction.body).toMatchObject({
+      id: correctionId,
+      revisedFromAssessmentId: sourceId,
+      methodVersionId: source.methodVersionId,
+      status: 'DRAFT',
+    });
+    expect(correction.body.responses).toHaveLength(source.responses.length);
+    expect(correction.body.evidence).toHaveLength(0);
+    expect(correction.body.revisedFrom.reviews[0]).toMatchObject({
+      decision: 'NEEDS_REVISION',
+      comment: 'Ajustar la probabilidad observada.',
+    });
+
+    await headers(
+      request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${correctionId}/start`),
+    ).expect(201);
+    await headers(
+      request(app.getHttpServer()).put(
+        `/api/v1/technical-risk/assessments/${correctionId}/responses/likelihood`,
+      ),
+    )
+      .send({ value: 4 })
+      .expect(200);
+    await headers(
+      request(app.getHttpServer()).post(
+        `/api/v1/technical-risk/assessments/${correctionId}/complete`,
+      ),
+    ).expect(201);
+    await headers(
+      request(app.getHttpServer()).post(
+        `/api/v1/technical-risk/assessments/${correctionId}/review`,
+      ),
+    )
+      .send({ decision: 'APPROVED' })
+      .expect(400)
+      .expect(({ body }) => expect(body.code).toBe('SELF_REVIEW_ACKNOWLEDGEMENT_REQUIRED'));
+    await headers(
+      request(app.getHttpServer()).post(
+        `/api/v1/technical-risk/assessments/${correctionId}/review`,
+      ),
+    )
+      .send({
+        decision: 'APPROVED',
+        comment: 'Confirmo la autorrevisión de la corrección.',
+        selfReviewAcknowledged: true,
+      })
+      .expect(201);
+
+    const storedSource = await prisma.technicalAssessment.findUniqueOrThrow({
+      where: { id: sourceId },
+      include: { result: true, reviews: true },
+    });
+    const storedCorrection = await prisma.technicalAssessment.findUniqueOrThrow({
+      where: { id: correctionId },
+      include: { reviews: true },
+    });
+    expect(storedSource).toMatchObject({ status: 'COMPLETED', result: source.result });
+    expect(storedSource.reviews).toHaveLength(1);
+    expect(storedCorrection.status).toBe('REVIEWED');
+    expect(storedCorrection.reviews[0]).toMatchObject({
+      isSelfReview: true,
+      selfReviewAcknowledged: true,
+    });
+    expect(storedCorrection.methodVersionId).toBe(source.methodVersionId);
+    expect(storedCorrection.organizationId).toBe(context.organizationId);
+  }, 60_000);
+
+  it('enforces HIGH and CRITICAL self-review while preserving the normal reviewer path', async () => {
+    const { context } = mutationRaceContext;
+    const methods = await request(app.getHttpServer())
+      .get('/api/v1/technical-risk/methods')
+      .set('Authorization', `Bearer ${context.token}`)
+      .set('x-organization-id', context.organizationId)
+      .expect(200);
+    const methodVersionId = methods.body.find(
+      (method: { key: string }) => method.key === 'DEMO_TECHNICAL_RISK',
+    ).id as string;
+    const ownerHeaders = (call: SuperTestRequest) =>
+      call
+        .set('Authorization', `Bearer ${context.token}`)
+        .set('x-organization-id', context.organizationId);
+    const reviewer = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({
+        email: `technical-reviewer-${suffix}@example.test`,
+        displayName: 'Revisor SST',
+        password: 'technical-reviewer-password-123',
+      })
+      .expect(201);
+    await prisma.membership.create({
+      data: {
+        organizationId: context.organizationId,
+        userId: reviewer.body.user.id as string,
+        role: 'SST_MANAGER',
+        status: 'ACTIVE',
+      },
+    });
+    const reviewerHeaders = (call: SuperTestRequest) =>
+      call
+        .set('Authorization', `Bearer ${reviewer.body.accessToken as string}`)
+        .set('x-organization-id', context.organizationId);
+
+    const createCompleted = async (
+      title: string,
+      likelihood: number,
+      consequence: number,
+      expectedLevel: 'HIGH' | 'CRITICAL',
+    ) => {
+      const created = await ownerHeaders(
+        request(app.getHttpServer()).post('/api/v1/technical-risk/assessments'),
+      )
+        .send({ methodVersionId, workCenterId: context.workCenterId, title })
+        .expect(201);
+      const assessmentId = created.body.id as string;
+      await ownerHeaders(
+        request(app.getHttpServer()).post(
+          `/api/v1/technical-risk/assessments/${assessmentId}/start`,
+        ),
+      ).expect(201);
+      for (const [questionKey, value] of [
+        ['activityDescription', 'Actividad para matriz de autorrevisión'],
+        ['likelihood', likelihood],
+        ['consequence', consequence],
+      ] as const) {
+        await ownerHeaders(
+          request(app.getHttpServer()).put(
+            `/api/v1/technical-risk/assessments/${assessmentId}/responses/${questionKey}`,
+          ),
+        )
+          .send({ value })
+          .expect(200);
+      }
+      await ownerHeaders(
+        request(app.getHttpServer()).post(
+          `/api/v1/technical-risk/assessments/${assessmentId}/complete`,
+        ),
+      )
+        .expect(201)
+        .expect(({ body }) => expect(body.level).toBe(expectedLevel));
+      return assessmentId;
+    };
+
+    const highId = await createCompleted('Autorrevisión HIGH', 4, 4, 'HIGH');
+    await ownerHeaders(
+      request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${highId}/review`),
+    )
+      .send({ decision: 'APPROVED' })
+      .expect(400)
+      .expect(({ body }) => expect(body.code).toBe('SELF_REVIEW_ACKNOWLEDGEMENT_REQUIRED'));
+    const highComment = 'Confirmo la autorrevisión HIGH.';
+    expect(highComment.length).toBeLessThanOrEqual(2_000);
+    await ownerHeaders(
+      request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${highId}/review`),
+    )
+      .send({
+        decision: 'APPROVED',
+        comment: highComment,
+        selfReviewAcknowledged: true,
+      })
+      .expect(201)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          isSelfReview: true,
+          selfReviewAcknowledged: true,
+          comment: highComment,
+        }),
+      );
+
+    const criticalId = await createCompleted('Autorrevisión CRITICAL', 4, 5, 'CRITICAL');
+    await ownerHeaders(
+      request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${criticalId}/review`),
+    )
+      .send({ decision: 'APPROVED' })
+      .expect(400)
+      .expect(({ body }) => expect(body.code).toBe('SELF_REVIEW_ACKNOWLEDGEMENT_REQUIRED'));
+    const criticalComment = 'Confirmo la autorrevisión CRITICAL.';
+    expect(criticalComment.length).toBeLessThanOrEqual(2_000);
+    await ownerHeaders(
+      request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${criticalId}/review`),
+    )
+      .send({
+        decision: 'APPROVED',
+        comment: criticalComment,
+        selfReviewAcknowledged: true,
+      })
+      .expect(201)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          isSelfReview: true,
+          selfReviewAcknowledged: true,
+          comment: criticalComment,
+        }),
+      );
+
+    const differentReviewerId = await createCompleted(
+      'Revisión por responsable diferente',
+      4,
+      5,
+      'CRITICAL',
+    );
+    await reviewerHeaders(
+      request(app.getHttpServer()).post(
+        `/api/v1/technical-risk/assessments/${differentReviewerId}/review`,
+      ),
+    )
+      .send({ decision: 'APPROVED' })
+      .expect(201)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          reviewerUserId: reviewer.body.user.id,
+          isSelfReview: false,
+          selfReviewAcknowledged: false,
+        }),
+      );
+  }, 60_000);
+
   it('serializes concurrent completion and review decisions without duplicate records', async () => {
     const context = await createContext('concurrency');
     const methods = await request(app.getHttpServer())
@@ -860,12 +1123,20 @@ describe('technical risk integration', () => {
         request(app.getHttpServer()).post(
           `/api/v1/technical-risk/assessments/${assessmentId}/review`,
         ),
-      ).send({ decision: 'APPROVED' }),
+      ).send({
+        decision: 'APPROVED',
+        comment: 'Autorrevisión concurrente justificada.',
+        selfReviewAcknowledged: true,
+      }),
       headers(
         request(app.getHttpServer()).post(
           `/api/v1/technical-risk/assessments/${assessmentId}/review`,
         ),
-      ).send({ decision: 'APPROVED' }),
+      ).send({
+        decision: 'APPROVED',
+        comment: 'Autorrevisión concurrente justificada.',
+        selfReviewAcknowledged: true,
+      }),
     ]);
     expect(approvals.map(({ status }) => status).sort()).toEqual([201, 409]);
     expect(approvals.find(({ status }) => status === 409)?.body.code).toBe(
@@ -883,18 +1154,22 @@ describe('technical risk integration', () => {
       ).send({ decision: 'NEEDS_REVISION' }),
       headers(
         request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${mixedId}/review`),
-      ).send({ decision: 'APPROVED' }),
+      ).send({
+        decision: 'APPROVED',
+        comment: 'Autorrevisión concurrente justificada.',
+        selfReviewAcknowledged: true,
+      }),
     ]);
-    expect(mixed.find(({ body }) => body.decision === 'APPROVED')?.status).toBe(201);
+    expect(mixed.map(({ status }) => status).sort()).toEqual([201, 409]);
     const stored = await prisma.technicalAssessment.findUniqueOrThrow({
       where: { id: mixedId },
       include: { reviews: true },
     });
-    expect(stored.status).toBe('REVIEWED');
-    expect(stored.reviews.filter(({ decision }) => decision === 'APPROVED')).toHaveLength(1);
-    for (const revision of stored.reviews.filter(({ decision }) => decision === 'NEEDS_REVISION')) {
-      expect(revision.createdAt.getTime()).toBeLessThanOrEqual(stored.reviewedAt!.getTime());
-    }
+    expect(stored.reviews).toHaveLength(1);
+    expect(stored.reviewedAt).not.toBeNull();
+    expect(stored.status).toBe(
+      stored.reviews[0]!.decision === 'APPROVED' ? 'REVIEWED' : 'COMPLETED',
+    );
   }, 60_000);
 
   it('serializes concurrent start and rolls back incomplete completion', async () => {
@@ -1088,5 +1363,33 @@ describe('technical risk integration', () => {
     expect(updateWrite.body.code).toBe('TECHNICAL_ASSESSMENT_NOT_EDITABLE');
     expect(updateState.title).toBe('PATCH contra finalización');
     expect(updateState.status).toBe('COMPLETED');
+  }, 60_000);
+
+  it('keeps technical method/result history while exposing the live work-center identity', async () => {
+    const { context, headers, createReady } = mutationRaceContext;
+    const assessmentId = await createReady('Histórico frente a centro vivo');
+    await headers(
+      request(app.getHttpServer()).post(
+        `/api/v1/technical-risk/assessments/${assessmentId}/complete`,
+      ),
+    ).expect(201);
+    const beforeCenterChange = await prisma.technicalAssessment.findUniqueOrThrow({
+      where: { id: assessmentId },
+      include: { result: true },
+    });
+    await headers(
+      request(app.getHttpServer()).patch(
+        `/api/v1/organizations/${context.organizationId}/work-centers/${context.workCenterId}`,
+      ),
+    )
+      .send({ name: `Centro técnico renombrado ${suffix}`, isActive: false })
+      .expect(200);
+    const afterCenterChange = await prisma.technicalAssessment.findUniqueOrThrow({
+      where: { id: assessmentId },
+      include: { result: true, workCenter: true },
+    });
+    expect(afterCenterChange.workCenter.name).toBe(`Centro técnico renombrado ${suffix}`);
+    expect(afterCenterChange.methodSnapshot).toEqual(beforeCenterChange.methodSnapshot);
+    expect(afterCenterChange.result).toEqual(beforeCenterChange.result);
   }, 60_000);
 });

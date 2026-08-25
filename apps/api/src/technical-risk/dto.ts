@@ -1,4 +1,13 @@
-import { Allow, IsEnum, IsOptional, IsString, IsUUID, IsUrl, Length } from 'class-validator';
+import {
+  Allow,
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  IsUrl,
+  Length,
+} from 'class-validator';
 import { TechnicalEvidenceType, TechnicalReviewDecision } from '@prisma/client';
 
 export class CreateTechnicalAssessmentDto {
@@ -30,4 +39,5 @@ export class CreateTechnicalEvidenceDto {
 export class ReviewTechnicalAssessmentDto {
   @IsEnum(TechnicalReviewDecision) decision!: TechnicalReviewDecision;
   @IsOptional() @IsString() @Length(1, 2000) comment?: string;
+  @IsOptional() @IsBoolean() selfReviewAcknowledged?: boolean;
 }

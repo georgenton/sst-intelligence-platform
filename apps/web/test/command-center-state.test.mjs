@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { resolveAsyncCollectionState, resolveAttentionState } from '../lib/command-center-state.ts';
+import {
+  resolveAsyncCollectionState,
+  resolveAttentionState,
+  resolveCommandCenterConfigurationState,
+} from '../lib/command-center-state.ts';
 
 test('loading secondary sources never render the global attention empty state', () => {
   const alerts = resolveAsyncCollectionState({ enabled: true, status: 'pending', itemCount: 0 });
@@ -91,4 +95,19 @@ test('disabled module sources do not prevent a truthful attention empty state', 
 
   assert.equal(attention.sourcesSettled, true);
   assert.equal(attention.showEmpty, true);
+});
+
+test('distinguishes an unassessed organization from configured empty signals', () => {
+  assert.equal(
+    resolveCommandCenterConfigurationState({ status: 'success', profileVersionCount: 0 }),
+    'not-yet-configured',
+  );
+  assert.equal(
+    resolveCommandCenterConfigurationState({ status: 'success', profileVersionCount: 1 }),
+    'configured',
+  );
+  assert.equal(
+    resolveCommandCenterConfigurationState({ status: 'error', profileVersionCount: 0 }),
+    'unavailable',
+  );
 });

@@ -52,7 +52,8 @@ const STATE_PRESENTATION: Record<ApplicabilityState, ApplicabilityStateMeta> = {
   },
   NEEDS_EXPERT_REVIEW: {
     label: 'Requiere revisión profesional',
-    description: 'El escenario debe ser analizado por una persona profesional; no existe aprobación en este flujo.',
+    description:
+      'El escenario debe ser analizado por una persona profesional; no existe aprobación en este flujo.',
     symbol: '!',
     tone: 'expert',
   },
@@ -63,9 +64,7 @@ export function applicabilityStateMeta(state: ApplicabilityState): Applicability
 }
 
 export function canManageApplicability(role?: string): boolean {
-  return APPLICABILITY_ADMIN_ROLES.includes(
-    role as (typeof APPLICABILITY_ADMIN_ROLES)[number],
-  );
+  return APPLICABILITY_ADMIN_ROLES.includes(role as (typeof APPLICABILITY_ADMIN_ROLES)[number]);
 }
 
 export type TriStateInput = 'YES' | 'NO' | 'UNKNOWN';
@@ -84,9 +83,7 @@ export type CreateSstProfilePayload = {
 
 export function buildSstProfilePayload(values: SstProfileFormValues): CreateSstProfilePayload {
   return {
-    ...(values.workerCount.trim() === ''
-      ? {}
-      : { workerCount: Number(values.workerCount) }),
+    ...(values.workerCount.trim() === '' ? {} : { workerCount: Number(values.workerCount) }),
     ...(values.hasChemicalProcesses === 'UNKNOWN'
       ? {}
       : { hasChemicalProcesses: values.hasChemicalProcesses === 'YES' }),

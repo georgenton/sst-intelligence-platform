@@ -19,6 +19,7 @@ test('maps status vocabularies independently for inspections, findings and actio
   assert.equal(statusMeta('inspection', 'COMPLETED').label, 'Completada');
   assert.equal(statusMeta('finding', 'PENDING_VERIFICATION').label, 'Por verificar');
   assert.equal(statusMeta('action', 'PENDING_VERIFICATION').label, 'Pendiente de verificación');
+  assert.equal(statusMeta('systemic-review', 'COMPLETED').label, 'Completada');
   assert.notEqual(
     statusMeta('finding', 'PENDING_VERIFICATION').label,
     statusMeta('action', 'PENDING_VERIFICATION').label,

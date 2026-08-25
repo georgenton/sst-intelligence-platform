@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -22,6 +23,7 @@ import { AuditService, type AuditEvent } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
   AlertQueryDto,
+  CompleteSystemicReviewDto,
   CreateActionDto,
   CreateEvidenceDto,
   CreateFindingDto,
@@ -47,7 +49,7 @@ export class InspectionsService {
   context(organizationId: string) {
     return Promise.all([
       this.prisma.workCenter.findMany({
-        where: { organizationId },
+        where: { organizationId, isActive: true },
         select: {
           id: true,
           name: true,
@@ -392,7 +394,14 @@ export class InspectionsService {
             evidence: { where: { organizationId }, orderBy: { createdAt: 'desc' } },
           },
         },
-        alerts: { where: { organizationId }, orderBy: { createdAt: 'desc' } },
+        alerts: {
+          where: { organizationId },
+          orderBy: { createdAt: 'desc' },
+          include: {
+            acknowledgedBy: { select: { id: true, displayName: true } },
+            systemicReview: { select: { id: true, status: true } },
+          },
+        },
       },
     });
     if (!finding) throw new NotFoundException('Hallazgo no encontrado.');
@@ -567,11 +576,7 @@ export class InspectionsService {
     userId: string,
     context: Context,
   ) {
-    const finding = await this.requireFinding(
-      organization.id,
-      inspectionId,
-      findingId,
-    );
+    const finding = await this.requireFinding(organization.id, inspectionId, findingId);
     this.assertFindingAllowsActionMutation(finding.status);
     const action = await this.requireAction(organization.id, inspectionId, findingId, actionId);
     if (organization.role === 'SST_TECHNICIAN' && action.assignedToUserId !== userId)
@@ -612,7 +617,21 @@ export class InspectionsService {
     input: VerifyFindingDto,
     context: Context,
   ) {
-    const finding = await this.requireFinding(organizationId, inspectionId, findingId, true);
+    const finding = await this.prisma.inspectionFinding.findFirst({
+      where: { id: findingId, inspectionId, organizationId, inspection: { organizationId } },
+      include: {
+        actions: {
+          where: { organizationId },
+          select: {
+            id: true,
+            status: true,
+            assignedToUserId: true,
+            evidence: { where: { organizationId }, select: { id: true } },
+          },
+        },
+      },
+    });
+    if (!finding) throw new NotFoundException('Hallazgo no encontrado.');
     this.assertFindingAllowsActionMutation(finding.status);
     const pending = finding.actions.filter((action) => action.status === 'PENDING_VERIFICATION');
     if (pending.length === 0)
@@ -621,6 +640,36 @@ export class InspectionsService {
         message: 'No existen acciones pendientes de verificación.',
       });
     pending.forEach((action) => this.assertActionTransition(action.status, 'COMPLETED'));
+    const note = input.note?.trim();
+    if (
+      input.basis === 'RECORDED_EVIDENCE' &&
+      pending.every((action) => action.evidence.length === 0)
+    ) {
+      throw new BadRequestException({
+        code: 'VERIFICATION_EVIDENCE_REQUIRED',
+        message: 'La base seleccionada requiere al menos una evidencia registrada.',
+      });
+    }
+    if (
+      (input.basis === 'FIELD_OBSERVATION' || input.basis === 'OTHER_JUSTIFIED') &&
+      (!note || note.length < 10)
+    ) {
+      throw new BadRequestException({
+        code: 'VERIFICATION_NOTE_REQUIRED',
+        message: 'Describe la verificación en al menos 10 caracteres.',
+      });
+    }
+    const selfVerification = pending.some((action) => action.assignedToUserId === userId);
+    if (
+      selfVerification &&
+      (finding.initialRiskLevel === 'HIGH' || finding.initialRiskLevel === 'CRITICAL') &&
+      input.selfVerificationAcknowledged !== true
+    ) {
+      throw new BadRequestException({
+        code: 'SELF_VERIFICATION_ACKNOWLEDGEMENT_REQUIRED',
+        message: 'Confirma que estás verificando una acción que tenías asignada.',
+      });
+    }
     const residual = calculateDemoRisk(input.likelihood, input.consequence);
     const projected = finding.actions.map((action) =>
       action.status === 'PENDING_VERIFICATION' ? 'COMPLETED' : action.status,
@@ -628,10 +677,23 @@ export class InspectionsService {
     const closure = findingClosureEligibility({ actionStatuses: projected, hasResidualRisk: true });
     const now = new Date();
     const updated = await this.prisma.$transaction(async (tx) => {
-      await tx.correctiveAction.updateMany({
-        where: { organizationId, findingId, status: 'PENDING_VERIFICATION' },
-        data: { status: 'COMPLETED', verifiedAt: now, verifiedByUserId: userId },
-      });
+      await Promise.all(
+        pending.map((action) =>
+          tx.correctiveAction.update({
+            where: { id: action.id },
+            data: {
+              status: 'COMPLETED',
+              verifiedAt: now,
+              verifiedByUserId: userId,
+              verificationBasis: input.basis,
+              verificationNote: note,
+              selfVerification: action.assignedToUserId === userId,
+              selfVerificationAcknowledged:
+                action.assignedToUserId === userId && input.selfVerificationAcknowledged === true,
+            },
+          }),
+        ),
+      );
       const result = await tx.inspectionFinding.update({
         where: { id: findingId },
         data: {
@@ -666,7 +728,12 @@ export class InspectionsService {
           'CORRECTIVE_ACTION_VERIFIED',
           'CorrectiveAction',
           action.id,
-          { findingId, residualRiskLevel: residual.level },
+          {
+            findingId,
+            residualRiskLevel: residual.level,
+            verificationBasis: input.basis,
+            selfVerification: action.assignedToUserId === userId,
+          },
           context,
         ),
       ),
@@ -701,6 +768,8 @@ export class InspectionsService {
         take: query.pageSize,
         orderBy: { createdAt: 'desc' },
         include: {
+          acknowledgedBy: { select: { id: true, displayName: true } },
+          systemicReview: { select: { id: true, status: true } },
           finding: {
             select: {
               id: true,
@@ -732,7 +801,12 @@ export class InspectionsService {
     const updated = await this.prisma.inspectionAlert.update({
       where: { id: alertId },
       data: { status: 'ACKNOWLEDGED', acknowledgedAt: new Date(), acknowledgedById: userId },
-      select: { id: true, status: true, acknowledgedAt: true },
+      select: {
+        id: true,
+        status: true,
+        acknowledgedAt: true,
+        acknowledgedBy: { select: { id: true, displayName: true } },
+      },
     });
     await this.record(
       organizationId,
@@ -744,6 +818,161 @@ export class InspectionsService {
       context,
     );
     return updated;
+  }
+
+  async createSystemicReview(
+    organizationId: string,
+    alertId: string,
+    userId: string,
+    context: Context,
+  ) {
+    const alert = await this.prisma.inspectionAlert.findFirst({
+      where: { id: alertId, organizationId, type: 'RECURRENCE' },
+      include: {
+        finding: {
+          include: { workCenter: { select: { name: true } } },
+        },
+        systemicReview: { select: { id: true } },
+      },
+    });
+    if (!alert) throw new NotFoundException('Señal de recurrencia no encontrada.');
+    if (alert.systemicReview)
+      throw new ConflictException({
+        code: 'SYSTEMIC_REVIEW_ALREADY_EXISTS',
+        message: 'Ya existe una revisión sistémica para esta señal.',
+      });
+    const since = new Date(alert.finding.createdAt.getTime() - this.windowDays() * 86_400_000);
+    const related = await this.prisma.inspectionFinding.findMany({
+      where: {
+        organizationId,
+        workCenterId: alert.finding.workCenterId,
+        category: alert.finding.category,
+        createdAt: { gte: since, lte: alert.finding.createdAt },
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        createdAt: true,
+        initialScore: true,
+        initialRiskLevel: true,
+        residualScore: true,
+        residualRiskLevel: true,
+        riskMethodKey: true,
+        riskMethodVersion: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    try {
+      const review = await this.prisma.inspectionSystemicReview.create({
+        data: {
+          organizationId,
+          alertId,
+          workCenterId: alert.finding.workCenterId,
+          workCenterName: alert.finding.workCenter.name,
+          category: alert.finding.category,
+          recurrenceWindowDays: this.windowDays(),
+          relatedFindingIds: related.map(({ id }) => id),
+          relatedFindingsSnapshot: related,
+          createdById: userId,
+        },
+      });
+      await this.record(
+        organizationId,
+        userId,
+        'INSPECTION_SYSTEMIC_REVIEW_CREATED',
+        'InspectionSystemicReview',
+        review.id,
+        { alertId, relatedFindingCount: related.length },
+        context,
+      );
+      return review;
+    } catch (error) {
+      if (this.isUniqueConstraintError(error))
+        throw new ConflictException({
+          code: 'SYSTEMIC_REVIEW_ALREADY_EXISTS',
+          message: 'Ya existe una revisión sistémica para esta señal.',
+        });
+      throw error;
+    }
+  }
+
+  listSystemicReviews(organizationId: string) {
+    return this.prisma.inspectionSystemicReview.findMany({
+      where: { organizationId },
+      include: {
+        createdBy: { select: { id: true, displayName: true } },
+        completedBy: { select: { id: true, displayName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getSystemicReview(organizationId: string, reviewId: string) {
+    const review = await this.prisma.inspectionSystemicReview.findFirst({
+      where: { id: reviewId, organizationId },
+      include: {
+        createdBy: { select: { id: true, displayName: true } },
+        completedBy: { select: { id: true, displayName: true } },
+        alert: { select: { id: true, status: true, acknowledgedAt: true } },
+      },
+    });
+    if (!review) throw new NotFoundException('Revisión sistémica no encontrada.');
+    return review;
+  }
+
+  async startSystemicReview(organizationId: string, reviewId: string) {
+    const claim = await this.prisma.inspectionSystemicReview.updateMany({
+      where: { id: reviewId, organizationId, status: 'OPEN' },
+      data: { status: 'IN_REVIEW' },
+    });
+    if (claim.count !== 1)
+      throw new ConflictException({
+        code: 'SYSTEMIC_REVIEW_NOT_OPEN',
+        message: 'La revisión sistémica ya no está abierta.',
+      });
+    return this.getSystemicReview(organizationId, reviewId);
+  }
+
+  async completeSystemicReview(
+    organizationId: string,
+    reviewId: string,
+    userId: string,
+    input: CompleteSystemicReviewDto,
+    context: Context,
+  ) {
+    const now = new Date();
+    const claim = await this.prisma.inspectionSystemicReview.updateMany({
+      where: { id: reviewId, organizationId, status: { in: ['OPEN', 'IN_REVIEW'] } },
+      data: {
+        status: 'COMPLETED',
+        actionsSufficient: input.actionsSufficient,
+        broaderReviewRecommended: input.broaderReviewRecommended,
+        notes: input.notes?.trim(),
+        suspectedFactors: input.suspectedFactors?.trim(),
+        completedById: userId,
+        completedAt: now,
+      },
+    });
+    if (claim.count !== 1)
+      throw new ConflictException({
+        code: 'SYSTEMIC_REVIEW_NOT_EDITABLE',
+        message: 'La revisión sistémica ya fue finalizada.',
+      });
+    await this.record(
+      organizationId,
+      userId,
+      'INSPECTION_SYSTEMIC_REVIEW_COMPLETED',
+      'InspectionSystemicReview',
+      reviewId,
+      {
+        actionsSufficient: input.actionsSufficient,
+        broaderReviewRecommended: input.broaderReviewRecommended,
+        rootCauseGenerated: false,
+      },
+      context,
+    );
+    return this.getSystemicReview(organizationId, reviewId);
   }
 
   async search(organizationId: string, query: SearchFindingDto) {
@@ -946,7 +1175,7 @@ export class InspectionsService {
 
   private async assertLocation(organizationId: string, workCenterId: string, workAreaId?: string) {
     const center = await this.prisma.workCenter.findFirst({
-      where: { id: workCenterId, organizationId },
+      where: { id: workCenterId, organizationId, isActive: true },
       select: { id: true },
     });
     if (!center) throw new NotFoundException('Centro de trabajo no encontrado.');
@@ -1022,6 +1251,15 @@ export class InspectionsService {
     return Number.isInteger(configured) && configured > 0
       ? configured
       : INSPECTION_RECURRENCE_POLICY.windowDays;
+  }
+
+  private isUniqueConstraintError(error: unknown): error is { code: string } {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: unknown }).code === 'P2002'
+    );
   }
 
   private assertFindingAllowsActionMutation(status: string) {

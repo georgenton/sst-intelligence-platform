@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-test('borrador, ejecución, resultado y revisión profesional de riesgo técnico', async ({ page }) => {
+test('borrador, ejecución, resultado y revisión profesional de riesgo técnico', async ({
+  page,
+}) => {
   test.setTimeout(90_000);
   const suffix = Date.now();
 
@@ -57,13 +59,20 @@ test('borrador, ejecución, resultado y revisión profesional de riesgo técnico
   await page.getByLabel('Descripción de la actividad').fill('Actividad sintética para E2E.');
   await page.getByLabel(/Controles existentes/).fill('Control sintético existente.');
   await page.getByRole('group', { name: 'Probabilidad' }).getByRole('radio', { name: '4' }).check();
-  await page.getByRole('group', { name: 'Consecuencia' }).getByRole('radio', { name: /5 Mayor/ }).check();
+  await page
+    .getByRole('group', { name: 'Consecuencia' })
+    .getByRole('radio', { name: /5 Mayor/ })
+    .check();
 
   await page.getByLabel('Nota').fill('Evidencia sintética E2E.');
   await page.getByRole('button', { name: 'Guardar evidencia' }).click();
-  await expect(page.getByText('Evidencia guardada. La evaluación permanece En curso.')).toBeVisible();
+  await expect(
+    page.getByText('Evidencia guardada. La evaluación permanece En curso.'),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Guardar respuestas' }).click();
-  await expect(page.getByText('Respuestas guardadas. La evaluación permanece En curso.')).toBeVisible();
+  await expect(
+    page.getByText('Respuestas guardadas. La evaluación permanece En curso.'),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Completar evaluación' }).click();
 
   const result = page.getByRole('region', { name: 'Resultado técnico' });
@@ -83,9 +92,18 @@ test('borrador, ejecución, resultado y revisión profesional de riesgo técnico
   await revisionDialog.getByRole('button', { name: 'Registrar decisión' }).click();
   await expect(page.getByText('La evaluación permanece Completada.')).toBeVisible();
   await expect(page.getByText(/Completada/).first()).toBeVisible();
-
+  await page.getByRole('link', { name: 'Volver al resultado' }).click();
+  await expect(page.getByRole('heading', { name: 'Requiere ajustes' })).toBeVisible();
+  await page.getByRole('button', { name: 'Atender ajustes' }).click();
+  await expect(page.getByRole('heading', { name: 'Cambios solicitados' })).toBeVisible();
+  await expect(page.getByText('Ajustar el contexto antes de aprobar.')).toBeVisible();
+  await page.getByRole('button', { name: 'Iniciar evaluación' }).click();
+  await page.getByRole('group', { name: 'Probabilidad' }).getByRole('radio', { name: '3' }).check();
+  await page.getByRole('button', { name: 'Completar evaluación' }).click();
+  await page.getByRole('link', { name: 'Abrir revisión profesional' }).click();
   await page.getByLabel('Aprobar revisión').check();
   await page.getByLabel(/Comentario/).fill('Revisión profesional E2E.');
+  await page.getByLabel('Confirmo esta autorrevisión y su trazabilidad.').check();
   await page.getByRole('button', { name: 'Registrar decisión' }).click();
   const approvalDialog = page.getByRole('dialog', { name: 'Confirmar aprobación profesional' });
   await expect(approvalDialog).toBeVisible();

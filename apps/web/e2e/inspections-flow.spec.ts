@@ -6,6 +6,14 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   const suffix = Date.now();
   const organizationName = `Inspecciones Demo ${suffix}`;
 
+  await page.addInitScript(() => {
+    const realNow = Date.now.bind(Date);
+    Object.defineProperty(window, '__e2eClockOffsetMs', { value: 0, writable: true });
+    Date.now = () =>
+      realNow() +
+      ((window as typeof window & { __e2eClockOffsetMs: number }).__e2eClockOffsetMs ?? 0);
+  });
+
   await page.goto('/diagnostico');
   await page.getByRole('button', { name: 'Comenzar' }).click();
   await expect(page.getByText('Paso 1 de 6')).toBeVisible();
@@ -73,8 +81,10 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
     page.getByRole('button', { name: 'Guardar hallazgo' }).click(),
   ]);
   expect(findingResponse.ok(), await findingResponse.text()).toBe(true);
-  await expect(page.getByText('Resultado calculado por el servidor')).toBeVisible();
+  await expect(page.getByText('Resultado calculado automáticamente')).toBeVisible();
   await expect(page.getByText('Probabilidad 4 × consecuencia 5')).toBeVisible();
+  await expect(page.getByText(/Metodología utilizada: Matriz demostrativa 5×5/)).toBeVisible();
+  await expect(page.getByText('DEMO_5X5', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Crítico').first()).toBeVisible();
   await Promise.all([
     page.waitForURL(/\/app\/inspections\/[0-9a-f-]+\/findings\/[0-9a-f-]+$/),
@@ -82,20 +92,37 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   ]);
   const findingUrl = page.url();
 
-  await page.getByRole('button', { name: 'Nueva acción' }).click();
-  await page.getByLabel('Acción').fill('Aislar conductor y verificar protección');
-  await page
+  await page.getByRole('button', { name: 'Crear acción correctiva' }).click();
+  const actionDialog = page.getByRole('dialog', { name: 'Crear acción correctiva' });
+  await expect(actionDialog).toBeVisible();
+  await expect(actionDialog.getByRole('button', { name: 'Cerrar diálogo' })).toBeFocused();
+  await actionDialog
+    .getByRole('textbox', { name: 'Acción' })
+    .fill('Aislar conductor y verificar protección');
+  await actionDialog
     .getByLabel('Responsable')
-    .selectOption({ label: 'Técnico Inspecciones E2E · ORG_OWNER' });
-  await page.getByLabel('Prioridad').selectOption('URGENT');
-  await page.getByRole('button', { name: 'Guardar acción' }).click();
+    .selectOption({ label: 'Técnico Inspecciones E2E · Propietario' });
+  await actionDialog.getByLabel('Prioridad').selectOption('URGENT');
+  await page.evaluate(() => {
+    (window as typeof window & { __e2eClockOffsetMs: number }).__e2eClockOffsetMs = 3_600_000;
+  });
+  const proactiveRefresh = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === '/api/v1/auth/refresh',
+  );
+  const protectedActionCreation = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/inspections\/[0-9a-f-]+\/findings\/[0-9a-f-]+\/actions$/.test(response.url()),
+  );
+  await actionDialog.getByRole('button', { name: 'Guardar acción' }).click();
+  expect((await proactiveRefresh).ok()).toBe(true);
+  expect((await protectedActionCreation).ok()).toBe(true);
+  await page.evaluate(() => {
+    (window as typeof window & { __e2eClockOffsetMs: number }).__e2eClockOffsetMs = 0;
+  });
   await page.getByRole('button', { name: 'Iniciar acción' }).click();
-  await page.getByRole('button', { name: 'Añadir evidencia' }).click();
-  await page.getByLabel('Nota').fill('Protección aislada y revisada durante la prueba E2E.');
-  await page.getByRole('button', { name: 'Guardar evidencia' }).click();
-  await expect(
-    page.getByText('Protección aislada y revisada durante la prueba E2E.'),
-  ).toBeVisible();
   await page.getByRole('button', { name: 'Enviar a verificación' }).click();
   await expect(page.getByText('Pendiente de verificación').first()).toBeVisible();
   await expect(page.getByText('Acción completada', { exact: true })).toHaveCount(0);
@@ -174,21 +201,52 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   refreshPhase = null;
 
   await page.getByRole('button', { name: 'Verificar riesgo residual' }).click();
+  const verificationDialog = page.getByRole('dialog', { name: 'Verificar riesgo residual' });
+  await expect(verificationDialog).toBeVisible();
   await page
     .getByRole('group', { name: 'Probabilidad residual' })
     .locator('input[value="1"]')
     .check();
+  await page.getByLabel('Base de verificación').selectOption('RECORDED_EVIDENCE');
+  await page.getByLabel('Confirmo esta autoverificación y su trazabilidad.').check();
   await page
     .getByRole('group', { name: 'Consecuencia residual' })
     .locator('input[value="1"]')
     .check();
+  const missingEvidenceResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/inspections\/[0-9a-f-]+\/findings\/[0-9a-f-]+\/verify$/.test(response.url()),
+  );
+  await verificationDialog.getByRole('button', { name: 'Verificar riesgo residual' }).click();
+  expect((await missingEvidenceResponse).status()).toBe(400);
+  await expect(verificationDialog.getByText('No pudimos registrar la verificación.')).toBeVisible();
+  await verificationDialog.getByRole('button', { name: 'Cancelar' }).click();
+
+  await page.getByRole('button', { name: 'Añadir evidencia' }).click();
+  await page.getByLabel('Nota').fill('Protección aislada y revisada durante la prueba E2E.');
+  await page.getByRole('button', { name: 'Guardar evidencia' }).click();
+  await expect(
+    page.getByText('Protección aislada y revisada durante la prueba E2E.'),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Verificar riesgo residual' }).click();
+  await verificationDialog
+    .getByRole('group', { name: 'Probabilidad residual' })
+    .locator('input[value="1"]')
+    .check();
+  await verificationDialog
+    .getByRole('group', { name: 'Consecuencia residual' })
+    .locator('input[value="1"]')
+    .check();
+  await verificationDialog.getByLabel('Base de verificación').selectOption('RECORDED_EVIDENCE');
+  await verificationDialog.getByLabel('Confirmo esta autoverificación y su trazabilidad.').check();
   const [verificationResponse] = await Promise.all([
     page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
         /\/inspections\/[0-9a-f-]+\/findings\/[0-9a-f-]+\/verify$/.test(response.url()),
     ),
-    page.getByRole('dialog').getByRole('button', { name: 'Verificar riesgo residual' }).click(),
+    verificationDialog.getByRole('button', { name: 'Verificar riesgo residual' }).click(),
   ]);
   expect(verificationResponse.ok(), await verificationResponse.text()).toBe(true);
   await expect(page.getByText('Cerrado').first()).toBeVisible();
@@ -221,4 +279,38 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await expect(
     page.getByText('Este aviso indica recurrencia, no confirma una causa raíz.').first(),
   ).toBeVisible();
+  const recurrenceCard = page
+    .locator('.inspection-alert-card')
+    .filter({ hasText: 'Este aviso indica recurrencia, no confirma una causa raíz.' })
+    .first();
+  await recurrenceCard.getByRole('button', { name: 'Marcar como revisada' }).click();
+  await expect(
+    recurrenceCard.getByText(/Revisada por .*Esto no elimina la recurrencia/),
+  ).toBeVisible();
+  await recurrenceCard.getByRole('button', { name: 'Iniciar revisión sistémica' }).click();
+  const systemicReview = recurrenceCard.locator('section.inspection-form-card');
+  await expect(systemicReview.getByRole('heading', { name: 'Revisión sistémica' })).toBeVisible();
+  await systemicReview
+    .getByLabel('¿Las acciones puntuales parecen suficientes?')
+    .selectOption('NEEDS_MORE_INFORMATION');
+  await systemicReview.getByLabel('¿Se recomienda una revisión más amplia?').selectOption('YES');
+  await systemicReview
+    .getByLabel('Factores sospechados · opcional')
+    .fill('Se requiere análisis profesional adicional de las condiciones repetidas.');
+  const [systemicReviewResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/inspections\/systemic-reviews\/[0-9a-f-]+\/complete$/.test(response.url()),
+    ),
+    systemicReview.getByRole('button', { name: 'Completar revisión sistémica' }).click(),
+  ]);
+  expect(systemicReviewResponse.ok(), await systemicReviewResponse.text()).toBe(true);
+  const completedReview = page.getByRole('region', { name: 'Revisión sistémica' }).filter({
+    hasText: 'Se requiere análisis profesional adicional de las condiciones repetidas.',
+  });
+  await expect(
+    completedReview.locator('.domain-status').filter({ hasText: 'Completada' }),
+  ).toBeVisible();
+  await expect(completedReview.getByText('Completada por', { exact: true })).toBeVisible();
 });

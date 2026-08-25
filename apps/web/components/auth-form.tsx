@@ -10,6 +10,10 @@ import { useAuth } from './auth-provider';
 
 type Fields = { email: string; password: string; displayName: string };
 
+function safeAppReturnPath(value: string | null) {
+  return value?.startsWith('/app') && !value.startsWith('//') ? value : '/app';
+}
+
 export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const auth = useAuth();
   const router = useRouter();
@@ -28,7 +32,11 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       if (isRegister) await auth.register(fields);
       else await auth.login(fields);
       const sessionId = search.get('sessionId');
-      router.push(sessionId ? `/app/organizations?sessionId=${sessionId}` : '/app');
+      router.push(
+        sessionId
+          ? `/app/organizations?sessionId=${encodeURIComponent(sessionId)}`
+          : safeAppReturnPath(search.get('next')),
+      );
     } catch (error) {
       setServerError(
         error instanceof ApiClientError ? error.message : 'No pudimos completar la solicitud.',
@@ -43,6 +51,11 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         <h2>{isRegister ? 'Crea tu acceso' : 'Inicia sesión'}</h2>
         <p className="muted">Tus organizaciones y roles se validan de forma independiente.</p>
       </div>
+      {search.get('reason') === 'session-ended' ? (
+        <p className="field-error" role="alert">
+          Tu sesión terminó. Inicia sesión nuevamente para continuar.
+        </p>
+      ) : null}
       <form className="stack" onSubmit={submit} noValidate>
         {isRegister && (
           <div className="field">

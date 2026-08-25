@@ -1,12 +1,13 @@
 'use client';
 
-import { ApiClientError, apiRequest } from '@sst/api-client';
+import { ApiClientError } from '@sst/api-client';
 import { Button, Card, StatusBadge } from '@sst/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { queryKeys } from '@/lib/query-keys';
+import { humanRoleLabel } from '@/lib/human-lexicon';
 import { useAuth } from './auth-provider';
 import { useOrganization } from './app-shell';
 import { SessionPersistence } from './guided';
@@ -44,23 +45,17 @@ export function OrganizationsView() {
       if (sessionId) {
         const token = SessionPersistence.load(sessionId);
         if (!token) throw new Error('No encontramos el token del diagnóstico.');
-        await apiRequest(
+        await auth.request(
           `/solution-finder/sessions/${sessionId}/claim`,
           { method: 'POST' },
-          {
-            accessToken: auth.accessToken ?? undefined,
-            organizationId: created.id,
-            sessionToken: token,
-          },
+          created.id,
+          token,
         );
-        await apiRequest(
+        await auth.request(
           `/solution-finder/sessions/${sessionId}/activate-demo`,
           { method: 'POST' },
-          {
-            accessToken: auth.accessToken ?? undefined,
-            organizationId: created.id,
-            sessionToken: token,
-          },
+          created.id,
+          token,
         );
         await queryClient.invalidateQueries({
           queryKey: queryKeys.user.organizations(auth.user!.id),
@@ -104,7 +99,7 @@ export function OrganizationsView() {
                 <span>
                   <strong>{item.name}</strong>
                   <br />
-                  <small className="muted">{item.memberships[0]?.role}</small>
+                  <small className="muted">{humanRoleLabel(item.memberships[0]?.role)}</small>
                 </span>
                 {item.id === organization.activeId && <StatusBadge>Activa</StatusBadge>}
               </button>

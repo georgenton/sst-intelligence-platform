@@ -1,5 +1,9 @@
 # Adaptive SST roadmap
 
+Product Walkthrough Hardening V1.1 now provides the prerequisite auth reliability, human-language
+surface and method-ready presentation seams. Risk Methodology runtime remains a later, separately
+authorized integration; this roadmap does not import PR #25 Phase 1 contracts or candidate methods.
+
 ## Purpose and boundary
 
 Adaptive SST separates deterministic applicability, source provenance, operational context, current

@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
@@ -40,6 +41,7 @@ const answers = {
 describe('critical platform integration', () => {
   let app: INestApplication;
   let prisma: PrismaService;
+  let jwt: JwtService;
   const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
   beforeAll(async () => {
@@ -52,10 +54,52 @@ describe('critical platform integration', () => {
     );
     await app.init();
     prisma = app.get(PrismaService);
+    jwt = app.get(JwtService);
   });
 
   afterAll(async () => {
     await app.close();
+  });
+
+  it('recovers an expired access token with the real rotating refresh family', async () => {
+    const email = `auth-liveness-${suffix}@example.test`;
+    const registration = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({ email, displayName: 'Auth Liveness', password: 'auth-liveness-password-123' })
+      .expect(201);
+    const refreshCookies = registration.headers['set-cookie'];
+    if (!refreshCookies?.[0]) throw new Error('Registration did not establish refresh session');
+
+    const expiredAccessToken = await jwt.signAsync(
+      {
+        id: registration.body.user.id as string,
+        email,
+        sub: registration.body.user.id as string,
+      },
+      { expiresIn: -1 },
+    );
+    await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${expiredAccessToken}`)
+      .expect(401);
+
+    const refreshed = await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', refreshCookies[0] as string)
+      .expect(201);
+    const rotatedCookies = refreshed.headers['set-cookie'];
+    if (!rotatedCookies?.[0]) throw new Error('Refresh did not rotate session cookie');
+
+    await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${refreshed.body.accessToken as string}`)
+      .expect(200)
+      .expect(({ body }) => expect(body.email).toBe(email));
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', rotatedCookies[0] as string)
+      .expect(201);
   });
 
   it('covers authentication, tenancy, solution finder, entitlements, demo and audit', async () => {
@@ -139,6 +183,9 @@ describe('critical platform integration', () => {
       .set('Authorization', `Bearer ${tokenB}`)
       .send({ name: `Organization C ${suffix}`, country: 'Ecuador' })
       .expect(201);
+    const centerC = await prisma.workCenter.findFirstOrThrow({
+      where: { organizationId: orgC.body.id as string },
+    });
     await request(app.getHttpServer())
       .get(`/api/v1/organizations/${orgC.body.id}`)
       .set('Authorization', `Bearer ${tokenA}`)
@@ -149,6 +196,12 @@ describe('critical platform integration', () => {
       .set('Authorization', `Bearer ${tokenA}`)
       .set('x-organization-id', orgC.body.id)
       .send({ name: 'Cross-tenant mutation must fail' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/organizations/${orgC.body.id as string}/work-centers/${centerC.id}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .set('x-organization-id', orgC.body.id as string)
+      .send({ name: 'Cross-tenant center mutation must fail' })
       .expect(403);
     await request(app.getHttpServer())
       .get('/api/v1/dashboard')
@@ -248,6 +301,71 @@ describe('critical platform integration', () => {
     ]);
     expect([activation.body.idempotent, repeated.body.idempotent].sort()).toEqual([false, true]);
 
+    const demoCenters = await request(app.getHttpServer())
+      .get(`/api/v1/organizations/${orgAId}/work-centers`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .set('x-organization-id', orgAId)
+      .expect(200);
+    const syntheticCenters = demoCenters.body.filter(
+      (center: { isDemo: boolean }) => center.isDemo,
+    ) as Array<{ id: string; isActive: boolean; isDemo: boolean }>;
+    expect(syntheticCenters).toHaveLength(2);
+    expect(syntheticCenters.every(({ isActive }) => isActive)).toBe(true);
+    for (const center of syntheticCenters) {
+      await request(app.getHttpServer())
+        .get(`/api/v1/organizations/${orgAId}/work-centers/${center.id}`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .set('x-organization-id', orgAId)
+        .expect(200)
+        .expect(({ body }) => expect(body.isDemo).toBe(true));
+    }
+
+    const originalNormalCenter = demoCenters.body.find(
+      (center: { isDemo: boolean }) => !center.isDemo,
+    ) as { id: string };
+    await request(app.getHttpServer())
+      .post(`/api/v1/organizations/${orgAId}/work-centers`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .set('x-organization-id', orgAId)
+      .send({ name: `Segundo centro normal ${suffix}` })
+      .expect(403)
+      .expect(({ body }) => expect(body.code).toBe('LIMIT_REACHED'));
+    await request(app.getHttpServer())
+      .patch(`/api/v1/organizations/${orgAId}/work-centers/${originalNormalCenter.id}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .set('x-organization-id', orgAId)
+      .send({ isActive: false })
+      .expect(200)
+      .expect(({ body }) => expect(body.isActive).toBe(false));
+    await request(app.getHttpServer())
+      .post(`/api/v1/organizations/${orgAId}/work-centers`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .set('x-organization-id', orgAId)
+      .send({ name: `Centro normal sustituto ${suffix}` })
+      .expect(201);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/organizations/${orgAId}/work-centers/${originalNormalCenter.id}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .set('x-organization-id', orgAId)
+      .send({ isActive: true })
+      .expect(403)
+      .expect(({ body }) => expect(body.code).toBe('LIMIT_REACHED'));
+
+    const syntheticLifecycleCenter = syntheticCenters[0]!;
+    await request(app.getHttpServer())
+      .patch(`/api/v1/organizations/${orgAId}/work-centers/${syntheticLifecycleCenter.id}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .set('x-organization-id', orgAId)
+      .send({ isActive: false })
+      .expect(200);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/organizations/${orgAId}/work-centers/${syntheticLifecycleCenter.id}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .set('x-organization-id', orgAId)
+      .send({ isActive: true })
+      .expect(200)
+      .expect(({ body }) => expect(body.isActive).toBe(true));
+
     await request(app.getHttpServer())
       .get('/api/v1/entitlements/protected/technical-risk')
       .set('Authorization', `Bearer ${tokenA}`)
@@ -280,6 +398,14 @@ describe('critical platform integration', () => {
       .set('Authorization', `Bearer ${tokenA}`)
       .set('x-organization-id', orgAId)
       .expect(403);
+    await request(app.getHttpServer())
+      .get(`/api/v1/organizations/${orgAId}/work-centers`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .set('x-organization-id', orgAId)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.filter((center: { isDemo: boolean }) => center.isDemo)).toHaveLength(2);
+      });
 
     const expiringSession = await request(app.getHttpServer())
       .post('/api/v1/solution-finder/sessions')

@@ -1,7 +1,7 @@
 export type InspectionRole =
   'ORG_OWNER' | 'ORG_ADMIN' | 'SST_MANAGER' | 'SST_TECHNICIAN' | 'CONSULTANT' | 'VIEWER' | string;
 
-export type StatusDomain = 'inspection' | 'finding' | 'action' | 'alert';
+export type StatusDomain = 'inspection' | 'finding' | 'action' | 'alert' | 'systemic-review';
 export type StatusTone = 'neutral' | 'info' | 'warning' | 'success' | 'danger';
 
 type StatusMeta = { label: string; symbol: string; tone: StatusTone };
@@ -38,6 +38,12 @@ const STATUS_META: Record<StatusDomain, Record<string, StatusMeta>> = {
     OPEN: { label: 'Abierta', symbol: '△', tone: 'danger' },
     ACKNOWLEDGED: { label: 'Reconocida', symbol: '✓', tone: 'success' },
     RESOLVED: { label: 'Resuelta', symbol: '✓', tone: 'success' },
+  },
+  'systemic-review': {
+    OPEN: { label: 'Abierta', symbol: '○', tone: 'neutral' },
+    IN_REVIEW: { label: 'En revisión', symbol: '→', tone: 'info' },
+    COMPLETED: { label: 'Completada', symbol: '✓', tone: 'success' },
+    CANCELED: { label: 'Cancelada', symbol: '×', tone: 'neutral' },
   },
 };
 

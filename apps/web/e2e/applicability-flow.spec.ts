@@ -100,8 +100,13 @@ test('perfil versionado, evaluación explícita y trace de aplicabilidad', async
   await page.getByRole('button', { name: 'Confirmar versión' }).click();
 
   await expect(page.getByRole('heading', { name: 'Motor de reglas' })).toBeVisible();
-  await page.getByRole('radio', { name: /Seleccionar Configuración SST demostrativa/ }).check();
-  await expect(page.getByText('DEMO_APPLICABILITY', { exact: true })).toBeVisible();
+  const rulePack = page
+    .getByRole('radio', { name: /Seleccionar Configuración SST demostrativa/ })
+    .locator('..');
+  await rulePack.getByRole('radio').check();
+  await expect(rulePack.getByText('DEMO_APPLICABILITY', { exact: true })).toBeHidden();
+  await rulePack.getByText('Detalles técnicos', { exact: true }).click();
+  await expect(rulePack.getByText('DEMO_APPLICABILITY', { exact: true })).toBeVisible();
   await expect(
     page.getByText(/No representan normativa ni acreditan cumplimiento legal/).first(),
   ).toBeVisible();
@@ -125,7 +130,7 @@ test('perfil versionado, evaluación explícita y trace de aplicabilidad', async
   const chemicalDecision = page
     .locator('article.applicability-decision-card')
     .filter({ hasText: 'Control de procesos químicos' });
-  await chemicalDecision.getByText('Ver por qué').click();
+  await chemicalDecision.getByText('¿Por qué se obtuvo este resultado?').click();
   await expect(
     chemicalDecision.getByText('DEMO_CHEMICAL_MANDATORY', { exact: true }).first(),
   ).toBeVisible();
@@ -143,7 +148,10 @@ test('perfil versionado, evaluación explícita y trace de aplicabilidad', async
 
   await page.getByRole('link', { name: 'Ver historial' }).click();
   await expect(page.getByRole('heading', { name: 'Historial de evaluaciones' })).toBeVisible();
-  await expect(page.getByText(/Perfil v1 · DEMO_APPLICABILITY v1\.0\.0/)).toBeVisible();
+  await expect(
+    page.getByText('Información de la organización · marco de evaluación registrado').first(),
+  ).toBeVisible();
+  await expect(page.getByText('DEMO_APPLICABILITY', { exact: true })).toBeHidden();
 
   await page.getByRole('link', { name: 'Fuentes de referencia' }).click();
   await expect(page.getByRole('heading', { name: 'Fuentes de referencia' })).toBeVisible();

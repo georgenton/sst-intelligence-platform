@@ -80,9 +80,9 @@ test('preguntas adaptativas, propuesta por centro y estado actual declarado', as
   await page.getByRole('link', { name: 'Configuración dinámica' }).click();
   await expect(page.getByRole('heading', { name: 'Configuración dinámica' })).toBeVisible();
   await page.getByRole('link', { name: 'Nueva sesión dinámica' }).click();
-  await page.getByLabel('Versión del perfil').selectOption({ index: 1 });
+  await page.getByLabel('Información registrada').selectOption({ index: 1 });
   await page
-    .getByLabel('Pack publicado')
+    .getByLabel('Marco disponible')
     .selectOption({ label: 'Configuración SST adaptativa DEMO · v1.0.0' });
   await page.getByLabel('Personas y salud').check();
   await expect(page.getByText(/reglas sintéticas de demostración/i).first()).toBeVisible();
@@ -90,7 +90,9 @@ test('preguntas adaptativas, propuesta por centro y estado actual declarado', as
 
   await page.setViewportSize({ width: 320, height: 844 });
   await expect(page.getByRole('heading', { name: 'Preguntas relevantes' })).toBeVisible();
-  await expect(page.getByText(/No existe un cuestionario fijo/)).toBeVisible();
+  await expect(
+    page.getByText(/Las preguntas cambian según lo que vayamos conociendo/),
+  ).toBeVisible();
   await expectNoDocumentOverflow(page);
   await page.getByLabel('¿Cómo trabaja principalmente este centro?').selectOption('PHYSICAL');
   await page
@@ -122,13 +124,16 @@ test('preguntas adaptativas, propuesta por centro y estado actual declarado', as
   await firstItem.getByRole('button', { name: 'Guardar estado' }).click();
   await expect(firstItem.getByText('Evidencia declarada y no verificada')).toBeVisible();
   await firstItem.getByLabel('Tipo').selectOption('EXTERNAL_LINK');
-  await firstItem.getByLabel('URL HTTPS').fill('https://example.com/evidencia-demo-e2e');
-  await firstItem.getByRole('button', { name: 'Añadir referencia' }).click();
+  await firstItem.getByLabel('Enlace').fill('https://example.com/evidencia-demo-e2e');
+  await firstItem.getByRole('button', { name: 'Añadir evidencia' }).click();
   await expect(
     firstItem.getByRole('link', { name: 'Abrir enlace externo declarado' }),
   ).toHaveAttribute('href', 'https://example.com/evidencia-demo-e2e');
+  const technicalFactKey = firstItem.getByText(/(?:organization|workCenter)\./).first();
+  await expect(technicalFactKey).toBeHidden();
   await firstItem.getByText('Ver traza técnica').click();
   await expect(firstItem.getByText(/Reglas versionadas:/)).toBeVisible();
+  await expect(technicalFactKey).toBeVisible();
   await expectNoDocumentOverflow(page);
 
   await page.setViewportSize({ width: 640, height: 900 });
@@ -136,6 +141,6 @@ test('preguntas adaptativas, propuesta por centro y estado actual declarado', as
   await page.getByRole('link', { name: 'Volver al historial' }).click();
   await expect(page.getByRole('heading', { name: 'Sesiones anteriores' })).toBeVisible();
   await page.getByRole('link', { name: 'Abrir sesión' }).click();
-  await expect(page.getByText(/Evaluación #/)).toBeVisible();
+  await expect(page.getByText('Información evaluada')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Propuesta de configuración' })).toBeVisible();
 });

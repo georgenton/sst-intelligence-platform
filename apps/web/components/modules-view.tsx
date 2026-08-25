@@ -23,9 +23,9 @@ export function ModulesView() {
     <div className="stack">
       <div>
         <p className="eyebrow">Catálogo modular</p>
-        <h2>Capacidades y estado actual</h2>
+        <h1>Módulos disponibles</h1>
         <p className="muted">
-          Un bloqueo visual refleja la decisión de la API; no sustituye sus guards.
+          Consulta lo que está activo, disponible como demostración o no incluido.
         </p>
       </div>
       <div className="grid">
@@ -36,7 +36,9 @@ export function ModulesView() {
           return (
             <Card className="stack" key={module.key}>
               <div>
-                <StatusBadge>{active?.status ?? 'NO INCLUIDO'}</StatusBadge>
+                <StatusBadge>
+                  {active ? (active.status === 'DEMO' ? 'Demo temporal' : 'Activo') : 'No incluido'}
+                </StatusBadge>
                 <h3>{module.name}</h3>
                 <p className="muted">{module.description}</p>
               </div>

@@ -87,6 +87,8 @@ técnica, revisión legal, redacción de reglas, pruebas y aprobación son gates
 - [x] Regulatory Source Foundation V1.
 - [x] Regulatory Provision & Requirement Foundation V1.
 - [x] Adaptive Regulatory Reasoning & Configuration Engine V1.
+- [x] Product Walkthrough Hardening V1.1: auth lifecycle, correction, verification, recurrence and Work Centers.
+- [ ] Risk Methodology runtime integration (after PR #25 rebase and independent authorization).
 - [ ] Current State & Evidence Baseline V1 (pendiente de validación experta).
 - [ ] Gap Assessment Engine V1.
 - [ ] Depth Resolver y propuesta de configuración.

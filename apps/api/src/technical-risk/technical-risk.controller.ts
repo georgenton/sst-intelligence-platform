@@ -158,4 +158,16 @@ export class TechnicalRiskController {
   ) {
     return this.assessments.review(organization.id, id, user.id, body, requestMetadata(request));
   }
+
+  @Post('assessments/:id/revisions')
+  @Roles(...TECHNICAL_ASSESSMENT_WRITE_ROLES)
+  @UseGuards(RolesGuard)
+  createRevision(
+    @OrganizationContext() organization: OrgContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Req() request: ApiRequest,
+  ) {
+    return this.assessments.createRevision(organization.id, id, user.id, requestMetadata(request));
+  }
 }

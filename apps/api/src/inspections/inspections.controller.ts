@@ -11,6 +11,7 @@ import { OrganizationGuard } from '../organizations/organization.guard';
 import { RolesGuard } from '../organizations/roles.guard';
 import {
   AlertQueryDto,
+  CompleteSystemicReviewDto,
   CreateActionDto,
   CreateEvidenceDto,
   CreateFindingDto,
@@ -62,6 +63,65 @@ export class InspectionsController {
       organization.id,
       alertId,
       user.id,
+      requestMetadata(request),
+    );
+  }
+
+  @Post('alerts/:alertId/systemic-review')
+  @Roles(...INSPECTION_ALERT_ROLES)
+  @UseGuards(RolesGuard)
+  createSystemicReview(
+    @OrganizationContext() organization: OrgContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('alertId') alertId: string,
+    @Req() request: ApiRequest,
+  ) {
+    return this.inspections.createSystemicReview(
+      organization.id,
+      alertId,
+      user.id,
+      requestMetadata(request),
+    );
+  }
+
+  @Get('systemic-reviews')
+  systemicReviews(@OrganizationContext() organization: OrgContext) {
+    return this.inspections.listSystemicReviews(organization.id);
+  }
+
+  @Get('systemic-reviews/:reviewId')
+  systemicReview(
+    @OrganizationContext() organization: OrgContext,
+    @Param('reviewId') reviewId: string,
+  ) {
+    return this.inspections.getSystemicReview(organization.id, reviewId);
+  }
+
+  @Post('systemic-reviews/:reviewId/start')
+  @Roles(...INSPECTION_ALERT_ROLES)
+  @UseGuards(RolesGuard)
+  startSystemicReview(
+    @OrganizationContext() organization: OrgContext,
+    @Param('reviewId') reviewId: string,
+  ) {
+    return this.inspections.startSystemicReview(organization.id, reviewId);
+  }
+
+  @Post('systemic-reviews/:reviewId/complete')
+  @Roles(...INSPECTION_ALERT_ROLES)
+  @UseGuards(RolesGuard)
+  completeSystemicReview(
+    @OrganizationContext() organization: OrgContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('reviewId') reviewId: string,
+    @Body() body: CompleteSystemicReviewDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.inspections.completeSystemicReview(
+      organization.id,
+      reviewId,
+      user.id,
+      body,
       requestMetadata(request),
     );
   }

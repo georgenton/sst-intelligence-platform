@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsOptional, IsString, Length } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, Length } from 'class-validator';
 import { MembershipRole } from '@prisma/client';
 
 export class CreateOrganizationDto {
@@ -34,4 +34,15 @@ export class InviteMemberDto {
 
   @IsEnum(MembershipRole)
   role!: MembershipRole;
+}
+
+export class CreateWorkCenterDto {
+  @IsString() @Length(2, 120) name!: string;
+  @IsOptional() @IsString() @Length(2, 120) city?: string;
+}
+
+export class UpdateWorkCenterDto {
+  @IsOptional() @IsString() @Length(2, 120) name?: string;
+  @IsOptional() @IsString() @Length(2, 120) city?: string;
+  @IsOptional() @IsBoolean() isActive?: boolean;
 }

@@ -3,11 +3,16 @@
 import { Card, StatusBadge } from '@sst/ui';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { resolveAsyncCollectionState, resolveAttentionState } from '@/lib/command-center-state';
+import {
+  resolveAsyncCollectionState,
+  resolveAttentionState,
+  resolveCommandCenterConfigurationState,
+} from '@/lib/command-center-state';
 import { queryKeys } from '@/lib/query-keys';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
 import { useDashboardData, type DashboardData, type ModuleItem } from './use-app-data';
+import { TechnicalDetails } from './technical-details';
 
 type InspectionAlert = {
   id: string;
@@ -62,6 +67,7 @@ const moduleStatusLabels: Record<string, string> = {
 const alertTypeLabels: Record<string, string> = {
   RECURRENCE: 'Recurrencia',
   RESIDUAL_RISK: 'Riesgo residual',
+  HIGH_RESIDUAL_RISK: 'Riesgo residual alto',
 };
 
 function CommandMetric({ href, label, value }: { href: string; label: string; value: number }) {
@@ -197,6 +203,16 @@ export function DashboardView() {
       ),
     enabled: Boolean(organizationId && technicalRiskEnabled),
   });
+  const profileVersions = useQuery({
+    queryKey: queryKeys.organization.applicabilityProfileVersions(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<Array<{ id: string }>>(
+        '/applicability/profile-versions',
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId),
+  });
 
   if (!organization.activeId)
     return (
@@ -274,6 +290,10 @@ export function DashboardView() {
     knownAttentionCount: inspectionAttentionCount + completedAssessments.length + alertItems.length,
     sourceStates: [alertsState, technicalRiskAttentionState],
   });
+  const configurationState = resolveCommandCenterConfigurationState({
+    status: profileVersions.status,
+    profileVersionCount: profileVersions.data?.length ?? 0,
+  });
 
   return (
     <div className="command-center">
@@ -305,7 +325,7 @@ export function DashboardView() {
           <span>Plan actual</span>
           <strong>{data.entitlements.plan.name}</strong>
         </div>
-        <p>Los módulos y límites efectivos provienen de la API.</p>
+        <p>Consulta las capacidades disponibles y los límites incluidos en tu plan.</p>
       </div>
 
       <CommandSection
@@ -314,7 +334,7 @@ export function DashboardView() {
       >
         <div className="command-metrics">
           <CommandMetric
-            href="/app/settings/organization"
+            href="/app/settings/organization#work-centers"
             label="centros de trabajo"
             value={data.organization._count.workCenters}
           />
@@ -369,9 +389,7 @@ export function DashboardView() {
                     </p>
                     <div className="command-item-meta">
                       <span>{assessment.workCenter.name}</span>
-                      <span className="mono">
-                        {assessment.methodKey} {assessment.methodVersion}
-                      </span>
+                      <span>Metodología utilizada: evaluación técnica registrada</span>
                       {assessment.result?.level && (
                         <span
                           className={`risk-badge risk-${assessment.result.level.toLowerCase()}`}
@@ -381,6 +399,12 @@ export function DashboardView() {
                         </span>
                       )}
                     </div>
+                    <TechnicalDetails>
+                      <p>
+                        Identificador: <code>{assessment.methodKey}</code>
+                      </p>
+                      <p>Versión: {assessment.methodVersion}</p>
+                    </TechnicalDetails>
                   </div>
                   <Link className="button secondary" href={`/app/technical-risk/${assessment.id}`}>
                     Abrir evaluación
@@ -390,12 +414,29 @@ export function DashboardView() {
             </div>
           )}
           {attention.sourcesLoading && <p role="status">Comprobando señales adicionales…</p>}
-          {attention.showEmpty && (
+          {configurationState === 'not-yet-configured' ? (
+            <Card className="command-empty-state">
+              <h3>Completa la configuración inicial de SST</h3>
+              <p>
+                Necesitamos conocer algunos datos de tu organización antes de poder mostrar señales
+                y recomendaciones.
+              </p>
+              <Link className="button" href="/app/applicability">
+                Comenzar configuración SST
+              </Link>
+            </Card>
+          ) : null}
+          {attention.showEmpty && configurationState === 'configured' && (
             <Card className="command-empty-state">
               <h3>Sin elementos que requieran atención hoy</h3>
-              <p>Los indicadores disponibles no reportan asuntos activos en este momento.</p>
+              <p>La configuración existe y las fuentes consultadas no reportan señales activas.</p>
             </Card>
           )}
+          {configurationState === 'unavailable' ? (
+            <p className="command-section-error" role="alert">
+              No pudimos confirmar si la configuración inicial de SST está completa.
+            </p>
+          ) : null}
           {alertsState === 'error' && (
             <p className="command-section-error" role="alert">
               No pudimos comprobar las alertas detalladas. Puedes abrir el módulo para reintentar.

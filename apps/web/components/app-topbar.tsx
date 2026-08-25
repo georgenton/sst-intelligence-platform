@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { AppearanceControls } from './appearance-provider';
+import { humanRoleLabel } from '@/lib/human-lexicon';
 
 type OrganizationOption = { id: string; name: string };
 
@@ -27,7 +28,7 @@ export function AppTopbar({
       <div className="app-context-summary">
         <span className="app-context-summary__label">Organización activa</span>
         <strong>{currentName ?? 'Sin organización'}</strong>
-        <span>{currentRole ?? 'Selecciona una organización'}</span>
+        <span>{currentRole ? humanRoleLabel(currentRole) : 'Selecciona una organización'}</span>
       </div>
       <label className="app-organization-control">
         <span>Cambiar organización</span>

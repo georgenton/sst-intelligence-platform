@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form';
 import {
   buildSstProfilePayload,
   assessmentSnapshotPresentation,
+  applicabilityStateMeta,
   canManageApplicability,
   DEMO_APPLICABILITY_DISCLAIMER,
   formatApplicabilityDate,
@@ -168,7 +169,7 @@ export function ApplicabilityWorkspace() {
           <ApplicabilityStatePanel
             kind="info"
             title="Experiencia de solo lectura"
-            description="Tu rol puede consultar perfiles, resultados y traces históricos. La API reserva la creación y evaluación para OWNER, ADMIN y SST_MANAGER."
+            description="Tu rol puede consultar perfiles, resultados y explicaciones históricas. La creación y evaluación están disponibles para Propietario, Administrador y Responsable SST."
           />
         ) : null}
 
@@ -242,7 +243,7 @@ export function ApplicabilityWorkspace() {
           <ApplicabilityStatePanel
             kind="empty"
             title="Todavía no existe un perfil SST versionado"
-            description="Crea una primera versión para capturar datos derivados por el servidor y hechos administrativos explícitos."
+            description="Crea una primera versión para reunir información de la organización y datos administrativos explícitos."
             action={
               canManage ? (
                 <Link className="button" href="/app/applicability/new">
@@ -256,7 +257,7 @@ export function ApplicabilityWorkspace() {
         <section className="applicability-workspace-section" aria-labelledby="active-packs-title">
           <div className="applicability-section-heading">
             <div>
-              <p className="applicability-kicker">Catálogo del servidor</p>
+              <p className="applicability-kicker">Marco de evaluación</p>
               <h2 id="active-packs-title">Motores de reglas activos</h2>
             </div>
             {packs.data ? <span>{packs.data.length} activos</span> : null}
@@ -311,10 +312,7 @@ export function ApplicabilityWorkspace() {
                       <strong>
                         Evaluación del {formatApplicabilityDate(assessment.completedAt)}
                       </strong>
-                      <span>
-                        Perfil v{assessment.profileVersion.version} ·{' '}
-                        {assessment.rulePackVersion.key} v{assessment.rulePackVersion.version}
-                      </span>
+                      <span>Información de la organización · marco de evaluación registrado</span>
                     </div>
                     <div className="applicability-assessment-history__states">
                       {detail?.isLoading ? <span>Cargando decisiones…</span> : null}
@@ -322,7 +320,12 @@ export function ApplicabilityWorkspace() {
                       {counts
                         ? Object.entries(counts).map(([state, count]) => (
                             <span key={state}>
-                              {count} {state}
+                              {count}{' '}
+                              {
+                                applicabilityStateMeta(
+                                  state as Parameters<typeof applicabilityStateMeta>[0],
+                                ).label
+                              }
                             </span>
                           ))
                         : null}
@@ -331,7 +334,7 @@ export function ApplicabilityWorkspace() {
                       className="applicability-source-badge"
                       data-demo={assessment.rulePackVersion.isDemo}
                     >
-                      {assessment.rulePackVersion.isDemo ? 'DEMO' : 'FUENTE'}
+                      {assessment.rulePackVersion.isDemo ? 'Demostración' : 'Referencia'}
                     </span>
                   </Link>
                 );
@@ -481,7 +484,7 @@ export function ApplicabilityNewJourney() {
           <ApplicabilityStatePanel
             kind="info"
             title="Tu rol tiene acceso de solo lectura"
-            description="OWNER, ADMIN y SST_MANAGER pueden crear versiones y ejecutar evaluaciones. Consulta el historial sin modificarlo."
+            description="Propietarios, Administradores y Responsables SST pueden crear versiones y ejecutar evaluaciones. Consulta el historial sin modificarlo."
             action={
               <Link className="button secondary" href="/app/applicability">
                 Abrir historial
@@ -503,8 +506,8 @@ export function ApplicabilityNewJourney() {
                   </div>
                 </div>
                 <p className="applicability-derived-copy">
-                  País, sector y centros de trabajo serán capturados automáticamente por el servidor
-                  al crear esta versión.
+                  País, sector y centros de trabajo se incorporarán automáticamente al crear esta
+                  versión.
                 </p>
                 <form
                   className="applicability-profile-form"
@@ -776,7 +779,7 @@ export function ApplicabilityAssessmentDetail({ assessmentId }: { assessmentId: 
           <ApplicabilityPageHeader
             eyebrow="Resultado histórico"
             title="Evaluación de aplicabilidad"
-            description="Resultado determinístico persistido. El detalle usa los snapshots guardados al ejecutar la evaluación."
+            description="Resultado determinístico persistido. El detalle usa la información registrada al ejecutar la evaluación."
             action={
               <Link className="button secondary" href="/app/applicability">
                 Volver al historial
@@ -848,7 +851,7 @@ export function ApplicabilityAssessmentDetail({ assessmentId }: { assessmentId: 
           <section className="applicability-decisions" aria-labelledby="assessment-decisions-title">
             <div className="applicability-section-heading">
               <div>
-                <p className="applicability-kicker">Decisiones del servidor</p>
+                <p className="applicability-kicker">Resultados determinísticos</p>
                 <h2 id="assessment-decisions-title">Diagnóstico de configuración demostrativa</h2>
               </div>
               <span>{assessment.data.decisions.length} resultados</span>

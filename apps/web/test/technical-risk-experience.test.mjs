@@ -51,17 +51,27 @@ test('maps every current typed question to one narrowly scoped native control', 
     { key: 'decimal', label: 'Decimal', required: true, type: 'DECIMAL' },
     { key: 'text', label: 'Text', required: true, type: 'TEXT', maxLength: 20 },
     { key: 'likelihood', label: 'Likelihood', required: true, type: 'LIKELIHOOD', min: 1, max: 5 },
-    { key: 'consequence', label: 'Consequence', required: true, type: 'CONSEQUENCE', min: 1, max: 5 },
+    {
+      key: 'consequence',
+      label: 'Consequence',
+      required: true,
+      type: 'CONSEQUENCE',
+      min: 1,
+      max: 5,
+    },
   ];
-  assert.deepEqual(questions.map((question) => technicalQuestionControl(question)), [
-    'boolean-radio',
-    'select',
-    'integer-input',
-    'decimal-input',
-    'textarea',
-    'likelihood-radio',
-    'consequence-radio',
-  ]);
+  assert.deepEqual(
+    questions.map((question) => technicalQuestionControl(question)),
+    [
+      'boolean-radio',
+      'select',
+      'integer-input',
+      'decimal-input',
+      'textarea',
+      'likelihood-radio',
+      'consequence-radio',
+    ],
+  );
   assert.deepEqual(
     questions.map((question, index) =>
       isTechnicalAnswerValid(question, [true, 'a', 3, 3.5, 'texto', 4, 5][index]),

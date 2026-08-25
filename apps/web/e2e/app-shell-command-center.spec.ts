@@ -49,6 +49,18 @@ test('authenticated shell navigation, command center and isolated organization s
     'aria-current',
     'page',
   );
+  await page.getByRole('link', { name: /centros de trabajo\. Abrir centros de trabajo/ }).click();
+  await expect(page.getByRole('heading', { name: 'Empresa y centros de trabajo' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Centros de trabajo', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Centro Guayaquil (demostración)', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('Sintético', { exact: true }).first()).toBeVisible();
+  await expect(page.locator('#main-content')).not.toContainText(/inválid|fuera del plan|excede/i);
+  await page.getByRole('link', { name: 'Inicio', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Centro de comando' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Inspecciones', exact: true }).click();
   await expect(page).toHaveURL(/\/app\/inspections$/);
@@ -91,6 +103,11 @@ test('authenticated shell navigation, command center and isolated organization s
   await expect(page.getByText(secondOrganization, { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Centro de comando' })).toBeVisible();
   await expect(page.locator('#main-content')).not.toContainText(firstOrganization);
+  await expect(
+    page.getByRole('heading', { name: 'Completa la configuración inicial de SST' }),
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Comenzar configuración SST' })).toBeVisible();
+  await expect(page.getByText('Sin elementos que requieran atención hoy')).toHaveCount(0);
 
   await page.getByRole('link', { name: 'Módulos', exact: true }).click();
   await expect(page.getByText('NO INCLUIDO').first()).toBeVisible();

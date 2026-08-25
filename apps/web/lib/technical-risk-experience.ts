@@ -17,15 +17,11 @@ export const TECHNICAL_RISK_REVIEW_COPY =
   'Aprobada significa revisada por un usuario autorizado, no certificación regulatoria.';
 
 export function canWriteTechnicalRisk(role?: string): boolean {
-  return TECHNICAL_RISK_WRITE_ROLES.includes(
-    role as (typeof TECHNICAL_RISK_WRITE_ROLES)[number],
-  );
+  return TECHNICAL_RISK_WRITE_ROLES.includes(role as (typeof TECHNICAL_RISK_WRITE_ROLES)[number]);
 }
 
 export function canReviewTechnicalRisk(role?: string): boolean {
-  return TECHNICAL_RISK_REVIEW_ROLES.includes(
-    role as (typeof TECHNICAL_RISK_REVIEW_ROLES)[number],
-  );
+  return TECHNICAL_RISK_REVIEW_ROLES.includes(role as (typeof TECHNICAL_RISK_REVIEW_ROLES)[number]);
 }
 
 type StatusTone = 'neutral' | 'info' | 'success' | 'warning';
@@ -167,9 +163,7 @@ export function isTechnicalAnswerValid(question: TechnicalQuestion, value: unkno
     case 'BOOLEAN':
       return typeof value === 'boolean';
     case 'SINGLE_CHOICE':
-      return (
-        typeof value === 'string' && question.options.some((option) => option.value === value)
-      );
+      return typeof value === 'string' && question.options.some((option) => option.value === value);
     case 'INTEGER':
       return (
         typeof value === 'number' &&

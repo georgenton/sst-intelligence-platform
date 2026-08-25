@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsBoolean,
   IsEnum,
   IsIn,
   IsInt,
@@ -19,6 +20,8 @@ import {
   CorrectiveActionStatus,
   FindingStatus,
   InspectionStatus,
+  InspectionSystemicReviewSufficiency,
+  InspectionVerificationBasis,
   RiskLevel,
 } from '@prisma/client';
 import { FINDING_CATEGORIES } from '@sst/contracts';
@@ -97,6 +100,20 @@ export class CreateEvidenceDto {
 export class VerifyFindingDto {
   @IsInt() @Min(1) @Max(5) likelihood!: number;
   @IsInt() @Min(1) @Max(5) consequence!: number;
+  @IsEnum(InspectionVerificationBasis) basis!: InspectionVerificationBasis;
+  @IsOptional() @IsString() @Length(10, 1000) note?: string;
+  @IsOptional() @IsBoolean() selfVerificationAcknowledged?: boolean;
+}
+
+export class CompleteSystemicReviewDto {
+  @IsEnum(InspectionSystemicReviewSufficiency)
+  actionsSufficient!: InspectionSystemicReviewSufficiency;
+
+  @IsBoolean()
+  broaderReviewRecommended!: boolean;
+
+  @IsOptional() @IsString() @Length(1, 2000) notes?: string;
+  @IsOptional() @IsString() @Length(1, 2000) suspectedFactors?: string;
 }
 
 export class AlertQueryDto {
