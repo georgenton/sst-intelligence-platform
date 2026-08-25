@@ -129,8 +129,11 @@ test('preguntas adaptativas, propuesta por centro y estado actual declarado', as
   await expect(
     firstItem.getByRole('link', { name: 'Abrir enlace externo declarado' }),
   ).toHaveAttribute('href', 'https://example.com/evidencia-demo-e2e');
+  const technicalFactKey = firstItem.getByText(/(?:organization|workCenter)\./).first();
+  await expect(technicalFactKey).toBeHidden();
   await firstItem.getByText('Ver traza técnica').click();
   await expect(firstItem.getByText(/Reglas versionadas:/)).toBeVisible();
+  await expect(technicalFactKey).toBeVisible();
   await expectNoDocumentOverflow(page);
 
   await page.setViewportSize({ width: 640, height: 900 });

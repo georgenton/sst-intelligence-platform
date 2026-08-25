@@ -54,6 +54,11 @@ test('authenticated shell navigation, command center and isolated organization s
   await expect(
     page.getByRole('heading', { name: 'Centros de trabajo', exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Centro Guayaquil (demostración)', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('Sintético', { exact: true }).first()).toBeVisible();
+  await expect(page.locator('#main-content')).not.toContainText(/inválid|fuera del plan|excede/i);
   await page.getByRole('link', { name: 'Inicio', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Centro de comando' })).toBeVisible();
 

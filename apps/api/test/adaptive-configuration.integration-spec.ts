@@ -179,6 +179,40 @@ describe('adaptive configuration integration', () => {
         expect.objectContaining({ kind: 'WORK_CENTER' }),
       ]),
     );
+    const historicalCenterScope = created.body.scopes.find(
+      (scope: { kind: string }) => scope.kind === 'WORK_CENTER',
+    ) as {
+      id: string;
+      workCenterId: string;
+      displayNameSnapshot: string;
+      activeSnapshot: boolean;
+    };
+    const centerSnapshot = {
+      displayNameSnapshot: historicalCenterScope.displayNameSnapshot,
+      activeSnapshot: historicalCenterScope.activeSnapshot,
+    };
+    await request(app.getHttpServer())
+      .patch(
+        `/api/v1/organizations/${organizationA}/work-centers/${historicalCenterScope.workCenterId}`,
+      )
+      .set('Authorization', `Bearer ${owner.token}`)
+      .set('x-organization-id', organizationA)
+      .send({ name: `Centro adaptativo renombrado ${suffix}`, isActive: false })
+      .expect(200);
+    const sessionAfterCenterChange = await adaptive(owner.token, organizationA)
+      .get(`/sessions/${sessionId}`)
+      .expect(200);
+    expect(
+      sessionAfterCenterChange.body.scopes.find(
+        (scope: { id: string }) => scope.id === historicalCenterScope.id,
+      ),
+    ).toMatchObject(centerSnapshot);
+    expect(
+      await prisma.workCenter.findUniqueOrThrow({
+        where: { id: historicalCenterScope.workCenterId },
+        select: { name: true, isActive: true },
+      }),
+    ).toEqual({ name: `Centro adaptativo renombrado ${suffix}`, isActive: false });
     const run1 = created.body.runs[0];
     expect(run1.questions.length).toBeGreaterThan(0);
     const initialFactKeys = run1.questions.map(

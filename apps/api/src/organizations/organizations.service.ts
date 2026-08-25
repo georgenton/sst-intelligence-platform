@@ -5,13 +5,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { MembershipRole } from '@prisma/client';
+import { Prisma, type MembershipRole } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import type { AuditEvent } from '../audit/audit.service';
 import { EntitlementService } from '../catalog/entitlement.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 type Context = Pick<AuditEvent, 'requestId' | 'ip' | 'userAgent'>;
+
+const WORK_CENTER_LIMIT_FEATURE = 'organization.max_work_centers';
 
 @Injectable()
 export class OrganizationsService {
@@ -165,20 +167,24 @@ export class OrganizationsService {
     input: { name: string; city?: string },
     context: Context,
   ) {
-    const current = await this.prisma.workCenter.count({ where: { organizationId } });
-    await this.entitlements.requireCapacity(
-      organizationId,
-      'organization.max_work_centers',
-      current,
-    );
+    const capacity = await this.workCenterCapacity(organizationId);
     try {
-      const center = await this.prisma.workCenter.create({
-        data: {
+      const center = await this.prisma.$transaction(async (tx) => {
+        await this.lockOrganization(tx, organizationId);
+        const currentUsage = await this.activeWorkCenterUsage(
+          tx,
           organizationId,
-          name: input.name.trim(),
-          city: input.city?.trim(),
-        },
-        select: { id: true, name: true, city: true, isActive: true, createdAt: true },
+          capacity.demoActive,
+        );
+        this.assertWorkCenterCapacity(currentUsage, capacity.limit);
+        return tx.workCenter.create({
+          data: {
+            organizationId,
+            name: input.name.trim(),
+            city: input.city?.trim(),
+          },
+          select: { id: true, name: true, city: true, isActive: true, createdAt: true },
+        });
       });
       await this.audit.record({
         organizationId,
@@ -204,16 +210,36 @@ export class OrganizationsService {
     input: { name?: string; city?: string; isActive?: boolean },
     context: Context,
   ) {
-    await this.workCenter(organizationId, workCenterId);
+    const capacity = await this.workCenterCapacity(organizationId);
     try {
-      const center = await this.prisma.workCenter.update({
-        where: { id: workCenterId },
-        data: {
-          name: input.name?.trim(),
-          city: input.city?.trim(),
-          isActive: input.isActive,
-        },
-        select: { id: true, name: true, city: true, isActive: true, updatedAt: true },
+      const center = await this.prisma.$transaction(async (tx) => {
+        await this.lockOrganization(tx, organizationId);
+        const current = await tx.workCenter.findFirst({
+          where: { id: workCenterId, organizationId },
+          select: { id: true, isActive: true, isDemo: true },
+        });
+        if (!current) throw new NotFoundException('Centro de trabajo no encontrado.');
+        if (
+          input.isActive === true &&
+          !current.isActive &&
+          !(capacity.demoActive && current.isDemo)
+        ) {
+          const currentUsage = await this.activeWorkCenterUsage(
+            tx,
+            organizationId,
+            capacity.demoActive,
+          );
+          this.assertWorkCenterCapacity(currentUsage, capacity.limit);
+        }
+        return tx.workCenter.update({
+          where: { id: workCenterId },
+          data: {
+            name: input.name?.trim(),
+            city: input.city?.trim(),
+            isActive: input.isActive,
+          },
+          select: { id: true, name: true, city: true, isActive: true, updatedAt: true },
+        });
       });
       await this.audit.record({
         organizationId,
@@ -230,6 +256,49 @@ export class OrganizationsService {
         throw new ConflictException('Ya existe un centro de trabajo con ese nombre.');
       throw error;
     }
+  }
+
+  private async workCenterCapacity(organizationId: string) {
+    const entitlements = await this.entitlements.effective(organizationId);
+    const limit = entitlements.features[WORK_CENTER_LIMIT_FEATURE];
+    if (typeof limit !== 'number') this.workCenterCapacityExceeded(0, null);
+    return { limit, demoActive: entitlements.demoActive };
+  }
+
+  private async lockOrganization(tx: Prisma.TransactionClient, organizationId: string) {
+    await tx.$queryRaw(Prisma.sql`
+      SELECT id
+      FROM "Organization"
+      WHERE id = ${organizationId}::uuid
+      FOR UPDATE
+    `);
+  }
+
+  private activeWorkCenterUsage(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    demoActive: boolean,
+  ) {
+    return tx.workCenter.count({
+      where: {
+        organizationId,
+        isActive: true,
+        ...(demoActive ? { isDemo: false } : {}),
+      },
+    });
+  }
+
+  private assertWorkCenterCapacity(currentUsage: number, limit: number) {
+    if (currentUsage < limit) return;
+    this.workCenterCapacityExceeded(currentUsage, limit);
+  }
+
+  private workCenterCapacityExceeded(currentUsage: number, limit: number | null): never {
+    throw new ForbiddenException({
+      code: 'LIMIT_REACHED',
+      message: 'La organización alcanzó el límite disponible en su plan.',
+      details: { featureKey: WORK_CENTER_LIMIT_FEATURE, currentUsage, limit },
+    });
   }
 
   members(organizationId: string) {

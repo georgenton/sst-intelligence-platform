@@ -1155,6 +1155,10 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
   }
 
   if (created) {
+    const createdMethod = presentInspectionRiskMethod(
+      created.riskMethodKey ?? 'DEMO_5X5',
+      created.riskMethodVersion ?? '1.0.0',
+    );
     return (
       <AccessGate api={api}>
         <div className="inspection-task-page">
@@ -1179,7 +1183,9 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
               <h2>
                 Probabilidad {created.initialLikelihood} × consecuencia {created.initialConsequence}
               </h2>
-              <p>Método DEMO_5X5 · versión {created.riskMethodVersion ?? '1.0.0'}</p>
+              <p>
+                Metodología utilizada: {createdMethod.displayName} · versión {createdMethod.version}
+              </p>
             </div>
           </Card>
           <InspectionDemoNotice />
