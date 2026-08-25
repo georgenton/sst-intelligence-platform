@@ -5,11 +5,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { InspectionStatus, Prisma } from '@prisma/client';
+import { Prisma, type InspectionStatus } from '@prisma/client';
 import {
   assertCorrectiveActionTransition,
   assertInspectionTransition,
-  calculateDemoRisk,
   FINDING_CATEGORY_LABELS,
   findingClosureEligibility,
   INSPECTION_RECURRENCE_POLICY,
@@ -21,6 +20,7 @@ import {
 } from '@sst/contracts';
 import { AuditService, type AuditEvent } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RiskMethodologyService } from '../risk-methodology/risk-methodology.service';
 import type {
   AlertQueryDto,
   CompleteSystemicReviewDto,
@@ -44,6 +44,7 @@ export class InspectionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly riskMethods: RiskMethodologyService,
   ) {}
 
   context(organizationId: string) {
@@ -118,6 +119,7 @@ export class InspectionsService {
     context: Context,
   ) {
     await this.assertLocation(organizationId, input.workCenterId, input.workAreaId);
+    const methodVersion = await this.riskMethods.requireAvailableVersion(input.riskMethodVersionId);
     const organization = await this.prisma.organization.findUniqueOrThrow({
       where: { id: organizationId },
       select: { status: true },
@@ -132,6 +134,8 @@ export class InspectionsService {
         scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : undefined,
         inspectorUserId: userId,
         isDemo: organization.status === 'DEMO',
+        riskMethodVersionId: methodVersion.id,
+        riskMethodSnapshot: this.riskMethods.snapshot(methodVersion),
       },
       include: {
         workCenter: { select: { id: true, name: true } },
@@ -144,7 +148,11 @@ export class InspectionsService {
       'INSPECTION_CREATED',
       'Inspection',
       inspection.id,
-      { workCenterId: inspection.workCenterId, isDemo: inspection.isDemo },
+      {
+        workCenterId: inspection.workCenterId,
+        isDemo: inspection.isDemo,
+        riskMethodVersionId: methodVersion.id,
+      },
       context,
     );
     return inspection;
@@ -157,6 +165,9 @@ export class InspectionsService {
         workCenter: { select: { id: true, name: true, city: true } },
         workArea: { select: { id: true, name: true } },
         inspector: { select: { id: true, displayName: true } },
+        riskMethodVersion: {
+          include: { methodDefinition: { select: { methodKey: true } } },
+        },
         findings: {
           where: { organizationId },
           orderBy: { createdAt: 'desc' },
@@ -293,7 +304,13 @@ export class InspectionsService {
         code: 'INSPECTION_NOT_EDITABLE',
         message: 'Una inspección finalizada no admite nuevos hallazgos.',
       });
-    const risk = calculateDemoRisk(input.likelihood, input.consequence);
+    const methodVersion = inspection.riskMethodVersion;
+    const methodInput = input.methodInput ?? {
+      likelihood: input.likelihood,
+      consequence: input.consequence,
+    };
+    const risk = this.riskMethods.calculate(methodVersion, methodInput);
+    const guidance = inspection.riskMethodVersion.guidanceVersions[0];
     const created = await this.prisma.inspectionFinding.create({
       data: {
         organizationId,
@@ -303,12 +320,19 @@ export class InspectionsService {
         category: input.category,
         title: input.title.trim(),
         description: input.description.trim(),
-        riskMethodKey: risk.methodKey,
-        riskMethodVersion: risk.methodVersion,
+        riskMethodKey: inspection.riskMethodVersion.methodDefinition.methodKey,
+        riskMethodVersion: methodVersion.semanticVersion,
+        riskMethodVersionId: methodVersion.id,
+        riskMethodSnapshot: this.riskMethods.snapshot(methodVersion),
+        initialMethodInput: risk.input as Prisma.InputJsonValue,
+        initialMethodResult: risk.result as Prisma.InputJsonValue,
+        guidanceVersionId: guidance?.id,
+        guidanceSnapshot: guidance?.manifest ?? undefined,
         initialLikelihood: risk.likelihood,
         initialConsequence: risk.consequence,
         initialScore: risk.score,
-        initialRiskLevel: risk.level,
+        initialRiskLevel: risk.semanticLevel,
+        initialResultLabel: risk.resultLabel,
         createdById: userId,
       },
     });
@@ -339,6 +363,7 @@ export class InspectionsService {
         category: finding.category,
         initialRiskLevel: finding.initialRiskLevel,
         riskMethodVersion: finding.riskMethodVersion,
+        riskMethodVersionId: finding.riskMethodVersionId,
       },
       context,
     );
@@ -620,6 +645,7 @@ export class InspectionsService {
     const finding = await this.prisma.inspectionFinding.findFirst({
       where: { id: findingId, inspectionId, organizationId, inspection: { organizationId } },
       include: {
+        riskMethodVersionRef: true,
         actions: {
           where: { organizationId },
           select: {
@@ -670,7 +696,16 @@ export class InspectionsService {
         message: 'Confirma que estás verificando una acción que tenías asignada.',
       });
     }
-    const residual = calculateDemoRisk(input.likelihood, input.consequence);
+    if (input.riskMethodVersionId && input.riskMethodVersionId !== finding.riskMethodVersionId)
+      throw new BadRequestException({
+        code: 'RESIDUAL_METHOD_VERSION_MISMATCH',
+        message: 'La valoración residual debe usar la misma versión que la valoración inicial.',
+      });
+    const methodInput = input.methodInput ?? {
+      likelihood: input.likelihood,
+      consequence: input.consequence,
+    };
+    const residual = this.riskMethods.calculate(finding.riskMethodVersionRef, methodInput, true);
     const projected = finding.actions.map((action) =>
       action.status === 'PENDING_VERIFICATION' ? 'COMPLETED' : action.status,
     );
@@ -697,16 +732,25 @@ export class InspectionsService {
       const result = await tx.inspectionFinding.update({
         where: { id: findingId },
         data: {
+          residualMethodVersionId: finding.riskMethodVersionId,
+          residualMethodInput: residual.input as Prisma.InputJsonValue,
+          residualMethodResult: residual.result as Prisma.InputJsonValue,
+          residualRationale:
+            input.residualRationale ??
+            (typeof residual.input.selectionRationale === 'string'
+              ? residual.input.selectionRationale
+              : null),
           residualLikelihood: residual.likelihood,
           residualConsequence: residual.consequence,
           residualScore: residual.score,
-          residualRiskLevel: residual.level,
+          residualRiskLevel: residual.semanticLevel,
+          residualResultLabel: residual.resultLabel,
           status: closure.allowed ? 'CLOSED' : 'ACTION_IN_PROGRESS',
           closedAt: closure.allowed ? now : null,
         },
         include: { actions: { where: { organizationId }, orderBy: { createdAt: 'asc' } } },
       });
-      if (residual.level === 'HIGH' || residual.level === 'CRITICAL')
+      if (residual.semanticLevel === 'HIGH' || residual.semanticLevel === 'CRITICAL')
         await tx.inspectionAlert.upsert({
           where: { findingId_type: { findingId, type: 'HIGH_RESIDUAL_RISK' } },
           update: { status: 'OPEN', acknowledgedAt: null, acknowledgedById: null },
@@ -714,8 +758,8 @@ export class InspectionsService {
             organizationId,
             findingId,
             type: 'HIGH_RESIDUAL_RISK',
-            severity: residual.level === 'CRITICAL' ? 'CRITICAL' : 'WARNING',
-            message: `El riesgo residual permanece ${residual.level === 'CRITICAL' ? 'crítico' : 'alto'}. Revise la eficacia de las acciones antes de considerar controles adicionales.`,
+            severity: residual.semanticLevel === 'CRITICAL' ? 'CRITICAL' : 'WARNING',
+            message: `El riesgo residual permanece ${residual.semanticLevel === 'CRITICAL' ? 'crítico' : 'alto'}. Revise la eficacia de las acciones antes de considerar controles adicionales.`,
           },
         });
       return result;
@@ -730,7 +774,8 @@ export class InspectionsService {
           action.id,
           {
             findingId,
-            residualRiskLevel: residual.level,
+            residualRiskLevel: residual.semanticLevel,
+            riskMethodVersionId: finding.riskMethodVersionId,
             verificationBasis: input.basis,
             selfVerification: action.assignedToUserId === userId,
           },
@@ -745,7 +790,10 @@ export class InspectionsService {
         'FINDING_CLOSED',
         'InspectionFinding',
         findingId,
-        { residualRiskLevel: residual.level },
+        {
+          residualRiskLevel: residual.semanticLevel,
+          riskMethodVersionId: finding.riskMethodVersionId,
+        },
         context,
       );
     return {
@@ -860,6 +908,9 @@ export class InspectionsService {
         residualRiskLevel: true,
         riskMethodKey: true,
         riskMethodVersion: true,
+        riskMethodVersionId: true,
+        initialResultLabel: true,
+        residualResultLabel: true,
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -1064,7 +1115,7 @@ export class InspectionsService {
         _count: { _all: true },
       }),
       this.prisma.inspectionFinding.groupBy({
-        by: ['initialRiskLevel'],
+        by: ['riskMethodKey', 'riskMethodVersion', 'initialRiskLevel'],
         where: findingWhere,
         _count: { _all: true },
       }),
@@ -1073,8 +1124,8 @@ export class InspectionsService {
         select: { createdAt: true, closedAt: true },
       }),
       this.prisma.inspectionFinding.groupBy({
-        by: ['residualRiskLevel'],
-        where: { ...findingWhere, residualRiskLevel: { not: null } },
+        by: ['riskMethodKey', 'riskMethodVersion', 'residualRiskLevel'],
+        where: { ...findingWhere, residualMethodResult: { not: Prisma.DbNull } },
         _count: { _all: true },
       }),
     ]);
@@ -1105,6 +1156,8 @@ export class InspectionsService {
         count: item._count._all,
       })),
       findingsByRiskLevel: byRisk.map((item) => ({
+        methodKey: item.riskMethodKey,
+        methodVersion: item.riskMethodVersion,
         riskLevel: item.initialRiskLevel,
         count: item._count._all,
       })),
@@ -1114,10 +1167,14 @@ export class InspectionsService {
         : 0,
       initialVsResidual: {
         initial: byRisk.map((item) => ({
+          methodKey: item.riskMethodKey,
+          methodVersion: item.riskMethodVersion,
           riskLevel: item.initialRiskLevel,
           count: item._count._all,
         })),
         residual: residual.map((item) => ({
+          methodKey: item.riskMethodKey,
+          methodVersion: item.riskMethodVersion,
           riskLevel: item.residualRiskLevel,
           count: item._count._all,
         })),
@@ -1202,7 +1259,23 @@ export class InspectionsService {
   private async requireInspection(organizationId: string, inspectionId: string) {
     const inspection = await this.prisma.inspection.findFirst({
       where: { id: inspectionId, organizationId },
-      select: { id: true, status: true, workCenterId: true, workAreaId: true },
+      select: {
+        id: true,
+        status: true,
+        workCenterId: true,
+        workAreaId: true,
+        riskMethodVersionId: true,
+        riskMethodVersion: {
+          include: {
+            methodDefinition: { select: { methodKey: true } },
+            guidanceVersions: {
+              where: { publicationStatus: { in: ['PUBLISHED', 'CANDIDATE'] } },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
+          },
+        },
+      },
     });
     if (!inspection) throw new NotFoundException('Inspección no encontrada.');
     return inspection;

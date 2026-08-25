@@ -154,6 +154,15 @@ export const gtc45SpecificationInputSchema = z.object({
   deficiency: z.enum(['VERY_HIGH', 'HIGH', 'MEDIUM', 'LOW']),
   exposure: z.union([z.literal(4), z.literal(3), z.literal(2), z.literal(1)]),
   consequence: z.union([z.literal(100), z.literal(60), z.literal(25), z.literal(10)]),
+  existingControls: z
+    .object({
+      source: z.string().trim().max(500).optional(),
+      medium: z.string().trim().max(500).optional(),
+      individual: z.string().trim().max(500).optional(),
+    })
+    .optional(),
+  guidanceResponses: z.record(stableKeySchema, z.string().trim().max(500)).optional(),
+  professionalRationale: z.string().trim().max(1000).optional(),
 });
 
 export type Gtc45SpecificationInput = z.infer<typeof gtc45SpecificationInputSchema>;

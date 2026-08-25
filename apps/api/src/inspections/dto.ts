@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsIn,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -43,6 +44,7 @@ export class InspectionQueryDto {
 
 export class CreateInspectionDto {
   @IsUUID() workCenterId!: string;
+  @IsUUID() riskMethodVersionId!: string;
   @IsOptional() @IsUUID() workAreaId?: string;
   @IsString() @Length(3, 160) title!: string;
   @IsOptional() @IsString() @Length(0, 2000) description?: string;
@@ -59,8 +61,9 @@ export class CreateFindingDto {
   @IsString() @Length(3, 160) title!: string;
   @IsString() @Length(3, 4000) description!: string;
   @IsIn(FINDING_CATEGORIES) category!: string;
-  @IsInt() @Min(1) @Max(5) likelihood!: number;
-  @IsInt() @Min(1) @Max(5) consequence!: number;
+  @IsOptional() @IsObject() methodInput?: Record<string, unknown>;
+  @IsOptional() @IsInt() @Min(1) @Max(5) likelihood?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(5) consequence?: number;
 }
 
 export class UpdateFindingDto {
@@ -98,8 +101,11 @@ export class CreateEvidenceDto {
 }
 
 export class VerifyFindingDto {
-  @IsInt() @Min(1) @Max(5) likelihood!: number;
-  @IsInt() @Min(1) @Max(5) consequence!: number;
+  @IsOptional() @IsUUID() riskMethodVersionId?: string;
+  @IsOptional() @IsObject() methodInput?: Record<string, unknown>;
+  @IsOptional() @IsInt() @Min(1) @Max(5) likelihood?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(5) consequence?: number;
+  @IsOptional() @IsString() @Length(1, 1000) residualRationale?: string;
   @IsEnum(InspectionVerificationBasis) basis!: InspectionVerificationBasis;
   @IsOptional() @IsString() @Length(10, 1000) note?: string;
   @IsOptional() @IsBoolean() selfVerificationAcknowledged?: boolean;

@@ -558,69 +558,218 @@ model WorkArea {
 }
 
 model Inspection {
-  id              String              @id @default(uuid()) @db.Uuid
-  organizationId  String              @db.Uuid
-  workCenterId    String              @db.Uuid
-  workAreaId      String?             @db.Uuid
-  title           String
-  description     String?
-  inspectorUserId String              @db.Uuid
-  status          InspectionStatus    @default(DRAFT)
-  startedAt       DateTime?
-  completedAt     DateTime?
-  scheduledFor    DateTime?
-  isDemo          Boolean             @default(false)
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  workCenter      WorkCenter          @relation(fields: [workCenterId], references: [id])
-  workArea        WorkArea?           @relation(fields: [workAreaId], references: [id])
-  inspector       User                @relation("InspectionInspector", fields: [inspectorUserId], references: [id])
-  findings        InspectionFinding[]
+  id                  String              @id @default(uuid()) @db.Uuid
+  organizationId      String              @db.Uuid
+  workCenterId        String              @db.Uuid
+  workAreaId          String?             @db.Uuid
+  title               String
+  description         String?
+  inspectorUserId     String              @db.Uuid
+  status              InspectionStatus    @default(DRAFT)
+  startedAt           DateTime?
+  completedAt         DateTime?
+  scheduledFor        DateTime?
+  isDemo              Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workCenter          WorkCenter          @relation(fields: [workCenterId], references: [id])
+  workArea            WorkArea?           @relation(fields: [workAreaId], references: [id])
+  inspector           User                @relation("InspectionInspector", fields: [inspectorUserId], references: [id])
+  riskMethodVersionId String              @default(dbgenerated("'54000000-0000-4000-8000-000000000001'::uuid")) @db.Uuid
+  riskMethodSnapshot  Json                @default("{}")
+  findings            InspectionFinding[]
+  riskMethodVersion   RiskMethodVersion   @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, workCenterId])
   @@index([organizationId, inspectorUserId])
+  @@index([riskMethodVersionId])
 }
 
 model InspectionFinding {
-  id                  String             @id @default(uuid()) @db.Uuid
-  organizationId      String             @db.Uuid
-  inspectionId        String             @db.Uuid
-  workCenterId        String             @db.Uuid
-  workAreaId          String?            @db.Uuid
-  category            String
-  title               String
-  description         String
-  status              FindingStatus      @default(OPEN)
-  riskMethodKey       String
-  riskMethodVersion   String
-  initialLikelihood   Int
-  initialConsequence  Int
-  initialScore        Int
-  initialRiskLevel    RiskLevel
-  residualLikelihood  Int?
-  residualConsequence Int?
-  residualScore       Int?
-  residualRiskLevel   RiskLevel?
-  recurrenceCount     Int                @default(0)
-  recurrenceStatus    RecurrenceStatus   @default(NONE)
-  createdById         String             @db.Uuid
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  closedAt            DateTime?
-  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  inspection          Inspection         @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
-  workCenter          WorkCenter         @relation(fields: [workCenterId], references: [id])
-  workArea            WorkArea?          @relation(fields: [workAreaId], references: [id])
-  createdBy           User               @relation("FindingCreator", fields: [createdById], references: [id])
-  actions             CorrectiveAction[]
-  alerts              InspectionAlert[]
+  id                      String                           @id @default(uuid()) @db.Uuid
+  organizationId          String                           @db.Uuid
+  inspectionId            String                           @db.Uuid
+  workCenterId            String                           @db.Uuid
+  workAreaId              String?                          @db.Uuid
+  category                String
+  title                   String
+  description             String
+  status                  FindingStatus                    @default(OPEN)
+  riskMethodKey           String
+  riskMethodVersion       String
+  riskMethodVersionId     String                           @default(dbgenerated("'54000000-0000-4000-8000-000000000001'::uuid")) @db.Uuid
+  riskMethodSnapshot      Json                             @default("{}")
+  initialMethodInput      Json                             @default("{}")
+  initialMethodResult     Json                             @default("{}")
+  guidanceVersionId       String?                          @db.Uuid
+  guidanceSnapshot        Json?
+  initialLikelihood       Int?
+  initialConsequence      Int?
+  initialScore            Int?
+  initialRiskLevel        RiskLevel?
+  initialResultLabel      String?
+  residualLikelihood      Int?
+  residualConsequence     Int?
+  residualScore           Int?
+  residualRiskLevel       RiskLevel?
+  residualResultLabel     String?
+  residualMethodInput     Json?
+  residualMethodResult    Json?
+  residualRationale       String?
+  residualMethodVersionId String?                          @db.Uuid
+  recurrenceCount         Int                              @default(0)
+  recurrenceStatus        RecurrenceStatus                 @default(NONE)
+  createdById             String                           @db.Uuid
+  createdAt               DateTime                         @default(now())
+  updatedAt               DateTime                         @updatedAt
+  closedAt                DateTime?
+  organization            Organization                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inspection              Inspection                       @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  workCenter              WorkCenter                       @relation(fields: [workCenterId], references: [id])
+  workArea                WorkArea?                        @relation(fields: [workAreaId], references: [id])
+  createdBy               User                             @relation("FindingCreator", fields: [createdById], references: [id])
+  riskMethodVersionRef    RiskMethodVersion                @relation("FindingRiskMethodVersion", fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
+  residualMethodVersion   RiskMethodVersion?               @relation("FindingResidualMethodVersion", fields: [residualMethodVersionId], references: [id], onDelete: Restrict)
+  guidanceVersion         RiskMethodExpertGuidanceVersion? @relation(fields: [guidanceVersionId], references: [id], onDelete: Restrict)
+  actions                 CorrectiveAction[]
+  alerts                  InspectionAlert[]
 
   @@index([organizationId, inspectionId])
   @@index([organizationId, workCenterId, category, createdAt])
   @@index([organizationId, status, initialRiskLevel])
   @@index([organizationId, recurrenceStatus])
+  @@index([riskMethodVersionId])
+  @@index([residualMethodVersionId])
+}
+
+model MethodologySource {
+  id        String                     @id @default(uuid()) @db.Uuid
+  sourceKey String                     @unique @db.VarChar(160)
+  createdAt DateTime                   @default(now())
+  versions  MethodologySourceVersion[]
+}
+
+model MethodologySourceVersion {
+  id                      String                 @id @default(uuid()) @db.Uuid
+  sourceId                String                 @db.Uuid
+  semanticVersion         String                 @db.VarChar(32)
+  title                   String                 @db.VarChar(300)
+  issuer                  String                 @db.VarChar(200)
+  originCountry           String?                @db.Char(2)
+  documentType            String                 @db.VarChar(40)
+  edition                 String                 @db.VarChar(120)
+  publicationDate         DateTime?              @db.Date
+  sourceFingerprint       String                 @db.VarChar(64)
+  sourceStatus            String                 @db.VarChar(40)
+  licenseReproductionNote String                 @db.VarChar(500)
+  officialUrl             String?
+  reviewStatus            String                 @db.VarChar(32)
+  publicationStatus       String                 @db.VarChar(32)
+  manifest                Json
+  contentHash             String                 @db.VarChar(64)
+  createdAt               DateTime               @default(now())
+  source                  MethodologySource      @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  methodLinks             RiskMethodSourceLink[]
+
+  @@unique([sourceId, semanticVersion])
+  @@index([publicationStatus, sourceId])
+}
+
+model RiskMethodDefinition {
+  id        String              @id @default(uuid()) @db.Uuid
+  methodKey String              @unique @db.VarChar(160)
+  createdAt DateTime            @default(now())
+  versions  RiskMethodVersion[]
+}
+
+model RiskMethodVersion {
+  id                         String                            @id @default(uuid()) @db.Uuid
+  methodDefinitionId         String                            @db.Uuid
+  semanticVersion            String                            @db.VarChar(32)
+  displayName                String                            @db.VarChar(200)
+  methodKind                 String                            @db.VarChar(80)
+  calculationProviderKey     String                            @db.VarChar(160)
+  calculationProviderVersion String                            @db.VarChar(32)
+  inputSchemaVersion         String                            @db.VarChar(32)
+  resultSchemaVersion        String                            @db.VarChar(32)
+  isDemo                     Boolean                           @default(false)
+  regulatory                 Boolean                           @default(false)
+  publicationStatus          String                            @db.VarChar(32)
+  technicalReviewStatus      String                            @db.VarChar(32)
+  legalReviewStatus          String                            @db.VarChar(32)
+  disclaimer                 String                            @db.VarChar(1000)
+  manifest                   Json
+  contentHash                String                            @db.VarChar(64)
+  publishedAt                DateTime?
+  createdAt                  DateTime                          @default(now())
+  methodDefinition           RiskMethodDefinition              @relation(fields: [methodDefinitionId], references: [id], onDelete: Restrict)
+  sourceLinks                RiskMethodSourceLink[]
+  guidanceVersions           RiskMethodExpertGuidanceVersion[]
+  regulatoryContexts         RiskMethodRegulatoryContext[]
+  inspections                Inspection[]
+  findings                   InspectionFinding[]               @relation("FindingRiskMethodVersion")
+  residualFindings           InspectionFinding[]               @relation("FindingResidualMethodVersion")
+
+  @@unique([methodDefinitionId, semanticVersion])
+  @@index([publicationStatus, methodDefinitionId])
+}
+
+model RiskMethodSourceLink {
+  id                         String                   @id @default(uuid()) @db.Uuid
+  riskMethodVersionId        String                   @db.Uuid
+  methodologySourceVersionId String                   @db.Uuid
+  relationship               String                   @default("TECHNICAL_BASIS") @db.VarChar(40)
+  createdAt                  DateTime                 @default(now())
+  riskMethodVersion          RiskMethodVersion        @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
+  methodologySourceVersion   MethodologySourceVersion @relation(fields: [methodologySourceVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([riskMethodVersionId, methodologySourceVersionId, relationship])
+}
+
+model RiskMethodExpertGuidanceVersion {
+  id                     String              @id @default(uuid()) @db.Uuid
+  guidanceKey            String              @db.VarChar(160)
+  guidanceVersion        String              @db.VarChar(32)
+  riskMethodVersionId    String              @db.Uuid
+  authorSource           String              @db.VarChar(200)
+  evidenceClassification String              @db.VarChar(60)
+  reviewStatus           String              @db.VarChar(32)
+  officialUiVerification String              @db.VarChar(32)
+  helpDefinitions        Json
+  disclaimer             String              @db.VarChar(1000)
+  manifest               Json
+  contentHash            String              @db.VarChar(64)
+  publicationStatus      String              @default("CANDIDATE") @db.VarChar(32)
+  publishedAt            DateTime?
+  createdAt              DateTime            @default(now())
+  riskMethodVersion      RiskMethodVersion   @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
+  findings               InspectionFinding[]
+
+  @@unique([guidanceKey, guidanceVersion])
+  @@index([riskMethodVersionId, publicationStatus])
+}
+
+model RiskMethodRegulatoryContext {
+  id                       String            @id @default(uuid()) @db.Uuid
+  contextKey               String            @db.VarChar(160)
+  contextVersion           String            @db.VarChar(32)
+  riskMethodVersionId      String            @db.Uuid
+  jurisdiction             String            @db.Char(2)
+  relationship             String            @db.VarChar(80)
+  sourceReferences         Json
+  statement                String            @db.VarChar(1000)
+  technicalReviewStatus    String            @db.VarChar(32)
+  legalReviewStatus        String            @db.VarChar(32)
+  officialSutMethodOptions String            @db.VarChar(32)
+  manifest                 Json
+  contentHash              String            @db.VarChar(64)
+  createdAt                DateTime          @default(now())
+  riskMethodVersion        RiskMethodVersion @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([contextKey, contextVersion])
+  @@index([riskMethodVersionId, jurisdiction])
 }
 
 model CorrectiveAction {
