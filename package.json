@@ -24,7 +24,9 @@
     "db:migrate": "dotenv -- pnpm --filter @sst/api prisma:migrate",
     "db:deploy": "dotenv -- pnpm --filter @sst/api prisma:deploy",
     "db:seed": "dotenv -- pnpm --filter @sst/api prisma:seed",
+    "db:reference:sync": "dotenv -- pnpm --filter @sst/api reference:sync",
     "db:reset": "dotenv -- pnpm --filter @sst/api prisma:reset",
+    "test:reference-sync": "dotenv -- pnpm --filter @sst/api test:reference-sync",
     "prepare": "husky"
   },
   "lint-staged": {

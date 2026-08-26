@@ -18,9 +18,11 @@ The database contains no executable expression and the registry rejects unknown 
 ## Reference persistence
 
 Global append-only reference models are separate from the existing regulatory-source and Technical
-Risk domains. Seed provisions one methodology source/version, three method definitions/versions,
-one GTC45 source link, one candidate guidance version and two Ecuador context records. No tenant or
-demo organization is globally seeded.
+Risk domains. The production-safe `reference:sync` command provisions one methodology
+source/version, three method definitions/versions, one GTC45 source link, one candidate guidance
+version and two Ecuador context records. The development seed calls the same synchronizer before
+its development-only layers; Railway calls only the synchronizer after migrations. No tenant,
+customer record or demo organization is created by reference synchronization.
 
 The migration first creates stable DEMO identity, then backfills existing inspections/findings and
 their initial/residual snapshots without recalculation. Static UUID defaults preserve compatibility
@@ -34,7 +36,9 @@ for existing controlled fixtures; production create APIs require explicit select
   reject insert/update/delete.
 - Initial and recorded residual finding snapshots, inputs, outputs, compatibility values and labels
   are database-immutable.
-- Seed validates each canonical method manifest's SHA-256 content hash before provisioning.
+- Reference synchronization validates schemas and canonical SHA-256 content hashes before
+  provisioning, compares stable identities/content without overwriting drift and commits the whole
+  aggregate in one serializable transaction.
 - Catalog status does not imply legal applicability.
 - Recurrence never depends on method score.
 - Systemic snapshots retain method identity; raw cross-method arithmetic is forbidden.
