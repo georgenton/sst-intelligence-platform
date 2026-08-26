@@ -5,7 +5,7 @@ import type { TechnicalMethodSchema, TechnicalQuestion } from '@sst/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   canReviewTechnicalRisk,
@@ -18,6 +18,13 @@ import {
   TECHNICAL_RISK_REVIEW_COPY,
 } from '@/lib/technical-risk-experience';
 import { queryKeys } from '@/lib/query-keys';
+import {
+  gtc45ConsequenceOptions,
+  gtc45DeficiencyOptions,
+  gtc45ExposureOptions,
+  guidedHumanSeverityCriteria,
+  guidedProbabilityCriteria,
+} from '@/lib/risk-method-input-options';
 import { AUTHORIZED_TECHNICAL_REVIEWER_LABELS, humanRoleLabel } from '@/lib/human-lexicon';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
@@ -59,6 +66,20 @@ type WorkCenter = {
   name: string;
   city?: string;
   workAreas: Array<{ id: string; name: string }>;
+};
+
+type RiskMethodOption = {
+  id: string;
+  methodKey: 'GUIDED_5X5' | 'GTC45_2010' | 'DEMO_5X5';
+  semanticVersion: string;
+  displayName: string;
+  disclaimer: string;
+  publicationStatus: string;
+};
+
+type RiskMethodPolicy = {
+  defaultRiskMethodVersionId: string;
+  allowedMethods: Array<{ riskMethodVersionId: string }>;
 };
 
 type TechnicalResponse = {
@@ -125,6 +146,36 @@ type Assessment = {
     createdBy: { displayName: string };
   }>;
   reviews?: TechnicalReview[];
+  riskValuation?: {
+    riskMethodVersionId: string;
+    riskInput: Record<string, unknown>;
+    riskResult: Record<string, unknown>;
+    calculatedAt: string;
+    methodSnapshot: {
+      methodKey: string;
+      semanticVersion: string;
+      displayName: string;
+    };
+    riskMethodVersion: {
+      disclaimer: string;
+      methodDefinition: { methodKey: string };
+      sourceLinks: Array<{
+        methodologySourceVersion: { title: string; issuer: string; edition: string };
+      }>;
+    };
+  };
+  regulatoryLinks?: Array<{
+    id: string;
+    provenance: string;
+    rationale: string;
+    unit?: {
+      id: string;
+      identifier: string;
+      locator: string;
+      sourceVersion: { source: { sourceKey: string; canonicalTitle: string } };
+    };
+    requirement?: { title: string };
+  }>;
   revisedFrom?: {
     id: string;
     title: string;
@@ -136,6 +187,100 @@ type Assessment = {
   };
   revision?: { id: string; title: string; status: string; createdAt: string };
 };
+
+function RiskValuationSummary({ assessment }: { assessment: Assessment }) {
+  const valuation = assessment.riskValuation;
+  if (!valuation) return null;
+  const result = valuation.riskResult;
+  const score =
+    typeof result.score === 'number'
+      ? result.score
+      : typeof result.riskValue === 'number'
+        ? result.riskValue
+        : null;
+  const level = String(result.level ?? result.riskLevel ?? 'Resultado registrado');
+  return (
+    <section
+      className="technical-method-summary"
+      aria-labelledby={`risk-valuation-${assessment.id}`}
+    >
+      <div>
+        <p className="technical-risk-kicker">Metodología de valoración</p>
+        <h2 id={`risk-valuation-${assessment.id}`}>{valuation.methodSnapshot.displayName}</h2>
+        <p>
+          Resultado determinístico:{' '}
+          <strong>
+            {level}
+            {score === null ? '' : ` · ${score}`}
+          </strong>
+        </p>
+        <small>
+          Versión exacta {valuation.methodSnapshot.semanticVersion} · calculada{' '}
+          {formatDateTime(valuation.calculatedAt)}
+        </small>
+      </div>
+      <div>
+        <p>{valuation.riskMethodVersion.disclaimer}</p>
+        {valuation.riskMethodVersion.sourceLinks.length ? (
+          <p>
+            <strong>Fuente metodológica:</strong>{' '}
+            {valuation.riskMethodVersion.sourceLinks
+              .map(
+                ({ methodologySourceVersion }) =>
+                  `${methodologySourceVersion.title} · ${methodologySourceVersion.issuer}`,
+              )
+              .join('; ')}
+          </p>
+        ) : (
+          <p>Fuente metodológica candidata sin texto técnico reproducido.</p>
+        )}
+        <p className="technical-invariant-note">
+          La metodología técnica y el fundamento normativo son procedencias diferentes.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function RegulatoryReferenceSummary({ assessment }: { assessment: Assessment }) {
+  if (!assessment.regulatoryLinks?.length) return null;
+  return (
+    <section
+      className="technical-method-summary"
+      aria-labelledby={`regulatory-reference-${assessment.id}`}
+    >
+      <div>
+        <p className="technical-risk-kicker">Fundamento normativo</p>
+        <h2 id={`regulatory-reference-${assessment.id}`}>Artículos relacionados</h2>
+        <p>
+          Estas referencias documentan procedencia. No prueban por sí solas cumplimiento o
+          incumplimiento.
+        </p>
+      </div>
+      <div className="stack-sm">
+        {assessment.regulatoryLinks.map((link) => (
+          <div key={link.id}>
+            <strong>{link.requirement?.title ?? 'Referencia regulatoria'}</strong>
+            {link.unit ? (
+              <p>
+                {link.unit.sourceVersion.source.canonicalTitle} · {link.unit.identifier} ·{' '}
+                {link.unit.locator}
+              </p>
+            ) : null}
+            <p>{link.rationale}</p>
+            {link.unit ? (
+              <Link
+                href={`/app/applicability/sources/${link.unit.sourceVersion.source.sourceKey}/units/${link.unit.id}`}
+              >
+                Ver fundamento normativo
+              </Link>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 type Analytics = {
   total: number;
@@ -539,11 +684,36 @@ function TechnicalRiskWorkspace({
 
 type CreateAssessmentForm = {
   methodVersionId: string;
+  riskMethodVersionId: string;
   workCenterId: string;
   workAreaId: string;
   title: string;
   description: string;
+  guidedProbability?: number;
+  guidedSeverity?: number;
+  gtcDeficiency: '' | 'VERY_HIGH' | 'HIGH' | 'MEDIUM' | 'LOW';
+  gtcExposure?: number;
+  gtcConsequence?: number;
+  riskRationale: string;
 };
+
+function technicalRiskMethodInput(methodKey: string | undefined, values: CreateAssessmentForm) {
+  if (methodKey === 'GUIDED_5X5')
+    return {
+      probability: Number(values.guidedProbability),
+      severity: Number(values.guidedSeverity),
+      severityDimension: 'HUMAN',
+      checkedProbabilityCueKeys: [],
+      checkedSeverityCueKeys: [],
+      selectionRationale: values.riskRationale,
+    };
+  return {
+    deficiency: values.gtcDeficiency,
+    exposure: Number(values.gtcExposure),
+    consequence: Number(values.gtcConsequence),
+    professionalRationale: values.riskRationale,
+  };
+}
 
 export function NewTechnicalAssessment() {
   const api = useTechnicalRiskApi();
@@ -555,10 +725,13 @@ export function NewTechnicalAssessment() {
   const form = useForm<CreateAssessmentForm>({
     defaultValues: {
       methodVersionId: '',
+      riskMethodVersionId: '',
       workCenterId: '',
       workAreaId: '',
       title: '',
       description: '',
+      gtcDeficiency: '',
+      riskRationale: '',
     },
   });
   const methods = useQuery({
@@ -575,7 +748,36 @@ export function NewTechnicalAssessment() {
     enabled: Boolean(organizationId && api.moduleEnabled),
     retry: shouldRetryGet,
   });
+  const riskMethods = useQuery({
+    queryKey: queryKeys.organization.riskMethods(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      api.request<RiskMethodOption[]>('/technical-risk/risk-methods', { signal }),
+    enabled: Boolean(organizationId && api.moduleEnabled),
+    retry: shouldRetryGet,
+    staleTime: 5 * 60_000,
+  });
+  const riskPolicy = useQuery({
+    queryKey: [...queryKeys.organization.riskMethods(organizationId ?? 'inactive'), 'policy'],
+    queryFn: ({ signal }) =>
+      api.request<RiskMethodPolicy>('/technical-risk/risk-method-policy', { signal }),
+    enabled: Boolean(organizationId && api.moduleEnabled),
+    retry: shouldRetryGet,
+  });
+  const allowedRiskMethods = (riskMethods.data ?? []).filter(
+    (method) =>
+      method.methodKey !== 'DEMO_5X5' &&
+      riskPolicy.data?.allowedMethods.some(
+        ({ riskMethodVersionId }) => riskMethodVersionId === method.id,
+      ),
+  );
+  useEffect(() => {
+    if (!form.getValues('riskMethodVersionId') && riskPolicy.data?.defaultRiskMethodVersionId)
+      form.setValue('riskMethodVersionId', riskPolicy.data.defaultRiskMethodVersionId);
+  }, [form, riskPolicy.data?.defaultRiskMethodVersionId]);
   const selectedMethod = methods.data?.find(({ id }) => id === form.watch('methodVersionId'));
+  const selectedRiskMethod = riskMethods.data?.find(
+    ({ id }) => id === form.watch('riskMethodVersionId'),
+  );
   const selectedCenter = context.data?.workCenters.find(
     ({ id }) => id === form.watch('workCenterId'),
   );
@@ -586,6 +788,8 @@ export function NewTechnicalAssessment() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           methodVersionId: values.methodVersionId,
+          riskMethodVersionId: values.riskMethodVersionId,
+          riskInput: technicalRiskMethodInput(selectedRiskMethod?.methodKey, values),
           workCenterId: values.workCenterId,
           workAreaId: values.workAreaId || undefined,
           title: values.title,
@@ -605,8 +809,18 @@ export function NewTechnicalAssessment() {
     setRequestError(null);
     const valid =
       step === 1
-        ? await form.trigger('methodVersionId', { shouldFocus: true })
-        : await form.trigger(['workCenterId', 'title'], { shouldFocus: true });
+        ? await form.trigger(['methodVersionId', 'riskMethodVersionId'], { shouldFocus: true })
+        : await form.trigger(
+            [
+              'workCenterId',
+              'title',
+              'riskRationale',
+              ...(selectedRiskMethod?.methodKey === 'GUIDED_5X5'
+                ? (['guidedProbability', 'guidedSeverity'] as const)
+                : (['gtcDeficiency', 'gtcExposure', 'gtcConsequence'] as const)),
+            ],
+            { shouldFocus: true },
+          );
     if (valid) setStep((current) => Math.min(3, current + 1));
   }
 
@@ -614,12 +828,22 @@ export function NewTechnicalAssessment() {
     <TechnicalRiskAccessGate api={api}>
       {!canWriteTechnicalRisk(api.role) ? (
         <TechnicalRiskPermissionState role={api.role} capability="crear o completar evaluaciones" />
-      ) : methods.isLoading || context.isLoading ? (
+      ) : methods.isPending ||
+        context.isPending ||
+        riskMethods.isPending ||
+        riskPolicy.isPending ? (
         <TechnicalRiskSkeleton label="Preparando nueva evaluación técnica" />
-      ) : methods.isError || context.isError ? (
+      ) : methods.isError || context.isError || riskMethods.isError || riskPolicy.isError ? (
         <PageQueryError
           object="la creación de la evaluación"
-          retry={() => void Promise.all([methods.refetch(), context.refetch()])}
+          retry={() =>
+            void Promise.all([
+              methods.refetch(),
+              context.refetch(),
+              riskMethods.refetch(),
+              riskPolicy.refetch(),
+            ])
+          }
         />
       ) : methods.data!.length === 0 ? (
         <TechnicalRiskState
@@ -688,6 +912,32 @@ export function NewTechnicalAssessment() {
                     disclaimer={selectedMethod.disclaimer}
                   />
                 ) : null}
+                <div className="technical-field">
+                  <label htmlFor="technical-risk-method">
+                    Metodología de valoración del riesgo
+                  </label>
+                  <select
+                    id="technical-risk-method"
+                    {...form.register('riskMethodVersionId', {
+                      required: 'Selecciona una metodología de valoración permitida.',
+                    })}
+                  >
+                    <option value="">Selecciona una metodología</option>
+                    {allowedRiskMethods.map((method) => (
+                      <option value={method.id} key={method.id}>
+                        {method.displayName} · v{method.semanticVersion}
+                      </option>
+                    ))}
+                  </select>
+                  {form.formState.errors.riskMethodVersionId ? (
+                    <p className="field-error">
+                      {form.formState.errors.riskMethodVersionId.message}
+                    </p>
+                  ) : null}
+                  {selectedRiskMethod ? (
+                    <p className="technical-field-help">{selectedRiskMethod.disclaimer}</p>
+                  ) : null}
+                </div>
               </section>
             ) : null}
             {step === 2 ? (
@@ -758,6 +1008,109 @@ export function NewTechnicalAssessment() {
                     </p>
                   ) : null}
                 </div>
+                <fieldset className="risk-method-options">
+                  <legend>Valoración inicial · {selectedRiskMethod?.displayName}</legend>
+                  {selectedRiskMethod?.methodKey === 'GUIDED_5X5' ? (
+                    <div className="inspection-form-grid">
+                      <label>
+                        Probabilidad
+                        <select
+                          {...form.register('guidedProbability', {
+                            required: 'Selecciona probabilidad.',
+                            valueAsNumber: true,
+                          })}
+                        >
+                          <option value="">Selecciona</option>
+                          {guidedProbabilityCriteria.map((criterion) => (
+                            <option key={criterion.value} value={criterion.value}>
+                              {criterion.label} · {criterion.value}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Severidad humana
+                        <select
+                          {...form.register('guidedSeverity', {
+                            required: 'Selecciona severidad.',
+                            valueAsNumber: true,
+                          })}
+                        >
+                          <option value="">Selecciona</option>
+                          {guidedHumanSeverityCriteria.map((criterion) => (
+                            <option key={criterion.value} value={criterion.value}>
+                              {criterion.label} · {criterion.value}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="inspection-form-grid">
+                      <label>
+                        Nivel de deficiencia
+                        <select
+                          {...form.register('gtcDeficiency', {
+                            required: 'Selecciona deficiencia.',
+                          })}
+                        >
+                          <option value="">Selecciona</option>
+                          {gtc45DeficiencyOptions.map((option) => (
+                            <option key={option.key} value={option.key}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Nivel de exposición
+                        <select
+                          {...form.register('gtcExposure', {
+                            required: 'Selecciona exposición.',
+                            valueAsNumber: true,
+                          })}
+                        >
+                          <option value="">Selecciona</option>
+                          {gtc45ExposureOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label} · {option.value}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Nivel de consecuencia
+                        <select
+                          {...form.register('gtcConsequence', {
+                            required: 'Selecciona consecuencia.',
+                            valueAsNumber: true,
+                          })}
+                        >
+                          <option value="">Selecciona</option>
+                          {gtc45ConsequenceOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label} · {option.value}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  )}
+                  <label className="technical-field">
+                    Justificación profesional
+                    <textarea
+                      rows={4}
+                      maxLength={1000}
+                      {...form.register('riskRationale', {
+                        required: 'Explica la selección profesional.',
+                      })}
+                    />
+                  </label>
+                  <p className="inspection-invariant-note">
+                    La API valida y calcula el resultado. La revisión profesional permanece como un
+                    paso separado.
+                  </p>
+                </fieldset>
                 <div className="technical-field">
                   <label htmlFor="technical-description">Descripción · opcional</label>
                   <textarea
@@ -822,11 +1175,21 @@ export function NewTechnicalAssessment() {
                 Cancelar
               </Link>
               {step < 3 ? (
-                <button className="button" type="button" onClick={() => void continueCreation()}>
+                <button
+                  key="continue-creation"
+                  className="button"
+                  type="button"
+                  onClick={() => void continueCreation()}
+                >
                   Continuar
                 </button>
               ) : (
-                <button className="button" type="submit" disabled={create.isPending}>
+                <button
+                  key="submit-creation"
+                  className="button"
+                  type="submit"
+                  disabled={create.isPending}
+                >
                   {create.isPending ? 'Creando borrador…' : 'Crear borrador'}
                 </button>
               )}
@@ -1048,6 +1411,8 @@ function TechnicalAssessmentExecution({
         isDemo={provenance.isDemo}
         disclaimer={provenance.disclaimer}
       />
+      <RiskValuationSummary assessment={assessment} />
+      <RegulatoryReferenceSummary assessment={assessment} />
       {assessment.revisedFrom?.reviews[0]?.decision === 'NEEDS_REVISION' ? (
         <section
           className="technical-start-panel focus-task"
@@ -1454,6 +1819,8 @@ function TechnicalAssessmentResult({
             isDemo={provenance.isDemo}
             disclaimer={provenance.disclaimer}
           />
+          <RiskValuationSummary assessment={assessment} />
+          <RegulatoryReferenceSummary assessment={assessment} />
           <section className="technical-review-summary">
             <p className="technical-risk-kicker">Fase separada</p>
             <h2>Revisión profesional</h2>

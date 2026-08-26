@@ -56,6 +56,7 @@ export const regulatoryRelationshipReviewStatusLabels: Record<
 };
 
 export type RegulatorySourceFilters = {
+  q: string;
   issuer: string;
   documentType: '' | RegulatoryDocumentType;
   candidateStatus: '' | RegulatoryCandidateStatus;
@@ -63,6 +64,7 @@ export type RegulatorySourceFilters = {
 
 export function regulatorySourceQueryString(filters: RegulatorySourceFilters) {
   const params = new URLSearchParams();
+  if (filters.q.trim()) params.set('q', filters.q.trim());
   if (filters.issuer.trim()) params.set('issuer', filters.issuer.trim());
   if (filters.documentType) params.set('documentType', filters.documentType);
   if (filters.candidateStatus) params.set('candidateStatus', filters.candidateStatus);

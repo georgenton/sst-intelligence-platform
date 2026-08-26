@@ -9,6 +9,7 @@ import type {
   RegulatorySourceRelationshipRecord,
   RegulatorySourceProvision,
   RegulatorySourceVersionRecord,
+  RegulatoryUnitRecord,
 } from '@sst/contracts';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -41,9 +42,35 @@ import {
 import { useAuth } from './auth-provider';
 
 const EMPTY_FILTERS: RegulatorySourceFilters = {
+  q: '',
   issuer: '',
   documentType: '',
   candidateStatus: '',
+};
+
+type RegulatoryUnitListResponse = {
+  sourceKey: string;
+  version: null | {
+    id: string;
+    catalogVersion: number;
+    artifactVerificationStatus: string;
+    textExtractionStatus: string;
+  };
+  items: Array<RegulatoryUnitRecord & { createdAt: string }>;
+  structuralBoundary: string;
+};
+
+type RegulatoryUnitDetailResponse = {
+  unit: RegulatoryUnitRecord & { createdAt: string };
+  source: RegulatorySourceDetail['source'];
+  sourceVersion: RegulatorySourceVersionRecord;
+  interpretations: Array<{
+    id: string;
+    heading: string | null;
+    summary: string | null;
+    editorialStatus: string;
+  }>;
+  textBoundary: 'OFFICIAL_TEXT_SEPARATE_FROM_PLATFORM_INTERPRETATION';
 };
 
 function shouldRetryGet(failureCount: number, error: Error) {
@@ -148,9 +175,9 @@ export function RegulatorySourceCatalog() {
     <RegulatoryAccessGate api={api}>
       <div className="regulatory-source-page stack">
         <ApplicabilityPageHeader
-          eyebrow="Configuración SST · referencia"
-          title="Fuentes de referencia"
-          description="Catálogo versionado de fuentes candidatas de Ecuador. La consulta es de solo lectura."
+          eyebrow="Configuración SST · fuente oficial"
+          title="Biblioteca normativa"
+          description="Consulta documentos oficiales versionados y abre el artículo exacto, sin confundir texto legal con interpretación de la plataforma."
           action={
             <div className="regulatory-header-actions">
               <Link className="button secondary" href="/app/applicability/requirements">
@@ -169,6 +196,15 @@ export function RegulatorySourceCatalog() {
             <h2 id="regulatory-filter-title">Filtrar fuentes</h2>
             <p>Los filtros consultan únicamente metadata editorial.</p>
           </div>
+          <label>
+            Buscar
+            <input
+              type="search"
+              value={filters.q}
+              onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))}
+              placeholder="Documento, número o emisor"
+            />
+          </label>
           <label>
             Emisor
             <input
@@ -289,7 +325,7 @@ export function RegulatorySourceCatalog() {
                     <Link
                       href={`/app/applicability/sources/${encodeURIComponent(source.sourceKey)}`}
                     >
-                      Ver metadata
+                      Abrir documento
                     </Link>
                   </div>
                 </article>
@@ -343,6 +379,7 @@ function VersionCard({ version }: { version: RegulatorySourceVersionRecord }) {
 
 export function RegulatorySourceDetailView({ sourceKey }: { sourceKey: string }) {
   const api = useRegulatorySourceApi();
+  const [articleSearch, setArticleSearch] = useState('');
   const organizationId = api.organizationId ?? 'no-organization';
   const enabled = Boolean(api.organizationId);
   const encodedKey = encodeURIComponent(sourceKey);
@@ -381,8 +418,21 @@ export function RegulatorySourceDetailView({ sourceKey }: { sourceKey: string })
     enabled,
     retry: shouldRetryGet,
   });
+  const articleQuery = articleSearch.trim()
+    ? `?q=${encodeURIComponent(articleSearch.trim())}&unitType=ARTICLE`
+    : '?unitType=ARTICLE';
+  const units = useQuery({
+    queryKey: queryKeys.organization.regulatorySourceUnits(organizationId, sourceKey, articleQuery),
+    queryFn: ({ signal }) =>
+      api.request<RegulatoryUnitListResponse>(
+        `/regulatory-sources/${encodedKey}/units${articleQuery}`,
+        { signal },
+      ),
+    enabled,
+    retry: shouldRetryGet,
+  });
   const firstError =
-    detail.error ?? versions.error ?? relationships.error ?? structuredContent.error;
+    detail.error ?? versions.error ?? relationships.error ?? structuredContent.error ?? units.error;
   const structuredRows = structuredContent.data ?? [];
   const relatedRequirements = Array.from(
     new Map(
@@ -400,7 +450,8 @@ export function RegulatorySourceDetailView({ sourceKey }: { sourceKey: string })
         {detail.isLoading ||
         versions.isLoading ||
         relationships.isLoading ||
-        structuredContent.isLoading ? (
+        structuredContent.isLoading ||
+        units.isLoading ? (
           <ApplicabilitySkeleton label="Cargando metadata de la fuente" />
         ) : firstError ? (
           <RegulatoryQueryError
@@ -410,12 +461,17 @@ export function RegulatorySourceDetailView({ sourceKey }: { sourceKey: string })
               void versions.refetch();
               void relationships.refetch();
               void structuredContent.refetch();
+              void units.refetch();
             }}
           />
-        ) : detail.data && versions.data && relationships.data && structuredContent.data ? (
+        ) : detail.data &&
+          versions.data &&
+          relationships.data &&
+          structuredContent.data &&
+          units.data ? (
           <>
             <ApplicabilityPageHeader
-              eyebrow="Fuente candidata"
+              eyebrow="Biblioteca normativa"
               title={detail.data.source.canonicalTitle}
               description={`${detail.data.source.issuer} · ${detail.data.source.referenceNumber}`}
               action={
@@ -425,6 +481,55 @@ export function RegulatorySourceDetailView({ sourceKey }: { sourceKey: string })
               }
             />
             <CatalogBoundaryNotice />
+            <section className="regulatory-source-identity" aria-labelledby="article-catalog-title">
+              <div className="applicability-section-heading">
+                <div>
+                  <p className="applicability-kicker">Texto oficial estructurado</p>
+                  <h2 id="article-catalog-title">Contenido y artículos</h2>
+                </div>
+                <span>{units.data.items.length} artículos</span>
+              </div>
+              <label className="technical-field">
+                Buscar en artículos
+                <input
+                  type="search"
+                  value={articleSearch}
+                  onChange={(event) => setArticleSearch(event.target.value)}
+                  placeholder="Artículo, encabezado o texto"
+                />
+              </label>
+              {units.data.version === null ? (
+                <div className="regulatory-empty-state">
+                  <strong>El texto completo todavía no está estructurado.</strong>
+                  <p>
+                    La metadata de la fuente permanece visible; no se presenta texto reconstruido.
+                  </p>
+                </div>
+              ) : units.data.items.length === 0 ? (
+                <div className="regulatory-empty-state">
+                  <strong>No hay coincidencias.</strong>
+                  <p>Prueba otro identificador o término del texto oficial.</p>
+                </div>
+              ) : (
+                <ol className="regulatory-content-list">
+                  {units.data.items.map((unit) => (
+                    <li key={unit.id} className="regulatory-content-card">
+                      <span className="regulatory-status">{unit.identifier}</span>
+                      <h3>{unit.heading ?? unit.locator}</h3>
+                      <p>
+                        {unit.officialText.slice(0, 220)}
+                        {unit.officialText.length > 220 ? '…' : ''}
+                      </p>
+                      <Link
+                        href={`/app/applicability/sources/${encodeURIComponent(sourceKey)}/units/${unit.id}`}
+                      >
+                        Abrir texto oficial
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
             <section className="regulatory-source-identity" aria-labelledby="source-identity-title">
               <div className="applicability-section-heading">
                 <div>
@@ -610,6 +715,120 @@ export function RegulatorySourceDetailView({ sourceKey }: { sourceKey: string })
           />
         )}
       </div>
+    </RegulatoryAccessGate>
+  );
+}
+
+export function RegulatoryUnitDetailView({
+  sourceKey,
+  unitId,
+}: {
+  sourceKey: string;
+  unitId: string;
+}) {
+  const api = useRegulatorySourceApi();
+  const organizationId = api.organizationId ?? 'no-organization';
+  const detail = useQuery({
+    queryKey: queryKeys.organization.regulatoryUnit(organizationId, unitId),
+    queryFn: ({ signal }) =>
+      api.request<RegulatoryUnitDetailResponse>(`/regulatory-units/${encodeURIComponent(unitId)}`, {
+        signal,
+      }),
+    enabled: Boolean(api.organizationId),
+    retry: shouldRetryGet,
+  });
+  return (
+    <RegulatoryAccessGate api={api}>
+      {detail.isLoading ? (
+        <ApplicabilitySkeleton label="Cargando artículo oficial" />
+      ) : detail.isError ? (
+        <RegulatoryQueryError error={detail.error} retry={() => void detail.refetch()} />
+      ) : detail.data ? (
+        <div className="regulatory-source-page stack">
+          <ApplicabilityPageHeader
+            eyebrow={`${detail.data.source.referenceNumber} · texto oficial`}
+            title={detail.data.unit.identifier}
+            description={detail.data.unit.heading ?? detail.data.unit.locator}
+            action={
+              <Link
+                className="button secondary"
+                href={`/app/applicability/sources/${encodeURIComponent(sourceKey)}`}
+              >
+                Volver al documento
+              </Link>
+            }
+          />
+          <section className="regulatory-source-identity" aria-labelledby="official-text-title">
+            <div className="applicability-section-heading">
+              <div>
+                <p className="applicability-kicker">Documento oficial verificado</p>
+                <h2 id="official-text-title">Texto oficial</h2>
+              </div>
+              <span>
+                {detail.data.sourceVersion.artifactVerificationStatus ===
+                'OFFICIAL_ARTIFACT_VERIFIED'
+                  ? 'Artefacto verificado'
+                  : 'Verificación pendiente'}
+              </span>
+            </div>
+            <p className="regulatory-official-text">{detail.data.unit.officialText}</p>
+            <dl>
+              <div>
+                <dt>Fuente</dt>
+                <dd>{detail.data.source.canonicalTitle}</dd>
+              </div>
+              <div>
+                <dt>Versión</dt>
+                <dd>Catálogo {detail.data.sourceVersion.catalogVersion}</dd>
+              </div>
+              <div>
+                <dt>Página / localizador</dt>
+                <dd>
+                  {detail.data.unit.pageStart
+                    ? `p. ${detail.data.unit.pageStart}${detail.data.unit.pageEnd !== detail.data.unit.pageStart ? `–${detail.data.unit.pageEnd}` : ''}`
+                    : detail.data.unit.locator}
+                </dd>
+              </div>
+              <div>
+                <dt>Vigencia revisada</dt>
+                <dd>{detail.data.sourceVersion.vigenciaReviewStatus}</dd>
+              </div>
+            </dl>
+            {detail.data.sourceVersion.officialUrl ? (
+              <a
+                className="button secondary"
+                href={detail.data.sourceVersion.officialUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Abrir documento oficial
+              </a>
+            ) : null}
+          </section>
+          <section
+            className="regulatory-structured-content"
+            aria-labelledby="platform-interpretation-title"
+          >
+            <div className="applicability-section-heading">
+              <div>
+                <p className="applicability-kicker">Separada del texto oficial</p>
+                <h2 id="platform-interpretation-title">Interpretación en la plataforma</h2>
+              </div>
+            </div>
+            {detail.data.interpretations.length === 0 ? (
+              <p>Sin estructurar.</p>
+            ) : (
+              detail.data.interpretations.map((interpretation) => (
+                <article className="regulatory-content-card" key={interpretation.id}>
+                  <span className="regulatory-status">{interpretation.editorialStatus}</span>
+                  <h3>{interpretation.heading ?? 'Interpretación candidata'}</h3>
+                  <p>{interpretation.summary ?? 'Revisión profesional pendiente.'}</p>
+                </article>
+              ))
+            )}
+          </section>
+        </div>
+      ) : null}
     </RegulatoryAccessGate>
   );
 }

@@ -146,6 +146,29 @@ export const queryKeys = {
         'provisions',
         sourceKey,
       ] as const,
+    regulatorySourceUnits: (organizationId: string, sourceKey: string, filters = '') =>
+      [
+        ...privateRoot,
+        'org',
+        organizationId,
+        'regulatory-sources',
+        'units',
+        sourceKey,
+        filters,
+      ] as const,
+    regulatoryUnit: (organizationId: string, unitId: string) =>
+      [...privateRoot, 'org', organizationId, 'regulatory-units', 'detail', unitId] as const,
+    unifiedSstEvaluations: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'unified-sst-evaluations', 'list'] as const,
+    unifiedSstEvaluation: (organizationId: string, evaluationId: string) =>
+      [
+        ...privateRoot,
+        'org',
+        organizationId,
+        'unified-sst-evaluations',
+        'detail',
+        evaluationId,
+      ] as const,
     regulatoryRequirements: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'regulatory-requirements', 'list'] as const,
     regulatoryRequirement: (organizationId: string, requirementKey: string) =>

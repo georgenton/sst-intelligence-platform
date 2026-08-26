@@ -14,6 +14,7 @@ const webRoot = fileURLToPath(new URL('..', import.meta.url));
 test('catalog filters serialize deterministically without tenant identity', () => {
   assert.equal(
     regulatorySourceQueryString({
+      q: '',
       issuer: ' Ministerio del Trabajo ',
       documentType: 'ANNEX',
       candidateStatus: 'TECHNICAL_REVIEW_PENDING',
@@ -21,8 +22,17 @@ test('catalog filters serialize deterministically without tenant identity', () =
     '?issuer=Ministerio+del+Trabajo&documentType=ANNEX&candidateStatus=TECHNICAL_REVIEW_PENDING',
   );
   assert.equal(
-    regulatorySourceQueryString({ issuer: '', documentType: '', candidateStatus: '' }),
+    regulatorySourceQueryString({ q: '', issuer: '', documentType: '', candidateStatus: '' }),
     '',
+  );
+  assert.equal(
+    regulatorySourceQueryString({
+      q: ' Artículo 18 ',
+      issuer: '',
+      documentType: '',
+      candidateStatus: '',
+    }),
+    '?q=Art%C3%ADculo+18',
   );
 });
 
@@ -42,6 +52,10 @@ test('safe copy keeps editorial workflow separate from legal interpretation', ()
 test('routes, async states and narrow reflow are explicit', () => {
   assert.equal(existsSync(`${webRoot}/app/app/applicability/sources/page.tsx`), true);
   assert.equal(existsSync(`${webRoot}/app/app/applicability/sources/[sourceKey]/page.tsx`), true);
+  assert.equal(
+    existsSync(`${webRoot}/app/app/applicability/sources/[sourceKey]/units/[unitId]/page.tsx`),
+    true,
+  );
   const component = readFileSync(`${webRoot}/components/regulatory-source-ui.tsx`, 'utf8');
   const styles = readFileSync(`${webRoot}/styles/applicability-experience.css`, 'utf8');
   assert.match(component, /Cargando fuentes de referencia/);

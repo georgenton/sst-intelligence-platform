@@ -26,12 +26,26 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
     label: 'Operación',
     items: [
       {
+        id: 'sst-evaluation',
+        label: 'Evaluación SST',
+        href: '/app/evaluation',
+        group: 'assessments',
+        match: 'segment',
+      },
+      {
         id: 'inspections',
         label: 'Inspecciones',
         href: '/app/inspections',
         group: 'operation',
         match: 'segment',
         requiredFeature: 'module.inspections',
+      },
+      {
+        id: 'regulatory-library',
+        label: 'Biblioteca normativa',
+        href: '/app/applicability/sources',
+        group: 'assessments',
+        match: 'segment',
       },
       {
         id: 'inspection-alerts',

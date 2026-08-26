@@ -54,6 +54,9 @@ test('borrador, ejecución, resultado y revisión profesional de riesgo técnico
   await page
     .getByLabel('Método técnico')
     .selectOption({ label: 'Evaluación técnica demostrativa · v1.0.0' });
+  await page
+    .getByLabel('Metodología de valoración del riesgo')
+    .selectOption({ label: 'Matriz 5×5 guiada · v1.0.0' });
   await expect(page.getByText(/No constituye una evaluación regulatoria validada/)).toBeVisible();
   await page.getByRole('button', { name: 'Continuar' }).click();
 
@@ -63,6 +66,15 @@ test('borrador, ejecución, resultado y revisión profesional de riesgo técnico
   await page.getByLabel('Área').selectOption({ label: 'Planta A' });
   await page.getByLabel('Título').fill(`Evaluación técnica crítica ${suffix}`);
   await page.getByLabel('Descripción · opcional').fill('Actividad sintética para E2E.');
+  await page
+    .getByRole('combobox', { name: 'Probabilidad', exact: true })
+    .selectOption({ label: 'Probable · 4' });
+  await page
+    .getByRole('combobox', { name: 'Severidad humana' })
+    .selectOption({ label: 'Catastrófica · 5' });
+  await page
+    .getByLabel('Justificación profesional')
+    .fill('Exposición frecuente y consecuencia humana potencialmente fatal.');
   await page.getByRole('button', { name: 'Continuar' }).click();
   await expect(page.getByRole('heading', { name: 'Confirma el borrador' })).toBeVisible();
   await Promise.all([
@@ -130,4 +142,50 @@ test('borrador, ejecución, resultado y revisión profesional de riesgo técnico
   await expect(
     page.getByLabel('Historial de revisión').first().getByText('Revisión profesional E2E.'),
   ).toBeVisible();
+
+  await page.goto('/app/technical-risk/new');
+  await page
+    .getByLabel('Método técnico')
+    .selectOption({ label: 'Evaluación técnica demostrativa · v1.0.0' });
+  await page
+    .getByLabel('Metodología de valoración del riesgo')
+    .selectOption({ label: 'GTC 45 — edición 2010 · v1.0.0' });
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await page
+    .getByLabel('Centro de trabajo')
+    .selectOption({ label: 'Centro Guayaquil (demostración)' });
+  await page.getByLabel('Área').selectOption({ label: 'Planta A' });
+  await page.getByLabel('Título').fill(`Evaluación técnica GTC45 ${suffix}`);
+  await page.getByLabel('Nivel de deficiencia').selectOption('HIGH');
+  await page.getByLabel('Nivel de exposición').selectOption('4');
+  await page.getByLabel('Nivel de consecuencia').selectOption('100');
+  await page
+    .getByLabel('Justificación profesional')
+    .fill('Deficiencia alta, exposición continua y consecuencia potencialmente mortal.');
+  await page.getByRole('button', { name: 'Continuar' }).click();
+  await Promise.all([
+    page.waitForURL(/\/app\/technical-risk\/[0-9a-f-]+$/),
+    page.getByRole('button', { name: 'Crear borrador' }).click(),
+  ]);
+  await page.getByRole('button', { name: 'Iniciar evaluación' }).click();
+  await page.getByLabel('Descripción de la actividad').fill('Actividad GTC45 sintética E2E.');
+  await page.getByLabel(/Controles existentes/).fill('Control parcial observado.');
+  await page.getByRole('group', { name: 'Probabilidad' }).getByRole('radio', { name: '3' }).check();
+  await page
+    .getByRole('group', { name: 'Consecuencia' })
+    .getByRole('radio', { name: '4', exact: true })
+    .check();
+  await page.getByRole('button', { name: 'Completar evaluación' }).click();
+  await expect(page.getByRole('heading', { name: 'GTC 45 — edición 2010' })).toBeVisible();
+  await expect(page.getByText('I · 2400')).toBeVisible();
+  await page.getByRole('link', { name: 'Abrir revisión profesional' }).click();
+  await page.getByLabel('Aprobar revisión').check();
+  await page.getByLabel(/Comentario/).fill('Revisión profesional GTC45 E2E.');
+  await page.getByLabel('Confirmo esta autorrevisión y su trazabilidad.').check();
+  await page.getByRole('button', { name: 'Registrar decisión' }).click();
+  await page
+    .getByRole('dialog', { name: 'Confirmar aprobación profesional' })
+    .getByRole('button', { name: 'Registrar decisión' })
+    .click();
+  await expect(page.getByText(/La evaluación ahora está Revisada/)).toBeVisible();
 });
