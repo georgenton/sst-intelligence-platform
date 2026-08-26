@@ -1,0 +1,85 @@
+{
+  "relationships": [
+    {
+      "id": "a3000000-0000-4000-8000-000000000001",
+      "fromSourceKey": "EC_IESS_CD_517",
+      "toSourceKey": "EC_IESS_CD_677",
+      "relationshipType": "POSSIBLE_SUPERSESSION",
+      "reviewStatus": "CONFIRMED",
+      "dependencyState": "SUPERSESSION_CONFIRMED",
+      "notes": "La Disposición Derogatoria Única de la Resolución IESS C.D. 677 deroga expresamente el Reglamento General de Responsabilidad Patronal contenido en la Resolución C.D. 517. C.D. 677 entra en vigencia desde su aprobación el 2 de octubre de 2024, sin perjuicio de su publicación en el Registro Oficial."
+    },
+    {
+      "id": "a3000000-0000-4000-8000-000000000002",
+      "fromSourceKey": "EC_MDT_2024_196",
+      "toSourceKey": "EC_MDT_2024_196_ANNEX_1",
+      "relationshipType": "RELATED_REFERENCE",
+      "reviewStatus": "PENDING_REVIEW",
+      "dependencyState": "RELATED_SOURCE",
+      "notes": "Anexo identificado por el catálogo oficial; alcance e interpretación pendientes."
+    },
+    {
+      "id": "a3000000-0000-4000-8000-000000000003",
+      "fromSourceKey": "EC_MDT_2024_196",
+      "toSourceKey": "EC_MDT_2024_196_ANNEX_2",
+      "relationshipType": "RELATED_REFERENCE",
+      "reviewStatus": "PENDING_REVIEW",
+      "dependencyState": "RELATED_SOURCE",
+      "notes": "Anexo identificado por el catálogo oficial; archivo exacto e interpretación pendientes."
+    },
+    {
+      "id": "a3000000-0000-4000-8000-000000000004",
+      "fromSourceKey": "EC_MDT_2024_196",
+      "toSourceKey": "EC_MDT_2024_196_ANNEX_3",
+      "relationshipType": "RELATED_REFERENCE",
+      "reviewStatus": "PENDING_REVIEW",
+      "dependencyState": "RELATED_SOURCE",
+      "notes": "Anexo técnico relacionado; no se infiere jerarquía ni aplicabilidad."
+    },
+    {
+      "id": "a3000000-0000-4000-8000-000000000005",
+      "fromSourceKey": "EC_EXECUTIVE_DECREE_255",
+      "toSourceKey": "EC_MDT_2024_196",
+      "relationshipType": "RELATED_REFERENCE",
+      "reviewStatus": "PENDING_REVIEW",
+      "dependencyState": "INTERPRETATION_REQUIRES_SOURCE",
+      "notes": "Fuentes del marco general SST que deben revisarse conjuntamente sin inferir jerarquía."
+    },
+    {
+      "id": "a3000000-0000-4000-8000-000000000006",
+      "fromSourceKey": "EC_MDT_2025_122_CONSTRUCTION",
+      "toSourceKey": "EC_MDT_2024_196",
+      "relationshipType": "RELATED_REFERENCE",
+      "reviewStatus": "PENDING_REVIEW",
+      "dependencyState": "INTERPRETATION_REQUIRES_SOURCE",
+      "notes": "Fuente sectorial de construcción relacionada con el marco general; revisión profesional pendiente."
+    },
+    {
+      "id": "a3000000-0000-4000-8000-000000000007",
+      "fromSourceKey": "EC_MDT_2025_122_CONSTRUCTION",
+      "toSourceKey": "EC_EXECUTIVE_DECREE_255",
+      "relationshipType": "RELATED_REFERENCE",
+      "reviewStatus": "PENDING_REVIEW",
+      "dependencyState": "INTERPRETATION_REQUIRES_SOURCE",
+      "notes": "Relación documental para revisión; no constituye conclusión de aplicabilidad."
+    },
+    {
+      "id": "a3000000-0000-4000-8000-000000000008",
+      "fromSourceKey": "EC_IESS_CD_692",
+      "toSourceKey": "EC_IESS_CD_513",
+      "relationshipType": "POSSIBLE_AMENDMENT",
+      "reviewStatus": "CONFIRMED",
+      "dependencyState": "AMENDMENT_CONFIRMED",
+      "notes": "C.D. 692 declara expresamente que reforma el artículo 46 del reglamento contenido en C.D. 513."
+    },
+    {
+      "id": "a3000000-0000-4000-8000-000000000009",
+      "fromSourceKey": "EC_CAN_DECISION_584",
+      "toSourceKey": "EC_CAN_RESOLUTION_957",
+      "relationshipType": "RELATED_REFERENCE",
+      "reviewStatus": "CONFIRMED",
+      "dependencyState": "INTERPRETATION_REQUIRES_SOURCE",
+      "notes": "La Comunidad Andina identifica la Resolución 957 como reglamento del Instrumento Andino de la Decisión 584."
+    }
+  ]
+}

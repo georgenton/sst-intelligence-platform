@@ -135,6 +135,17 @@ type Finding = {
     acknowledgedBy?: { id: string; displayName: string };
     systemicReview?: { id: string; status: string };
   }>;
+  regulatoryLinks?: Array<{
+    id: string;
+    rationale: string;
+    unit?: {
+      id: string;
+      identifier: string;
+      locator: string;
+      sourceVersion: { source: { sourceKey: string; canonicalTitle: string } };
+    };
+    requirement?: { title: string };
+  }>;
   recurrence?: {
     previousCount: number;
     windowDays: number;
@@ -2334,6 +2345,33 @@ export function FindingDetail({
             methodName={methodPresentation.displayName}
             disclaimer={methodPresentation.contextSummary}
           />
+          {finding.data.regulatoryLinks?.length ? (
+            <section className="inspection-summary-card" aria-labelledby="finding-regulatory-title">
+              <p className="eyebrow">Fundamento normativo</p>
+              <h2 id="finding-regulatory-title">Artículos relacionados</h2>
+              <p>Una referencia regulatoria no prueba por sí sola cumplimiento o incumplimiento.</p>
+              <div className="stack-sm">
+                {finding.data.regulatoryLinks.map((link) => (
+                  <div key={link.id}>
+                    <strong>{link.requirement?.title ?? 'Referencia regulatoria'}</strong>
+                    {link.unit ? (
+                      <p>
+                        {link.unit.sourceVersion.source.canonicalTitle} · {link.unit.identifier}
+                      </p>
+                    ) : null}
+                    <p>{link.rationale}</p>
+                    {link.unit ? (
+                      <Link
+                        href={`/app/applicability/sources/${link.unit.sourceVersion.source.sourceKey}/units/${link.unit.id}`}
+                      >
+                        Ver fundamento normativo
+                      </Link>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
           {notice ? (
             <p className="inspection-success" role="status">
               {notice}

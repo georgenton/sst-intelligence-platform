@@ -36,13 +36,15 @@ location, publication date, reference number or editorial status.
 
 ## Relationship review
 
-`RegulatorySourceRelationship` records neutral relationships that still require review. Duplicate
+`RegulatorySourceRelationship` records relationships and their explicit review state. Duplicate
 direction/type tuples are prevented and self-relations are rejected. Both foreign keys use
 `RESTRICT` deletion semantics.
 
 C.D. 517 and C.D. 677 remain distinct source identities. Their V1 relationship is
-`POSSIBLE_SUPERSESSION / PENDING_REVIEW`; neither becomes ready for rules. C.D. 527 remains a
-separate rejected, unverified interview reference and is never silently mapped to either source.
+`POSSIBLE_SUPERSESSION / CONFIRMED`: the Disposición Derogatoria Única of C.D. 677 expressly repeals
+the Reglamento General de Responsabilidad Patronal contained in C.D. 517. C.D. 517 is retained as a
+historical `REPEALED` source and neither source becomes ready for rules. C.D. 527 remains a separate
+rejected, unverified interview reference and is never silently mapped to either source.
 
 ## Editorial status is not legal status
 

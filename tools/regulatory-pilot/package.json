@@ -1,0 +1,28 @@
+{
+  "name": "@sst/regulatory-pilot-validator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src --max-warnings=0",
+    "lint:fix": "eslint src --fix",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "validate": "pnpm build && node dist/cli.js",
+    "review-bundle": "pnpm build && node dist/review-bundle-cli.js",
+    "review-corpus": "pnpm build && node dist/review-corpus-cli.js",
+    "verify-source": "pnpm build && node dist/source-verifier-cli.js",
+    "structure-evidence": "pnpm build && node dist/structure-evidence-cli.js"
+  },
+  "dependencies": {
+    "@sst/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@sst/typescript-config": "workspace:*",
+    "@types/node": "24.10.13",
+    "vitest": "4.1.0"
+  }
+}

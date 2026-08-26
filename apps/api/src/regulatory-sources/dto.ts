@@ -1,8 +1,18 @@
-import { RegulatoryCandidateStatus, RegulatoryDocumentType } from '@prisma/client';
+import {
+  RegulatoryCandidateStatus,
+  RegulatoryDocumentType,
+  RegulatoryUnitType,
+} from '@prisma/client';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class ListRegulatorySourcesQueryDto {
+  @ApiPropertyOptional({ description: 'Busca por título, número o emisor.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  q?: string;
+
   @ApiPropertyOptional({ description: 'Coincidencia parcial del emisor.' })
   @IsOptional()
   @IsString()
@@ -18,4 +28,17 @@ export class ListRegulatorySourcesQueryDto {
   @IsOptional()
   @IsEnum(RegulatoryCandidateStatus)
   candidateStatus?: RegulatoryCandidateStatus;
+}
+
+export class ListRegulatoryUnitsQueryDto {
+  @ApiPropertyOptional({ description: 'Busca texto oficial, identificador, título o localizador.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  q?: string;
+
+  @ApiPropertyOptional({ enum: RegulatoryUnitType })
+  @IsOptional()
+  @IsEnum(RegulatoryUnitType)
+  unitType?: RegulatoryUnitType;
 }

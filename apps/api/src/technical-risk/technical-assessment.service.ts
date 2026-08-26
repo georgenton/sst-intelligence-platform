@@ -29,6 +29,7 @@ import {
   type TechnicalAssessmentMutationSync,
 } from './technical-assessment-mutation-sync';
 import { TechnicalMethodService } from './technical-method.service';
+import { riskMethodProvider } from '../risk-methodology/risk-method-provider.registry';
 
 type Context = Pick<AuditEvent, 'requestId' | 'ip' | 'userAgent'>;
 
@@ -64,6 +65,23 @@ const detailInclude = {
   },
   revision: {
     select: { id: true, title: true, status: true, createdAt: true },
+  },
+  riskValuation: {
+    include: {
+      riskMethodVersion: {
+        include: {
+          methodDefinition: true,
+          sourceLinks: { include: { methodologySourceVersion: { include: { source: true } } } },
+        },
+      },
+    },
+  },
+  regulatoryLinks: {
+    orderBy: { createdAt: 'asc' as const },
+    include: {
+      unit: { include: { sourceVersion: { include: { source: true } } } },
+      requirement: true,
+    },
   },
 } as const;
 
@@ -142,42 +160,68 @@ export class TechnicalAssessmentService {
     input: CreateTechnicalAssessmentDto,
     context: Context,
   ) {
-    const [method, location] = await Promise.all([
+    if (Boolean(input.riskMethodVersionId) !== (input.riskInput !== undefined))
+      throw new BadRequestException({
+        code: 'RISK_METHOD_AND_INPUT_REQUIRED_TOGETHER',
+        message: 'Selecciona una metodología y completa sus datos de valoración.',
+      });
+    const [method, location, valuation] = await Promise.all([
       this.methods.getById(organizationId, input.methodVersionId),
       this.validateLocation(organizationId, input.workCenterId, input.workAreaId),
+      input.riskMethodVersionId
+        ? this.prepareRiskValuation(organizationId, input.riskMethodVersionId, input.riskInput)
+        : Promise.resolve(null),
     ]);
     const snapshot = this.methods.snapshot(method);
-    const assessment = await this.prisma.technicalAssessment.create({
-      data: {
-        organizationId,
-        workCenterId: location.workCenterId,
-        workAreaId: location.workAreaId,
-        methodVersionId: method.id,
-        methodKey: method.key,
-        methodVersion: method.version,
-        calculationKey: method.calculationKey,
-        methodSnapshot: snapshot as unknown as Prisma.InputJsonValue,
-        title: input.title.trim(),
-        description: input.description?.trim(),
-        createdById: userId,
-        isDemo: method.isDemo,
-      },
-      include: detailInclude,
+    return this.prisma.$transaction(async (tx) => {
+      const assessment = await tx.technicalAssessment.create({
+        data: {
+          organizationId,
+          workCenterId: location.workCenterId,
+          workAreaId: location.workAreaId,
+          methodVersionId: method.id,
+          methodKey: method.key,
+          methodVersion: method.version,
+          calculationKey: method.calculationKey,
+          methodSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+          title: input.title.trim(),
+          description: input.description?.trim(),
+          createdById: userId,
+          isDemo: method.isDemo,
+          ...(valuation
+            ? {
+                riskValuation: {
+                  create: {
+                    organizationId,
+                    riskMethodVersionId: valuation.riskMethodVersionId,
+                    methodSnapshot: valuation.methodSnapshot,
+                    riskInput: valuation.riskInput,
+                    riskResult: valuation.riskResult,
+                  },
+                },
+              }
+            : {}),
+        },
+        include: detailInclude,
+      });
+      await tx.auditLog.create({
+        data: {
+          organizationId,
+          actorUserId: userId,
+          action: 'TECHNICAL_ASSESSMENT_CREATED',
+          entityType: 'TechnicalAssessment',
+          entityId: assessment.id,
+          metadata: {
+            methodKey: method.key,
+            methodVersion: method.version,
+            isDemo: method.isDemo,
+            riskMethodVersionId: valuation?.riskMethodVersionId ?? null,
+          },
+          ...context,
+        },
+      });
+      return assessment;
     });
-    await this.audit.record({
-      organizationId,
-      actorUserId: userId,
-      action: 'TECHNICAL_ASSESSMENT_CREATED',
-      entityType: 'TechnicalAssessment',
-      entityId: assessment.id,
-      metadata: {
-        methodKey: method.key,
-        methodVersion: method.version,
-        isDemo: method.isDemo,
-      },
-      ...context,
-    });
-    return assessment;
   }
 
   async get(organizationId: string, assessmentId: string) {
@@ -377,6 +421,41 @@ export class TechnicalAssessmentService {
     });
   }
 
+  async saveRiskValuation(organizationId: string, assessmentId: string, riskInput: unknown) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.claimEditableMutation(
+        tx,
+        organizationId,
+        assessmentId,
+        ['DRAFT', 'IN_PROGRESS'],
+        'UPDATE_ASSESSMENT',
+      );
+      const current = await tx.technicalAssessmentRiskValuation.findFirst({
+        where: { assessmentId, organizationId },
+        select: { riskMethodVersionId: true },
+      });
+      if (!current)
+        throw new BadRequestException({
+          code: 'RISK_VALUATION_NOT_CONFIGURED',
+          message: 'Esta evaluación histórica no tiene valoración multi-metodología V2.',
+        });
+      const valuation = await this.prepareRiskValuation(
+        organizationId,
+        current.riskMethodVersionId,
+        riskInput,
+        tx,
+      );
+      return tx.technicalAssessmentRiskValuation.update({
+        where: { assessmentId },
+        data: {
+          riskInput: valuation.riskInput,
+          riskResult: valuation.riskResult,
+          calculatedAt: new Date(),
+        },
+      });
+    });
+  }
+
   async complete(organizationId: string, assessmentId: string, userId: string, context: Context) {
     return this.prisma.$transaction(async (tx) => {
       await this.mutationSync.point({
@@ -564,6 +643,7 @@ export class TechnicalAssessmentService {
             responses: { orderBy: { createdAt: 'asc' } },
             reviews: { orderBy: { createdAt: 'desc' }, take: 1 },
             revision: { select: { id: true } },
+            riskValuation: true,
           },
         });
         if (!source) this.notFound();
@@ -605,6 +685,19 @@ export class TechnicalAssessmentService {
                 value: response.value as Prisma.InputJsonValue,
               })),
             },
+            ...(source.riskValuation
+              ? {
+                  riskValuation: {
+                    create: {
+                      organizationId,
+                      riskMethodVersionId: source.riskValuation.riskMethodVersionId,
+                      methodSnapshot: source.riskValuation.methodSnapshot as Prisma.InputJsonValue,
+                      riskInput: source.riskValuation.riskInput as Prisma.InputJsonValue,
+                      riskResult: source.riskValuation.riskResult as Prisma.InputJsonValue,
+                    },
+                  },
+                }
+              : {}),
           },
           include: detailInclude,
         });
@@ -618,6 +711,7 @@ export class TechnicalAssessmentService {
             metadata: {
               revisedFromAssessmentId: source.id,
               methodVersionId: source.methodVersionId,
+              riskMethodVersionId: source.riskValuation?.riskMethodVersionId ?? null,
               evidenceCopied: false,
             },
             ...context,
@@ -664,6 +758,76 @@ export class TechnicalAssessmentService {
       });
     }
     return { workCenterId, workAreaId: area.id };
+  }
+
+  private async prepareRiskValuation(
+    organizationId: string,
+    riskMethodVersionId: string,
+    rawInput: unknown,
+    database: Pick<
+      Prisma.TransactionClient,
+      'riskMethodVersion' | 'organizationRiskMethodPolicyVersion'
+    > = this.prisma,
+  ) {
+    const [method, policy] = await Promise.all([
+      database.riskMethodVersion.findUnique({
+        where: { id: riskMethodVersionId },
+        include: { methodDefinition: true },
+      }),
+      database.organizationRiskMethodPolicyVersion.findFirst({
+        where: { organizationId },
+        orderBy: { version: 'desc' },
+        include: { allowedMethods: true },
+      }),
+    ]);
+    if (
+      !method ||
+      !['GUIDED_5X5', 'GTC45_2010'].includes(method.methodDefinition.methodKey) ||
+      !['CANDIDATE', 'PUBLISHED'].includes(method.publicationStatus)
+    )
+      throw new BadRequestException({
+        code: 'RISK_METHOD_NOT_AVAILABLE',
+        message: 'La metodología seleccionada no está disponible para nuevas evaluaciones.',
+      });
+    const allowedIds = policy?.allowedMethods.map(({ riskMethodVersionId: id }) => id) ?? [
+      '54000000-0000-4000-8000-000000000002',
+      '54000000-0000-4000-8000-000000000003',
+    ];
+    if (!allowedIds.includes(method.id))
+      throw new BadRequestException({
+        code: 'RISK_METHOD_NOT_ALLOWED_BY_ORGANIZATION',
+        message: 'La política de la organización no permite esta metodología.',
+      });
+    const provider = riskMethodProvider(method.calculationProviderKey);
+    if (!provider) throw new Error('RISK_METHOD_PROVIDER_NOT_REGISTERED');
+    let validated: unknown;
+    let calculated: unknown;
+    try {
+      validated = provider.validateInput(rawInput);
+      calculated = provider.calculate(validated as never);
+    } catch (error) {
+      throw new BadRequestException({
+        code: 'INVALID_RISK_METHOD_INPUT',
+        message: error instanceof Error ? error.message : 'Los datos de valoración no son válidos.',
+      });
+    }
+    return {
+      riskMethodVersionId: method.id,
+      methodSnapshot: {
+        id: method.id,
+        methodKey: method.methodDefinition.methodKey,
+        semanticVersion: method.semanticVersion,
+        displayName: method.displayName,
+        calculationProviderKey: method.calculationProviderKey,
+        calculationProviderVersion: method.calculationProviderVersion,
+        inputSchemaVersion: method.inputSchemaVersion,
+        resultSchemaVersion: method.resultSchemaVersion,
+        contentHash: method.contentHash,
+        manifest: method.manifest,
+      } as Prisma.InputJsonValue,
+      riskInput: validated as Prisma.InputJsonValue,
+      riskResult: calculated as Prisma.InputJsonValue,
+    };
   }
 
   private async claimEditableMutation(

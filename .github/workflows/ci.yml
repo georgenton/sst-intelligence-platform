@@ -44,6 +44,8 @@ jobs:
       - run: pnpm test
       - run: pnpm validate:sst-scenarios
       - run: pnpm validate:adaptive-sst
+      - run: pnpm validate:regulatory-pilot
+      - run: pnpm regulatory:review-corpus
       - run: pnpm test:integration
       - run: pnpm build
       - run: pnpm test:reference-sync

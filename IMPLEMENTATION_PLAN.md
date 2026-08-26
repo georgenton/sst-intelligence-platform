@@ -40,12 +40,19 @@
 14. Implementar Regulatory Source y Provision/Requirement Foundation sin contenido legal real.
 15. Implementar Adaptive Regulatory Reasoning & Configuration Engine V1 con hechos, reglas, preguntas,
     sesiones, propuestas y estado actual DEMO versionados.
+16. Ejecutar el piloto regulatorio real controlado MDT-2024-196: procedencia oficial v2, manifiesto
+    editorial, evaluación sombra, importación efímera y paquete de revisión experta, sin publicación.
+17. Implementar Unified Regulatory Evidence Runtime V1: corpus oficial estructurado, artículos
+    inmutables, trazabilidad exacta, biblioteca normativa, revisión experta, orquestación SST,
+    vínculos riesgo-norma y Technical Risk multi-método, sin publicar reglas candidatas.
 
 ## Adaptive SST roadmap
 
 - Completado: plataforma, Inspections, Technical Risk, Applicability y Multi-Company Validation Lab.
 - Completado: Regulatory Source y Regulatory Provision & Requirement Foundation.
-- Actual: Adaptive Regulatory Reasoning & Configuration Engine V1.
+- Completado: Adaptive Regulatory Reasoning & Configuration Engine V1.
+- Completado para auditoría: runtime de evidencia regulatoria y evaluación unificada sobre el piloto.
+- Actual: revisión externa y experta de PR24; cinco reglas reales continúan como drafts pendientes.
 - Pendiente de validación experta: decisiones de Profile V2 y Current State & Evidence Baseline.
 - Después: Gap Assessment, Depth Resolver + Configuration Proposal y Configuration Activation + MOC.
 
@@ -88,7 +95,10 @@ técnica, revisión legal, redacción de reglas, pruebas y aprobación son gates
 - [x] Regulatory Provision & Requirement Foundation V1.
 - [x] Adaptive Regulatory Reasoning & Configuration Engine V1.
 - [x] Product Walkthrough Hardening V1.1: auth lifecycle, correction, verification, recurrence and Work Centers.
-- [ ] Risk Methodology runtime integration (after PR #25 rebase and independent authorization).
+- [x] Risk Methodology Engine V1 production runtime and reference bootstrap.
+- [x] Infraestructura y artefactos candidatos del Controlled Real Regulatory Pilot MDT-2024-196.
+- [x] Unified Regulatory Evidence Runtime V1 y Technical Risk Multi-Method V2 listos para auditoría.
+- [ ] Revisión técnica y jurídica del contenido candidato MDT-2024-196.
 - [ ] Current State & Evidence Baseline V1 (pendiente de validación experta).
 - [ ] Gap Assessment Engine V1.
 - [ ] Depth Resolver y propuesta de configuración.

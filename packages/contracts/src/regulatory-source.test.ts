@@ -30,6 +30,10 @@ it('accepts safe catalog metadata and rejects synthesized applicability fields',
     readyForExtraction: false,
     readyForRules: false,
     supersessionStatus: 'UNVERIFIED_REFERENCE' as const,
+    artifactVerificationStatus: 'REJECTED_UNVERIFIED' as const,
+    textExtractionStatus: 'NOT_APPLICABLE' as const,
+    vigenciaReviewStatus: 'UNKNOWN' as const,
+    articleCatalogAvailable: false,
   };
   expect(regulatorySourceListItemSchema.parse(listItem)).toEqual(listItem);
   expect(() =>
@@ -46,6 +50,10 @@ describe('source detail boundary', () => {
         candidateStatus: 'REJECTED_REFERENCE' as const,
         officialDocumentLocated: false,
         officialUrl: null,
+        officialDocumentSha256: null,
+        officialDocumentRetrievedAt: null,
+        officialDocumentMediaType: null,
+        officialPublicationReference: null,
         publicationDate: null,
         effectiveFrom: null,
         effectiveTo: null,
@@ -54,6 +62,11 @@ describe('source detail boundary', () => {
         readyForRules: false,
         reviewNotes: 'Referencia no verificada.',
         recordedAt: '2026-08-18T00:00:00.000Z',
+        artifactVerificationStatus: 'REJECTED_UNVERIFIED' as const,
+        textExtractionStatus: 'NOT_APPLICABLE' as const,
+        vigenciaReviewStatus: 'UNKNOWN' as const,
+        artifactPageCount: null,
+        artifactVersionKey: null,
       },
       metadataBoundary: 'CATALOG_METADATA_NOT_LEGAL_INTERPRETATION' as const,
     };

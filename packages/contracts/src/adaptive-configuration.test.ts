@@ -199,6 +199,55 @@ describe('adaptive deterministic engine', () => {
     expect(first[0]).toBe('work-center:a:workCenter.workArrangement');
   });
 
+  it('uses pack-boundary question rationale without changing adaptive decisions', () => {
+    const demo = evaluate(baseFacts);
+    const regulatoryPack = structuredClone(DEMO_ADAPTIVE_RULE_PACK);
+    regulatoryPack.isDemo = false;
+    regulatoryPack.regulatory = true;
+    regulatoryPack.targetVersions.forEach((target) => (target.isDemo = false));
+    regulatoryPack.rules.forEach((rule) => {
+      rule.isDemo = false;
+      rule.regulatory = true;
+    });
+    regulatoryPack.groups.forEach((group) => {
+      group.isDemo = false;
+      group.regulatory = true;
+    });
+    const regulatory = evaluateAdaptiveConfiguration({
+      pack: regulatoryPack,
+      scopes: [organization, centerA],
+      facts: baseFacts,
+    });
+
+    expect(demo.outputHash).toBe(
+      'sha256:8e411f16cbb359d3416a5d426b7ecdc9917c828fa34e245fe5b8a1d897326df9',
+    );
+    expect(demo.questions.every(({ whyAsked }) => whyAsked.includes('DEMO'))).toBe(true);
+    expect(
+      demo.questions.every(({ whyAsked }) => !whyAsked.includes('evaluación regulatoria')),
+    ).toBe(true);
+    expect(regulatory.questions.every(({ whyAsked }) => !/demo/i.test(whyAsked))).toBe(true);
+    expect(
+      regulatory.questions.every(
+        ({ whyAsked }) =>
+          whyAsked ===
+          'Esta pregunta es necesaria para completar una evaluación regulatoria del pack seleccionado.',
+      ),
+    ).toBe(true);
+    expect(regulatory.questions.every(({ whyAsked }) => !/candidat|borrador/i.test(whyAsked))).toBe(
+      true,
+    );
+
+    const withoutRationale = (questions: typeof demo.questions) =>
+      questions.map(({ whyAsked: _whyAsked, ...question }) => question);
+    expect(withoutRationale(regulatory.questions)).toEqual(withoutRationale(demo.questions));
+    expect(regulatory.groups).toEqual(demo.groups);
+    expect(regulatory.ruleTraces).toEqual(demo.ruleTraces);
+    expect(regulatory.items).toEqual(demo.items);
+    expect(regulatory.missingFacts).toEqual(demo.missingFacts);
+    expect(regulatory.outputHash).not.toBe(demo.outputHash);
+  });
+
   it('produces a simple office path and a distinct remote branch', () => {
     const office = evaluate([
       ...baseFacts,

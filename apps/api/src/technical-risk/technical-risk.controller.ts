@@ -9,11 +9,13 @@ import { requestMetadata } from '../common/request-context';
 import { OrganizationContext, Roles } from '../organizations/organization-context.decorator';
 import { OrganizationGuard } from '../organizations/organization.guard';
 import { RolesGuard } from '../organizations/roles.guard';
+import { RiskMethodologyService } from '../risk-methodology/risk-methodology.service';
 import {
   CreateTechnicalAssessmentDto,
   CreateTechnicalEvidenceDto,
   ReviewTechnicalAssessmentDto,
   SaveTechnicalResponseDto,
+  SaveTechnicalRiskValuationDto,
   UpdateTechnicalAssessmentDto,
 } from './dto';
 import { TechnicalAssessmentService } from './technical-assessment.service';
@@ -34,7 +36,18 @@ export class TechnicalRiskController {
   constructor(
     private readonly methods: TechnicalMethodService,
     private readonly assessments: TechnicalAssessmentService,
+    private readonly riskMethods: RiskMethodologyService,
   ) {}
+
+  @Get('risk-methods')
+  listRiskMethods() {
+    return this.riskMethods.catalog();
+  }
+
+  @Get('risk-method-policy')
+  riskMethodPolicy(@OrganizationContext() organization: OrgContext) {
+    return this.riskMethods.organizationPolicy(organization.id);
+  }
 
   @Get('methods')
   listMethods(@OrganizationContext() organization: OrgContext) {
@@ -132,6 +145,17 @@ export class TechnicalRiskController {
       body,
       requestMetadata(request),
     );
+  }
+
+  @Put('assessments/:id/risk-valuation')
+  @Roles(...TECHNICAL_ASSESSMENT_WRITE_ROLES)
+  @UseGuards(RolesGuard)
+  saveRiskValuation(
+    @OrganizationContext() organization: OrgContext,
+    @Param('id') id: string,
+    @Body() body: SaveTechnicalRiskValuationDto,
+  ) {
+    return this.assessments.saveRiskValuation(organization.id, id, body.riskInput);
   }
 
   @Post('assessments/:id/complete')

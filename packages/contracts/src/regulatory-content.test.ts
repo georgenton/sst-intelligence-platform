@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applicabilityRuleSchema } from './applicability.js';
+import { regulatoryOfficialTextHash } from './regulatory-evidence.js';
 import {
   REGULATORY_PROVISION_SUMMARY_MAX_LENGTH,
   REGULATORY_REQUIREMENT_DESCRIPTION_MAX_LENGTH,
@@ -32,6 +33,27 @@ const requirement = {
   createdAt: '2026-08-18T00:00:00.000Z',
 };
 
+const unit = {
+  id: '40000000-0000-4000-8000-000000000001',
+  sourceVersionId: provision.sourceVersionId,
+  parentUnitId: null,
+  unitType: 'ARTICLE' as const,
+  identifier: 'ARTICLE_DEMO_A',
+  heading: 'Artículo sintético A',
+  ordinal: 1,
+  officialText: 'Texto oficial sintético para probar trazabilidad exacta.',
+  editorialSummary: null,
+  normalizedTextHash: regulatoryOfficialTextHash(
+    'Texto oficial sintético para probar trazabilidad exacta.',
+  ),
+  pageStart: 1,
+  pageEnd: 1,
+  locator: 'p. 1 · Artículo sintético A',
+  extractionStatus: 'EXTRACTED' as const,
+  reviewStatus: 'TECHNICAL_REVIEW_PENDING' as const,
+  createdAt: '2026-08-18T00:00:00.000Z',
+};
+
 describe('regulatory provision and requirement contracts', () => {
   it('accepts bounded editorial metadata and exact provenance', () => {
     expect(regulatoryProvisionSchema.parse(provision)).toEqual(provision);
@@ -56,6 +78,7 @@ describe('regulatory provision and requirement contracts', () => {
               referenceNumber: 'DEMO-001',
               canonicalTitle: 'Fuente sintética',
             },
+            units: [unit],
           },
         ],
         semanticBoundary: 'STRUCTURED_CANDIDATE_NOT_APPLICABILITY_DECISION',

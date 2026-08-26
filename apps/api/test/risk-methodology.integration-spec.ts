@@ -105,6 +105,97 @@ describe('risk methodology runtime integration', () => {
     );
   });
 
+  it('versions organization method policy and guided criteria with authoritative write roles', async () => {
+    const inherited = await request(app.getHttpServer())
+      .get('/api/v1/risk-methods/organization/policy')
+      .set(authorized())
+      .expect(200);
+    expect(inherited.body).toMatchObject({
+      version: 0,
+      inheritedDefault: true,
+      defaultRiskMethodVersionId: RISK_METHOD_REFERENCE_IDS.versions.GUIDED_5X5,
+    });
+
+    const policyInput = {
+      allowedRiskMethodVersionIds: [
+        RISK_METHOD_REFERENCE_IDS.versions.GUIDED_5X5,
+        RISK_METHOD_REFERENCE_IDS.versions.GTC45_2010,
+      ],
+      defaultRiskMethodVersionId: RISK_METHOD_REFERENCE_IDS.versions.GTC45_2010,
+    };
+    await request(app.getHttpServer())
+      .put('/api/v1/risk-methods/organization/policy')
+      .set(authorized())
+      .send(policyInput)
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.version).toBe(1);
+        expect(body.defaultRiskMethodVersionId).toBe(policyInput.defaultRiskMethodVersionId);
+        expect(body.allowedMethods).toHaveLength(2);
+      });
+
+    const guidance = {
+      probabilityGuidance: [1, 2, 3, 4, 5].map((value) => ({
+        value,
+        label: `Probabilidad ${value}`,
+        help: `Criterio organizacional de probabilidad nivel ${value}.`,
+        cues: [`Indicador verificable P${value}`],
+      })),
+      severityGuidance: [1, 2, 3, 4, 5].map((value) => ({
+        value,
+        label: `Severidad ${value}`,
+        help: `Criterio organizacional de severidad nivel ${value}.`,
+        cues: [`Indicador verificable S${value}`],
+      })),
+      additionalCriteria: ['Documentar la evidencia profesional usada.'],
+    };
+    const savedProfile = await request(app.getHttpServer())
+      .put('/api/v1/risk-methods/organization/guided-5x5-profile')
+      .set(authorized())
+      .send(guidance)
+      .expect(200);
+    expect(savedProfile.body).toMatchObject({
+      version: 1,
+      riskMethodVersionId: RISK_METHOD_REFERENCE_IDS.versions.GUIDED_5X5,
+      guidance,
+    });
+    expect(savedProfile.body.contentHash).toMatch(/^sha256:[0-9a-f]{64}$/);
+
+    const technicianRegistration = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({
+        email: `risk-method-technician-${suffix}@example.test`,
+        displayName: 'Risk Method Technician',
+        password: 'risk-method-technician-password-123',
+      })
+      .expect(201);
+    await prisma.membership.create({
+      data: {
+        organizationId,
+        userId: technicianRegistration.body.user.id as string,
+        role: 'SST_TECHNICIAN',
+      },
+    });
+    const technicianHeaders = {
+      Authorization: `Bearer ${technicianRegistration.body.accessToken as string}`,
+      'x-organization-id': organizationId,
+    };
+    await request(app.getHttpServer())
+      .get('/api/v1/risk-methods/organization/policy')
+      .set(technicianHeaders)
+      .expect(200);
+    await request(app.getHttpServer())
+      .put('/api/v1/risk-methods/organization/policy')
+      .set(technicianHeaders)
+      .send(policyInput)
+      .expect(403);
+    await request(app.getHttpServer())
+      .put('/api/v1/risk-methods/organization/guided-5x5-profile')
+      .set(technicianHeaders)
+      .send(guidance)
+      .expect(403);
+  });
+
   it('binds guided initial and residual valuation to the same exact version', async () => {
     const inspectionId = await createStartedInspection(
       RISK_METHOD_REFERENCE_IDS.versions.GUIDED_5X5,
@@ -135,6 +226,32 @@ describe('risk methodology runtime integration', () => {
       initialScore: 20,
       initialRiskLevel: 'CRITICAL',
     });
+    const regulatoryTarget = await prisma.regulatoryUnit.findFirstOrThrow({
+      where: { reviewStatus: 'VERIFIED', provisions: { some: {} } },
+      include: {
+        provisions: {
+          include: { provision: { include: { requirementSources: true } } },
+          take: 1,
+        },
+      },
+    });
+    const requirementId =
+      regulatoryTarget.provisions[0]?.provision.requirementSources[0]?.requirementId;
+    if (!requirementId) throw new Error('REGULATORY_LINK_REQUIREMENT_FIXTURE_MISSING');
+    await request(app.getHttpServer())
+      .post(`/api/v1/regulatory-risk-links/inspection-findings/${finding.body.id as string}`)
+      .set(authorized())
+      .send({
+        unitId: regulatoryTarget.id,
+        requirementId,
+        provenance: 'USER_REFERENCE',
+        rationale: 'Referencia profesional; no constituye por sí sola una conclusión legal.',
+      })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.organizationId).toBe(organizationId);
+        expect(body.unit.sourceVersion.source.sourceKey).toBeTruthy();
+      });
     await expect(
       prisma.inspection.update({
         where: { id: inspectionId },

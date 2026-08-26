@@ -427,6 +427,14 @@ export class InspectionsService {
             systemicReview: { select: { id: true, status: true } },
           },
         },
+        regulatoryLinks: {
+          where: { organizationId },
+          orderBy: { createdAt: 'asc' },
+          include: {
+            unit: { include: { sourceVersion: { include: { source: true } } } },
+            requirement: true,
+          },
+        },
       },
     });
     if (!finding) throw new NotFoundException('Hallazgo no encontrado.');

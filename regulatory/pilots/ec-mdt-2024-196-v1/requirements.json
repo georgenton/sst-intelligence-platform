@@ -1,0 +1,67 @@
+[
+  {
+    "candidateId": "b2000000-0000-4000-8000-000000000001",
+    "requirementKey": "MDT_2024_196_SST_RESPONSIBLE_REGISTRATION",
+    "title": "Registro del responsable de seguridad y salud en el trabajo",
+    "description": "Interpretación candidata: el empleador registra, notifica o reporta al responsable de seguridad y salud en el trabajo dentro de la plataforma habilitada.",
+    "editorialStatus": "TECHNICAL_REVIEW_PENDING",
+    "scopeHint": "ORGANIZATION",
+    "provisionKeys": ["MDT_2024_196_ART_18", "MDT_2024_196_ART_19"],
+    "relationshipType": "PRIMARY_SOURCE",
+    "dependencyStatus": "DEPENDENCY_REQUIRES_ADDITIONAL_SOURCE",
+    "dependencySourceKeys": ["EC_EXECUTIVE_DECREE_255"],
+    "reviewNotes": "Los artículos sustentan el registro. La designación, perfil y demás condiciones del responsable requieren revisar la fuente adicional."
+  },
+  {
+    "candidateId": "b2000000-0000-4000-8000-000000000002",
+    "requirementKey": "MDT_2024_196_PREVENTION_PLAN_REGISTRATION",
+    "title": "Plan de Prevención de Riesgos Laborales para la banda de 1 a 10 trabajadores",
+    "description": "Interpretación candidata: para la banda de 1 a 10 trabajadores, el empleador elabora, solicita aprobación y registra el Plan de Prevención de Riesgos Laborales.",
+    "editorialStatus": "TECHNICAL_REVIEW_PENDING",
+    "scopeHint": "ORGANIZATION",
+    "provisionKeys": ["MDT_2024_196_ART_18"],
+    "relationshipType": "PRIMARY_SOURCE",
+    "dependencyStatus": "DEPENDENCY_REQUIRES_ADDITIONAL_SOURCE",
+    "dependencySourceKeys": ["EC_EXECUTIVE_DECREE_255"],
+    "reviewNotes": "El artículo sustenta la banda y el registro; contenido, implementación y otras condiciones requieren fuentes adicionales."
+  },
+  {
+    "candidateId": "b2000000-0000-4000-8000-000000000003",
+    "requirementKey": "MDT_2024_196_HYGIENE_SAFETY_REGULATION_REGISTRATION",
+    "title": "Reglamento de higiene y seguridad para la banda de más de 10 trabajadores",
+    "description": "Interpretación candidata: para más de 10 trabajadores, el empleador elabora, solicita aprobación y registra el Reglamento de Higiene y Seguridad.",
+    "editorialStatus": "TECHNICAL_REVIEW_PENDING",
+    "scopeHint": "ORGANIZATION",
+    "provisionKeys": ["MDT_2024_196_ART_19"],
+    "relationshipType": "PRIMARY_SOURCE",
+    "dependencyStatus": "DEPENDENCY_REQUIRES_ADDITIONAL_SOURCE",
+    "dependencySourceKeys": ["EC_EXECUTIVE_DECREE_255", "EC_MDT_2024_196_ANNEX_3"],
+    "reviewNotes": "El artículo sustenta la banda y el registro; estructura, contenido y condiciones técnicas requieren fuentes adicionales."
+  },
+  {
+    "candidateId": "b2000000-0000-4000-8000-000000000004",
+    "requirementKey": "MDT_2024_196_PSYCHOSOCIAL_PROGRAM_REGISTRATION",
+    "title": "Registro del programa de prevención de riesgos psicosociales",
+    "description": "Interpretación candidata: para más de 10 trabajadores, el empleador registra, notifica o reporta el programa de prevención de riesgos psicosociales.",
+    "editorialStatus": "TECHNICAL_REVIEW_PENDING",
+    "scopeHint": "ORGANIZATION",
+    "provisionKeys": ["MDT_2024_196_ART_19"],
+    "relationshipType": "PRIMARY_SOURCE",
+    "dependencyStatus": "DEPENDENCY_REQUIRES_ADDITIONAL_SOURCE",
+    "dependencySourceKeys": ["EC_MDT_PSYCHOSOCIAL_PROGRAM_REFERENCE_PENDING"],
+    "reviewNotes": "El artículo sustenta el registro; diseño, contenido y evidencia del programa requieren localizar y revisar su fuente técnica específica."
+  },
+  {
+    "candidateId": "b2000000-0000-4000-8000-000000000005",
+    "requirementKey": "MDT_2024_196_ANNUAL_TRAINING_PLAN_REGISTRATION",
+    "title": "Registro del plan anual de capacitaciones",
+    "description": "Interpretación candidata: para más de 10 trabajadores, el empleador registra, notifica o reporta el plan anual de capacitaciones.",
+    "editorialStatus": "TECHNICAL_REVIEW_PENDING",
+    "scopeHint": "ORGANIZATION",
+    "provisionKeys": ["MDT_2024_196_ART_19"],
+    "relationshipType": "PRIMARY_SOURCE",
+    "dependencyStatus": "DEPENDENCY_REQUIRES_ADDITIONAL_SOURCE",
+    "dependencySourceKeys": ["ADDITIONAL_TRAINING_REQUIREMENTS_SOURCE_PENDING"],
+    "reviewNotes": "El artículo sustenta el registro; contenido, periodicidad material y evidencia requieren revisión de fuentes adicionales."
+  }
+]

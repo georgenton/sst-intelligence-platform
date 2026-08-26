@@ -1,0 +1,71 @@
+{
+  "corpusKey": "ECUADOR_OFFICIAL_REGULATORY_UNITS_V1",
+  "version": "1.0.0",
+  "generatedFrom": "VERIFIED_OFFICIAL_PDF_TEXT_EXTRACTION",
+  "sources": [
+    {
+      "sourceKey": "EC_CAN_DECISION_584",
+      "file": "ec-can-decision-584.json",
+      "sourceVersionId": "a2000000-0000-4000-8000-000000000018",
+      "expectedUnitCount": 51,
+      "articleCount": 35,
+      "pageCount": 15
+    },
+    {
+      "sourceKey": "EC_CAN_RESOLUTION_957",
+      "file": "ec-can-resolution-957.json",
+      "sourceVersionId": "a2000000-0000-4000-8000-000000000019",
+      "expectedUnitCount": 29,
+      "articleCount": 23,
+      "pageCount": 8
+    },
+    {
+      "sourceKey": "EC_IESS_CD_677",
+      "file": "ec-iess-cd-677.json",
+      "sourceVersionId": "a2000000-0000-4000-8000-000000000025",
+      "expectedUnitCount": 55,
+      "articleCount": 20,
+      "pageCount": 22
+    },
+    {
+      "sourceKey": "EC_IESS_CD_692",
+      "file": "ec-iess-cd-692.json",
+      "sourceVersionId": "a2000000-0000-4000-8000-000000000023",
+      "expectedUnitCount": 7,
+      "articleCount": 1,
+      "pageCount": 5
+    },
+    {
+      "sourceKey": "EC_LABOR_CODE",
+      "file": "ec-labor-code.json",
+      "sourceVersionId": "a2000000-0000-4000-8000-000000000017",
+      "expectedUnitCount": 706,
+      "articleCount": 637,
+      "pageCount": 199
+    },
+    {
+      "sourceKey": "EC_MDT_2024_196",
+      "file": "ec-mdt-2024-196.json",
+      "sourceVersionId": "a2000000-0000-4000-8000-000000000012",
+      "expectedUnitCount": 62,
+      "articleCount": 30,
+      "pageCount": 23
+    },
+    {
+      "sourceKey": "EC_MDT_2024_196_ANNEX_1",
+      "file": "ec-mdt-2024-196-annex-1.json",
+      "sourceVersionId": "a2000000-0000-4000-8000-000000000013",
+      "expectedUnitCount": 1,
+      "articleCount": 0,
+      "pageCount": 8
+    },
+    {
+      "sourceKey": "EC_MDT_2025_122_CONSTRUCTION",
+      "file": "ec-mdt-2025-122-construction.json",
+      "sourceVersionId": "a2000000-0000-4000-8000-000000000021",
+      "expectedUnitCount": 201,
+      "articleCount": 147,
+      "pageCount": 70
+    }
+  ]
+}

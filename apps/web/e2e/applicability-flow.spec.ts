@@ -112,8 +112,48 @@ test('perfil versionado, evaluación explícita y trace de aplicabilidad', async
   ).toBeVisible();
   await expect(page.getByText('DEMO_APPLICABILITY', { exact: true })).toBeHidden();
 
-  await page.getByRole('link', { name: 'Fuentes de referencia' }).click();
-  await expect(page.getByRole('heading', { name: 'Fuentes de referencia' })).toBeVisible();
+  await page.goto('/app/evaluation');
+  await expect(page.getByRole('heading', { name: 'Evaluación SST' })).toBeVisible();
+  await page.getByLabel('Versión del perfil').selectOption({ label: 'Versión 1' });
+  await Promise.all([
+    page.waitForURL(/\/app\/evaluation\/[0-9a-f-]+$/),
+    page.getByRole('button', { name: 'Ejecutar Evaluación SST' }).click(),
+  ]);
+  await expect(page.getByRole('heading', { name: 'Prioridades y fundamento' })).toBeVisible();
+  await expect(page.getByText('Interpretación propuesta').first()).toBeVisible();
+  await expect(page.getByText('Revisión profesional pendiente').first()).toBeVisible();
+  const firstCandidate = page.locator('article.regulatory-source-identity').first();
+  await expect(firstCandidate.getByText('No declarado todavía')).toBeVisible();
+  await expect(firstCandidate.getByText('Sin evidencia registrada')).toBeVisible();
+  const organizationContext = firstCandidate.getByRole('region', {
+    name: 'Estado y evidencia de la organización',
+  });
+  await organizationContext.getByLabel('Estado declarado').selectOption('PARTIALLY_IMPLEMENTED');
+  await organizationContext.getByRole('button', { name: 'Guardar estado declarado' }).click();
+  await expect(firstCandidate.getByText('PARTIALLY_IMPLEMENTED')).toBeVisible();
+  await organizationContext
+    .getByLabel('Nota de evidencia organizacional')
+    .fill('Registro interno sintético para el recorrido E2E.');
+  await organizationContext
+    .getByRole('button', { name: 'Añadir evidencia organizacional' })
+    .click();
+  await expect(firstCandidate.getByText('1 referencia(s) registrada(s)')).toBeVisible();
+  await firstCandidate.getByLabel('Decisión').selectOption('LEGAL_REVIEW_REQUIRED');
+  await firstCandidate
+    .getByLabel('Comentario')
+    .fill('Validar alcance jurídico antes de cualquier publicación.');
+  await firstCandidate.getByRole('button', { name: 'Registrar revisión' }).click();
+  await expect(
+    firstCandidate.getByText('Revisión registrada. La regla no fue publicada.'),
+  ).toBeVisible();
+  await firstCandidate.getByRole('link', { name: 'Ver fundamento normativo' }).click();
+  await expect(page.getByRole('heading', { name: 'Texto oficial' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Interpretación en la plataforma' }),
+  ).toBeVisible();
+
+  await page.goto('/app/applicability/sources');
+  await expect(page.getByRole('heading', { name: 'Biblioteca normativa' })).toBeVisible();
   await expect(page.getByText(/Estar registrada como fuente no significa/)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
@@ -126,7 +166,7 @@ test('perfil versionado, evaluación explícita y trace de aplicabilidad', async
     .locator('article.regulatory-source-card')
     .filter({ hasText: 'C.D. 527' });
   await expect(unverifiedReference.getByText('Referencia no verificada').first()).toBeVisible();
-  await unverifiedReference.getByRole('link', { name: 'Ver metadata' }).click();
+  await unverifiedReference.getByRole('link', { name: 'Abrir documento' }).click();
   await expect(
     page.getByRole('heading', { name: 'C.D. 527 — título no verificado' }),
   ).toBeVisible();
@@ -141,7 +181,31 @@ test('perfil versionado, evaluación explícita y trace de aplicabilidad', async
     true,
   );
   await page.getByRole('link', { name: 'Volver al catálogo' }).click();
-  await expect(page.getByRole('heading', { name: 'Fuentes de referencia' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Biblioteca normativa' })).toBeVisible();
+  await page.getByRole('button', { name: 'Limpiar filtros' }).click();
+  await page.getByLabel('Buscar').fill('MDT-2024-196');
+  await page
+    .locator('a[href="/app/applicability/sources/EC_MDT_2024_196"]')
+    .getByText('Abrir documento', { exact: true })
+    .click();
+  await expect(
+    page.getByRole('heading', { name: 'Acuerdo Ministerial Nro. MDT-2024-196' }),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Contenido y artículos' })).toBeVisible();
+  await page.getByLabel('Buscar en artículos').fill('Artículo 18');
+  const article18 = page.locator('li.regulatory-content-card').filter({ hasText: 'ARTICLE_18' });
+  await article18.getByRole('link', { name: 'Abrir texto oficial' }).click();
+  await expect(page.getByRole('heading', { name: 'ARTICLE_18' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Texto oficial' })).toBeVisible();
+  await expect(page.getByText('Artefacto verificado')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Abrir documento oficial' })).toHaveAttribute(
+    'href',
+    /trabajo\.gob\.ec/,
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Interpretación en la plataforma' }),
+  ).toBeVisible();
+  await page.goto('/app/applicability/sources');
   await page.getByRole('link', { name: 'Requisitos estructurados' }).click();
   await expect(page.getByRole('heading', { name: 'Requisitos estructurados' })).toBeVisible();
   await expect(page.getByText(/No decide si aplica a una organización/)).toBeVisible();

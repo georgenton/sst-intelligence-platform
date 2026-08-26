@@ -19,12 +19,14 @@ import {
   normalizeAdaptiveRuleVersion,
 } from '@sst/contracts';
 import {
+  MDT_2024_196_SOURCE_V2,
   REGULATORY_SOURCE_RECORDED_AT,
   REGULATORY_SOURCE_RELATIONSHIPS_V1,
   REGULATORY_SOURCE_V1,
 } from './regulatory-source-reference-data';
 import { assertPublishedVersionMatches } from '../src/adaptive-configuration/adaptive-reference-integrity';
 import { syncGlobalReferenceData } from '../src/reference-data/risk-methodology-reference-sync';
+import { provisionRegulatoryReviewCorpus } from './regulatory-review-corpus-reference-data';
 
 const prisma = new PrismaClient();
 
@@ -734,6 +736,70 @@ async function main() {
     skipDuplicates: true,
   });
 
+  const sourceV2 = MDT_2024_196_SOURCE_V2;
+  const sourceV2Payload = {
+    candidateStatus: sourceV2.candidateStatus as RegulatoryCandidateStatus,
+    officialDocumentLocated: sourceV2.officialDocumentLocated,
+    officialUrl: sourceV2.officialUrl,
+    officialDocumentSha256: sourceV2.officialDocumentSha256,
+    officialDocumentRetrievedAt: new Date(sourceV2.officialDocumentRetrievedAt),
+    officialDocumentMediaType: sourceV2.officialDocumentMediaType,
+    officialPublicationReference: sourceV2.officialPublicationReference,
+    publicationDate: new Date(sourceV2.publicationDate),
+    effectiveFrom: sourceV2.effectiveFrom,
+    effectiveTo: sourceV2.effectiveTo,
+    supersessionStatus: sourceV2.supersessionStatus as RegulatorySupersessionStatus,
+    readyForExtraction: sourceV2.readyForExtraction,
+    readyForRules: sourceV2.readyForRules,
+    reviewNotes: sourceV2.reviewNotes,
+    recordedAt: new Date(sourceV2.recordedAt),
+  };
+  const existingSourceV2 = await prisma.regulatorySourceVersion.findUnique({
+    where: {
+      sourceId_catalogVersion: {
+        sourceId: sourceIds.get(sourceV2.sourceKey)!,
+        catalogVersion: sourceV2.catalogVersion,
+      },
+    },
+  });
+  if (existingSourceV2) {
+    assertPublishedVersionMatches(
+      `REGULATORY_SOURCE:${sourceV2.sourceKey}:${sourceV2.catalogVersion}`,
+      {
+        candidateStatus: existingSourceV2.candidateStatus,
+        officialDocumentLocated: existingSourceV2.officialDocumentLocated,
+        officialUrl: existingSourceV2.officialUrl,
+        officialDocumentSha256: existingSourceV2.officialDocumentSha256,
+        officialDocumentRetrievedAt: existingSourceV2.officialDocumentRetrievedAt?.toISOString(),
+        officialDocumentMediaType: existingSourceV2.officialDocumentMediaType,
+        officialPublicationReference: existingSourceV2.officialPublicationReference,
+        publicationDate: existingSourceV2.publicationDate?.toISOString(),
+        effectiveFrom: existingSourceV2.effectiveFrom?.toISOString() ?? null,
+        effectiveTo: existingSourceV2.effectiveTo?.toISOString() ?? null,
+        supersessionStatus: existingSourceV2.supersessionStatus,
+        readyForExtraction: existingSourceV2.readyForExtraction,
+        readyForRules: existingSourceV2.readyForRules,
+        reviewNotes: existingSourceV2.reviewNotes,
+        recordedAt: existingSourceV2.recordedAt.toISOString(),
+      },
+      {
+        ...sourceV2Payload,
+        officialDocumentRetrievedAt: sourceV2Payload.officialDocumentRetrievedAt.toISOString(),
+        publicationDate: sourceV2Payload.publicationDate.toISOString(),
+        recordedAt: sourceV2Payload.recordedAt.toISOString(),
+      },
+    );
+  } else {
+    await prisma.regulatorySourceVersion.create({
+      data: {
+        id: sourceV2.id,
+        sourceId: sourceIds.get(sourceV2.sourceKey)!,
+        catalogVersion: sourceV2.catalogVersion,
+        ...sourceV2Payload,
+      },
+    });
+  }
+
   await prisma.regulatorySourceRelationship.createMany({
     data: REGULATORY_SOURCE_RELATIONSHIPS_V1.map((relationship) => ({
       id: relationship.id,
@@ -746,6 +812,8 @@ async function main() {
     })),
     skipDuplicates: true,
   });
+
+  await provisionRegulatoryReviewCorpus(prisma);
 
   await provisionAdaptiveDemoReferenceData();
 }

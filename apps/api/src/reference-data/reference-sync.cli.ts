@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 syncGlobalReferenceData(prisma)
   .then((counts) => {
-    console.log(JSON.stringify({ status: 'ok', riskMethodology: counts }));
+    console.log(JSON.stringify({ status: 'ok', ...counts }));
   })
   .finally(() => prisma.$disconnect())
   .catch((error: unknown) => {

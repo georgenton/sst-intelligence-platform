@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  regulatoryArtifactVerificationStatusSchema,
+  regulatoryTextExtractionStatusSchema,
+  regulatoryVigenciaReviewStatusSchema,
+} from './regulatory-evidence.js';
 
 export const regulatoryDocumentTypeSchema = z.enum([
   'MINISTERIAL_AGREEMENT',
@@ -44,6 +49,10 @@ export const regulatoryRelationshipReviewStatusSchema = z.enum([
 ]);
 
 const nullableDateSchema = z.string().datetime().nullable();
+const nullableSha256Schema = z
+  .string()
+  .regex(/^sha256:[0-9a-f]{64}$/)
+  .nullable();
 
 export const regulatorySourceIdentitySchema = z
   .object({
@@ -62,6 +71,10 @@ export const regulatorySourceVersionSchema = z
     candidateStatus: regulatoryCandidateStatusSchema,
     officialDocumentLocated: z.boolean(),
     officialUrl: z.url().nullable(),
+    officialDocumentSha256: nullableSha256Schema,
+    officialDocumentRetrievedAt: nullableDateSchema,
+    officialDocumentMediaType: z.string().trim().min(1).max(100).nullable(),
+    officialPublicationReference: z.string().trim().min(1).max(500).nullable(),
     publicationDate: nullableDateSchema,
     effectiveFrom: nullableDateSchema,
     effectiveTo: nullableDateSchema,
@@ -70,6 +83,11 @@ export const regulatorySourceVersionSchema = z
     readyForRules: z.boolean(),
     reviewNotes: z.string().nullable(),
     recordedAt: z.string().datetime(),
+    artifactVerificationStatus: regulatoryArtifactVerificationStatusSchema,
+    textExtractionStatus: regulatoryTextExtractionStatusSchema,
+    vigenciaReviewStatus: regulatoryVigenciaReviewStatusSchema,
+    artifactPageCount: z.number().int().positive().nullable(),
+    artifactVersionKey: z.string().trim().min(1).max(160).nullable(),
   })
   .strict();
 
@@ -81,6 +99,10 @@ export const regulatorySourceListItemSchema = regulatorySourceIdentitySchema
     readyForExtraction: z.boolean(),
     readyForRules: z.boolean(),
     supersessionStatus: regulatorySupersessionStatusSchema,
+    artifactVerificationStatus: regulatoryArtifactVerificationStatusSchema,
+    textExtractionStatus: regulatoryTextExtractionStatusSchema,
+    vigenciaReviewStatus: regulatoryVigenciaReviewStatusSchema,
+    articleCatalogAvailable: z.boolean(),
   })
   .strict();
 

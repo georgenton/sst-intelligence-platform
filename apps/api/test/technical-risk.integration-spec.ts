@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import request, { type Test as SuperTestRequest } from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { RISK_METHOD_REFERENCE_IDS } from '../src/risk-methodology/risk-method-reference-data';
 import {
   TECHNICAL_ASSESSMENT_MUTATION_SYNC,
   type TechnicalAssessmentMutationOperation,
@@ -272,8 +273,17 @@ describe('technical risk integration', () => {
         email: `technical-risk-${label}-${suffix}@example.test`,
         displayName: `Responsable ${label}`,
         password: 'technical-risk-password-123',
-      })
-      .expect(201);
+      });
+    if (register.status !== 201) {
+      throw new Error(
+        `TECHNICAL_CONTEXT_REGISTRATION_FAILED:${JSON.stringify({
+          label,
+          status: register.status,
+          code: register.body?.code ?? null,
+          message: register.body?.message ?? null,
+        })}`,
+      );
+    }
     const token = register.body.accessToken as string;
     const organization = await request(app.getHttpServer())
       .post('/api/v1/organizations')
@@ -390,6 +400,25 @@ describe('technical risk integration', () => {
   let mutationRaceContext: Awaited<ReturnType<typeof createMutationRaceContext>>;
   beforeAll(async () => {
     mutationRaceContext = await createMutationRaceContext('mutation-races');
+  });
+
+  it('exposes valuation methods and organization policy through the technical-risk entitlement', async () => {
+    const { context, headers } = mutationRaceContext;
+    const methods = await headers(
+      request(app.getHttpServer()).get('/api/v1/technical-risk/risk-methods'),
+    ).expect(200);
+    expect(methods.body.map(({ methodKey }: { methodKey: string }) => methodKey)).toEqual(
+      expect.arrayContaining(['GUIDED_5X5', 'GTC45_2010']),
+    );
+
+    const policy = await headers(
+      request(app.getHttpServer()).get('/api/v1/technical-risk/risk-method-policy'),
+    ).expect(200);
+    expect(policy.body).toMatchObject({
+      organizationId: context.organizationId,
+      defaultRiskMethodVersionId: RISK_METHOD_REFERENCE_IDS.versions.GUIDED_5X5,
+      inheritedDefault: true,
+    });
   });
 
   it('calculates, persists, reviews and tenant-scopes a versioned assessment', async () => {
@@ -684,6 +713,172 @@ describe('technical risk integration', () => {
       }),
     ).toBe(8);
   }, 60_000);
+
+  it.each([
+    {
+      label: 'Guided 5x5',
+      riskMethodVersionId: RISK_METHOD_REFERENCE_IDS.versions.GUIDED_5X5,
+      riskInput: {
+        probability: 4,
+        severity: 5,
+        severityDimension: 'HUMAN',
+        checkedProbabilityCueKeys: ['FREQUENT_EXPOSURE'],
+        checkedSeverityCueKeys: ['FATALITY_POSSIBLE'],
+        selectionRationale: 'Exposición frecuente con consecuencia humana potencialmente fatal.',
+      },
+      correctedRiskInput: {
+        probability: 2,
+        severity: 4,
+        severityDimension: 'HUMAN',
+        checkedProbabilityCueKeys: ['LIMITED_EXPOSURE'],
+        checkedSeverityCueKeys: ['PERMANENT_IMPAIRMENT'],
+        selectionRationale: 'La corrección documenta exposición limitada y consecuencia muy seria.',
+      },
+      expectedResult: { methodKey: 'GUIDED_5X5', score: 20, level: 'CRITICAL' },
+    },
+    {
+      label: 'GTC45',
+      riskMethodVersionId: RISK_METHOD_REFERENCE_IDS.versions.GTC45_2010,
+      riskInput: {
+        deficiency: 'HIGH',
+        exposure: 4,
+        consequence: 100,
+        professionalRationale: 'La condición sintética exige una valoración conservadora.',
+      },
+      correctedRiskInput: {
+        deficiency: 'MEDIUM',
+        exposure: 2,
+        consequence: 25,
+        professionalRationale: 'La corrección conserva el método y ajusta hechos profesionales.',
+      },
+      expectedResult: { methodKey: 'GTC45_2010', riskValue: 2400, riskLevel: 'I' },
+    },
+  ])(
+    'binds $label to its exact version through professional review and correction history',
+    async ({ label, riskMethodVersionId, riskInput, correctedRiskInput, expectedResult }) => {
+      const context = mutationRaceContext.context;
+      const headers = (call: SuperTestRequest) =>
+        call
+          .set('Authorization', `Bearer ${context.token}`)
+          .set('x-organization-id', context.organizationId);
+      const methods = await headers(
+        request(app.getHttpServer()).get('/api/v1/technical-risk/methods'),
+      ).expect(200);
+      const methodVersionId = methods.body.find(
+        (method: { key: string }) => method.key === 'DEMO_TECHNICAL_RISK',
+      ).id as string;
+      const created = await headers(
+        request(app.getHttpServer()).post('/api/v1/technical-risk/assessments'),
+      )
+        .send({
+          methodVersionId,
+          workCenterId: context.workCenterId,
+          title: `Valoración ${label} ${suffix}`,
+          riskMethodVersionId,
+          riskInput,
+        })
+        .expect(201);
+      const sourceId = created.body.id as string;
+      expect(created.body.riskValuation).toMatchObject({
+        riskMethodVersionId,
+        riskResult: expectedResult,
+      });
+      const regulatoryTarget = await prisma.regulatoryUnit.findFirstOrThrow({
+        where: { reviewStatus: 'VERIFIED', provisions: { some: {} } },
+        include: {
+          provisions: {
+            include: { provision: { include: { requirementSources: true } } },
+            take: 1,
+          },
+        },
+      });
+      const requirementId =
+        regulatoryTarget.provisions[0]?.provision.requirementSources[0]?.requirementId;
+      if (!requirementId) throw new Error('REGULATORY_LINK_REQUIREMENT_FIXTURE_MISSING');
+      await headers(
+        request(app.getHttpServer()).post(
+          `/api/v1/regulatory-risk-links/technical-assessments/${sourceId}`,
+        ),
+      )
+        .send({
+          unitId: regulatoryTarget.id,
+          requirementId,
+          provenance: 'EXPERT_LINK',
+          rationale: 'Referencia profesional separada del resultado de la metodología.',
+        })
+        .expect(201)
+        .expect(({ body }) => {
+          expect(body.organizationId).toBe(context.organizationId);
+          expect(body.unit.sourceVersion.source.sourceKey).toBeTruthy();
+        });
+      await headers(
+        request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${sourceId}/start`),
+      ).expect(201);
+      for (const [questionKey, value] of Object.entries({
+        activityDescription: `Actividad sintética ${label}`,
+        likelihood: 4,
+        consequence: 5,
+      }))
+        await headers(
+          request(app.getHttpServer()).put(
+            `/api/v1/technical-risk/assessments/${sourceId}/responses/${questionKey}`,
+          ),
+        )
+          .send({ value })
+          .expect(200);
+      await headers(
+        request(app.getHttpServer()).post(
+          `/api/v1/technical-risk/assessments/${sourceId}/complete`,
+        ),
+      ).expect(201);
+      await headers(
+        request(app.getHttpServer()).post(`/api/v1/technical-risk/assessments/${sourceId}/review`),
+      )
+        .send({
+          decision: 'NEEDS_REVISION',
+          comment: 'Ajustar la valoración conservando la versión exacta.',
+          selfReviewAcknowledged: true,
+        })
+        .expect(201);
+      const correction = await headers(
+        request(app.getHttpServer()).post(
+          `/api/v1/technical-risk/assessments/${sourceId}/revisions`,
+        ),
+      ).expect(201);
+      expect(correction.body.riskValuation).toMatchObject({
+        riskMethodVersionId,
+        riskInput,
+        riskResult: expectedResult,
+      });
+      const correctionId = correction.body.id as string;
+      await headers(
+        request(app.getHttpServer()).put(
+          `/api/v1/technical-risk/assessments/${correctionId}/risk-valuation`,
+        ),
+      )
+        .send({ riskInput: correctedRiskInput })
+        .expect(200)
+        .expect(({ body }) => expect(body.riskMethodVersionId).toBe(riskMethodVersionId));
+      const [storedSource, storedCorrection] = await Promise.all([
+        prisma.technicalAssessment.findUniqueOrThrow({
+          where: { id: sourceId },
+          include: { riskValuation: true, revision: true },
+        }),
+        prisma.technicalAssessment.findUniqueOrThrow({
+          where: { id: correctionId },
+          include: { riskValuation: true, revisedFrom: true },
+        }),
+      ]);
+      expect(storedSource.riskValuation).toMatchObject({ riskMethodVersionId, riskInput });
+      expect(storedSource.revision?.id).toBe(correctionId);
+      expect(storedCorrection.riskValuation).toMatchObject({
+        riskMethodVersionId,
+        riskInput: correctedRiskInput,
+      });
+      expect(storedCorrection.revisedFrom?.id).toBe(sourceId);
+    },
+    120_000,
+  );
 
   it('enforces validity windows and preserves an explicitly selected method version', async () => {
     const context = await createContext('versions');

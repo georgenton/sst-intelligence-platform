@@ -6,6 +6,10 @@ validation reports remain in `.artifacts/` and are not source documentation.
 ## Adaptive SST
 
 - [Adaptive SST roadmap](product/adaptive-sst-roadmap.md)
+- [Unified Regulatory Evidence Runtime V1](regulatory/unified-regulatory-evidence-runtime-v1.md)
+- [Regulatory Unit Model V1](regulatory/regulatory-unit-model-v1.md)
+- [Article Coverage V1](regulatory/article-coverage-v1.md)
+- [Unified SST Orchestrator V1](architecture/unified-sst-orchestrator-v1.md)
 - [Six-axis architecture](architecture/adaptive-sst-six-axis-model.md)
 - [Applicability Engine V1](domain/applicability-engine-v1.md)
 - [Current State & Evidence Baseline proposal](domain/current-state-evidence-baseline-proposal.md)
@@ -18,6 +22,11 @@ validation reports remain in `.artifacts/` and are not source documentation.
 - [Adaptive Fact Catalog V1](domain/adaptive-fact-catalog-v1.md)
 - [Adaptive Configuration Session V1](domain/adaptive-configuration-session-v1.md)
 - [Adaptive Rule Authoring and Publication V1](regulatory/adaptive-rule-authoring-publication-v1.md)
+- [Controlled Real Regulatory Pilot V1](regulatory/real-regulatory-pilot-v1.md)
+- [Official source verification](regulatory/official-source-verification.md)
+- [Editorial manifest format](regulatory/editorial-manifest-format.md)
+- [Candidate shadow evaluation](regulatory/shadow-evaluation.md)
+- [Anita validation round 2](product/anita-validation-round2-regulatory-pilot.md)
 - [Anita validation findings — round 1](product/anita-validation-findings-round1.md)
 
 ## Architecture and operations

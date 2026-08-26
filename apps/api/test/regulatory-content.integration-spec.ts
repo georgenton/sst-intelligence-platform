@@ -6,6 +6,24 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
+const CORPUS_SOURCE_KEYS = [
+  'EC_MDT_2024_196',
+  'EC_MDT_2024_196_ANNEX_1',
+  'EC_MDT_2024_196_ANNEX_2',
+  'EC_MDT_2024_196_ANNEX_3',
+  'EC_EXECUTIVE_DECREE_255',
+  'EC_MSP_00004_2026_SISAT',
+  'EC_LABOR_CODE',
+  'EC_IESS_CD_513',
+  'EC_IESS_CD_517',
+  'EC_IESS_CD_527_INTERVIEW_REFERENCE',
+  'EC_IESS_CD_677',
+  'EC_IESS_CD_692',
+  'EC_CAN_DECISION_584',
+  'EC_CAN_RESOLUTION_957',
+  'EC_MDT_2025_122_CONSTRUCTION',
+] as const;
+
 describe('regulatory provision and requirement foundation integration', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -57,13 +75,34 @@ describe('regulatory provision and requirement foundation integration', () => {
       .set('x-organization-id', organizationId);
   }
 
-  it('starts with no production provision, requirement or provenance content', async () => {
-    expect(await prisma.regulatoryProvision.count()).toBe(0);
-    expect(await prisma.regulatoryRequirement.count()).toBe(0);
-    expect(await prisma.regulatoryRequirementSource.count()).toBe(0);
-    expect(await prisma.regulatorySource.count()).toBe(11);
-    expect(await prisma.regulatorySourceVersion.count()).toBe(11);
-    expect(await prisma.regulatorySourceRelationship.count()).toBe(1);
+  it('starts with only the pending MDT-2024-196 reference candidates and no published rules', async () => {
+    expect(await prisma.regulatoryProvision.count()).toBe(2);
+    expect(await prisma.regulatoryRequirement.count()).toBe(5);
+    expect(await prisma.regulatoryRequirementSource.count()).toBe(6);
+    expect(
+      await prisma.adaptiveRuleDraft.count({
+        where: { regulatory: true, status: 'TECHNICAL_REVIEW_PENDING' },
+      }),
+    ).toBe(5);
+    expect(await prisma.adaptiveRuleVersion.count({ where: { regulatory: true } })).toBe(0);
+    expect(
+      await prisma.regulatorySource.count({
+        where: { sourceKey: { in: [...CORPUS_SOURCE_KEYS] } },
+      }),
+    ).toBe(15);
+    expect(
+      await prisma.regulatorySourceVersion.count({
+        where: { source: { sourceKey: { in: [...CORPUS_SOURCE_KEYS] } } },
+      }),
+    ).toBe(25);
+    expect(
+      await prisma.regulatorySourceRelationship.count({
+        where: {
+          fromSource: { sourceKey: { in: [...CORPUS_SOURCE_KEYS] } },
+          toSource: { sourceKey: { in: [...CORPUS_SOURCE_KEYS] } },
+        },
+      }),
+    ).toBe(9);
     expect(await prisma.featureDefinition.count({ where: { key: 'module.applicability' } })).toBe(
       0,
     );
@@ -77,9 +116,19 @@ describe('regulatory provision and requirement foundation integration', () => {
 
     const owner = await register('Regulatory Content Owner');
     const organizationId = await createOrganization(owner.token, 'Regulatory Content');
+    const requirements = await authorizedGet(
+      owner.token,
+      organizationId,
+      '/regulatory-requirements',
+    );
+    expect(requirements.body).toHaveLength(5);
     expect(
-      (await authorizedGet(owner.token, organizationId, '/regulatory-requirements')).body,
-    ).toEqual([]);
+      requirements.body.every(
+        (requirement: { editorialStatus: string; provenanceCount: number }) =>
+          requirement.editorialStatus === 'TECHNICAL_REVIEW_PENDING' &&
+          requirement.provenanceCount > 0,
+      ),
+    ).toBe(true);
     expect(
       (
         await authorizedGet(

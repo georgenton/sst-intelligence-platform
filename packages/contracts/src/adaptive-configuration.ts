@@ -680,6 +680,18 @@ function factCanAffectRules(fact: AdaptiveFactVersionContract) {
   return fact.collectionMode !== 'CONTEXT_ONLY';
 }
 
+function buildAdaptiveWhyAsked(input: {
+  groupTitles: string[];
+  isDemo: boolean;
+  regulatory: boolean;
+}) {
+  if (input.isDemo && !input.regulatory)
+    return `Ayuda a resolver ${input.groupTitles.join(', ')} dentro de esta propuesta DEMO.`;
+  if (!input.isDemo && input.regulatory)
+    return 'Esta pregunta es necesaria para completar una evaluación regulatoria del pack seleccionado.';
+  throw new Error('Invalid adaptive pack boundary');
+}
+
 export function validateAdaptivePack(
   packInput: AdaptiveRulePackContract,
 ): AdaptiveRulePackContract {
@@ -919,7 +931,11 @@ export function evaluateAdaptiveConfiguration(input: {
     valueType: need.fact.valueType,
     unknownAllowed: need.fact.unknownAllowed,
     choices: need.fact.choices,
-    whyAsked: `Ayuda a resolver ${[...need.groups].sort().join(', ')} dentro de esta propuesta DEMO.`,
+    whyAsked: buildAdaptiveWhyAsked({
+      groupTitles: [...need.groups].sort(),
+      isDemo: pack.isDemo,
+      regulatory: pack.regulatory,
+    }),
     relatedRuleKeys: [...need.rules].sort(),
     relatedTargetKeys: [...need.targets].sort(),
     groupPriority: need.priority,
@@ -990,7 +1006,7 @@ export const DEMO_ADAPTIVE_FACT_VERSIONS: AdaptiveFactVersionContract[] = [
     'ORGANIZATION',
     'INTEGER',
     '¿Cuántas personas trabajan en total?',
-    { collectionMode: 'DERIVED_ONLY', min: 1, max: 10_000_000, priority: 3 },
+    { collectionMode: 'DERIVED_OR_USER', min: 1, max: 10_000_000, priority: 3 },
   ),
   fact(
     'organization.workCenterCount',

@@ -16,6 +16,12 @@ export class CreateTechnicalAssessmentDto {
   @IsOptional() @IsUUID() workAreaId?: string;
   @IsString() @Length(3, 160) title!: string;
   @IsOptional() @IsString() @Length(0, 2000) description?: string;
+  @IsOptional() @IsUUID() riskMethodVersionId?: string;
+  @IsOptional() @Allow() riskInput?: unknown;
+}
+
+export class SaveTechnicalRiskValuationDto {
+  @Allow() riskInput!: unknown;
 }
 
 export class UpdateTechnicalAssessmentDto {

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { EntitlementGuard } from '../catalog/entitlement.guard';
 import { OrganizationGuard } from '../organizations/organization.guard';
 import { RolesGuard } from '../organizations/roles.guard';
+import { RiskMethodologyModule } from '../risk-methodology/risk-methodology.module';
 import { TechnicalAssessmentService } from './technical-assessment.service';
 import {
   NoopTechnicalAssessmentMutationSync,
@@ -12,6 +13,7 @@ import { TechnicalMethodService } from './technical-method.service';
 import { TechnicalRiskController } from './technical-risk.controller';
 
 @Module({
+  imports: [RiskMethodologyModule],
   controllers: [TechnicalRiskController],
   providers: [
     TechnicalMethodService,

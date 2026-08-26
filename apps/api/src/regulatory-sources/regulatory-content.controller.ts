@@ -29,6 +29,12 @@ export class RegulatoryContentController {
     return this.regulatorySources.getProvision(provisionId);
   }
 
+  @Get('regulatory-units/:unitId')
+  @ApiOperation({ summary: 'Obtiene el texto oficial de una unidad regulatoria versionada.' })
+  unit(@Param('unitId', new ParseUUIDPipe()) unitId: string) {
+    return this.regulatorySources.getUnit(unitId);
+  }
+
   @Get('regulatory-requirements')
   @ApiOperation({ summary: 'Lista candidatos de requisito globales y revisados humanamente.' })
   @ApiOkResponse({ description: 'Catálogo editorial; no expresa aplicabilidad u obligación.' })

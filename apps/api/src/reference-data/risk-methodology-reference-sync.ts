@@ -14,6 +14,7 @@ import {
   RISK_METHOD_REFERENCE_IDS,
   RISK_METHOD_REGULATORY_CONTEXT_MANIFESTS,
 } from '../risk-methodology/risk-method-reference-data';
+import { syncRegulatoryEvidenceReferences } from './regulatory-evidence-reference-sync';
 
 type JsonValue = Prisma.InputJsonValue;
 
@@ -454,7 +455,8 @@ export function syncGlobalReferenceData(prisma: PrismaClient) {
         "SELECT pg_advisory_xact_lock(hashtext('sst-global-reference-sync-v1'))",
       );
       await syncRiskMethodologyReferences(transaction);
-      return referenceCounts(transaction);
+      const regulatory = await syncRegulatoryEvidenceReferences(transaction);
+      return { riskMethodology: await referenceCounts(transaction), regulatory };
     },
     {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,

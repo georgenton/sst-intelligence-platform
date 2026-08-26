@@ -38,7 +38,7 @@ pre-deploy, so Nest cannot start with a partially synchronized required catalog.
 
 ## Scope and exclusions
 
-The synchronizer owns only these globally required Risk Methodology aggregates:
+The synchronizer owns these globally required Risk Methodology aggregates:
 
 - `MethodologySource` and `MethodologySourceVersion`;
 - `RiskMethodDefinition` and `RiskMethodVersion`;
@@ -46,18 +46,24 @@ The synchronizer owns only these globally required Risk Methodology aggregates:
 - `RiskMethodExpertGuidanceVersion`;
 - `RiskMethodRegulatoryContext`.
 
+It also owns the reviewed global regulatory reference layer: 15 source identities, immutable latest
+source versions, verified `RegulatoryUnit` records, the MDT-2024-196 provision/requirement
+candidates and five unpublished rule drafts. Pending/rejected artifacts never become verified
+units.
+
 It materializes the approved `DEMO_5X5`, `GUIDED_5X5` and `GTC45_2010` identities. It does not
 create or update users, memberships, organizations, work centers, demo activations, inspections,
-findings, actions, assessments, Solution Finder sessions, real regulatory provisions,
-requirements, rules or packs.
+findings, actions, assessments or Solution Finder sessions. Regulatory sync does not publish a
+rule/pack and creates no customer operational data.
 
 ## Atomicity, idempotency and drift
 
 The operation validates manifest schemas and hashes before writes, acquires a PostgreSQL
 transaction-scoped advisory lock, and executes in one serializable transaction. Existing stable
-UUID/version identities are compared with canonical content. A mismatch raises
-`RISK_METHOD_REFERENCE_DRIFT` and rolls back instead of overwriting. Repeated successful execution
-performs no update and produces no semantic or timestamp churn.
+UUID/version identities are compared with canonical content. A mismatch raises a Risk Methodology
+or Regulatory Evidence drift error and rolls back instead of overwriting. Repeated successful
+execution performs no update and produces no semantic or timestamp churn. Verified article
+identity/text/hash drift always fails; a changed instrument requires a new version.
 
 The general Prisma seed remains available for CI/development and calls this same production-safe
 layer before its broader development reference setup. Production never calls the general seed.

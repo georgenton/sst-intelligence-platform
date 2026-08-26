@@ -6,7 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
-const INITIAL_SOURCE_KEYS = [
+const CORPUS_SOURCE_KEYS = [
   'EC_MDT_2024_196',
   'EC_MDT_2024_196_ANNEX_1',
   'EC_MDT_2024_196_ANNEX_2',
@@ -18,6 +18,10 @@ const INITIAL_SOURCE_KEYS = [
   'EC_IESS_CD_517',
   'EC_IESS_CD_527_INTERVIEW_REFERENCE',
   'EC_IESS_CD_677',
+  'EC_IESS_CD_692',
+  'EC_CAN_DECISION_584',
+  'EC_CAN_RESOLUTION_957',
+  'EC_MDT_2025_122_CONSTRUCTION',
 ] as const;
 
 const BASELINE_PLAN_FEATURES = {
@@ -119,20 +123,45 @@ describe('regulatory source foundation integration', () => {
       .set('x-organization-id', organizationId);
   }
 
-  it('provisions exactly the 11 candidates with conservative safety metadata', async () => {
+  it('provisions exactly the 15 review-corpus sources with conservative safety metadata', async () => {
     const sources = await prisma.regulatorySource.findMany({
-      where: { sourceKey: { in: [...INITIAL_SOURCE_KEYS] } },
+      where: { sourceKey: { in: [...CORPUS_SOURCE_KEYS] } },
       include: { versions: { orderBy: { catalogVersion: 'asc' } } },
       orderBy: { sourceKey: 'asc' },
     });
-    expect(sources).toHaveLength(11);
+    expect(sources).toHaveLength(15);
     expect(sources.map((source) => source.sourceKey).sort()).toEqual(
-      [...INITIAL_SOURCE_KEYS].sort(),
+      [...CORPUS_SOURCE_KEYS].sort(),
     );
-    expect(sources.every((source) => source.versions.length === 1)).toBe(true);
+    const singleVersionKeys = new Set([
+      'EC_CAN_DECISION_584',
+      'EC_CAN_RESOLUTION_957',
+      'EC_IESS_CD_527_INTERVIEW_REFERENCE',
+      'EC_IESS_CD_692',
+      'EC_MDT_2025_122_CONSTRUCTION',
+    ]);
+    expect(
+      sources.every(
+        (source) => source.versions.length === (singleVersionKeys.has(source.sourceKey) ? 1 : 2),
+      ),
+    ).toBe(true);
     expect(
       sources.flatMap((source) => source.versions).every((version) => !version.readyForRules),
     ).toBe(true);
+
+    const pilotSource = sources.find((source) => source.sourceKey === 'EC_MDT_2024_196');
+    expect(pilotSource?.versions[1]).toMatchObject({
+      catalogVersion: 2,
+      candidateStatus: 'APPROVED_FOR_EXTRACTION',
+      officialDocumentLocated: true,
+      officialDocumentSha256:
+        'sha256:4fe2da2ddf2b730c0c9e56e321d5a817f94b98d6d9f9e02bb97c18f2cc47473d',
+      officialDocumentMediaType: 'application/pdf',
+      officialPublicationReference:
+        'Cuarto Suplemento al Registro Oficial No. 691, 26 de noviembre de 2024',
+      readyForExtraction: true,
+      readyForRules: false,
+    });
 
     const rejected = sources.find(
       (source) => source.sourceKey === 'EC_IESS_CD_527_INTERVIEW_REFERENCE',
@@ -154,7 +183,51 @@ describe('regulatory source foundation integration', () => {
         },
       },
     });
-    expect(relationship.reviewStatus).toBe('PENDING_REVIEW');
+    expect(relationship.reviewStatus).toBe('CONFIRMED');
+
+    expect(
+      sources.find((source) => source.sourceKey === 'EC_IESS_CD_517')?.versions[1],
+    ).toMatchObject({
+      artifactVerificationStatus: 'OFFICIAL_ARTIFACT_VERIFIED',
+      vigenciaReviewStatus: 'REPEALED',
+    });
+
+    const amendment = await prisma.regulatorySourceRelationship.findUniqueOrThrow({
+      where: {
+        fromSourceId_toSourceId_relationshipType: {
+          fromSourceId: sources.find((source) => source.sourceKey === 'EC_IESS_CD_692')!.id,
+          toSourceId: sources.find((source) => source.sourceKey === 'EC_IESS_CD_513')!.id,
+          relationshipType: 'POSSIBLE_AMENDMENT',
+        },
+      },
+    });
+    expect(amendment.reviewStatus).toBe('CONFIRMED');
+    expect(
+      sources.find((source) => source.sourceKey === 'EC_MDT_2025_122_CONSTRUCTION')?.versions[0],
+    ).toMatchObject({
+      candidateStatus: 'APPROVED_FOR_EXTRACTION',
+      officialDocumentSha256:
+        'sha256:5a91139893f97fdd2214b471563cdd47d8f539c1773c90520319d51c0284e5f0',
+      readyForExtraction: true,
+      readyForRules: false,
+    });
+    const unstructuredCorpusSourceKeys = CORPUS_SOURCE_KEYS.filter(
+      (sourceKey) => sourceKey !== 'EC_MDT_2024_196',
+    );
+    expect(
+      await prisma.regulatoryProvision.count({
+        where: { sourceVersion: { source: { sourceKey: { in: unstructuredCorpusSourceKeys } } } },
+      }),
+    ).toBe(0);
+    expect(
+      await prisma.regulatoryRequirementSource.count({
+        where: {
+          provision: {
+            sourceVersion: { source: { sourceKey: { in: unstructuredCorpusSourceKeys } } },
+          },
+        },
+      }),
+    ).toBe(0);
   });
 
   it('preserves the exact baseline commercial feature and plan assignment matrix', async () => {
@@ -205,9 +278,9 @@ describe('regulatory source foundation integration', () => {
     expect(listA.body).toEqual(listB.body);
     expect(
       listA.body.filter((source: { sourceKey: string }) =>
-        INITIAL_SOURCE_KEYS.includes(source.sourceKey as (typeof INITIAL_SOURCE_KEYS)[number]),
+        CORPUS_SOURCE_KEYS.includes(source.sourceKey as (typeof CORPUS_SOURCE_KEYS)[number]),
       ),
-    ).toHaveLength(11);
+    ).toHaveLength(15);
     expect(listA.body[0]).not.toHaveProperty('organizationId');
     expect(listA.body[0]).not.toHaveProperty('legalStatus');
     expect(listA.body[0]).not.toHaveProperty('isApplicable');
@@ -265,7 +338,7 @@ describe('regulatory source foundation integration', () => {
     expect(relationships.body).toEqual([
       expect.objectContaining({
         relationshipType: 'POSSIBLE_SUPERSESSION',
-        reviewStatus: 'PENDING_REVIEW',
+        reviewStatus: 'CONFIRMED',
         fromSource: expect.objectContaining({ sourceKey: 'EC_IESS_CD_517' }),
         toSource: expect.objectContaining({ sourceKey: 'EC_IESS_CD_677' }),
       }),
@@ -288,6 +361,55 @@ describe('regulatory source foundation integration', () => {
       .set('Authorization', `Bearer ${owner.token}`)
       .set('x-organization-id', organizationId)
       .expect(404);
+  });
+
+  it('serves searchable, immutable official articles separately from platform interpretations', async () => {
+    const owner = await register('Regulatory Article Owner');
+    const organizationId = await createOrganization(owner.token, 'Regulatory Articles');
+
+    const articles = await get(
+      owner.token,
+      organizationId,
+      '/EC_MDT_2024_196/units?q=registro&unitType=ARTICLE',
+    ).expect(200);
+    expect(articles.body).toMatchObject({
+      sourceKey: 'EC_MDT_2024_196',
+      version: {
+        artifactVerificationStatus: 'OFFICIAL_ARTIFACT_VERIFIED',
+        textExtractionStatus: 'COMPLETE',
+      },
+      structuralBoundary: 'STRUCTURAL_COVERAGE_NOT_LEGAL_COMPLETENESS_SCORE',
+    });
+    expect(articles.body.items.length).toBeGreaterThan(0);
+    const article = articles.body.items.find(
+      (item: { identifier: string }) => item.identifier === 'ARTICLE_18',
+    );
+    expect(article).toMatchObject({
+      unitType: 'ARTICLE',
+      identifier: 'ARTICLE_18',
+      reviewStatus: 'VERIFIED',
+    });
+    expect(article.officialText).toContain('Artículo 18');
+    expect(article.normalizedTextHash).toMatch(/^sha256:[0-9a-f]{64}$/);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/regulatory-units/${article.id as string}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    expect(detail.body).toMatchObject({
+      unit: { id: article.id, officialText: article.officialText },
+      source: { sourceKey: 'EC_MDT_2024_196' },
+      textBoundary: 'OFFICIAL_TEXT_SEPARATE_FROM_PLATFORM_INTERPRETATION',
+    });
+    expect(detail.body).toHaveProperty('interpretations');
+
+    await expect(
+      prisma.regulatoryUnit.update({
+        where: { id: article.id as string },
+        data: { officialText: 'Sobrescritura prohibida.' },
+      }),
+    ).rejects.toThrow();
   });
 
   it('keeps source keys and versions immutable while selecting the latest snapshot', async () => {

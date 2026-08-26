@@ -1,0 +1,85 @@
+{
+  "packKey": "MDT_2024_196_ARTICLES_18_19_SHADOW",
+  "version": "1.0.0",
+  "engineSchemaVersion": "1.0.0",
+  "name": "MDT-2024-196 artículos 18–19 — evaluación sombra",
+  "isDemo": false,
+  "regulatory": true,
+  "disclaimer": "Interpretación regulatoria candidata. Requiere revisión profesional y no constituye todavía una regla publicada del sistema.",
+  "factKeys": ["organization.country", "organization.totalWorkerCount"],
+  "targetVersions": [
+    {
+      "targetKey": "SST_RESPONSIBLE_REGISTRATION",
+      "version": "1.0.0",
+      "title": "Registro del responsable de SST",
+      "description": "Candidato editorial para revisar el registro del responsable de seguridad y salud en el trabajo.",
+      "category": "DOCUMENTATION",
+      "currentStateQuestion": "¿La organización dispone del respaldo vigente del registro del responsable de SST?",
+      "evidenceSuggestions": ["DOCUMENT", "RECORD"],
+      "isDemo": false
+    },
+    {
+      "targetKey": "PREVENTION_PLAN_REGISTRATION",
+      "version": "1.0.0",
+      "title": "Plan de Prevención de Riesgos Laborales",
+      "description": "Candidato editorial para revisar la aprobación y el registro del plan en la banda de 1 a 10 trabajadores.",
+      "category": "DOCUMENTATION",
+      "currentStateQuestion": "¿La organización dispone del plan aprobado y de su respaldo de registro?",
+      "evidenceSuggestions": ["DOCUMENT", "RECORD"],
+      "isDemo": false
+    },
+    {
+      "targetKey": "HYGIENE_SAFETY_REGULATION_REGISTRATION",
+      "version": "1.0.0",
+      "title": "Reglamento de Higiene y Seguridad",
+      "description": "Candidato editorial para revisar la aprobación y el registro del reglamento en la banda de más de 10 trabajadores.",
+      "category": "DOCUMENTATION",
+      "currentStateQuestion": "¿La organización dispone del reglamento aprobado y de su respaldo de registro?",
+      "evidenceSuggestions": ["DOCUMENT", "RECORD"],
+      "isDemo": false
+    },
+    {
+      "targetKey": "PSYCHOSOCIAL_PROGRAM_REGISTRATION",
+      "version": "1.0.0",
+      "title": "Programa de prevención de riesgos psicosociales",
+      "description": "Candidato editorial para revisar el registro del programa en la banda de más de 10 trabajadores.",
+      "category": "DOCUMENTATION",
+      "currentStateQuestion": "¿La organización dispone del programa y de su respaldo de registro?",
+      "evidenceSuggestions": ["DOCUMENT", "RECORD"],
+      "isDemo": false
+    },
+    {
+      "targetKey": "ANNUAL_TRAINING_PLAN_REGISTRATION",
+      "version": "1.0.0",
+      "title": "Plan anual de capacitaciones",
+      "description": "Candidato editorial para revisar el registro del plan anual en la banda de más de 10 trabajadores.",
+      "category": "TRAINING",
+      "currentStateQuestion": "¿La organización dispone del plan anual y de su respaldo de registro?",
+      "evidenceSuggestions": ["DOCUMENT", "RECORD", "TRAINING"],
+      "isDemo": false
+    }
+  ],
+  "group": {
+    "groupKey": "MDT_2024_196_WORKER_BANDS",
+    "version": "1.0.0",
+    "title": "Banda general de trabajadores MDT-2024-196",
+    "priority": 1,
+    "scopeMode": "ORGANIZATION",
+    "activation": {
+      "kind": "PREDICATE",
+      "factKey": "organization.country",
+      "factScope": "ORGANIZATION",
+      "operator": "EQUALS",
+      "value": "EC"
+    },
+    "ruleKeys": [
+      "MDT_2024_196_SST_RESPONSIBLE_REGISTRATION_RULE",
+      "MDT_2024_196_PREVENTION_PLAN_1_TO_10_RULE",
+      "MDT_2024_196_HYGIENE_SAFETY_REGULATION_GT_10_RULE",
+      "MDT_2024_196_PSYCHOSOCIAL_PROGRAM_GT_10_RULE",
+      "MDT_2024_196_ANNUAL_TRAINING_PLAN_GT_10_RULE"
+    ],
+    "isDemo": false,
+    "regulatory": true
+  }
+}
