@@ -29,7 +29,8 @@ definition, technical review, legal review, rule tests and explicit approval.
 
 ### Current
 
-- Controlled Real Regulatory Pilot — MDT-2024-196
+- External and expert review of Unified Regulatory Evidence Runtime V1 on PR24
+- Five MDT-2024-196 real rule drafts remain unpublished and pending approval
 
 ### Pending expert validation
 
@@ -44,6 +45,15 @@ definition, technical review, legal review, rule tests and explicit approval.
 - First real regulatory RuleVersion
 - First real regulatory PackVersion
 - Runtime pilot with a synthetic organization
+
+### Delivered for review in Unified Regulatory Evidence Runtime V1
+
+- Fifteen-source official/reference catalog with explicit artifact and vigencia classification
+- Complete structured units for eight verified text-extractable artifacts
+- Exact Article → Provision → Requirement → RuleDraft trace
+- Authenticated Regulatory Library and controlled expert workspace
+- Tenant-private Unified SST Evaluation snapshots, state, evidence and risk references
+- Technical Risk Guided 5×5/GTC45 exact-version integration and organization policy
 
 ### Future regulatory track
 
