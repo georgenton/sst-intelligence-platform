@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, parse, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
@@ -10,22 +10,20 @@ import {
   type RegulatoryPilotManifestBundle,
 } from '@sst/contracts';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  assertRegulatoryRuntimeResources,
+  REGULATORY_PILOT_DIRECTORY,
+} from '../reference-data/regulatory-resource-path';
 import type { AddUnifiedOrganizationEvidenceDto, ReviewRegulatoryInterpretationDto } from './dto';
-
-const PILOT_DIRECTORY = 'regulatory/pilots/ec-mdt-2024-196-v1';
 
 function regulatoryCountryCode(country: string) {
   const normalized = country.trim().toUpperCase();
   return normalized === 'ECUADOR' || normalized === 'EC' ? 'EC' : country.trim();
 }
 
-function loadPilot(start = process.cwd()) {
-  let root = resolve(start);
-  const filesystemRoot = parse(root).root;
-  while (root !== filesystemRoot && !existsSync(resolve(root, PILOT_DIRECTORY, 'manifest.json')))
-    root = dirname(root);
-  if (root === filesystemRoot) throw new Error('REGULATORY_PILOT_RUNTIME_DATA_NOT_FOUND');
-  const directory = resolve(root, PILOT_DIRECTORY);
+function loadPilot() {
+  assertRegulatoryRuntimeResources();
+  const directory = REGULATORY_PILOT_DIRECTORY;
   const read = (file: string) =>
     JSON.parse(readFileSync(resolve(directory, file), 'utf8')) as unknown;
   return validateRegulatoryPilotManifest({

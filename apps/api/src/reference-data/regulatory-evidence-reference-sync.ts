@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, parse, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   Prisma,
   type PrismaClient,
@@ -19,12 +19,14 @@ import {
   type RegulatoryReviewCorpusBundle,
   type RegulatoryUnitRecord,
 } from '@sst/contracts';
+import {
+  assertRegulatoryRuntimeResources,
+  REGULATORY_EVIDENCE_DIRECTORY,
+  REGULATORY_PILOT_DIRECTORY,
+  REGULATORY_REVIEW_CORPUS_DIRECTORY,
+} from './regulatory-resource-path';
 
 type DatabaseClient = Prisma.TransactionClient | PrismaClient;
-
-const CORPUS_DIRECTORY = 'regulatory/corpus/ecuador-sst-review-v1';
-const EVIDENCE_DIRECTORY = 'regulatory/evidence/ecuador-official-units-v1';
-const PILOT_DIRECTORY = 'regulatory/pilots/ec-mdt-2024-196-v1';
 
 const COMPLETE_TEXT_SOURCES = new Set([
   'EC_CAN_DECISION_584',
@@ -57,21 +59,6 @@ const ARTIFACT_PAGE_COUNTS: Record<string, number> = {
   EC_MDT_2025_122_CONSTRUCTION: 70,
 };
 
-function repositoryRoot(start = process.cwd()) {
-  let current = resolve(start);
-  const root = parse(current).root;
-  while (current !== root) {
-    if (
-      existsSync(resolve(current, CORPUS_DIRECTORY, 'corpus.json')) &&
-      existsSync(resolve(current, EVIDENCE_DIRECTORY, 'index.json')) &&
-      existsSync(resolve(current, PILOT_DIRECTORY, 'manifest.json'))
-    )
-      return current;
-    current = dirname(current);
-  }
-  throw new Error('REGULATORY_EVIDENCE_REPOSITORY_ROOT_NOT_FOUND');
-}
-
 function readJson(path: string) {
   return JSON.parse(readFileSync(path, 'utf8')) as unknown;
 }
@@ -84,8 +71,8 @@ function omitKeys<T extends object, K extends keyof T>(value: T, keys: readonly 
   >;
 }
 
-function loadCorpus(root: string) {
-  const directory = resolve(root, CORPUS_DIRECTORY);
+function loadCorpus() {
+  const directory = REGULATORY_REVIEW_CORPUS_DIRECTORY;
   const index = readJson(
     resolve(directory, 'corpus.json'),
   ) as RegulatoryReviewCorpusBundle['index'];
@@ -97,8 +84,8 @@ function loadCorpus(root: string) {
   } as RegulatoryReviewCorpusBundle);
 }
 
-function loadPilot(root: string) {
-  const directory = resolve(root, PILOT_DIRECTORY);
+function loadPilot() {
+  const directory = REGULATORY_PILOT_DIRECTORY;
   const read = (name: string) => readJson(resolve(directory, name));
   return validateRegulatoryPilotManifest({
     index: read('manifest.json'),
@@ -283,8 +270,8 @@ type EvidenceFile = {
   units: RegulatoryUnitRecord[];
 };
 
-function loadEvidence(root: string) {
-  const directory = resolve(root, EVIDENCE_DIRECTORY);
+function loadEvidence() {
+  const directory = REGULATORY_EVIDENCE_DIRECTORY;
   const index = readJson(resolve(directory, 'index.json')) as {
     corpusKey: string;
     version: string;
@@ -527,10 +514,10 @@ async function syncPilot(database: DatabaseClient, pilot: RegulatoryPilotManifes
 }
 
 export async function syncRegulatoryEvidenceReferences(database: DatabaseClient) {
-  const root = repositoryRoot();
-  const corpus = loadCorpus(root);
-  const evidence = loadEvidence(root);
-  const pilot = loadPilot(root);
+  assertRegulatoryRuntimeResources();
+  const corpus = loadCorpus();
+  const evidence = loadEvidence();
+  const pilot = loadPilot();
   await syncCorpus(database, corpus);
   await syncUnits(database, evidence);
   await syncPilot(database, pilot);
