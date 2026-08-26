@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, parse, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   Prisma,
   type PrismaClient,
@@ -11,25 +11,18 @@ import {
 } from '@prisma/client';
 import { validateRegulatoryReviewCorpus, type RegulatoryReviewCorpusBundle } from '@sst/contracts';
 import { assertPublishedVersionMatches } from '../src/adaptive-configuration/adaptive-reference-integrity';
-
-const CORPUS_DIRECTORY = 'regulatory/corpus/ecuador-sst-review-v1';
-
-function repositoryRoot(start = process.cwd()) {
-  let current = resolve(start);
-  const root = parse(current).root;
-  while (current !== root) {
-    if (existsSync(resolve(current, CORPUS_DIRECTORY, 'corpus.json'))) return current;
-    current = dirname(current);
-  }
-  throw new Error('REGULATORY_REVIEW_CORPUS_REPOSITORY_ROOT_NOT_FOUND');
-}
+import {
+  assertRegulatoryRuntimeResources,
+  REGULATORY_REVIEW_CORPUS_DIRECTORY,
+} from '../src/reference-data/regulatory-resource-path';
 
 function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, 'utf8'));
 }
 
-export function loadRegulatoryReviewCorpusReferenceData(start = process.cwd()) {
-  const directory = resolve(repositoryRoot(start), CORPUS_DIRECTORY);
+export function loadRegulatoryReviewCorpusReferenceData() {
+  assertRegulatoryRuntimeResources();
+  const directory = REGULATORY_REVIEW_CORPUS_DIRECTORY;
   const index = readJson(
     resolve(directory, 'corpus.json'),
   ) as RegulatoryReviewCorpusBundle['index'];

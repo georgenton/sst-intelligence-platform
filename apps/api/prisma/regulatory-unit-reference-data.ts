@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, parse, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import {
   adaptiveContentHash,
@@ -7,8 +7,10 @@ import {
   regulatoryUnitRecordSchema,
   type RegulatoryUnitRecord,
 } from '@sst/contracts';
-
-const EVIDENCE_DIRECTORY = 'regulatory/evidence/ecuador-official-units-v1';
+import {
+  assertRegulatoryRuntimeResources,
+  REGULATORY_EVIDENCE_DIRECTORY,
+} from '../src/reference-data/regulatory-resource-path';
 
 type DatabaseClient = Prisma.TransactionClient | PrismaClient;
 
@@ -23,18 +25,9 @@ type RegulatoryUnitEvidenceFile = {
   units: RegulatoryUnitRecord[];
 };
 
-function repositoryRoot(start = process.cwd()) {
-  let current = resolve(start);
-  const root = parse(current).root;
-  while (current !== root) {
-    if (existsSync(resolve(current, EVIDENCE_DIRECTORY, 'index.json'))) return current;
-    current = dirname(current);
-  }
-  throw new Error('REGULATORY_UNIT_EVIDENCE_REPOSITORY_ROOT_NOT_FOUND');
-}
-
-export function loadRegulatoryUnitReferenceData(start = process.cwd()) {
-  const directory = resolve(repositoryRoot(start), EVIDENCE_DIRECTORY);
+export function loadRegulatoryUnitReferenceData() {
+  assertRegulatoryRuntimeResources();
+  const directory = REGULATORY_EVIDENCE_DIRECTORY;
   const index = JSON.parse(readFileSync(resolve(directory, 'index.json'), 'utf8')) as {
     corpusKey: string;
     version: string;

@@ -32,6 +32,7 @@
     "db:reference:sync": "dotenv -- pnpm --filter @sst/api reference:sync",
     "db:reset": "dotenv -- pnpm --filter @sst/api prisma:reset",
     "test:reference-sync": "dotenv -- pnpm --filter @sst/api test:reference-sync",
+    "test:runtime-image": "dotenv -- pnpm --filter @sst/api test:runtime-image",
     "prepare": "husky"
   },
   "lint-staged": {

@@ -1,13 +1,15 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, parse, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import {
   adaptiveContentHash,
   validateRegulatoryPilotManifest,
   type RegulatoryPilotManifestBundle,
 } from '@sst/contracts';
-
-const PILOT_DIRECTORY = 'regulatory/pilots/ec-mdt-2024-196-v1';
+import {
+  assertRegulatoryRuntimeResources,
+  REGULATORY_PILOT_DIRECTORY,
+} from '../src/reference-data/regulatory-resource-path';
 
 export function assertRegulatoryEditorialImportAllowed(
   environment: NodeJS.ProcessEnv,
@@ -28,18 +30,9 @@ export function assertRegulatoryEditorialImportAllowed(
     throw new Error('REGULATORY_IMPORT_EXPLICIT_EPHEMERAL_GUARD_REQUIRED');
 }
 
-function repositoryRoot(start = process.cwd()) {
-  let current = resolve(start);
-  const root = parse(current).root;
-  while (current !== root) {
-    if (existsSync(resolve(current, PILOT_DIRECTORY, 'manifest.json'))) return current;
-    current = dirname(current);
-  }
-  throw new Error('REGULATORY_PILOT_REPOSITORY_ROOT_NOT_FOUND');
-}
-
-export function loadRegulatoryPilotImportManifest(start = process.cwd()) {
-  const directory = resolve(repositoryRoot(start), PILOT_DIRECTORY);
+export function loadRegulatoryPilotImportManifest() {
+  assertRegulatoryRuntimeResources();
+  const directory = REGULATORY_PILOT_DIRECTORY;
   const read = (name: string) => JSON.parse(readFileSync(resolve(directory, name), 'utf8'));
   return validateRegulatoryPilotManifest({
     index: read('manifest.json'),
