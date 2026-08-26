@@ -25,9 +25,12 @@ RegulatorySource (global)
 ```
 
 La versión V1 estructura ocho artefactos con extracción completa: 1.112 unidades, de las cuales 893
-son artículos. El catálogo conserva 15 identidades de fuente; 13 artefactos están verificados y dos
-permanecen pendientes. Las fuentes pendientes o rechazadas nunca se sincronizan como texto
-verificado.
+son artículos. El catálogo conserva 15 identidades de fuente: 13 artefactos están verificados, una
+identidad conserva solo una referencia oficial sin artefacto y una referencia de entrevista está
+rechazada/no verificada. No hay artefactos clasificados como `ARTIFACT_PENDING`. La cobertura
+estructural del 100 % aplica únicamente a las ocho versiones estructuradas; cinco artefactos
+verificados todavía no tienen unidades. Las referencias sin artefacto o rechazadas nunca se
+sincronizan como texto verificado.
 
 ## Runtime
 

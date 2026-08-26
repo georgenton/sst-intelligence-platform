@@ -18,12 +18,20 @@ revisión por hash; no se asume la misma versión.
 
 - 15 fuentes globales revisadas.
 - 13 artefactos oficiales verificados.
-- 2 pendientes: referencias sin artefacto completo verificable para estructuración.
-- Ocho artefactos tienen extracción estructural completa y unidades sincronizadas.
+- 1 referencia oficial sin artefacto (`EC_MSP_00004_2026_SISAT`).
+- 0 artefactos pendientes de clasificación.
+- 1 referencia rechazada/no verificada (`EC_IESS_CD_527_INTERVIEW_REFERENCE`).
+- Ocho versiones de fuente tienen extracción estructural completa y unidades sincronizadas.
 - Decreto Ejecutivo 255 y Anexo 2 están verificados como artefactos, pero sus PDFs escaneados
   permanecen pendientes de extracción completa; no se inventó OCR ni texto.
+- C.D. 513, C.D. 517 y Anexo 3 también conservan artefactos verificados sin unidades estructuradas
+  en este runtime. En total, cinco de los trece artefactos verificados siguen sin estructuración.
 - La referencia de entrevista C.D. 527 permanece rechazada/no verificada.
 - SISAT conserva referencia oficial; no se presenta un artefacto inexistente como verificado.
 
 Una relación de reforma, derogación o sustitución solo se registra con evidencia documental. La
-mera cronología no produce inferencias de vigencia.
+mera cronología no produce inferencias de vigencia. La relación C.D. 517 → C.D. 677 está confirmada
+por la Disposición Derogatoria Única de C.D. 677 y C.D. 517 se conserva con estado `REPEALED`. La
+relación C.D. 692 → C.D. 513 está confirmada por el artículo 1 de C.D. 692. La relación normativa
+entre Decisión CAN 584 y Resolución CAN 957 también está confirmada; su vigencia corriente permanece
+`PENDING_REVIEW` mientras no se complete una revisión integral de actualidad.

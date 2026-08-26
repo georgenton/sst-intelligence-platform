@@ -80,8 +80,8 @@ describe('Ecuador SST multi-source review corpus', () => {
       ),
     ).toMatchObject({
       toSourceKey: 'EC_IESS_CD_677',
-      reviewStatus: 'PENDING_REVIEW',
-      dependencyState: 'RELATION_REVIEW_REQUIRED',
+      reviewStatus: 'CONFIRMED',
+      dependencyState: 'SUPERSESSION_CONFIRMED',
     });
   });
 

@@ -5,9 +5,9 @@
       "fromSourceKey": "EC_IESS_CD_517",
       "toSourceKey": "EC_IESS_CD_677",
       "relationshipType": "POSSIBLE_SUPERSESSION",
-      "reviewStatus": "PENDING_REVIEW",
-      "dependencyState": "RELATION_REVIEW_REQUIRED",
-      "notes": "Relación pendiente de revisión formal; no establece cuál documento controla."
+      "reviewStatus": "CONFIRMED",
+      "dependencyState": "SUPERSESSION_CONFIRMED",
+      "notes": "La Disposición Derogatoria Única de la Resolución IESS C.D. 677 deroga expresamente el Reglamento General de Responsabilidad Patronal contenido en la Resolución C.D. 517. C.D. 677 entra en vigencia desde su aprobación el 2 de octubre de 2024, sin perjuicio de su publicación en el Registro Oficial."
     },
     {
       "id": "a3000000-0000-4000-8000-000000000002",

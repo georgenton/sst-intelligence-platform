@@ -19,7 +19,7 @@
   "officialPublicationReference": "Resolución C.D. 517, 30 de marzo de 2016, repositorio oficial IESS",
   "publicationDate": "2016-03-30",
   "supersessionStatus": "RELATION_REVIEW_REQUIRED",
-  "currentnessNote": "La relación completa con C.D. 677 permanece pendiente de revisión formal para la demostración.",
+  "currentnessNote": "La Disposición Derogatoria Única de C.D. 677 deroga expresamente el Reglamento General de Responsabilidad Patronal contenido en C.D. 517; esta fuente se conserva como registro histórico.",
   "readyForExtraction": true,
   "readyForRules": false,
   "structuredContentStatus": "NOT_STRUCTURED",
@@ -27,6 +27,6 @@
   "reviewPriority": "SOCIAL_SECURITY",
   "expertNotes": "PENDING",
   "legalReview": "PENDING",
-  "reviewNotes": "Se conserva como identidad histórica separada; no se declara automáticamente supersesión completa.",
+  "reviewNotes": "La derogación por C.D. 677 está confirmada por el artefacto oficial IESS. C.D. 517 se conserva como identidad y versión histórica, no como texto vigente.",
   "recordedAt": "2026-08-21T18:20:01.000Z"
 }

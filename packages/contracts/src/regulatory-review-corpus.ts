@@ -113,6 +113,7 @@ export const regulatoryCorpusRelationshipSchema = z
       'RELATED_SOURCE',
       'INTERPRETATION_REQUIRES_SOURCE',
       'AMENDMENT_CONFIRMED',
+      'SUPERSESSION_CONFIRMED',
       'RELATION_REVIEW_REQUIRED',
     ]),
     notes: z.string().trim().min(1).max(1000),
@@ -261,8 +262,8 @@ export function validateRegulatoryReviewCorpus(input: RegulatoryReviewCorpusBund
       fromSourceKey === 'EC_IESS_CD_517' && toSourceKey === 'EC_IESS_CD_677',
   );
   if (
-    supersession?.reviewStatus !== 'PENDING_REVIEW' ||
-    supersession.dependencyState !== 'RELATION_REVIEW_REQUIRED'
+    supersession?.reviewStatus !== 'CONFIRMED' ||
+    supersession.dependencyState !== 'SUPERSESSION_CONFIRMED'
   )
     throw new Error('CORPUS_CD_517_CD_677_REVIEW_GATE_INVALID');
   const expectedHash = regulatoryReviewCorpusMaterialHash({

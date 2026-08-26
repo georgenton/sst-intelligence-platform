@@ -169,9 +169,9 @@ Allowed review states are `DISCOVERED`, `OFFICIAL_DOCUMENT_LOCATED`,
 - officialUrl: https://www.iess.gob.ec/es/resoluciones?_110_INSTANCE_Pl7m_fileEntryId=6949406
 - publicationDate: `null — no verificada como publicación oficial`
 - effectiveFrom: `null — revisión pendiente`
-- effectiveTo: `null — revisión pendiente`
-- supersessionStatus: `POSSIBLY_SUPERSEDED_BY_CD_677_FORMAL_REVIEW_REQUIRED`
-- reviewNotes: Documento histórico oficial localizado. C.D. 677 contiene una cláusula derogatoria referida a C.D. 517; alcance y fechas requieren revisión legal formal.
+- effectiveTo: `null — la fecha no está materializada en este snapshot`
+- supersessionStatus: `REPEALED_BY_CD_677_CONFIRMED`
+- reviewNotes: Documento histórico oficial localizado. La Disposición Derogatoria Única de C.D. 677 deroga expresamente el Reglamento General de Responsabilidad Patronal contenido en C.D. 517.
 - readyForExtraction: `false`
 - readyForRules: `false`
 
@@ -206,8 +206,8 @@ Allowed review states are `DISCOVERED`, `OFFICIAL_DOCUMENT_LOCATED`,
 - publicationDate: `null — publicación en Registro Oficial no verificada`
 - effectiveFrom: `2024-10-02 — aprobación indicada por el documento; confirmar efecto legal`
 - effectiveTo: `null — revisión pendiente`
-- supersessionStatus: `RELATION_TO_CD_517_IDENTIFIED_FORMAL_REVIEW_REQUIRED`
-- reviewNotes: Documento oficial y comunicación del IESS lo identifican como Reglamento General de Responsabilidad Patronal. El propio PDF refiere la derogación de C.D. 517; se exige revisión legal de vigencia, transición y publicación.
+- supersessionStatus: `REPEALS_CD_517_CONFIRMED`
+- reviewNotes: Documento oficial y comunicación del IESS lo identifican como Reglamento General de Responsabilidad Patronal. Su Disposición Derogatoria Única deroga expresamente el reglamento contenido en C.D. 517. La revisión integral de vigencia de C.D. 677 permanece pendiente.
 - readyForExtraction: `false`
 - readyForRules: `false`
 
@@ -216,8 +216,9 @@ Allowed review states are `DISCOVERED`, `OFFICIAL_DOCUMENT_LOCATED`,
 `C.D. 517`, `C.D. 527` and `C.D. 677` remain separate records. C.D. 517 is an official historical
 document; C.D. 527 is only an unverified interview/user reference; C.D. 677 is an official document
 and official IESS communication identifies it as the Reglamento General de Responsabilidad Patronal.
-Although C.D. 677 contains an express reference to derogating C.D. 517, formal legal review must fix
-publication, effective date, transition and supersession before extraction or rules. All three remain
+C.D. 677 expressly repeals the regulation contained in C.D. 517; that exact relationship is
+confirmed while the broader currentness review of C.D. 677 remains pending. Formal legal review must
+still establish any transition and later legal effects before rules. All three remain
 `readyForRules=false`.
 
 ## Controlled future source-to-rule pipeline

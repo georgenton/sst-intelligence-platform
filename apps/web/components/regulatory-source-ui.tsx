@@ -27,9 +27,9 @@ import {
   regulatoryCandidateStatusLabels,
   regulatoryDocumentTypeLabels,
   regulatoryRelationshipReviewStatusLabels,
-  regulatoryRelationshipTypeLabels,
+  regulatoryRelationshipLabel,
   regulatorySourceQueryString,
-  regulatorySupersessionStatusLabels,
+  regulatoryVigenciaReviewStatusLabels,
   type RegulatorySourceFilters,
 } from '@/lib/regulatory-source-experience';
 import { queryKeys } from '@/lib/query-keys';
@@ -316,8 +316,8 @@ export function RegulatorySourceCatalog() {
                       <dd>{source.officialDocumentLocated ? 'Localizado' : 'No localizado'}</dd>
                     </div>
                     <div>
-                      <dt>Relación</dt>
-                      <dd>{regulatorySupersessionStatusLabels[source.supersessionStatus]}</dd>
+                      <dt>Vigencia</dt>
+                      <dd>{regulatoryVigenciaReviewStatusLabels[source.vigenciaReviewStatus]}</dd>
                     </div>
                   </dl>
                   <div className="regulatory-source-card__footer">
@@ -554,11 +554,11 @@ export function RegulatorySourceDetailView({ sourceKey }: { sourceKey: string })
                   </dd>
                 </div>
                 <div>
-                  <dt>Revisión de relación</dt>
+                  <dt>Vigencia</dt>
                   <dd>
                     {
-                      regulatorySupersessionStatusLabels[
-                        detail.data.latestVersion.supersessionStatus
+                      regulatoryVigenciaReviewStatusLabels[
+                        detail.data.latestVersion.vigenciaReviewStatus
                       ]
                     }
                   </dd>
@@ -691,7 +691,10 @@ export function RegulatorySourceDetailView({ sourceKey }: { sourceKey: string })
                       key={`${relationship.fromSource.sourceKey}-${relationship.toSource.sourceKey}-${relationship.relationshipType}`}
                     >
                       <strong>
-                        {regulatoryRelationshipTypeLabels[relationship.relationshipType]}
+                        {regulatoryRelationshipLabel(
+                          relationship.relationshipType,
+                          relationship.reviewStatus,
+                        )}
                       </strong>
                       <p>
                         {relationship.fromSource.referenceNumber} →{' '}

@@ -130,11 +130,13 @@ function evidenceClassification(source: RegulatoryReviewCorpusBundle['sources'][
           ? ('PENDING' as const)
           : ('NOT_APPLICABLE' as const),
     vigenciaReviewStatus:
-      source.sourceKey === 'EC_IESS_CD_513'
-        ? ('PARTIALLY_AMENDED' as const)
-        : artifactVerificationStatus === 'REJECTED_UNVERIFIED'
-          ? ('UNKNOWN' as const)
-          : ('PENDING_REVIEW' as const),
+      source.sourceKey === 'EC_IESS_CD_517'
+        ? ('REPEALED' as const)
+        : source.sourceKey === 'EC_IESS_CD_513'
+          ? ('PARTIALLY_AMENDED' as const)
+          : artifactVerificationStatus === 'REJECTED_UNVERIFIED'
+            ? ('UNKNOWN' as const)
+            : ('PENDING_REVIEW' as const),
     artifactPageCount: ARTIFACT_PAGE_COUNTS[source.sourceKey] ?? null,
     artifactVersionKey: source.officialDocumentSha256
       ? `${source.sourceKey}:v${source.latestCatalogVersion}:${source.officialDocumentSha256}`
@@ -539,7 +541,15 @@ export async function syncRegulatoryEvidenceReferences(database: DatabaseClient)
       ({ verificationStatus }) => verificationStatus === 'VERIFIED_OFFICIAL_ARTIFACT',
     ).length,
     pendingArtifacts: corpus.sources.filter(
-      ({ verificationStatus }) => verificationStatus !== 'VERIFIED_OFFICIAL_ARTIFACT',
+      ({ verificationStatus }) => verificationStatus === 'BLOCKED',
+    ).length,
+    officialReferenceOnly: corpus.sources.filter(
+      ({ verificationStatus }) =>
+        verificationStatus === 'VERIFIED_OFFICIAL_REFERENCE' ||
+        verificationStatus === 'OFFICIAL_REFERENCE_ONLY',
+    ).length,
+    rejectedUnverified: corpus.sources.filter(
+      ({ verificationStatus }) => verificationStatus === 'UNVERIFIED_REFERENCE',
     ).length,
     units: evidence.reduce((sum, file) => sum + file.units.length, 0),
     articles: evidence.reduce(
@@ -547,6 +557,10 @@ export async function syncRegulatoryEvidenceReferences(database: DatabaseClient)
       0,
     ),
     structuralCoveragePercent: 100,
+    structuralCoverageScope: 'STRUCTURED_DOCUMENTS_ONLY',
+    structuredSourceVersions: evidence.length,
+    fullyStructuredSourceVersions: evidence.length,
+    wholeCorpusStructurallyComplete: false,
     requirements: pilot.requirements.length,
     ruleDrafts: pilot.ruleDrafts.length,
     publishedRules: 0,

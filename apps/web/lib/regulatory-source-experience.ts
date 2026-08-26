@@ -3,6 +3,7 @@ import type {
   RegulatoryDocumentType,
   RegulatoryRelationshipReviewStatus,
   RegulatoryRelationshipType,
+  RegulatorySourceListItem,
   RegulatorySupersessionStatus,
 } from '@sst/contracts';
 
@@ -54,6 +55,30 @@ export const regulatoryRelationshipReviewStatusLabels: Record<
   CONFIRMED: 'Relación revisada',
   REJECTED: 'Relación descartada',
 };
+
+export const regulatoryVigenciaReviewStatusLabels: Record<
+  RegulatorySourceListItem['vigenciaReviewStatus'],
+  string
+> = {
+  CURRENT_VERIFIED: 'Vigencia verificada',
+  AMENDED: 'Reformada',
+  PARTIALLY_AMENDED: 'Parcialmente reformada',
+  REPEALED: 'Derogada',
+  SUPERSEDED: 'Sustituida',
+  PENDING_REVIEW: 'Vigencia pendiente de revisión',
+  UNKNOWN: 'Vigencia desconocida',
+};
+
+export function regulatoryRelationshipLabel(
+  relationshipType: RegulatoryRelationshipType,
+  reviewStatus: RegulatoryRelationshipReviewStatus,
+) {
+  if (relationshipType === 'POSSIBLE_SUPERSESSION' && reviewStatus === 'CONFIRMED')
+    return 'Derogación o sucesión confirmada';
+  if (relationshipType === 'POSSIBLE_AMENDMENT' && reviewStatus === 'CONFIRMED')
+    return 'Reforma confirmada';
+  return regulatoryRelationshipTypeLabels[relationshipType];
+}
 
 export type RegulatorySourceFilters = {
   q: string;

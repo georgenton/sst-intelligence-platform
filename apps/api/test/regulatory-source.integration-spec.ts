@@ -183,7 +183,14 @@ describe('regulatory source foundation integration', () => {
         },
       },
     });
-    expect(relationship.reviewStatus).toBe('PENDING_REVIEW');
+    expect(relationship.reviewStatus).toBe('CONFIRMED');
+
+    expect(
+      sources.find((source) => source.sourceKey === 'EC_IESS_CD_517')?.versions[1],
+    ).toMatchObject({
+      artifactVerificationStatus: 'OFFICIAL_ARTIFACT_VERIFIED',
+      vigenciaReviewStatus: 'REPEALED',
+    });
 
     const amendment = await prisma.regulatorySourceRelationship.findUniqueOrThrow({
       where: {
@@ -331,7 +338,7 @@ describe('regulatory source foundation integration', () => {
     expect(relationships.body).toEqual([
       expect.objectContaining({
         relationshipType: 'POSSIBLE_SUPERSESSION',
-        reviewStatus: 'PENDING_REVIEW',
+        reviewStatus: 'CONFIRMED',
         fromSource: expect.objectContaining({ sourceKey: 'EC_IESS_CD_517' }),
         toSource: expect.objectContaining({ sourceKey: 'EC_IESS_CD_677' }),
       }),

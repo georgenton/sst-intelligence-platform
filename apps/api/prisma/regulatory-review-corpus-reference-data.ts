@@ -107,11 +107,13 @@ function evidenceClassification(source: RegulatoryReviewCorpusBundle['sources'][
     artifactVerificationStatus,
     textExtractionStatus,
     vigenciaReviewStatus:
-      source.sourceKey === 'EC_IESS_CD_513'
-        ? ('PARTIALLY_AMENDED' as const)
-        : artifactVerificationStatus === 'REJECTED_UNVERIFIED'
-          ? ('UNKNOWN' as const)
-          : ('PENDING_REVIEW' as const),
+      source.sourceKey === 'EC_IESS_CD_517'
+        ? ('REPEALED' as const)
+        : source.sourceKey === 'EC_IESS_CD_513'
+          ? ('PARTIALLY_AMENDED' as const)
+          : artifactVerificationStatus === 'REJECTED_UNVERIFIED'
+            ? ('UNKNOWN' as const)
+            : ('PENDING_REVIEW' as const),
     artifactPageCount: ARTIFACT_PAGE_COUNTS[source.sourceKey] ?? null,
     artifactVersionKey: source.officialDocumentSha256
       ? `${source.sourceKey}:v${source.latestCatalogVersion}:${source.officialDocumentSha256}`

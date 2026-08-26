@@ -19,7 +19,7 @@
   "officialPublicationReference": "Resolución C.D. 677, aprobada el 2 de octubre de 2024, repositorio oficial IESS",
   "publicationDate": "2024-10-02",
   "supersessionStatus": "RELATION_REVIEW_REQUIRED",
-  "currentnessNote": "El documento contiene referencia derogatoria a C.D. 517, pero alcance, transición y efecto requieren revisión formal.",
+  "currentnessNote": "La Disposición Derogatoria Única deroga expresamente el Reglamento contenido en C.D. 517 y la disposición final segunda fija vigencia desde la aprobación del 2 de octubre de 2024. Cambios posteriores permanecen sujetos a revisión.",
   "readyForExtraction": true,
   "readyForRules": false,
   "structuredContentStatus": "NOT_STRUCTURED",
@@ -27,6 +27,6 @@
   "reviewPriority": "SOCIAL_SECURITY",
   "expertNotes": "PENDING",
   "legalReview": "PENDING",
-  "reviewNotes": "Se conserva separada de C.D. 517 y sin conclusión automática de supersesión en el corpus.",
+  "reviewNotes": "La derogación expresa de C.D. 517 está confirmada con el artefacto oficial. La revisión de reformas o derogaciones posteriores de C.D. 677 permanece pendiente.",
   "recordedAt": "2026-08-21T18:20:01.000Z"
 }

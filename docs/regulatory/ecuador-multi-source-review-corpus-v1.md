@@ -18,17 +18,17 @@ review depth.
 | ---------------------------- | ----------------------------------- | --------------------------------- | ---------- | ----- |
 | MDT-2024-196                 | Official reference verified         | Official PDF fingerprint verified | Ready      | No    |
 | MDT-2024-196 Annex 1         | Official reference verified         | Official PDF fingerprint verified | Ready      | No    |
-| MDT-2024-196 Annex 2         | Official reference verified         | Exact artifact pending            | No         | No    |
-| MDT-2024-196 Annex 3         | Official reference verified         | Official PDF fingerprint verified | Ready      | No    |
-| Executive Decree 255         | Official reference verified         | Exact artifact pending            | No         | No    |
+| MDT-2024-196 Annex 2         | Official artifact verified          | Official PDF fingerprint verified | Pending    | No    |
+| MDT-2024-196 Annex 3         | Official artifact verified          | Official PDF fingerprint verified | Pending    | No    |
+| Executive Decree 255         | Official artifact verified          | Official PDF fingerprint verified | Pending    | No    |
 | Labor Code                   | Official reference verified         | Official PDF fingerprint verified | Ready      | No    |
 | CAN Decision 584             | Official reference verified         | Official PDF fingerprint verified | Ready      | No    |
 | CAN Resolution 957           | Official reference verified         | Official PDF fingerprint verified | Ready      | No    |
-| MSP 00004-2026 SISAT         | Official publication reference only | Exact artifact pending            | No         | No    |
+| MSP 00004-2026 SISAT         | Official publication reference only | Exact artifact unavailable        | No         | No    |
 | MDT-2025-122 Construction    | Official reference verified         | Official PDF fingerprint verified | Ready      | No    |
-| IESS C.D. 513                | Official reference verified         | Official PDF fingerprint verified | Ready      | No    |
+| IESS C.D. 513                | Official artifact verified          | Official PDF fingerprint verified | Pending    | No    |
 | IESS C.D. 692                | Official reference verified         | Official PDF fingerprint verified | Ready      | No    |
-| IESS C.D. 517                | Official reference verified         | Official PDF fingerprint verified | Ready      | No    |
+| IESS C.D. 517                | Official artifact verified          | Official PDF fingerprint verified | Pending    | No    |
 | IESS C.D. 677                | Official reference verified         | Official PDF fingerprint verified | Ready      | No    |
 | C.D. 527 interview reference | Unverified reference                | Not located                       | No         | No    |
 
@@ -48,10 +48,11 @@ C.D. 692 to C.D. 513 is recorded through the closest existing model: `POSSIBLE_A
 confirmed review status and an explicit note that C.D. 692 reforms article 46. No consolidated legal
 text is synthesized.
 
-C.D. 517 and C.D. 677 stay separate. Their relationship remains pending formal review in the corpus
-even though the C.D. 677 artifact contains a derogatory reference. This demo does not decide the
-complete legal effect, transition or current controlling text. The C.D. 527 interview reference stays
-visible as rejected provenance and cannot be extracted or used for rules.
+C.D. 517 and C.D. 677 stay separate. Their relationship is confirmed because the Disposición
+Derogatoria Única of C.D. 677 expressly repeals the regulation contained in C.D. 517. C.D. 517 is
+retained as historical and `REPEALED`; the broader currentness of C.D. 677 stays pending. The C.D.
+527 interview reference stays visible as rejected provenance and cannot be extracted or used for
+rules.
 
 ## Structured-content boundary
 

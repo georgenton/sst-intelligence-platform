@@ -5,8 +5,10 @@ import { fileURLToPath, URL } from 'node:url';
 import {
   REGULATORY_SOURCE_BOUNDARY_COPY,
   regulatoryCandidateStatusLabels,
+  regulatoryRelationshipLabel,
   regulatorySourceQueryString,
   regulatorySupersessionStatusLabels,
+  regulatoryVigenciaReviewStatusLabels,
 } from '../lib/regulatory-source-experience.ts';
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -20,6 +22,11 @@ test('catalog filters serialize deterministically without tenant identity', () =
       candidateStatus: 'TECHNICAL_REVIEW_PENDING',
     }),
     '?issuer=Ministerio+del+Trabajo&documentType=ANNEX&candidateStatus=TECHNICAL_REVIEW_PENDING',
+  );
+  assert.equal(regulatoryVigenciaReviewStatusLabels.REPEALED, 'Derogada');
+  assert.equal(
+    regulatoryRelationshipLabel('POSSIBLE_SUPERSESSION', 'CONFIRMED'),
+    'Derogación o sucesión confirmada',
   );
   assert.equal(
     regulatorySourceQueryString({ q: '', issuer: '', documentType: '', candidateStatus: '' }),
