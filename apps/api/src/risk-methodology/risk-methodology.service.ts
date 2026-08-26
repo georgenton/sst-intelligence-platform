@@ -1,13 +1,17 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma, RiskMethodVersion } from '@prisma/client';
 import {
+  adaptiveContentHash,
   GTC45_CONSEQUENCE_OPTIONS,
   GTC45_DEFICIENCY_OPTIONS,
   GTC45_EXPOSURE_OPTIONS,
   GUIDED_5X5_HUMAN_SEVERITY_CRITERIA,
   GUIDED_5X5_PROBABILITY_CRITERIA,
+  guided5x5OrganizationProfileInputSchema,
+  organizationRiskMethodPolicyInputSchema,
 } from '@sst/contracts';
 import { PrismaService } from '../prisma/prisma.service';
+import { RISK_METHOD_REFERENCE_IDS } from './risk-method-reference-data';
 import { riskMethodProvider } from './risk-method-provider.registry';
 
 type JsonRecord = Record<string, unknown>;
@@ -54,6 +58,127 @@ export class RiskMethodologyService {
     const version = versions.find(({ id }) => id === versionId);
     if (!version) throw new NotFoundException('Metodología de valoración no disponible.');
     return version;
+  }
+
+  async organizationPolicy(organizationId: string) {
+    const policy = await this.prisma.organizationRiskMethodPolicyVersion.findFirst({
+      where: { organizationId },
+      orderBy: { version: 'desc' },
+      include: {
+        allowedMethods: {
+          include: { riskMethodVersion: { include: { methodDefinition: true } } },
+          orderBy: { riskMethodVersionId: 'asc' },
+        },
+        defaultRiskMethodVersion: { include: { methodDefinition: true } },
+        createdBy: { select: { id: true, displayName: true } },
+      },
+    });
+    if (policy) return policy;
+    return {
+      id: null,
+      version: 0,
+      organizationId,
+      defaultRiskMethodVersionId: RISK_METHOD_REFERENCE_IDS.versions.GUIDED_5X5,
+      allowedMethods: [
+        { riskMethodVersionId: RISK_METHOD_REFERENCE_IDS.versions.GUIDED_5X5 },
+        { riskMethodVersionId: RISK_METHOD_REFERENCE_IDS.versions.GTC45_2010 },
+      ],
+      createdAt: null,
+      createdBy: null,
+      inheritedDefault: true,
+    };
+  }
+
+  async saveOrganizationPolicy(organizationId: string, userId: string, rawInput: unknown) {
+    const input = organizationRiskMethodPolicyInputSchema.safeParse(rawInput);
+    if (!input.success)
+      throw new BadRequestException({
+        code: 'INVALID_ORGANIZATION_RISK_METHOD_POLICY',
+        message: 'La política debe incluir métodos permitidos y un método predeterminado válido.',
+      });
+    const methods = await this.prisma.riskMethodVersion.findMany({
+      where: { id: { in: input.data.allowedRiskMethodVersionIds } },
+      include: { methodDefinition: true },
+    });
+    const validMethods = methods.filter(
+      (method) =>
+        ['GUIDED_5X5', 'GTC45_2010'].includes(method.methodDefinition.methodKey) &&
+        ['CANDIDATE', 'PUBLISHED'].includes(method.publicationStatus),
+    );
+    if (validMethods.length !== input.data.allowedRiskMethodVersionIds.length)
+      throw new BadRequestException({
+        code: 'ORGANIZATION_RISK_METHOD_NOT_AVAILABLE',
+        message: 'Uno de los métodos seleccionados no está disponible para nuevas evaluaciones.',
+      });
+    return this.prisma.$transaction(async (tx) => {
+      const latest = await tx.organizationRiskMethodPolicyVersion.findFirst({
+        where: { organizationId },
+        orderBy: { version: 'desc' },
+        select: { version: true },
+      });
+      return tx.organizationRiskMethodPolicyVersion.create({
+        data: {
+          organizationId,
+          version: (latest?.version ?? 0) + 1,
+          defaultRiskMethodVersionId: input.data.defaultRiskMethodVersionId,
+          createdById: userId,
+          allowedMethods: {
+            create: input.data.allowedRiskMethodVersionIds.map((riskMethodVersionId) => ({
+              riskMethodVersionId,
+            })),
+          },
+        },
+        include: {
+          allowedMethods: {
+            include: { riskMethodVersion: { include: { methodDefinition: true } } },
+          },
+          defaultRiskMethodVersion: { include: { methodDefinition: true } },
+          createdBy: { select: { id: true, displayName: true } },
+        },
+      });
+    });
+  }
+
+  async guided5x5Profile(organizationId: string) {
+    return this.prisma.organizationGuided5x5ProfileVersion.findFirst({
+      where: { organizationId },
+      orderBy: { version: 'desc' },
+      include: {
+        riskMethodVersion: { include: { methodDefinition: true } },
+        createdBy: { select: { id: true, displayName: true } },
+      },
+    });
+  }
+
+  async saveGuided5x5Profile(organizationId: string, userId: string, rawInput: unknown) {
+    const input = guided5x5OrganizationProfileInputSchema.safeParse(rawInput);
+    if (!input.success)
+      throw new BadRequestException({
+        code: 'INVALID_GUIDED_5X5_ORGANIZATION_PROFILE',
+        message:
+          'La guía 5×5 debe conservar los cinco niveles canónicos y texto profesional acotado.',
+      });
+    return this.prisma.$transaction(async (tx) => {
+      const latest = await tx.organizationGuided5x5ProfileVersion.findFirst({
+        where: { organizationId },
+        orderBy: { version: 'desc' },
+        select: { version: true },
+      });
+      return tx.organizationGuided5x5ProfileVersion.create({
+        data: {
+          organizationId,
+          version: (latest?.version ?? 0) + 1,
+          riskMethodVersionId: RISK_METHOD_REFERENCE_IDS.versions.GUIDED_5X5,
+          guidance: input.data,
+          contentHash: adaptiveContentHash(input.data),
+          createdById: userId,
+        },
+        include: {
+          riskMethodVersion: { include: { methodDefinition: true } },
+          createdBy: { select: { id: true, displayName: true } },
+        },
+      });
+    });
   }
 
   async requireAvailableVersion(versionId: string) {

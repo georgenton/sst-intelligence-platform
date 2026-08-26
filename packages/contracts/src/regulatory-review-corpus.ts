@@ -78,17 +78,17 @@ export const regulatoryCorpusSourceSchema = z
         path: ['verificationStatus'],
         message: 'Verified artifacts require a complete official fingerprint and only those do',
       });
-    if (source.readyForExtraction !== artifactVerified)
+    if (source.readyForExtraction && !artifactVerified)
       context.addIssue({
         code: 'custom',
         path: ['readyForExtraction'],
-        message: 'Only verified official artifacts are ready for extraction',
+        message: 'Only verified official artifacts may be ready for extraction',
       });
-    if (artifactVerified && source.candidateStatus !== 'APPROVED_FOR_EXTRACTION')
+    if (source.readyForExtraction && source.candidateStatus !== 'APPROVED_FOR_EXTRACTION')
       context.addIssue({
         code: 'custom',
         path: ['candidateStatus'],
-        message: 'Verified artifacts use the existing extraction-ready editorial status',
+        message: 'Extraction-ready artifacts use the existing editorial status',
       });
     if (
       source.verificationStatus === 'UNVERIFIED_REFERENCE' &&

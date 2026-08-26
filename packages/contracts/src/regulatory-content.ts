@@ -3,6 +3,7 @@ import {
   regulatoryCandidateStatusSchema,
   regulatorySourceIdentitySchema,
 } from './regulatory-source.js';
+import { regulatoryUnitRecordSchema } from './regulatory-evidence.js';
 
 export const REGULATORY_PROVISION_SUMMARY_MAX_LENGTH = 1000;
 export const REGULATORY_REQUIREMENT_DESCRIPTION_MAX_LENGTH = 2000;
@@ -101,6 +102,7 @@ export const regulatorySourceProvisionSchema = z
     provision: regulatoryProvisionSchema,
     sourceVersion: regulatorySourceVersionReferenceSchema,
     requirements: z.array(regulatoryProvisionRequirementLinkSchema),
+    units: z.array(regulatoryUnitRecordSchema.extend({ createdAt: z.string().datetime() })),
   })
   .strict();
 
@@ -114,6 +116,7 @@ export const regulatoryRequirementProvenanceSchema = z
     provision: regulatoryProvisionSchema,
     sourceVersion: regulatorySourceVersionReferenceSchema,
     source: regulatorySourceIdentitySchema,
+    units: z.array(regulatoryUnitRecordSchema.extend({ createdAt: z.string().datetime() })),
   })
   .strict();
 

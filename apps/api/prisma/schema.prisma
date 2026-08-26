@@ -280,6 +280,77 @@ enum RegulatoryRequirementRelationshipType {
   RELATED_SOURCE
 }
 
+enum RegulatoryArtifactVerificationStatus {
+  OFFICIAL_ARTIFACT_VERIFIED
+  OFFICIAL_REFERENCE_ONLY
+  ARTIFACT_PENDING
+  REJECTED_UNVERIFIED
+}
+
+enum RegulatoryTextExtractionStatus {
+  COMPLETE
+  PARTIAL
+  PENDING
+  NOT_APPLICABLE
+}
+
+enum RegulatoryVigenciaReviewStatus {
+  CURRENT_VERIFIED
+  AMENDED
+  PARTIALLY_AMENDED
+  REPEALED
+  SUPERSEDED
+  PENDING_REVIEW
+  UNKNOWN
+}
+
+enum RegulatoryUnitType {
+  TITLE
+  CHAPTER
+  SECTION
+  ARTICLE
+  DISPOSITION_GENERAL
+  DISPOSITION_TRANSITORY
+  DISPOSITION_REPEAL
+  DISPOSITION_FINAL
+  ANNEX
+  ANNEX_ITEM
+  OTHER
+}
+
+enum RegulatoryUnitExtractionStatus {
+  EXTRACTED
+  OCR_REVIEW_REQUIRED
+  MANUAL_REVIEW_REQUIRED
+}
+
+enum RegulatoryUnitReviewStatus {
+  UNREVIEWED
+  TECHNICAL_REVIEW_PENDING
+  LEGAL_REVIEW_PENDING
+  VERIFIED
+}
+
+enum RegulatoryInterpretationReviewDecision {
+  APPROVED
+  CHANGES_REQUESTED
+  LEGAL_REVIEW_REQUIRED
+  REJECTED
+}
+
+enum RegulatoryRiskLinkProvenance {
+  SYSTEM_RULE_MATCH
+  EXPERT_LINK
+  USER_REFERENCE
+}
+
+enum UnifiedSstEvaluationStatus {
+  DRAFT
+  EVALUATED
+  REVIEW_PENDING
+  CLOSED
+}
+
 enum AdaptiveFactCategory {
   ORGANIZATION_PROFILE
   WORKFORCE
@@ -417,37 +488,41 @@ enum InspectionSystemicReviewSufficiency {
 }
 
 model User {
-  id                           String                            @id @default(uuid()) @db.Uuid
-  email                        String                            @unique
+  id                           String                                @id @default(uuid()) @db.Uuid
+  email                        String                                @unique
   passwordHash                 String
   displayName                  String
-  createdAt                    DateTime                          @default(now())
-  updatedAt                    DateTime                          @updatedAt
+  createdAt                    DateTime                              @default(now())
+  updatedAt                    DateTime                              @updatedAt
   refreshSessions              RefreshSession[]
   memberships                  Membership[]
-  claimedGuidedSessions        GuidedFlowSession[]               @relation("ClaimedBy")
-  auditLogs                    AuditLog[]                        @relation("AuditActor")
+  claimedGuidedSessions        GuidedFlowSession[]                   @relation("ClaimedBy")
+  auditLogs                    AuditLog[]                            @relation("AuditActor")
   aiInteractions               AiInteraction[]
   upgradeRequests              UpgradeRequest[]
-  inspections                  Inspection[]                      @relation("InspectionInspector")
-  findingsCreated              InspectionFinding[]               @relation("FindingCreator")
-  actionsAssigned              CorrectiveAction[]                @relation("ActionAssignee")
-  actionsCreated               CorrectiveAction[]                @relation("ActionCreator")
-  actionsVerified              CorrectiveAction[]                @relation("ActionVerifier")
-  evidenceCreated              ActionEvidence[]                  @relation("EvidenceCreator")
-  alertsAcknowledged           InspectionAlert[]                 @relation("AlertAcknowledger")
-  systemicReviewsCreated       InspectionSystemicReview[]        @relation("SystemicReviewCreator")
-  systemicReviewsCompleted     InspectionSystemicReview[]        @relation("SystemicReviewCompleter")
-  technicalAssessments         TechnicalAssessment[]             @relation("TechnicalAssessmentCreator")
-  technicalAssessmentsReviewed TechnicalAssessment[]             @relation("TechnicalAssessmentReviewer")
-  technicalEvidenceCreated     TechnicalAssessmentEvidence[]     @relation("TechnicalEvidenceCreator")
-  technicalReviews             TechnicalAssessmentReview[]       @relation("TechnicalReviewReviewer")
+  inspections                  Inspection[]                          @relation("InspectionInspector")
+  findingsCreated              InspectionFinding[]                   @relation("FindingCreator")
+  actionsAssigned              CorrectiveAction[]                    @relation("ActionAssignee")
+  actionsCreated               CorrectiveAction[]                    @relation("ActionCreator")
+  actionsVerified              CorrectiveAction[]                    @relation("ActionVerifier")
+  evidenceCreated              ActionEvidence[]                      @relation("EvidenceCreator")
+  alertsAcknowledged           InspectionAlert[]                     @relation("AlertAcknowledger")
+  systemicReviewsCreated       InspectionSystemicReview[]            @relation("SystemicReviewCreator")
+  systemicReviewsCompleted     InspectionSystemicReview[]            @relation("SystemicReviewCompleter")
+  technicalAssessments         TechnicalAssessment[]                 @relation("TechnicalAssessmentCreator")
+  technicalAssessmentsReviewed TechnicalAssessment[]                 @relation("TechnicalAssessmentReviewer")
+  technicalEvidenceCreated     TechnicalAssessmentEvidence[]         @relation("TechnicalEvidenceCreator")
+  technicalReviews             TechnicalAssessmentReview[]           @relation("TechnicalReviewReviewer")
   sstProfileVersions           OrganizationSstProfileVersion[]
   applicabilityAssessments     ApplicabilityAssessment[]
-  adaptiveSessions             AdaptiveConfigurationSession[]    @relation("AdaptiveSessionCreator")
-  adaptiveAnswers              AdaptiveFactAnswer[]              @relation("AdaptiveAnswerAuthor")
-  adaptiveDeclarations         AdaptiveCurrentStateDeclaration[] @relation("AdaptiveDeclarationAuthor")
-  adaptiveEvidence             AdaptiveCurrentStateEvidence[]    @relation("AdaptiveEvidenceAuthor")
+  adaptiveSessions             AdaptiveConfigurationSession[]        @relation("AdaptiveSessionCreator")
+  adaptiveAnswers              AdaptiveFactAnswer[]                  @relation("AdaptiveAnswerAuthor")
+  adaptiveDeclarations         AdaptiveCurrentStateDeclaration[]     @relation("AdaptiveDeclarationAuthor")
+  adaptiveEvidence             AdaptiveCurrentStateEvidence[]        @relation("AdaptiveEvidenceAuthor")
+  regulatoryReviews            RegulatoryInterpretationReview[]
+  regulatoryEvaluationsCreated UnifiedSstEvaluation[]                @relation("UnifiedEvaluationCreator")
+  riskMethodPoliciesCreated    OrganizationRiskMethodPolicyVersion[]
+  guidedProfilesCreated        OrganizationGuided5x5ProfileVersion[]
 }
 
 model RefreshSession {
@@ -470,15 +545,15 @@ model RefreshSession {
 }
 
 model Organization {
-  id                         String                            @id @default(uuid()) @db.Uuid
+  id                         String                                @id @default(uuid()) @db.Uuid
   name                       String
   country                    String
   sector                     String?
-  status                     OrganizationStatus                @default(ACTIVE)
+  status                     OrganizationStatus                    @default(ACTIVE)
   demoStartedAt              DateTime?
   demoExpiresAt              DateTime?
-  createdAt                  DateTime                          @default(now())
-  updatedAt                  DateTime                          @updatedAt
+  createdAt                  DateTime                              @default(now())
+  updatedAt                  DateTime                              @updatedAt
   workCenters                WorkCenter[]
   memberships                Membership[]
   invitations                OrganizationInvitation[]
@@ -503,6 +578,7 @@ model Organization {
   technicalResults           TechnicalAssessmentResult[]
   technicalEvidence          TechnicalAssessmentEvidence[]
   technicalReviews           TechnicalAssessmentReview[]
+  technicalRiskValuations    TechnicalAssessmentRiskValuation[]
   sstProfileVersions         OrganizationSstProfileVersion[]
   applicabilityAssessments   ApplicabilityAssessment[]
   applicabilityDecisions     ApplicabilityDecision[]
@@ -516,6 +592,11 @@ model Organization {
   adaptiveItems              AdaptiveConfigurationItem[]
   adaptiveDeclarations       AdaptiveCurrentStateDeclaration[]
   adaptiveEvidence           AdaptiveCurrentStateEvidence[]
+  unifiedSstEvaluations      UnifiedSstEvaluation[]
+  riskMethodPolicies         OrganizationRiskMethodPolicyVersion[]
+  guided5x5Profiles          OrganizationGuided5x5ProfileVersion[]
+  findingRegulatoryLinks     InspectionFindingRegulatoryLink[]
+  technicalRegulatoryLinks   TechnicalAssessmentRegulatoryLink[]
 }
 
 model WorkCenter {
@@ -588,22 +669,22 @@ model Inspection {
 }
 
 model InspectionFinding {
-  id                      String                           @id @default(uuid()) @db.Uuid
-  organizationId          String                           @db.Uuid
-  inspectionId            String                           @db.Uuid
-  workCenterId            String                           @db.Uuid
-  workAreaId              String?                          @db.Uuid
+  id                      String                            @id @default(uuid()) @db.Uuid
+  organizationId          String                            @db.Uuid
+  inspectionId            String                            @db.Uuid
+  workCenterId            String                            @db.Uuid
+  workAreaId              String?                           @db.Uuid
   category                String
   title                   String
   description             String
-  status                  FindingStatus                    @default(OPEN)
+  status                  FindingStatus                     @default(OPEN)
   riskMethodKey           String
   riskMethodVersion       String
-  riskMethodVersionId     String                           @default(dbgenerated("'54000000-0000-4000-8000-000000000001'::uuid")) @db.Uuid
-  riskMethodSnapshot      Json                             @default("{}")
-  initialMethodInput      Json                             @default("{}")
-  initialMethodResult     Json                             @default("{}")
-  guidanceVersionId       String?                          @db.Uuid
+  riskMethodVersionId     String                            @default(dbgenerated("'54000000-0000-4000-8000-000000000001'::uuid")) @db.Uuid
+  riskMethodSnapshot      Json                              @default("{}")
+  initialMethodInput      Json                              @default("{}")
+  initialMethodResult     Json                              @default("{}")
+  guidanceVersionId       String?                           @db.Uuid
   guidanceSnapshot        Json?
   initialLikelihood       Int?
   initialConsequence      Int?
@@ -618,23 +699,24 @@ model InspectionFinding {
   residualMethodInput     Json?
   residualMethodResult    Json?
   residualRationale       String?
-  residualMethodVersionId String?                          @db.Uuid
-  recurrenceCount         Int                              @default(0)
-  recurrenceStatus        RecurrenceStatus                 @default(NONE)
-  createdById             String                           @db.Uuid
-  createdAt               DateTime                         @default(now())
-  updatedAt               DateTime                         @updatedAt
+  residualMethodVersionId String?                           @db.Uuid
+  recurrenceCount         Int                               @default(0)
+  recurrenceStatus        RecurrenceStatus                  @default(NONE)
+  createdById             String                            @db.Uuid
+  createdAt               DateTime                          @default(now())
+  updatedAt               DateTime                          @updatedAt
   closedAt                DateTime?
-  organization            Organization                     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  inspection              Inspection                       @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
-  workCenter              WorkCenter                       @relation(fields: [workCenterId], references: [id])
-  workArea                WorkArea?                        @relation(fields: [workAreaId], references: [id])
-  createdBy               User                             @relation("FindingCreator", fields: [createdById], references: [id])
-  riskMethodVersionRef    RiskMethodVersion                @relation("FindingRiskMethodVersion", fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
-  residualMethodVersion   RiskMethodVersion?               @relation("FindingResidualMethodVersion", fields: [residualMethodVersionId], references: [id], onDelete: Restrict)
-  guidanceVersion         RiskMethodExpertGuidanceVersion? @relation(fields: [guidanceVersionId], references: [id], onDelete: Restrict)
+  organization            Organization                      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inspection              Inspection                        @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  workCenter              WorkCenter                        @relation(fields: [workCenterId], references: [id])
+  workArea                WorkArea?                         @relation(fields: [workAreaId], references: [id])
+  createdBy               User                              @relation("FindingCreator", fields: [createdById], references: [id])
+  riskMethodVersionRef    RiskMethodVersion                 @relation("FindingRiskMethodVersion", fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
+  residualMethodVersion   RiskMethodVersion?                @relation("FindingResidualMethodVersion", fields: [residualMethodVersionId], references: [id], onDelete: Restrict)
+  guidanceVersion         RiskMethodExpertGuidanceVersion?  @relation(fields: [guidanceVersionId], references: [id], onDelete: Restrict)
   actions                 CorrectiveAction[]
   alerts                  InspectionAlert[]
+  regulatoryLinks         InspectionFindingRegulatoryLink[]
 
   @@index([organizationId, inspectionId])
   @@index([organizationId, workCenterId, category, createdAt])
@@ -685,32 +767,36 @@ model RiskMethodDefinition {
 }
 
 model RiskMethodVersion {
-  id                         String                            @id @default(uuid()) @db.Uuid
-  methodDefinitionId         String                            @db.Uuid
-  semanticVersion            String                            @db.VarChar(32)
-  displayName                String                            @db.VarChar(200)
-  methodKind                 String                            @db.VarChar(80)
-  calculationProviderKey     String                            @db.VarChar(160)
-  calculationProviderVersion String                            @db.VarChar(32)
-  inputSchemaVersion         String                            @db.VarChar(32)
-  resultSchemaVersion        String                            @db.VarChar(32)
-  isDemo                     Boolean                           @default(false)
-  regulatory                 Boolean                           @default(false)
-  publicationStatus          String                            @db.VarChar(32)
-  technicalReviewStatus      String                            @db.VarChar(32)
-  legalReviewStatus          String                            @db.VarChar(32)
-  disclaimer                 String                            @db.VarChar(1000)
+  id                         String                                @id @default(uuid()) @db.Uuid
+  methodDefinitionId         String                                @db.Uuid
+  semanticVersion            String                                @db.VarChar(32)
+  displayName                String                                @db.VarChar(200)
+  methodKind                 String                                @db.VarChar(80)
+  calculationProviderKey     String                                @db.VarChar(160)
+  calculationProviderVersion String                                @db.VarChar(32)
+  inputSchemaVersion         String                                @db.VarChar(32)
+  resultSchemaVersion        String                                @db.VarChar(32)
+  isDemo                     Boolean                               @default(false)
+  regulatory                 Boolean                               @default(false)
+  publicationStatus          String                                @db.VarChar(32)
+  technicalReviewStatus      String                                @db.VarChar(32)
+  legalReviewStatus          String                                @db.VarChar(32)
+  disclaimer                 String                                @db.VarChar(1000)
   manifest                   Json
-  contentHash                String                            @db.VarChar(64)
+  contentHash                String                                @db.VarChar(64)
   publishedAt                DateTime?
-  createdAt                  DateTime                          @default(now())
-  methodDefinition           RiskMethodDefinition              @relation(fields: [methodDefinitionId], references: [id], onDelete: Restrict)
+  createdAt                  DateTime                              @default(now())
+  methodDefinition           RiskMethodDefinition                  @relation(fields: [methodDefinitionId], references: [id], onDelete: Restrict)
   sourceLinks                RiskMethodSourceLink[]
   guidanceVersions           RiskMethodExpertGuidanceVersion[]
   regulatoryContexts         RiskMethodRegulatoryContext[]
   inspections                Inspection[]
-  findings                   InspectionFinding[]               @relation("FindingRiskMethodVersion")
-  residualFindings           InspectionFinding[]               @relation("FindingResidualMethodVersion")
+  findings                   InspectionFinding[]                   @relation("FindingRiskMethodVersion")
+  residualFindings           InspectionFinding[]                   @relation("FindingResidualMethodVersion")
+  technicalRiskValuations    TechnicalAssessmentRiskValuation[]
+  organizationPolicyAllowed  OrganizationRiskMethodPolicyAllowed[]
+  organizationPolicyDefault  OrganizationRiskMethodPolicyVersion[] @relation("OrganizationRiskMethodPolicyDefault")
+  guided5x5Profiles          OrganizationGuided5x5ProfileVersion[]
 
   @@unique([methodDefinitionId, semanticVersion])
   @@index([publicationStatus, methodDefinitionId])
@@ -913,39 +999,41 @@ model TechnicalMethodVersion {
 }
 
 model TechnicalAssessment {
-  id                      String                        @id @default(uuid()) @db.Uuid
-  organizationId          String                        @db.Uuid
-  workCenterId            String                        @db.Uuid
-  workAreaId              String?                       @db.Uuid
-  methodVersionId         String                        @db.Uuid
+  id                      String                              @id @default(uuid()) @db.Uuid
+  organizationId          String                              @db.Uuid
+  workCenterId            String                              @db.Uuid
+  workAreaId              String?                             @db.Uuid
+  methodVersionId         String                              @db.Uuid
   methodKey               String
   methodVersion           String
   calculationKey          String
   methodSnapshot          Json
   title                   String
   description             String?
-  status                  TechnicalAssessmentStatus     @default(DRAFT)
-  createdById             String                        @db.Uuid
-  reviewedById            String?                       @db.Uuid
+  status                  TechnicalAssessmentStatus           @default(DRAFT)
+  createdById             String                              @db.Uuid
+  reviewedById            String?                             @db.Uuid
   startedAt               DateTime?
   completedAt             DateTime?
   reviewedAt              DateTime?
-  revisedFromAssessmentId String?                       @unique @db.Uuid
-  isDemo                  Boolean                       @default(false)
-  createdAt               DateTime                      @default(now())
-  updatedAt               DateTime                      @updatedAt
-  organization            Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  workCenter              WorkCenter                    @relation(fields: [workCenterId], references: [id])
-  workArea                WorkArea?                     @relation(fields: [workAreaId], references: [id])
-  methodVersionRef        TechnicalMethodVersion        @relation(fields: [methodVersionId], references: [id])
-  createdBy               User                          @relation("TechnicalAssessmentCreator", fields: [createdById], references: [id])
-  reviewedBy              User?                         @relation("TechnicalAssessmentReviewer", fields: [reviewedById], references: [id])
+  revisedFromAssessmentId String?                             @unique @db.Uuid
+  isDemo                  Boolean                             @default(false)
+  createdAt               DateTime                            @default(now())
+  updatedAt               DateTime                            @updatedAt
+  organization            Organization                        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workCenter              WorkCenter                          @relation(fields: [workCenterId], references: [id])
+  workArea                WorkArea?                           @relation(fields: [workAreaId], references: [id])
+  methodVersionRef        TechnicalMethodVersion              @relation(fields: [methodVersionId], references: [id])
+  createdBy               User                                @relation("TechnicalAssessmentCreator", fields: [createdById], references: [id])
+  reviewedBy              User?                               @relation("TechnicalAssessmentReviewer", fields: [reviewedById], references: [id])
   responses               TechnicalAssessmentResponse[]
   result                  TechnicalAssessmentResult?
   evidence                TechnicalAssessmentEvidence[]
   reviews                 TechnicalAssessmentReview[]
-  revisedFrom             TechnicalAssessment?          @relation("TechnicalAssessmentRevision", fields: [revisedFromAssessmentId], references: [id], onDelete: Restrict)
-  revision                TechnicalAssessment?          @relation("TechnicalAssessmentRevision")
+  revisedFrom             TechnicalAssessment?                @relation("TechnicalAssessmentRevision", fields: [revisedFromAssessmentId], references: [id], onDelete: Restrict)
+  revision                TechnicalAssessment?                @relation("TechnicalAssessmentRevision")
+  riskValuation           TechnicalAssessmentRiskValuation?
+  regulatoryLinks         TechnicalAssessmentRegulatoryLink[]
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, workCenterId])
@@ -1018,17 +1106,78 @@ model TechnicalAssessmentReview {
   @@index([organizationId, assessmentId, createdAt])
 }
 
+model TechnicalAssessmentRiskValuation {
+  id                  String              @id @default(uuid()) @db.Uuid
+  organizationId      String              @db.Uuid
+  assessmentId        String              @unique @db.Uuid
+  riskMethodVersionId String              @db.Uuid
+  methodSnapshot      Json
+  riskInput           Json
+  riskResult          Json
+  calculatedAt        DateTime            @default(now())
+  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessment          TechnicalAssessment @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  riskMethodVersion   RiskMethodVersion   @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, calculatedAt])
+  @@index([riskMethodVersionId])
+}
+
+model OrganizationRiskMethodPolicyVersion {
+  id                         String                                @id @default(uuid()) @db.Uuid
+  organizationId             String                                @db.Uuid
+  version                    Int
+  defaultRiskMethodVersionId String?                               @db.Uuid
+  createdById                String                                @db.Uuid
+  createdAt                  DateTime                              @default(now())
+  organization               Organization                          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  defaultRiskMethodVersion   RiskMethodVersion?                    @relation("OrganizationRiskMethodPolicyDefault", fields: [defaultRiskMethodVersionId], references: [id], onDelete: Restrict)
+  createdBy                  User                                  @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  allowedMethods             OrganizationRiskMethodPolicyAllowed[]
+
+  @@unique([organizationId, version])
+  @@index([organizationId, createdAt])
+}
+
+model OrganizationRiskMethodPolicyAllowed {
+  policyVersionId     String                              @db.Uuid
+  riskMethodVersionId String                              @db.Uuid
+  policyVersion       OrganizationRiskMethodPolicyVersion @relation(fields: [policyVersionId], references: [id], onDelete: Cascade)
+  riskMethodVersion   RiskMethodVersion                   @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
+
+  @@id([policyVersionId, riskMethodVersionId])
+  @@index([riskMethodVersionId])
+}
+
+model OrganizationGuided5x5ProfileVersion {
+  id                  String            @id @default(uuid()) @db.Uuid
+  organizationId      String            @db.Uuid
+  version             Int
+  riskMethodVersionId String            @db.Uuid
+  guidance            Json
+  contentHash         String            @db.VarChar(71)
+  createdById         String            @db.Uuid
+  createdAt           DateTime          @default(now())
+  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  riskMethodVersion   RiskMethodVersion @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
+  createdBy           User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, version])
+  @@index([organizationId, createdAt])
+}
+
 model OrganizationSstProfileVersion {
-  id               String                         @id @default(uuid()) @db.Uuid
-  organizationId   String                         @db.Uuid
-  version          Int
-  snapshot         Json
-  createdById      String                         @db.Uuid
-  createdAt        DateTime                       @default(now())
-  organization     Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy        User                           @relation(fields: [createdById], references: [id])
-  assessments      ApplicabilityAssessment[]
-  adaptiveSessions AdaptiveConfigurationSession[]
+  id                 String                         @id @default(uuid()) @db.Uuid
+  organizationId     String                         @db.Uuid
+  version            Int
+  snapshot           Json
+  createdById        String                         @db.Uuid
+  createdAt          DateTime                       @default(now())
+  organization       Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy          User                           @relation(fields: [createdById], references: [id])
+  assessments        ApplicabilityAssessment[]
+  adaptiveSessions   AdaptiveConfigurationSession[]
+  unifiedEvaluations UnifiedSstEvaluation[]
 
   @@unique([organizationId, version])
   @@index([organizationId, createdAt])
@@ -1140,26 +1289,32 @@ model RegulatorySource {
 }
 
 model RegulatorySourceVersion {
-  id                           String                       @id @default(uuid()) @db.Uuid
-  sourceId                     String                       @db.Uuid
+  id                           String                               @id @default(uuid()) @db.Uuid
+  sourceId                     String                               @db.Uuid
   catalogVersion               Int
   candidateStatus              RegulatoryCandidateStatus
-  officialDocumentLocated      Boolean                      @default(false)
+  officialDocumentLocated      Boolean                              @default(false)
   officialUrl                  String?
-  officialDocumentSha256       String?                      @db.VarChar(71)
+  officialDocumentSha256       String?                              @db.VarChar(71)
   officialDocumentRetrievedAt  DateTime?
-  officialDocumentMediaType    String?                      @db.VarChar(100)
-  officialPublicationReference String?                      @db.VarChar(500)
-  publicationDate              DateTime?                    @db.Date
-  effectiveFrom                DateTime?                    @db.Date
-  effectiveTo                  DateTime?                    @db.Date
+  officialDocumentMediaType    String?                              @db.VarChar(100)
+  officialPublicationReference String?                              @db.VarChar(500)
+  publicationDate              DateTime?                            @db.Date
+  effectiveFrom                DateTime?                            @db.Date
+  effectiveTo                  DateTime?                            @db.Date
   supersessionStatus           RegulatorySupersessionStatus
-  readyForExtraction           Boolean                      @default(false)
-  readyForRules                Boolean                      @default(false)
+  readyForExtraction           Boolean                              @default(false)
+  readyForRules                Boolean                              @default(false)
   reviewNotes                  String?
-  recordedAt                   DateTime                     @default(now())
-  source                       RegulatorySource             @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  recordedAt                   DateTime                             @default(now())
+  artifactVerificationStatus   RegulatoryArtifactVerificationStatus @default(ARTIFACT_PENDING)
+  textExtractionStatus         RegulatoryTextExtractionStatus       @default(PENDING)
+  vigenciaReviewStatus         RegulatoryVigenciaReviewStatus       @default(PENDING_REVIEW)
+  artifactPageCount            Int?
+  artifactVersionKey           String?                              @db.VarChar(160)
+  source                       RegulatorySource                     @relation(fields: [sourceId], references: [id], onDelete: Restrict)
   provisions                   RegulatoryProvision[]
+  units                        RegulatoryUnit[]
 
   @@unique([sourceId, catalogVersion])
   @@index([candidateStatus, recordedAt])
@@ -1181,6 +1336,7 @@ model RegulatoryProvision {
   supersedesProvision   RegulatoryProvision?               @relation("RegulatoryProvisionReplacement", fields: [supersedesProvisionId], references: [id], onDelete: Restrict)
   supersededByProvision RegulatoryProvision?               @relation("RegulatoryProvisionReplacement")
   requirementSources    RegulatoryRequirementSource[]
+  units                 RegulatoryProvisionUnit[]
 
   @@unique([sourceVersionId, provisionKey])
   @@index([sourceVersionId, editorialStatus])
@@ -1200,9 +1356,171 @@ model RegulatoryRequirement {
   supersededByRequirement RegulatoryRequirement?               @relation("RegulatoryRequirementReplacement")
   sources                 RegulatoryRequirementSource[]
   adaptiveRules           AdaptiveRuleRequirement[]
+  draftRules              RegulatoryRuleDraftRequirement[]
+  interpretationReviews   RegulatoryInterpretationReview[]
+  unifiedItems            UnifiedSstEvaluationItem[]
+  findingLinks            InspectionFindingRegulatoryLink[]
+  technicalLinks          TechnicalAssessmentRegulatoryLink[]
 
   @@index([editorialStatus, createdAt])
   @@index([scopeHint])
+}
+
+model RegulatoryUnit {
+  id                    String                              @id @default(uuid()) @db.Uuid
+  sourceVersionId       String                              @db.Uuid
+  parentUnitId          String?                             @db.Uuid
+  unitType              RegulatoryUnitType
+  identifier            String                              @db.VarChar(160)
+  heading               String?                             @db.VarChar(500)
+  ordinal               Int
+  officialText          String
+  editorialSummary      String?
+  normalizedTextHash    String                              @db.VarChar(71)
+  pageStart             Int?
+  pageEnd               Int?
+  locator               String                              @db.VarChar(240)
+  extractionStatus      RegulatoryUnitExtractionStatus
+  reviewStatus          RegulatoryUnitReviewStatus          @default(UNREVIEWED)
+  createdAt             DateTime                            @default(now())
+  sourceVersion         RegulatorySourceVersion             @relation(fields: [sourceVersionId], references: [id], onDelete: Restrict)
+  parentUnit            RegulatoryUnit?                     @relation("RegulatoryUnitHierarchy", fields: [parentUnitId], references: [id], onDelete: Restrict)
+  childUnits            RegulatoryUnit[]                    @relation("RegulatoryUnitHierarchy")
+  provisions            RegulatoryProvisionUnit[]
+  interpretationReviews RegulatoryInterpretationReview[]
+  unifiedItems          UnifiedSstEvaluationItem[]
+  findingLinks          InspectionFindingRegulatoryLink[]
+  technicalLinks        TechnicalAssessmentRegulatoryLink[]
+
+  @@unique([sourceVersionId, identifier])
+  @@unique([sourceVersionId, ordinal])
+  @@index([sourceVersionId, unitType, ordinal])
+  @@index([normalizedTextHash])
+}
+
+model RegulatoryProvisionUnit {
+  provisionId String              @db.Uuid
+  unitId      String              @db.Uuid
+  createdAt   DateTime            @default(now())
+  provision   RegulatoryProvision @relation(fields: [provisionId], references: [id], onDelete: Restrict)
+  unit        RegulatoryUnit      @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  @@id([provisionId, unitId])
+  @@index([unitId])
+}
+
+model RegulatoryRuleDraftRequirement {
+  ruleDraftId      String                      @db.Uuid
+  requirementId    String                      @db.Uuid
+  relationshipType AdaptiveRuleRequirementType
+  createdAt        DateTime                    @default(now())
+  ruleDraft        AdaptiveRuleDraft           @relation(fields: [ruleDraftId], references: [id], onDelete: Restrict)
+  requirement      RegulatoryRequirement       @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+
+  @@id([ruleDraftId, requirementId, relationshipType])
+  @@index([requirementId])
+}
+
+model RegulatoryInterpretationReview {
+  id                      String                                 @id @default(uuid()) @db.Uuid
+  ruleDraftId             String                                 @db.Uuid
+  requirementId           String                                 @db.Uuid
+  unitId                  String                                 @db.Uuid
+  reviewerUserId          String                                 @db.Uuid
+  decision                RegulatoryInterpretationReviewDecision
+  comment                 String?                                @db.VarChar(2000)
+  engineOutputHash        String                                 @db.VarChar(71)
+  sourceVersionIdSnapshot String                                 @db.Uuid
+  requirementSnapshot     Json
+  ruleDraftSnapshot       Json
+  createdAt               DateTime                               @default(now())
+  ruleDraft               AdaptiveRuleDraft                      @relation(fields: [ruleDraftId], references: [id], onDelete: Restrict)
+  requirement             RegulatoryRequirement                  @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  unit                    RegulatoryUnit                         @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  reviewer                User                                   @relation(fields: [reviewerUserId], references: [id], onDelete: Restrict)
+
+  @@index([ruleDraftId, requirementId, createdAt])
+  @@index([unitId, createdAt])
+}
+
+model UnifiedSstEvaluation {
+  id               String                        @id @default(uuid()) @db.Uuid
+  organizationId   String                        @db.Uuid
+  profileVersionId String                        @db.Uuid
+  status           UnifiedSstEvaluationStatus    @default(DRAFT)
+  createdById      String                        @db.Uuid
+  contextSnapshot  Json
+  createdAt        DateTime                      @default(now())
+  evaluatedAt      DateTime?
+  organization     Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profileVersion   OrganizationSstProfileVersion @relation(fields: [profileVersionId], references: [id], onDelete: Restrict)
+  createdBy        User                          @relation("UnifiedEvaluationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  items            UnifiedSstEvaluationItem[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+}
+
+model UnifiedSstEvaluationItem {
+  id                         String                @id @default(uuid()) @db.Uuid
+  evaluationId               String                @db.Uuid
+  requirementId              String                @db.Uuid
+  ruleDraftId                String                @db.Uuid
+  unitId                     String                @db.Uuid
+  proposedState              ApplicabilityState
+  whyMatched                 String                @db.VarChar(1000)
+  organizationFacts          Json
+  predicateTrace             Json
+  regulatoryTrace            Json
+  currentStateSnapshot       Json?
+  organizationEvidence       Json
+  riskReferences             Json
+  engineOutputHash           String                @db.VarChar(71)
+  professionalReviewRequired Boolean               @default(true)
+  createdAt                  DateTime              @default(now())
+  evaluation                 UnifiedSstEvaluation  @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  requirement                RegulatoryRequirement @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  ruleDraft                  AdaptiveRuleDraft     @relation(fields: [ruleDraftId], references: [id], onDelete: Restrict)
+  unit                       RegulatoryUnit        @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  @@unique([evaluationId, ruleDraftId])
+  @@index([requirementId, unitId])
+}
+
+model InspectionFindingRegulatoryLink {
+  id             String                       @id @default(uuid()) @db.Uuid
+  organizationId String                       @db.Uuid
+  findingId      String                       @db.Uuid
+  unitId         String?                      @db.Uuid
+  requirementId  String?                      @db.Uuid
+  provenance     RegulatoryRiskLinkProvenance
+  rationale      String                       @db.VarChar(1000)
+  createdAt      DateTime                     @default(now())
+  organization   Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  finding        InspectionFinding            @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  unit           RegulatoryUnit?              @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  requirement    RegulatoryRequirement?       @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+
+  @@unique([findingId, unitId, requirementId, provenance])
+  @@index([organizationId, findingId])
+}
+
+model TechnicalAssessmentRegulatoryLink {
+  id             String                       @id @default(uuid()) @db.Uuid
+  organizationId String                       @db.Uuid
+  assessmentId   String                       @db.Uuid
+  unitId         String?                      @db.Uuid
+  requirementId  String?                      @db.Uuid
+  provenance     RegulatoryRiskLinkProvenance
+  rationale      String                       @db.VarChar(1000)
+  createdAt      DateTime                     @default(now())
+  organization   Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assessment     TechnicalAssessment          @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  unit           RegulatoryUnit?              @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  requirement    RegulatoryRequirement?       @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+
+  @@unique([assessmentId, unitId, requirementId, provenance])
+  @@index([organizationId, assessmentId])
 }
 
 model RegulatoryRequirementSource {
@@ -1309,20 +1627,23 @@ model AdaptiveRuleDefinition {
 }
 
 model AdaptiveRuleDraft {
-  id                  String                  @id @default(uuid()) @db.Uuid
-  ruleDefinitionId    String                  @db.Uuid
-  revision            Int
-  status              AdaptiveRuleDraftStatus @default(DRAFT)
-  schema              Json
-  isDemo              Boolean                 @default(false)
-  regulatory          Boolean                 @default(false)
-  demoDisclaimer      String?                 @db.VarChar(500)
-  technicalReviewedAt DateTime?
-  legalReviewedAt     DateTime?
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @updatedAt
-  ruleDefinition      AdaptiveRuleDefinition  @relation(fields: [ruleDefinitionId], references: [id], onDelete: Restrict)
-  publishedVersion    AdaptiveRuleVersion?    @relation("AdaptiveRuleSourceDraft")
+  id                    String                           @id @default(uuid()) @db.Uuid
+  ruleDefinitionId      String                           @db.Uuid
+  revision              Int
+  status                AdaptiveRuleDraftStatus          @default(DRAFT)
+  schema                Json
+  isDemo                Boolean                          @default(false)
+  regulatory            Boolean                          @default(false)
+  demoDisclaimer        String?                          @db.VarChar(500)
+  technicalReviewedAt   DateTime?
+  legalReviewedAt       DateTime?
+  createdAt             DateTime                         @default(now())
+  updatedAt             DateTime                         @updatedAt
+  ruleDefinition        AdaptiveRuleDefinition           @relation(fields: [ruleDefinitionId], references: [id], onDelete: Restrict)
+  publishedVersion      AdaptiveRuleVersion?             @relation("AdaptiveRuleSourceDraft")
+  requirements          RegulatoryRuleDraftRequirement[]
+  interpretationReviews RegulatoryInterpretationReview[]
+  unifiedItems          UnifiedSstEvaluationItem[]
 
   @@unique([ruleDefinitionId, revision])
   @@index([status, updatedAt])

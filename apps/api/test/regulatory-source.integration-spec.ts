@@ -356,6 +356,55 @@ describe('regulatory source foundation integration', () => {
       .expect(404);
   });
 
+  it('serves searchable, immutable official articles separately from platform interpretations', async () => {
+    const owner = await register('Regulatory Article Owner');
+    const organizationId = await createOrganization(owner.token, 'Regulatory Articles');
+
+    const articles = await get(
+      owner.token,
+      organizationId,
+      '/EC_MDT_2024_196/units?q=registro&unitType=ARTICLE',
+    ).expect(200);
+    expect(articles.body).toMatchObject({
+      sourceKey: 'EC_MDT_2024_196',
+      version: {
+        artifactVerificationStatus: 'OFFICIAL_ARTIFACT_VERIFIED',
+        textExtractionStatus: 'COMPLETE',
+      },
+      structuralBoundary: 'STRUCTURAL_COVERAGE_NOT_LEGAL_COMPLETENESS_SCORE',
+    });
+    expect(articles.body.items.length).toBeGreaterThan(0);
+    const article = articles.body.items.find(
+      (item: { identifier: string }) => item.identifier === 'ARTICLE_18',
+    );
+    expect(article).toMatchObject({
+      unitType: 'ARTICLE',
+      identifier: 'ARTICLE_18',
+      reviewStatus: 'VERIFIED',
+    });
+    expect(article.officialText).toContain('Artículo 18');
+    expect(article.normalizedTextHash).toMatch(/^sha256:[0-9a-f]{64}$/);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/regulatory-units/${article.id as string}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    expect(detail.body).toMatchObject({
+      unit: { id: article.id, officialText: article.officialText },
+      source: { sourceKey: 'EC_MDT_2024_196' },
+      textBoundary: 'OFFICIAL_TEXT_SEPARATE_FROM_PLATFORM_INTERPRETATION',
+    });
+    expect(detail.body).toHaveProperty('interpretations');
+
+    await expect(
+      prisma.regulatoryUnit.update({
+        where: { id: article.id as string },
+        data: { officialText: 'Sobrescritura prohibida.' },
+      }),
+    ).rejects.toThrow();
+  });
+
   it('keeps source keys and versions immutable while selecting the latest snapshot', async () => {
     const owner = await register('Regulatory Version Owner');
     const organizationId = await createOrganization(owner.token, 'Regulatory Version');

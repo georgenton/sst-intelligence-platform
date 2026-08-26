@@ -32,7 +32,7 @@ describe('Ecuador SST multi-source review corpus', () => {
       corpusVersion: '1.0.0',
       corpusSourceCount: 15,
       officialReferencesVerified: 14,
-      officialArtifactsVerified: 11,
+      officialArtifactsVerified: 13,
       readyForExtraction: 11,
       structuredSources: 1,
       publishedRealRules: 0,

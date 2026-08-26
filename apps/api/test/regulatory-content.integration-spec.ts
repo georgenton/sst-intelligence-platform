@@ -75,10 +75,16 @@ describe('regulatory provision and requirement foundation integration', () => {
       .set('x-organization-id', organizationId);
   }
 
-  it('starts with no production provision, requirement or provenance content', async () => {
-    expect(await prisma.regulatoryProvision.count()).toBe(0);
-    expect(await prisma.regulatoryRequirement.count()).toBe(0);
-    expect(await prisma.regulatoryRequirementSource.count()).toBe(0);
+  it('starts with only the pending MDT-2024-196 reference candidates and no published rules', async () => {
+    expect(await prisma.regulatoryProvision.count()).toBe(2);
+    expect(await prisma.regulatoryRequirement.count()).toBe(5);
+    expect(await prisma.regulatoryRequirementSource.count()).toBe(6);
+    expect(
+      await prisma.adaptiveRuleDraft.count({
+        where: { regulatory: true, status: 'TECHNICAL_REVIEW_PENDING' },
+      }),
+    ).toBe(5);
+    expect(await prisma.adaptiveRuleVersion.count({ where: { regulatory: true } })).toBe(0);
     expect(
       await prisma.regulatorySource.count({
         where: { sourceKey: { in: [...CORPUS_SOURCE_KEYS] } },
@@ -110,9 +116,19 @@ describe('regulatory provision and requirement foundation integration', () => {
 
     const owner = await register('Regulatory Content Owner');
     const organizationId = await createOrganization(owner.token, 'Regulatory Content');
+    const requirements = await authorizedGet(
+      owner.token,
+      organizationId,
+      '/regulatory-requirements',
+    );
+    expect(requirements.body).toHaveLength(5);
     expect(
-      (await authorizedGet(owner.token, organizationId, '/regulatory-requirements')).body,
-    ).toEqual([]);
+      requirements.body.every(
+        (requirement: { editorialStatus: string; provenanceCount: number }) =>
+          requirement.editorialStatus === 'TECHNICAL_REVIEW_PENDING' &&
+          requirement.provenanceCount > 0,
+      ),
+    ).toBe(true);
     expect(
       (
         await authorizedGet(

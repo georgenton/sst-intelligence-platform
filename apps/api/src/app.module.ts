@@ -16,9 +16,11 @@ import { InspectionsModule } from './inspections/inspections.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RegulatorySourceModule } from './regulatory-sources/regulatory-source.module';
+import { RegulatoryRiskLinkModule } from './regulatory-risk-links/regulatory-risk-link.module';
 import { RiskMethodologyModule } from './risk-methodology/risk-methodology.module';
 import { SolutionFinderModule } from './solution-finder/solution-finder.module';
 import { TechnicalRiskModule } from './technical-risk/technical-risk.module';
+import { UnifiedSstEvaluationModule } from './unified-sst-evaluation/unified-sst-evaluation.module';
 
 @Module({
   imports: [
@@ -47,11 +49,13 @@ import { TechnicalRiskModule } from './technical-risk/technical-risk.module';
     AdaptiveConfigurationModule,
     ApplicabilityModule,
     RegulatorySourceModule,
+    RegulatoryRiskLinkModule,
     RiskMethodologyModule,
     SolutionFinderModule,
     DashboardModule,
     InspectionsModule,
     TechnicalRiskModule,
+    UnifiedSstEvaluationModule,
   ],
   controllers: [HealthController],
   providers: [HealthService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

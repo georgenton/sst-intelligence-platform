@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, parse, resolve } from 'node:path';
 import {
+  Prisma,
   type PrismaClient,
   type RegulatoryCandidateStatus,
   type RegulatoryDocumentType,
@@ -44,8 +45,84 @@ function asDate(value: string | null) {
   return value === null ? null : new Date(`${value}T00:00:00.000Z`);
 }
 
+function omitKeys<T extends object, K extends keyof T>(value: T, keys: readonly K[]): Omit<T, K> {
+  const excluded = new Set<PropertyKey>(keys);
+  return Object.fromEntries(Object.entries(value).filter(([key]) => !excluded.has(key))) as Omit<
+    T,
+    K
+  >;
+}
+
+const COMPLETE_TEXT_SOURCES = new Set([
+  'EC_CAN_DECISION_584',
+  'EC_CAN_RESOLUTION_957',
+  'EC_IESS_CD_677',
+  'EC_IESS_CD_692',
+  'EC_LABOR_CODE',
+  'EC_MDT_2024_196',
+  'EC_MDT_2024_196_ANNEX_1',
+  'EC_MDT_2025_122_CONSTRUCTION',
+]);
+
+const PARTIAL_TEXT_SOURCES = new Set([
+  'EC_IESS_CD_513',
+  'EC_IESS_CD_517',
+  'EC_MDT_2024_196_ANNEX_3',
+]);
+
+const ARTIFACT_PAGE_COUNTS: Record<string, number> = {
+  EC_CAN_DECISION_584: 15,
+  EC_CAN_RESOLUTION_957: 8,
+  EC_EXECUTIVE_DECREE_255: 43,
+  EC_IESS_CD_513: 72,
+  EC_IESS_CD_517: 19,
+  EC_IESS_CD_677: 22,
+  EC_IESS_CD_692: 5,
+  EC_LABOR_CODE: 199,
+  EC_MDT_2024_196: 23,
+  EC_MDT_2024_196_ANNEX_1: 8,
+  EC_MDT_2024_196_ANNEX_2: 91,
+  EC_MDT_2024_196_ANNEX_3: 102,
+  EC_MDT_2025_122_CONSTRUCTION: 70,
+};
+
+function evidenceClassification(source: RegulatoryReviewCorpusBundle['sources'][number]) {
+  const artifactVerificationStatus =
+    source.verificationStatus === 'VERIFIED_OFFICIAL_ARTIFACT'
+      ? ('OFFICIAL_ARTIFACT_VERIFIED' as const)
+      : source.verificationStatus === 'UNVERIFIED_REFERENCE'
+        ? ('REJECTED_UNVERIFIED' as const)
+        : source.verificationStatus === 'VERIFIED_OFFICIAL_REFERENCE' ||
+            source.verificationStatus === 'OFFICIAL_REFERENCE_ONLY'
+          ? ('OFFICIAL_REFERENCE_ONLY' as const)
+          : ('ARTIFACT_PENDING' as const);
+  const textExtractionStatus = COMPLETE_TEXT_SOURCES.has(source.sourceKey)
+    ? ('COMPLETE' as const)
+    : PARTIAL_TEXT_SOURCES.has(source.sourceKey)
+      ? ('PARTIAL' as const)
+      : artifactVerificationStatus === 'OFFICIAL_ARTIFACT_VERIFIED'
+        ? ('PENDING' as const)
+        : ('NOT_APPLICABLE' as const);
+  return {
+    artifactVerificationStatus,
+    textExtractionStatus,
+    vigenciaReviewStatus:
+      source.sourceKey === 'EC_IESS_CD_513'
+        ? ('PARTIALLY_AMENDED' as const)
+        : artifactVerificationStatus === 'REJECTED_UNVERIFIED'
+          ? ('UNKNOWN' as const)
+          : ('PENDING_REVIEW' as const),
+    artifactPageCount: ARTIFACT_PAGE_COUNTS[source.sourceKey] ?? null,
+    artifactVersionKey: source.officialDocumentSha256
+      ? `${source.sourceKey}:v${source.latestCatalogVersion}:${source.officialDocumentSha256}`
+      : null,
+  };
+}
+
+type DatabaseClient = Prisma.TransactionClient | PrismaClient;
+
 export async function provisionRegulatoryReviewCorpus(
-  prisma: PrismaClient,
+  prisma: DatabaseClient,
   corpus = loadRegulatoryReviewCorpusReferenceData(),
 ) {
   const sourceIds = new Map<string, string>();
@@ -75,6 +152,7 @@ export async function provisionRegulatoryReviewCorpus(
       }));
     sourceIds.set(source.sourceKey, row.id);
 
+    const evidence = evidenceClassification(source);
     const payload = {
       candidateStatus: source.candidateStatus as RegulatoryCandidateStatus,
       officialDocumentLocated: source.officialDocumentLocated,
@@ -103,10 +181,17 @@ export async function provisionRegulatoryReviewCorpus(
         },
       },
     });
-    if (existingVersion)
+    if (existingVersion) {
+      const existingCore = omitKeys(existingVersion, [
+        'artifactVerificationStatus',
+        'textExtractionStatus',
+        'vigenciaReviewStatus',
+        'artifactPageCount',
+        'artifactVersionKey',
+      ] as const);
       assertPublishedVersionMatches(
         `REGULATORY_SOURCE:${source.sourceKey}:${source.latestCatalogVersion}`,
-        existingVersion,
+        existingCore,
         {
           id: source.versionId,
           sourceId: row.id,
@@ -114,13 +199,22 @@ export async function provisionRegulatoryReviewCorpus(
           ...payload,
         },
       );
-    else
+      const evidenceMatches =
+        existingVersion.artifactVerificationStatus === evidence.artifactVerificationStatus &&
+        existingVersion.textExtractionStatus === evidence.textExtractionStatus &&
+        existingVersion.vigenciaReviewStatus === evidence.vigenciaReviewStatus &&
+        existingVersion.artifactPageCount === evidence.artifactPageCount &&
+        existingVersion.artifactVersionKey === evidence.artifactVersionKey;
+      if (!evidenceMatches)
+        throw new Error(`REGULATORY_SOURCE_EVIDENCE_CLASSIFICATION_DRIFT:${source.sourceKey}`);
+    } else
       await prisma.regulatorySourceVersion.create({
         data: {
           id: source.versionId,
           sourceId: row.id,
           catalogVersion: source.latestCatalogVersion,
           ...payload,
+          ...evidence,
         },
       });
   }

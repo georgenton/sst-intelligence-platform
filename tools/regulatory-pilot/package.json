@@ -14,7 +14,8 @@
     "validate": "pnpm build && node dist/cli.js",
     "review-bundle": "pnpm build && node dist/review-bundle-cli.js",
     "review-corpus": "pnpm build && node dist/review-corpus-cli.js",
-    "verify-source": "pnpm build && node dist/source-verifier-cli.js"
+    "verify-source": "pnpm build && node dist/source-verifier-cli.js",
+    "structure-evidence": "pnpm build && node dist/structure-evidence-cli.js"
   },
   "dependencies": {
     "@sst/contracts": "workspace:*"

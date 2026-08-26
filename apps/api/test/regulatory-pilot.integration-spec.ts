@@ -25,7 +25,7 @@ describe('controlled real regulatory pilot editorial import', () => {
 
   afterAll(async () => app.close());
 
-  it('imports pending candidates only in a rollback-isolated transaction and blocks publication', async () => {
+  it('reconciles production candidates idempotently in a rollback-isolated transaction and blocks publication', async () => {
     const manifest = loadRegulatoryPilotImportManifest();
     await expect(
       prisma.$transaction(async (transaction) => {
@@ -102,14 +102,16 @@ describe('controlled real regulatory pilot editorial import', () => {
       await prisma.regulatoryProvision.count({
         where: { provisionKey: { startsWith: 'MDT_2024_196_ART_' } },
       }),
-    ).toBe(0);
+    ).toBe(2);
     expect(
       await prisma.regulatoryRequirement.count({
         where: { requirementKey: { startsWith: 'MDT_2024_196_' } },
       }),
-    ).toBe(0);
+    ).toBe(5);
     expect(
       await prisma.adaptiveRuleDraft.count({ where: { regulatory: true, isDemo: false } }),
-    ).toBe(0);
+    ).toBe(5);
+    expect(await prisma.adaptiveRuleVersion.count({ where: { regulatory: true } })).toBe(0);
+    expect(await prisma.adaptiveRulePackVersion.count({ where: { regulatory: true } })).toBe(0);
   });
 });

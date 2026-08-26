@@ -54,28 +54,62 @@ async function dropDisposableSchemas() {
 }
 
 async function referenceSnapshot(prisma) {
-  const [sources, sourceVersions, definitions, versions, links, guidance, contexts] =
-    await Promise.all([
-      prisma.methodologySource.findMany({ orderBy: { id: 'asc' } }),
-      prisma.methodologySourceVersion.findMany({ orderBy: { id: 'asc' } }),
-      prisma.riskMethodDefinition.findMany({ orderBy: { id: 'asc' } }),
-      prisma.riskMethodVersion.findMany({ orderBy: { id: 'asc' } }),
-      prisma.riskMethodSourceLink.findMany({ orderBy: { id: 'asc' } }),
-      prisma.riskMethodExpertGuidanceVersion.findMany({ orderBy: { id: 'asc' } }),
-      prisma.riskMethodRegulatoryContext.findMany({ orderBy: { id: 'asc' } }),
-    ]);
-  return { sources, sourceVersions, definitions, versions, links, guidance, contexts };
+  const [
+    sources,
+    sourceVersions,
+    definitions,
+    versions,
+    links,
+    guidance,
+    contexts,
+    regulatorySources,
+    regulatorySourceVersions,
+    regulatoryUnits,
+    regulatoryProvisions,
+    regulatoryRequirements,
+    regulatoryRuleDrafts,
+  ] = await Promise.all([
+    prisma.methodologySource.findMany({ orderBy: { id: 'asc' } }),
+    prisma.methodologySourceVersion.findMany({ orderBy: { id: 'asc' } }),
+    prisma.riskMethodDefinition.findMany({ orderBy: { id: 'asc' } }),
+    prisma.riskMethodVersion.findMany({ orderBy: { id: 'asc' } }),
+    prisma.riskMethodSourceLink.findMany({ orderBy: { id: 'asc' } }),
+    prisma.riskMethodExpertGuidanceVersion.findMany({ orderBy: { id: 'asc' } }),
+    prisma.riskMethodRegulatoryContext.findMany({ orderBy: { id: 'asc' } }),
+    prisma.regulatorySource.findMany({ orderBy: { id: 'asc' } }),
+    prisma.regulatorySourceVersion.findMany({ orderBy: { id: 'asc' } }),
+    prisma.regulatoryUnit.findMany({ orderBy: { id: 'asc' } }),
+    prisma.regulatoryProvision.findMany({ orderBy: { id: 'asc' } }),
+    prisma.regulatoryRequirement.findMany({ orderBy: { id: 'asc' } }),
+    prisma.adaptiveRuleDraft.findMany({
+      where: { regulatory: true },
+      orderBy: { id: 'asc' },
+    }),
+  ]);
+  return {
+    sources,
+    sourceVersions,
+    definitions,
+    versions,
+    links,
+    guidance,
+    contexts,
+    regulatorySources,
+    regulatorySourceVersions,
+    regulatoryUnits,
+    regulatoryProvisions,
+    regulatoryRequirements,
+    regulatoryRuleDrafts,
+  };
 }
 
 async function existingGlobalReferenceSnapshot(prisma) {
-  const [technicalDefinitions, technicalVersions, applicabilityPacks, regulatorySources] =
-    await Promise.all([
-      prisma.technicalMethodDefinition.findMany({ orderBy: { id: 'asc' } }),
-      prisma.technicalMethodVersion.findMany({ orderBy: { id: 'asc' } }),
-      prisma.applicabilityRulePackVersion.findMany({ orderBy: { id: 'asc' } }),
-      prisma.regulatorySource.findMany({ orderBy: { id: 'asc' } }),
-    ]);
-  return { technicalDefinitions, technicalVersions, applicabilityPacks, regulatorySources };
+  const [technicalDefinitions, technicalVersions, applicabilityPacks] = await Promise.all([
+    prisma.technicalMethodDefinition.findMany({ orderBy: { id: 'asc' } }),
+    prisma.technicalMethodVersion.findMany({ orderBy: { id: 'asc' } }),
+    prisma.applicabilityRulePackVersion.findMany({ orderBy: { id: 'asc' } }),
+  ]);
+  return { technicalDefinitions, technicalVersions, applicabilityPacks };
 }
 
 async function operationalCounts(prisma) {
@@ -100,6 +134,22 @@ function assertExpectedReferences(snapshot) {
   assert.equal(snapshot.links.length, 1);
   assert.equal(snapshot.guidance.length, 1);
   assert.equal(snapshot.contexts.length, 2);
+  assert.equal(snapshot.regulatorySources.length, 15);
+  assert.equal(snapshot.regulatorySourceVersions.length, 25);
+  assert.equal(snapshot.regulatoryUnits.length, 1112);
+  assert.equal(
+    snapshot.regulatoryUnits.filter(({ unitType }) => unitType === 'ARTICLE').length,
+    893,
+  );
+  assert.equal(snapshot.regulatoryProvisions.length, 2);
+  assert.equal(snapshot.regulatoryRequirements.length, 5);
+  assert.equal(
+    snapshot.regulatoryRequirements.filter(
+      ({ editorialStatus }) => editorialStatus === 'TECHNICAL_REVIEW_PENDING',
+    ).length,
+    5,
+  );
+  assert.equal(snapshot.regulatoryRuleDrafts.length, 5);
 
   assert.deepEqual(snapshot.definitions.map(({ methodKey }) => methodKey).sort(), [
     'DEMO_5X5',

@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  regulatoryArtifactVerificationStatusSchema,
+  regulatoryTextExtractionStatusSchema,
+  regulatoryVigenciaReviewStatusSchema,
+} from './regulatory-evidence.js';
 
 export const regulatoryDocumentTypeSchema = z.enum([
   'MINISTERIAL_AGREEMENT',
@@ -78,6 +83,11 @@ export const regulatorySourceVersionSchema = z
     readyForRules: z.boolean(),
     reviewNotes: z.string().nullable(),
     recordedAt: z.string().datetime(),
+    artifactVerificationStatus: regulatoryArtifactVerificationStatusSchema,
+    textExtractionStatus: regulatoryTextExtractionStatusSchema,
+    vigenciaReviewStatus: regulatoryVigenciaReviewStatusSchema,
+    artifactPageCount: z.number().int().positive().nullable(),
+    artifactVersionKey: z.string().trim().min(1).max(160).nullable(),
   })
   .strict();
 
@@ -89,6 +99,10 @@ export const regulatorySourceListItemSchema = regulatorySourceIdentitySchema
     readyForExtraction: z.boolean(),
     readyForRules: z.boolean(),
     supersessionStatus: regulatorySupersessionStatusSchema,
+    artifactVerificationStatus: regulatoryArtifactVerificationStatusSchema,
+    textExtractionStatus: regulatoryTextExtractionStatusSchema,
+    vigenciaReviewStatus: regulatoryVigenciaReviewStatusSchema,
+    articleCatalogAvailable: z.boolean(),
   })
   .strict();
 

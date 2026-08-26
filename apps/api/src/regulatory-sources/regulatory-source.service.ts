@@ -1,5 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { RegulatoryCandidateStatus, RegulatoryDocumentType } from '@prisma/client';
+import type {
+  RegulatoryCandidateStatus,
+  RegulatoryDocumentType,
+  RegulatoryUnitType,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 const sourceIdentitySelect = {
@@ -28,6 +32,11 @@ const versionSelect = {
   readyForRules: true,
   reviewNotes: true,
   recordedAt: true,
+  artifactVerificationStatus: true,
+  textExtractionStatus: true,
+  vigenciaReviewStatus: true,
+  artifactPageCount: true,
+  artifactVersionKey: true,
 } as const;
 
 const sourceVersionReferenceSelect = {
@@ -49,6 +58,25 @@ const provisionSelect = {
   createdAt: true,
 } as const;
 
+const unitSelect = {
+  id: true,
+  sourceVersionId: true,
+  parentUnitId: true,
+  unitType: true,
+  identifier: true,
+  heading: true,
+  ordinal: true,
+  officialText: true,
+  editorialSummary: true,
+  normalizedTextHash: true,
+  pageStart: true,
+  pageEnd: true,
+  locator: true,
+  extractionStatus: true,
+  reviewStatus: true,
+  createdAt: true,
+} as const;
+
 const requirementSelect = {
   id: true,
   requirementKey: true,
@@ -65,12 +93,22 @@ export class RegulatorySourceService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listSources(filters: {
+    q?: string;
     issuer?: string;
     documentType?: RegulatoryDocumentType;
     candidateStatus?: RegulatoryCandidateStatus;
   }) {
     const sources = await this.prisma.regulatorySource.findMany({
       where: {
+        ...(filters.q
+          ? {
+              OR: [
+                { canonicalTitle: { contains: filters.q.trim(), mode: 'insensitive' as const } },
+                { referenceNumber: { contains: filters.q.trim(), mode: 'insensitive' as const } },
+                { issuer: { contains: filters.q.trim(), mode: 'insensitive' as const } },
+              ],
+            }
+          : {}),
         ...(filters.issuer
           ? { issuer: { contains: filters.issuer.trim(), mode: 'insensitive' as const } }
           : {}),
@@ -99,6 +137,10 @@ export class RegulatorySourceService {
           readyForExtraction: latest.readyForExtraction,
           readyForRules: latest.readyForRules,
           supersessionStatus: latest.supersessionStatus,
+          artifactVerificationStatus: latest.artifactVerificationStatus,
+          textExtractionStatus: latest.textExtractionStatus,
+          vigenciaReviewStatus: latest.vigenciaReviewStatus,
+          articleCatalogAvailable: latest.textExtractionStatus === 'COMPLETE',
         };
       })
       .filter((source) => source !== null)
@@ -174,6 +216,7 @@ export class RegulatorySourceService {
           },
           orderBy: [{ relationshipType: 'asc' }, { createdAt: 'asc' }],
         },
+        units: { select: { unit: { select: unitSelect } }, orderBy: { unit: { ordinal: 'asc' } } },
       },
       orderBy: [
         { sourceVersion: { catalogVersion: 'desc' } },
@@ -182,10 +225,11 @@ export class RegulatorySourceService {
       ],
     });
 
-    return provisions.map(({ sourceVersion, requirementSources, ...provision }) => ({
+    return provisions.map(({ sourceVersion, requirementSources, units, ...provision }) => ({
       provision,
       sourceVersion,
       requirements: requirementSources,
+      units: units.map(({ unit }) => unit),
     }));
   }
 
@@ -207,16 +251,18 @@ export class RegulatorySourceService {
           },
           orderBy: [{ relationshipType: 'asc' }, { createdAt: 'asc' }],
         },
+        units: { select: { unit: { select: unitSelect } }, orderBy: { unit: { ordinal: 'asc' } } },
       },
     });
     if (!row) throw new NotFoundException('Disposición estructurada no encontrada.');
-    const { sourceVersion, requirementSources, ...provision } = row;
+    const { sourceVersion, requirementSources, units, ...provision } = row;
     const { source, ...version } = sourceVersion;
     return {
       provision,
       sourceVersion: version,
       source,
       requirements: requirementSources,
+      units: units.map(({ unit }) => unit),
       semanticBoundary: 'EDITORIAL_LOCATOR_NOT_AUTHORITATIVE_LEGAL_TEXT' as const,
     };
   }
@@ -252,6 +298,10 @@ export class RegulatorySourceService {
                     source: { select: sourceIdentitySelect },
                   },
                 },
+                units: {
+                  select: { unit: { select: unitSelect } },
+                  orderBy: { unit: { ordinal: 'asc' } },
+                },
               },
             },
           },
@@ -264,16 +314,96 @@ export class RegulatorySourceService {
     return {
       requirement,
       provenance: sources.map(({ relationshipType, provision }) => {
-        const { sourceVersion, ...provisionRecord } = provision;
+        const { sourceVersion, units, ...provisionRecord } = provision;
         const { source, ...version } = sourceVersion;
         return {
           relationshipType,
           provision: provisionRecord,
           sourceVersion: version,
           source,
+          units: units.map(({ unit }) => unit),
         };
       }),
       semanticBoundary: 'STRUCTURED_CANDIDATE_NOT_APPLICABILITY_DECISION' as const,
+    };
+  }
+
+  async listUnits(sourceKey: string, filters: { q?: string; unitType?: RegulatoryUnitType }) {
+    const source = await this.requireSource(sourceKey);
+    const version = await this.prisma.regulatorySourceVersion.findFirst({
+      where: { sourceId: source.id, textExtractionStatus: 'COMPLETE' },
+      orderBy: { catalogVersion: 'desc' },
+      select: {
+        id: true,
+        catalogVersion: true,
+        artifactVerificationStatus: true,
+        textExtractionStatus: true,
+      },
+    });
+    if (!version)
+      return {
+        sourceKey,
+        version: null,
+        items: [],
+        structuralBoundary: 'OFFICIAL_ARTIFACT_NOT_FULLY_STRUCTURED' as const,
+      };
+    const query = filters.q?.trim();
+    const items = await this.prisma.regulatoryUnit.findMany({
+      where: {
+        sourceVersionId: version.id,
+        ...(filters.unitType ? { unitType: filters.unitType } : {}),
+        ...(query
+          ? {
+              OR: [
+                { identifier: { contains: query, mode: 'insensitive' as const } },
+                { heading: { contains: query, mode: 'insensitive' as const } },
+                { locator: { contains: query, mode: 'insensitive' as const } },
+                { officialText: { contains: query, mode: 'insensitive' as const } },
+              ],
+            }
+          : {}),
+      },
+      select: unitSelect,
+      orderBy: { ordinal: 'asc' },
+      take: query ? 100 : 1_500,
+    });
+    return {
+      sourceKey,
+      version,
+      items,
+      structuralBoundary: 'STRUCTURAL_COVERAGE_NOT_LEGAL_COMPLETENESS_SCORE' as const,
+    };
+  }
+
+  async getUnit(unitId: string) {
+    const unit = await this.prisma.regulatoryUnit.findUnique({
+      where: { id: unitId },
+      select: {
+        ...unitSelect,
+        sourceVersion: { select: { ...versionSelect, source: { select: sourceIdentitySelect } } },
+        provisions: {
+          select: {
+            provision: {
+              select: {
+                ...provisionSelect,
+                requirementSources: {
+                  select: { relationshipType: true, requirement: { select: requirementSelect } },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!unit) throw new NotFoundException('Unidad regulatoria no encontrada.');
+    const { sourceVersion, provisions, ...record } = unit;
+    const { source, ...version } = sourceVersion;
+    return {
+      unit: record,
+      source,
+      sourceVersion: version,
+      interpretations: provisions.map(({ provision }) => provision),
+      textBoundary: 'OFFICIAL_TEXT_SEPARATE_FROM_PLATFORM_INTERPRETATION' as const,
     };
   }
 

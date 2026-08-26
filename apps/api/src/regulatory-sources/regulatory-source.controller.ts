@@ -10,7 +10,7 @@ import {
 } from '@nestjs/swagger';
 import { AccessTokenGuard } from '../auth/access-token.guard';
 import { OrganizationGuard } from '../organizations/organization.guard';
-import { ListRegulatorySourcesQueryDto } from './dto';
+import { ListRegulatorySourcesQueryDto, ListRegulatoryUnitsQueryDto } from './dto';
 import { RegulatorySourceService } from './regulatory-source.service';
 
 @ApiTags('regulatory-sources')
@@ -61,5 +61,13 @@ export class RegulatorySourceController {
   @ApiNotFoundResponse({ description: 'Fuente candidata no encontrada.' })
   provisions(@Param('sourceKey') sourceKey: string) {
     return this.regulatorySources.getProvisions(sourceKey);
+  }
+
+  @Get(':sourceKey/units')
+  @ApiOperation({
+    summary: 'Lista la tabla de contenido y artículos de la versión oficial exacta.',
+  })
+  units(@Param('sourceKey') sourceKey: string, @Query() query: ListRegulatoryUnitsQueryDto) {
+    return this.regulatorySources.listUnits(sourceKey, query);
   }
 }

@@ -179,8 +179,9 @@ export async function importRegulatoryPilotCandidates(
         },
       },
     });
-    if (!existingDraft) {
-      await database.adaptiveRuleDraft.create({
+    let draft = existingDraft;
+    if (!draft) {
+      draft = await database.adaptiveRuleDraft.create({
         data: {
           id: candidate.draftId,
           ruleDefinitionId: definition.id,
@@ -192,13 +193,30 @@ export async function importRegulatoryPilotCandidates(
         },
       });
     } else if (
-      existingDraft.id !== candidate.draftId ||
-      existingDraft.status !== 'TECHNICAL_REVIEW_PENDING' ||
-      existingDraft.isDemo ||
-      !existingDraft.regulatory ||
-      !contentEqual(existingDraft.schema, candidate.rule)
+      draft.id !== candidate.draftId ||
+      draft.status !== 'TECHNICAL_REVIEW_PENDING' ||
+      draft.isDemo ||
+      !draft.regulatory ||
+      !contentEqual(draft.schema, candidate.rule)
     )
       throw new Error(`EDITORIAL_RULE_DRAFT_DRIFT:${candidate.rule.ruleKey}`);
+    for (const requirementKey of candidate.requirementKeys) {
+      await database.regulatoryRuleDraftRequirement.upsert({
+        where: {
+          ruleDraftId_requirementId_relationshipType: {
+            ruleDraftId: draft.id,
+            requirementId: requirementIds.get(requirementKey)!,
+            relationshipType: 'PRIMARY_REQUIREMENT',
+          },
+        },
+        update: {},
+        create: {
+          ruleDraftId: draft.id,
+          requirementId: requirementIds.get(requirementKey)!,
+          relationshipType: 'PRIMARY_REQUIREMENT',
+        },
+      });
+    }
   }
 
   return {
