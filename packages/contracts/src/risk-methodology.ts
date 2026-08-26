@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { calculateDemoRisk } from './inspections.js';
 
@@ -9,6 +10,37 @@ const stableKeySchema = z.string().regex(/^[A-Z][A-Z0-9_]*$/);
 export const reviewStatusSchema = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'NOT_APPLICABLE']);
 export const publicationStatusSchema = z.enum(['DRAFT', 'CANDIDATE', 'PUBLISHED', 'RETIRED']);
 export const riskMethodKindSchema = z.enum(['INSPECTION_FINDING_RISK', 'HAZARD_RISK_ASSESSMENT']);
+
+export const gtc45CanonicalSpecificationSchema = z.object({
+  specificationKey: z.literal('GTC45_2010'),
+  deficiency: z.tuple([
+    z.object({ key: z.literal('VERY_HIGH'), numericValue: z.literal(10) }),
+    z.object({ key: z.literal('HIGH'), numericValue: z.literal(6) }),
+    z.object({ key: z.literal('MEDIUM'), numericValue: z.literal(2) }),
+    z.object({
+      key: z.literal('LOW'),
+      numericValue: z.null(),
+      specialHandling: z.literal('DIRECT_RISK_LEVEL_IV_WITHOUT_NUMERIC_ND_NP_NR'),
+    }),
+  ]),
+  exposure: z.tuple([z.literal(4), z.literal(3), z.literal(2), z.literal(1)]),
+  consequence: z.tuple([z.literal(100), z.literal(60), z.literal(25), z.literal(10)]),
+  probabilityFormula: z.literal('ND_X_NE'),
+  probabilityBands: z.tuple([
+    z.object({ band: z.literal('VERY_HIGH'), minimum: z.literal(24), maximum: z.literal(40) }),
+    z.object({ band: z.literal('HIGH'), minimum: z.literal(10), maximum: z.literal(20) }),
+    z.object({ band: z.literal('MEDIUM'), minimum: z.literal(6), maximum: z.literal(8) }),
+    z.object({ band: z.literal('LOW'), minimum: z.literal(2), maximum: z.literal(4) }),
+  ]),
+  riskFormula: z.literal('NP_X_NC'),
+  interventionLevels: z.tuple([
+    z.object({ level: z.literal('I'), minimum: z.literal(600), maximum: z.literal(4000) }),
+    z.object({ level: z.literal('II'), minimum: z.literal(150), maximum: z.literal(500) }),
+    z.object({ level: z.literal('III'), minimum: z.literal(40), maximum: z.literal(120) }),
+    z.object({ level: z.literal('IV'), minimum: z.literal(20), maximum: z.literal(20) }),
+  ]),
+  acceptabilityPolicy: z.literal('ORGANIZATION_CRITERIA_REQUIRED'),
+});
 
 export const methodologySourceVersionManifestSchema = z.object({
   sourceKey: stableKeySchema,
@@ -27,27 +59,64 @@ export const methodologySourceVersionManifestSchema = z.object({
   publicationStatus: publicationStatusSchema,
 });
 
-export const riskMethodVersionManifestSchema = z.object({
-  methodKey: stableKeySchema,
-  semanticVersion: semanticVersionSchema,
-  displayName: z.string().min(1).max(200),
-  methodKind: riskMethodKindSchema,
-  calculationProviderKey: stableKeySchema,
-  calculationProviderVersion: semanticVersionSchema,
-  inputSchemaVersion: semanticVersionSchema,
-  resultSchemaVersion: semanticVersionSchema,
-  isDemo: z.boolean(),
-  regulatory: z.boolean(),
-  publicationStatus: publicationStatusSchema,
-  technicalReviewStatus: reviewStatusSchema,
-  legalReviewStatus: reviewStatusSchema,
-  sourceReferences: z.array(
-    z.object({ sourceKey: stableKeySchema, sourceVersion: semanticVersionSchema }),
-  ),
-  regulatoryContextReferences: z.array(stableKeySchema),
-  disclaimer: z.string().min(1).max(1000),
-  contentHash: sha256Schema,
-});
+export const riskMethodVersionManifestSchema = z
+  .object({
+    methodKey: stableKeySchema,
+    semanticVersion: semanticVersionSchema,
+    displayName: z.string().min(1).max(200),
+    methodKind: riskMethodKindSchema,
+    calculationProviderKey: stableKeySchema,
+    calculationProviderVersion: semanticVersionSchema,
+    inputSchemaVersion: semanticVersionSchema,
+    resultSchemaVersion: semanticVersionSchema,
+    isDemo: z.boolean(),
+    regulatory: z.boolean(),
+    publicationStatus: publicationStatusSchema,
+    technicalReviewStatus: reviewStatusSchema,
+    legalReviewStatus: reviewStatusSchema,
+    sourceReferences: z.array(
+      z.object({ sourceKey: stableKeySchema, sourceVersion: semanticVersionSchema }),
+    ),
+    regulatoryContextReferences: z.array(stableKeySchema),
+    canonicalSpecification: gtc45CanonicalSpecificationSchema.optional(),
+    disclaimer: z.string().min(1).max(1000),
+    contentHash: sha256Schema,
+  })
+  .superRefine((manifest, context) => {
+    if (manifest.methodKey === 'GTC45_2010' && !manifest.canonicalSpecification) {
+      context.addIssue({ code: 'custom', message: 'GTC45_CANONICAL_SPECIFICATION_REQUIRED' });
+    }
+    if (manifest.methodKey !== 'GTC45_2010' && manifest.canonicalSpecification) {
+      context.addIssue({ code: 'custom', message: 'UNEXPECTED_GTC45_CANONICAL_SPECIFICATION' });
+    }
+  });
+
+function canonicalRiskMethodValue(value: unknown, parentKey?: string): unknown {
+  if (Array.isArray(value)) {
+    const normalized = value.map((item) => canonicalRiskMethodValue(item));
+    if (parentKey === 'sourceReferences' || parentKey === 'regulatoryContextReferences') {
+      return [...normalized].sort((left, right) =>
+        JSON.stringify(left).localeCompare(JSON.stringify(right)),
+      );
+    }
+    return normalized;
+  }
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([key]) => key !== 'contentHash')
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, canonicalRiskMethodValue(nested, key)]),
+    );
+  }
+  return value;
+}
+
+export function riskMethodContentHash(manifest: Record<string, unknown>) {
+  return createHash('sha256')
+    .update(JSON.stringify(canonicalRiskMethodValue(manifest)))
+    .digest('hex');
+}
 
 export const riskMethodExpertGuidanceVersionSchema = z.object({
   guidanceKey: stableKeySchema,
@@ -187,26 +256,45 @@ export function classifyGtc45Risk(value: number): Gtc45RiskLevel {
   throw new Error('INVALID_GTC45_RISK_VALUE');
 }
 
-export type Gtc45SpecificationResult = {
-  methodKey: 'GTC45_2010';
-  methodVersion: '1.0.0';
-  deficiencyValue: 10 | 6 | 2 | null;
-  probabilityValue: number | null;
-  probabilityBand: Gtc45ProbabilityBand;
-  consequenceValue: 100 | 60 | 25 | 10;
-  riskValue: number | null;
-  riskLevel: Gtc45RiskLevel;
-  acceptability: null;
-  acceptabilityPolicy: 'ORGANIZATION_CRITERIA_REQUIRED';
-  specialHandling: 'NONE' | 'LOW_DEFICIENCY_DIRECT_TO_IV';
-};
+export const gtc45SpecificationResultSchema = z.object({
+  methodKey: z.literal('GTC45_2010'),
+  methodVersion: z.literal('1.0.0'),
+  deficiencyValue: z.union([z.literal(10), z.literal(6), z.literal(2), z.null()]),
+  probabilityValue: z.number().int().nullable(),
+  probabilityBand: z.enum(['VERY_HIGH', 'HIGH', 'MEDIUM', 'LOW']),
+  consequenceValue: z.union([z.literal(100), z.literal(60), z.literal(25), z.literal(10)]),
+  riskValue: z.number().int().nullable(),
+  riskLevel: z.enum(['I', 'II', 'III', 'IV']),
+  acceptability: z.null(),
+  acceptabilityPolicy: z.literal('ORGANIZATION_CRITERIA_REQUIRED'),
+  specialHandling: z.enum(['NONE', 'LOW_DEFICIENCY_DIRECT_TO_IV']),
+  trace: z.object({
+    deficiency: z.object({
+      selection: z.enum(['VERY_HIGH', 'HIGH', 'MEDIUM', 'LOW']),
+      numericValue: z.union([z.literal(10), z.literal(6), z.literal(2), z.null()]),
+    }),
+    probability: z.object({
+      operation: z.enum(['ND_X_NE', 'NOT_APPLIED_LOW_DEFICIENCY']),
+      exposureValue: z.union([z.literal(4), z.literal(3), z.literal(2), z.literal(1)]),
+      value: z.number().int().nullable(),
+    }),
+    risk: z.object({
+      operation: z.enum(['NP_X_NC', 'NOT_APPLIED_LOW_DEFICIENCY']),
+      consequenceValue: z.union([z.literal(100), z.literal(60), z.literal(25), z.literal(10)]),
+      value: z.number().int().nullable(),
+    }),
+    decision: z.enum(['NUMERIC_INTERVENTION_LOOKUP', 'LOW_DIRECT_RISK_LEVEL_IV']),
+  }),
+});
+
+export type Gtc45SpecificationResult = z.infer<typeof gtc45SpecificationResultSchema>;
 
 export function calculateGtc45Specification(input: unknown): Gtc45SpecificationResult {
   const parsed = gtc45SpecificationInputSchema.parse(input);
   const deficiency = GTC45_DEFICIENCY_OPTIONS.find(({ key }) => key === parsed.deficiency);
   if (!deficiency) throw new Error('INVALID_GTC45_DEFICIENCY');
   if (deficiency.value === null) {
-    return {
+    return gtc45SpecificationResultSchema.parse({
       methodKey: 'GTC45_2010',
       methodVersion: '1.0.0',
       deficiencyValue: null,
@@ -218,11 +306,25 @@ export function calculateGtc45Specification(input: unknown): Gtc45SpecificationR
       acceptability: null,
       acceptabilityPolicy: 'ORGANIZATION_CRITERIA_REQUIRED',
       specialHandling: 'LOW_DEFICIENCY_DIRECT_TO_IV',
-    };
+      trace: {
+        deficiency: { selection: parsed.deficiency, numericValue: null },
+        probability: {
+          operation: 'NOT_APPLIED_LOW_DEFICIENCY',
+          exposureValue: parsed.exposure,
+          value: null,
+        },
+        risk: {
+          operation: 'NOT_APPLIED_LOW_DEFICIENCY',
+          consequenceValue: parsed.consequence,
+          value: null,
+        },
+        decision: 'LOW_DIRECT_RISK_LEVEL_IV',
+      },
+    });
   }
   const probabilityValue = deficiency.value * parsed.exposure;
   const riskValue = probabilityValue * parsed.consequence;
-  return {
+  return gtc45SpecificationResultSchema.parse({
     methodKey: 'GTC45_2010',
     methodVersion: '1.0.0',
     deficiencyValue: deficiency.value,
@@ -234,7 +336,21 @@ export function calculateGtc45Specification(input: unknown): Gtc45SpecificationR
     acceptability: null,
     acceptabilityPolicy: 'ORGANIZATION_CRITERIA_REQUIRED',
     specialHandling: 'NONE',
-  };
+    trace: {
+      deficiency: { selection: parsed.deficiency, numericValue: deficiency.value },
+      probability: {
+        operation: 'ND_X_NE',
+        exposureValue: parsed.exposure,
+        value: probabilityValue,
+      },
+      risk: {
+        operation: 'NP_X_NC',
+        consequenceValue: parsed.consequence,
+        value: riskValue,
+      },
+      decision: 'NUMERIC_INTERVENTION_LOOKUP',
+    },
+  });
 }
 
 type GuidedCriterion = {

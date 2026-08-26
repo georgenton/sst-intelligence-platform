@@ -30,7 +30,11 @@ for existing controlled fixtures; production create APIs require explicit select
 
 - A finding copies the inspection's exact `RiskMethodVersionId`; callers cannot supply another.
 - Residual API and PostgreSQL constraint require initial/residual UUID equality.
-- Published reference versions reject update/delete.
+- Published reference versions reject update/delete, and published method source/context joins
+  reject insert/update/delete.
+- Initial and recorded residual finding snapshots, inputs, outputs, compatibility values and labels
+  are database-immutable.
+- Seed validates each canonical method manifest's SHA-256 content hash before provisioning.
 - Catalog status does not imply legal applicability.
 - Recurrence never depends on method score.
 - Systemic snapshots retain method identity; raw cross-method arithmetic is forbidden.

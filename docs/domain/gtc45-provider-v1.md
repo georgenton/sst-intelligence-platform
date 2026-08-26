@@ -17,8 +17,13 @@ reproduction notice. No PDF, extracted full text or long table is stored.
 - NC: 100, 60, 25, 10.
 - Numeric path: `NR = NP × NC` with intervention I 600–4000, II 150–500, III 40–120, IV 20.
 
+The contract test matrix exhausts all 12 numeric ND×NE combinations and every reachable NR×NC
+combination. It asserts the derived NP band and intervention level rather than accepting supplied
+NP/NR values.
+
 LOW does not become zero. It produces `deficiencyValue=null`, no numeric NP/NR and the explicit
-`LOW_DEFICIENCY_DIRECT_TO_IV` trace. Every result persists selected criteria, NP/band, NC, NR,
+`LOW_DEFICIENCY_DIRECT_TO_IV` trace, with formula operations marked as not applied. Every result
+persists selected criteria, NP/band, NC, NR,
 intervention level, acceptability null and method/version disclosure.
 
 Acceptability is a separate policy and remains

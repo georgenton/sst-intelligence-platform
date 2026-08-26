@@ -18,6 +18,7 @@ import {
   adaptivePackContentHash,
   normalizeAdaptiveGroupVersion,
   normalizeAdaptiveRuleVersion,
+  riskMethodContentHash,
 } from '@sst/contracts';
 import {
   REGULATORY_SOURCE_RECORDED_AT,
@@ -45,6 +46,11 @@ function assertRiskReferenceMatches(label: string, actual: unknown, expected: un
 }
 
 async function provisionRiskMethodologyReferenceData() {
+  for (const method of RISK_METHOD_MANIFESTS) {
+    if (riskMethodContentHash(method) !== method.contentHash)
+      throw new Error(`RISK_METHOD_CONTENT_HASH_MISMATCH:${method.methodKey}`);
+  }
+
   for (const source of METHODOLOGY_SOURCE_MANIFESTS) {
     const definition = await prisma.methodologySource.upsert({
       where: { sourceKey: source.sourceKey },

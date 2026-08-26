@@ -1374,6 +1374,18 @@ function findingMethodInput(methodKey: string, input: RiskInputForm) {
   return { likelihood: Number(input.likelihood), consequence: Number(input.consequence) };
 }
 
+function selectedGtcDeficiencyLabel(key: string) {
+  return gtc45DeficiencyOptions.find((option) => option.key === key)?.label ?? 'Sin selección';
+}
+
+function selectedGtcExposureLabel(value: number | undefined) {
+  return gtc45ExposureOptions.find((option) => option.value === value)?.label ?? 'Sin selección';
+}
+
+function selectedGtcConsequenceLabel(value: number | undefined) {
+  return gtc45ConsequenceOptions.find((option) => option.value === value)?.label ?? 'Sin selección';
+}
+
 export function NewFinding({ inspectionId }: { inspectionId: string }) {
   const api = useInspectionApi();
   const router = useRouter();
@@ -1962,8 +1974,9 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
                     <div>
                       <span>Criterios seleccionados</span>
                       <strong>
-                        ND {values.gtcDeficiency} · NE {values.gtcExposure} · NC{' '}
-                        {values.gtcConsequence}
+                        Deficiencia {selectedGtcDeficiencyLabel(values.gtcDeficiency)} · Exposición{' '}
+                        {selectedGtcExposureLabel(values.gtcExposure)} · Consecuencia{' '}
+                        {selectedGtcConsequenceLabel(values.gtcConsequence)}
                       </strong>
                     </div>
                   ) : inspection.data.riskMethodVersion.methodDefinition.methodKey ===

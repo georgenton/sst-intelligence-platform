@@ -48,8 +48,9 @@ async function fillFindingIdentity(page: Page, title: string) {
   await page.getByRole('button', { name: 'Continuar' }).click();
 }
 
-async function saveFinding(page: Page) {
+async function saveFinding(page: Page, assertReview?: () => Promise<void>) {
   await page.getByRole('button', { name: 'Continuar' }).click();
+  await assertReview?.();
   const response = page.waitForResponse(
     (candidate) =>
       candidate.request().method() === 'POST' &&
@@ -140,7 +141,12 @@ test('multi-method runtime, exact residual binding and read-only library', async
   await page
     .getByLabel('Justificación profesional')
     .fill('La deficiencia alta, exposición continua y consecuencia mortal sustentan la selección.');
-  await saveFinding(page);
+  await saveFinding(page, async () => {
+    await expect(
+      page.getByText('Deficiencia Alto · Exposición Continua · Consecuencia Mortal o catastrófica'),
+    ).toBeVisible();
+    await expect(page.getByText('HIGH', { exact: true })).toHaveCount(0);
+  });
   await expect(page.getByText('Nivel de intervención I').first()).toBeVisible();
   await expect(page.getByText(/Metodología utilizada: GTC 45/)).toBeVisible();
 

@@ -13,6 +13,7 @@ import {
   guided5x5SpecificationInputSchema,
   methodologySourceVersionManifestSchema,
   riskMethodComparisonFixtureSchema,
+  riskMethodContentHash,
   riskMethodExpertGuidanceVersionSchema,
   riskMethodRegulatoryContextSchema,
   riskMethodVersionManifestSchema,
@@ -51,6 +52,21 @@ function contentHash(value: Record<string, unknown>) {
 }
 
 describe('GTC45 2010 specification oracle', () => {
+  const ndNeMatrix = [
+    ['VERY_HIGH', 4, 40, 'VERY_HIGH', ['I', 'I', 'I', 'II']],
+    ['VERY_HIGH', 3, 30, 'VERY_HIGH', ['I', 'I', 'I', 'II']],
+    ['VERY_HIGH', 2, 20, 'HIGH', ['I', 'I', 'II', 'II']],
+    ['VERY_HIGH', 1, 10, 'HIGH', ['I', 'I', 'II', 'III']],
+    ['HIGH', 4, 24, 'VERY_HIGH', ['I', 'I', 'I', 'II']],
+    ['HIGH', 3, 18, 'HIGH', ['I', 'I', 'II', 'II']],
+    ['HIGH', 2, 12, 'HIGH', ['I', 'I', 'II', 'III']],
+    ['HIGH', 1, 6, 'MEDIUM', ['I', 'II', 'II', 'III']],
+    ['MEDIUM', 4, 8, 'MEDIUM', ['I', 'II', 'II', 'III']],
+    ['MEDIUM', 3, 6, 'MEDIUM', ['I', 'II', 'II', 'III']],
+    ['MEDIUM', 2, 4, 'LOW', ['II', 'II', 'III', 'III']],
+    ['MEDIUM', 1, 2, 'LOW', ['II', 'III', 'III', 'IV']],
+  ] as const;
+
   it('keeps every deficiency choice finite and LOW non-numeric', () => {
     expect(GTC45_DEFICIENCY_OPTIONS.map(({ key, value }) => [key, value])).toEqual([
       ['VERY_HIGH', 10],
@@ -131,6 +147,12 @@ describe('GTC45 2010 specification oracle', () => {
       riskValue: null,
       riskLevel: 'IV',
       specialHandling: 'LOW_DEFICIENCY_DIRECT_TO_IV',
+      trace: {
+        deficiency: { selection: 'LOW', numericValue: null },
+        probability: { operation: 'NOT_APPLIED_LOW_DEFICIENCY', value: null },
+        risk: { operation: 'NOT_APPLIED_LOW_DEFICIENCY', value: null },
+        decision: 'LOW_DIRECT_RISK_LEVEL_IV',
+      },
     });
   });
 
@@ -140,6 +162,83 @@ describe('GTC45 2010 specification oracle', () => {
     { deficiency: 'HIGH', exposure: 1, consequence: 50 },
   ])('rejects invalid GTC45 input %#', (input) => {
     expect(() => calculateGtc45Specification(input)).toThrow();
+  });
+
+  it.each(ndNeMatrix)(
+    'derives exact NP for ND %s × NE %s without an injectable NP',
+    (deficiency, exposure, probabilityValue, probabilityBand) => {
+      const result = calculateGtc45Specification({ deficiency, exposure, consequence: 10 });
+      expect(result).toMatchObject({
+        deficiencyValue: deficiency === 'VERY_HIGH' ? 10 : deficiency === 'HIGH' ? 6 : 2,
+        probabilityValue,
+        probabilityBand,
+        trace: {
+          probability: { operation: 'ND_X_NE', exposureValue: exposure, value: probabilityValue },
+        },
+      });
+    },
+  );
+
+  it.each(ndNeMatrix)(
+    'derives all canonical NR products and intervention levels for NP %s/%s',
+    (deficiency, exposure, probabilityValue, _probabilityBand, expectedLevels) => {
+      GTC45_CONSEQUENCE_OPTIONS.forEach(({ value: consequence }, index) => {
+        const result = calculateGtc45Specification({ deficiency, exposure, consequence });
+        expect(result).toMatchObject({
+          probabilityValue,
+          consequenceValue: consequence,
+          riskValue: probabilityValue * consequence,
+          riskLevel: expectedLevels[index],
+          trace: {
+            risk: {
+              operation: 'NP_X_NC',
+              consequenceValue: consequence,
+              value: probabilityValue * consequence,
+            },
+          },
+        });
+      });
+    },
+  );
+
+  it('rejects coercion and direct NP/NR injection', () => {
+    expect(() =>
+      calculateGtc45Specification({ deficiency: 'HIGH', exposure: '4', consequence: 100 }),
+    ).toThrow();
+    expect(() =>
+      calculateGtc45Specification({ deficiency: 'HIGH', exposure: 4, consequence: '100' }),
+    ).toThrow();
+    const result = calculateGtc45Specification({
+      deficiency: 'HIGH',
+      exposure: 4,
+      consequence: 100,
+      probabilityValue: 23,
+      riskValue: 9,
+    });
+    expect(result).toMatchObject({ probabilityValue: 24, riskValue: 2400, riskLevel: 'I' });
+  });
+
+  it('keeps canonical scoring identical across guidance context', () => {
+    const canonical = {
+      deficiency: 'HIGH' as const,
+      exposure: 3 as const,
+      consequence: 60 as const,
+    };
+    const withoutGuidance = calculateGtc45Specification(canonical);
+    const withGuidance = calculateGtc45Specification({
+      ...canonical,
+      existingControls: { source: 'Control A', medium: 'Control B', individual: 'Control C' },
+      guidanceResponses: { CONTROL_EFFECTIVENESS: 'Respuesta A' },
+      professionalRationale: 'Justificación profesional A.',
+    });
+    const withDifferentGuidance = calculateGtc45Specification({
+      ...canonical,
+      existingControls: { source: 'Control distinto' },
+      guidanceResponses: { CONTROL_EFFECTIVENESS: 'Respuesta distinta' },
+      professionalRationale: 'Justificación profesional distinta.',
+    });
+    expect(withGuidance).toEqual(withoutGuidance);
+    expect(withDifferentGuidance).toEqual(withoutGuidance);
   });
 });
 
@@ -203,6 +302,25 @@ describe('GUIDED_5X5 specification oracle', () => {
         checkedProbabilityCueKeys: ['ARBITRARY_FORMULA'],
       }),
     ).toThrow('UNKNOWN_GUIDED_PROBABILITY_CUE');
+  });
+
+  it('keeps selected cues explanatory rather than score-authoritative', () => {
+    const withoutCues = calculateGuided5x5Specification({
+      ...base,
+      probability: 4,
+      severity: 5,
+    });
+    const withCues = calculateGuided5x5Specification({
+      ...base,
+      probability: 4,
+      severity: 5,
+      checkedProbabilityCueKeys: ['NO_RECENT_OCCURRENCE', 'RECURRING_FAILURES'],
+      checkedSeverityCueKeys: ['REVERSIBLE_NO_LOST_TIME', 'FATALITY_POSSIBLE'],
+    });
+    expect({ score: withCues.score, level: withCues.level }).toEqual({
+      score: withoutCues.score,
+      level: withoutCues.level,
+    });
   });
 });
 
@@ -270,7 +388,55 @@ describe('Phase 1 risk methodology manifests', () => {
   it.each(methodPaths)('validates immutable method manifest %s', (path) => {
     const raw = loadJson(path) as Record<string, unknown>;
     const manifest = riskMethodVersionManifestSchema.parse(raw);
-    expect(manifest.contentHash).toBe(contentHash(raw));
+    expect(manifest.contentHash).toBe(riskMethodContentHash(raw));
+  });
+
+  it('binds the GTC45 method hash to canonical semantics but not reference ordering', () => {
+    const raw = loadJson(methodPaths[2]!) as Record<string, unknown>;
+    const originalHash = riskMethodContentHash(raw);
+    const canonical = structuredClone(raw);
+    const specification = canonical.canonicalSpecification as Record<string, unknown>;
+    const deficiency = specification.deficiency as Array<Record<string, unknown>>;
+    deficiency[0]!.numericValue = 11;
+    expect(riskMethodContentHash(canonical)).not.toBe(originalHash);
+
+    for (const mutate of [
+      (copy: Record<string, unknown>) => {
+        (copy.canonicalSpecification as Record<string, unknown>).exposure = [5, 3, 2, 1];
+      },
+      (copy: Record<string, unknown>) => {
+        (copy.canonicalSpecification as Record<string, unknown>).consequence = [99, 60, 25, 10];
+      },
+      (copy: Record<string, unknown>) => {
+        copy.calculationProviderVersion = '1.0.1';
+      },
+      (copy: Record<string, unknown>) => {
+        const options = (copy.canonicalSpecification as Record<string, unknown>)
+          .deficiency as Array<Record<string, unknown>>;
+        options[3]!.specialHandling = 'NUMERIC_ZERO';
+      },
+    ]) {
+      const copy = structuredClone(raw);
+      mutate(copy);
+      expect(riskMethodContentHash(copy)).not.toBe(originalHash);
+    }
+
+    const reorderedLeft = {
+      ...raw,
+      sourceReferences: [
+        { sourceKey: 'SOURCE_B', sourceVersion: '1.0.0' },
+        { sourceKey: 'SOURCE_A', sourceVersion: '1.0.0' },
+      ],
+      regulatoryContextReferences: ['CONTEXT_B', 'CONTEXT_A'],
+    };
+    const reorderedRight = {
+      ...raw,
+      sourceReferences: [...(reorderedLeft.sourceReferences as unknown[])].reverse(),
+      regulatoryContextReferences: [
+        ...(reorderedLeft.regulatoryContextReferences as unknown[]),
+      ].reverse(),
+    };
+    expect(riskMethodContentHash(reorderedLeft)).toBe(riskMethodContentHash(reorderedRight));
   });
 
   it('keeps GTC45 candidate, demo and non-regulatory', () => {

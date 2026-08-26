@@ -29,10 +29,14 @@ No AI, database formula, renderer or regulatory context chooses or changes a sco
 `MethodologySource`, `RiskMethodDefinition` and their versions are global reference records with no
 `organizationId`. Source links, candidate expert guidance and jurisdiction context point to an
 exact `RiskMethodVersion`. Published source, method and guidance versions are protected from
-update/delete by PostgreSQL triggers. Corrections require a new version.
+update/delete by PostgreSQL triggers. Published method source links and regulatory-context links
+are protected from insert/update/delete as part of the immutable published aggregate. Corrections
+require a new version.
 
-Seed uses stable UUIDs and compares complete manifests. A second seed creates no duplicates;
-same-version content drift raises `RISK_METHOD_REFERENCE_DRIFT`.
+Seed uses stable UUIDs, validates the canonical SHA-256 content hash before persistence and compares
+complete manifests. The GTC45 hash covers its exact ND/NE/NC values, LOW path, formulas, bands,
+intervention levels and acceptability separation. A second seed creates no duplicates; same-version
+content drift raises `RISK_METHOD_REFERENCE_DRIFT`.
 
 ## Assessment binding
 
@@ -45,7 +49,9 @@ stored likelihood, consequence, score, level or residual values.
 
 Residual valuation stores a second input/output and uses the initial exact method UUID. The API
 rejects a different UUID and the database has a same-method check. Guided residual rationale is new;
-the initial rationale is never silently reused.
+the initial rationale is never silently reused. Database triggers make the complete initial
+valuation immutable and, once recorded, the complete residual valuation immutable, including their
+legacy compatibility columns and labels.
 
 ## Tenant and analytics boundaries
 
