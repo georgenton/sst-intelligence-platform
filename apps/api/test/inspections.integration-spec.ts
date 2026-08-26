@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('intelligent inspections integration', () => {
+  const demoRiskMethodVersionId = '54000000-0000-4000-8000-000000000001';
   let app: INestApplication;
   let prisma: PrismaService;
   const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -97,6 +98,7 @@ describe('intelligent inspections integration', () => {
         workCenterId: centerA.id,
         workAreaId: areaA.id,
         title: 'Inspection January',
+        riskMethodVersionId: demoRiskMethodVersionId,
       })
       .expect(201);
     const inspectionId = inspection.body.id as string;
@@ -337,7 +339,12 @@ describe('intelligent inspections integration', () => {
         .post('/api/v1/inspections')
         .set('Authorization', `Bearer ${ownerA.token}`)
         .set('x-organization-id', orgA)
-        .send({ workCenterId: centerA.id, workAreaId: areaA.id, title })
+        .send({
+          workCenterId: centerA.id,
+          workAreaId: areaA.id,
+          title,
+          riskMethodVersionId: demoRiskMethodVersionId,
+        })
         .expect(201);
       const id = created.body.id as string;
       await request(app.getHttpServer())
@@ -630,7 +637,12 @@ describe('intelligent inspections integration', () => {
       .post('/api/v1/inspections')
       .set('Authorization', `Bearer ${ownerA.token}`)
       .set('x-organization-id', orgA)
-      .send({ workCenterId: centerA.id, workAreaId: areaB.id, title: 'Cross tenant area' })
+      .send({
+        workCenterId: centerA.id,
+        workAreaId: areaB.id,
+        title: 'Cross tenant area',
+        riskMethodVersionId: demoRiskMethodVersionId,
+      })
       .expect(404);
     expect(await prisma.actionEvidence.findUnique({ where: { id: evidenceB.id } })).not.toBeNull();
 
@@ -651,7 +663,11 @@ describe('intelligent inspections integration', () => {
       .post('/api/v1/inspections')
       .set('Authorization', `Bearer ${ownerA.token}`)
       .set('x-organization-id', orgA)
-      .send({ workCenterId: centerA.id, title: 'No debe usar centro inactivo' })
+      .send({
+        workCenterId: centerA.id,
+        title: 'No debe usar centro inactivo',
+        riskMethodVersionId: demoRiskMethodVersionId,
+      })
       .expect(404);
     expect(await prisma.inspection.findUnique({ where: { id: inspectionId } })).not.toBeNull();
     expect(await prisma.inspectionFinding.findUnique({ where: { id: findingId } })).not.toBeNull();

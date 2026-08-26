@@ -1,0 +1,56 @@
+{
+  "fixtureKey": "SYNTHETIC_ELECTRICAL_FINDING_V1",
+  "hazard": {
+    "category": "ELECTRICAL",
+    "description": "Conductor energizado accesible durante una inspección sintética.",
+    "existingControls": ["Señalización parcial", "Inspección visual periódica"]
+  },
+  "evaluations": [
+    {
+      "methodKey": "DEMO_5X5",
+      "methodVersion": "1.0.0",
+      "inputs": {
+        "likelihood": 4,
+        "consequence": 5
+      },
+      "expected": {
+        "score": 20,
+        "level": "CRITICAL"
+      }
+    },
+    {
+      "methodKey": "GUIDED_5X5",
+      "methodVersion": "1.0.0",
+      "inputs": {
+        "probability": 4,
+        "severity": 5,
+        "severityDimension": "HUMAN",
+        "checkedProbabilityCueKeys": ["FREQUENT_EXPOSURE"],
+        "checkedSeverityCueKeys": ["FATALITY_POSSIBLE"],
+        "selectionRationale": "La exposición puede repetirse y la peor consecuencia humana incluye fatalidad."
+      },
+      "expected": {
+        "score": 20,
+        "level": "CRITICAL"
+      }
+    },
+    {
+      "methodKey": "GTC45_2010",
+      "methodVersion": "1.0.0",
+      "inputs": {
+        "deficiency": "HIGH",
+        "exposure": 4,
+        "consequence": 100
+      },
+      "expected": {
+        "probabilityValue": 24,
+        "probabilityBand": "VERY_HIGH",
+        "riskValue": 2400,
+        "riskLevel": "I",
+        "acceptability": null
+      }
+    }
+  ],
+  "comparisonRule": "CATEGORY_AND_INTERVENTION_MEANING_ONLY",
+  "warning": "No existe equivalencia numérica entre escalas de métodos distintos."
+}

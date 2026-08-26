@@ -39,6 +39,8 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'subscription'] as const,
     inspectionContext: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'inspections', 'context'] as const,
+    riskMethods: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'risk-methods'] as const,
     inspections: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'inspections', 'list'] as const,
     inspectionList: (organizationId: string, filters: string) =>

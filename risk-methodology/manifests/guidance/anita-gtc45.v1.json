@@ -1,0 +1,50 @@
+{
+  "guidanceKey": "ANITA_GUIDANCE_GTC45_V1",
+  "guidanceVersion": "1.0.0",
+  "methodKey": "GTC45_2010",
+  "methodVersion": "1.0.0",
+  "authorSource": "Anita — observación experta proporcionada por el usuario",
+  "evidenceClassification": "EXPERT_OBSERVATION",
+  "reviewStatus": "PENDING",
+  "officialUiVerification": "PENDING",
+  "helpDefinitions": [
+    {
+      "key": "SOURCE_CONDITIONS",
+      "prompt": "¿Qué condición en la fuente del peligro observaste?",
+      "purpose": "Ayudar a describir el contexto sin afirmar causa raíz.",
+      "affectsCanonicalScore": false
+    },
+    {
+      "key": "MEDIUM_CONDITIONS",
+      "prompt": "¿Qué condición del ambiente o medio influye en la exposición?",
+      "purpose": "Orientar la observación del entorno sin asignar automáticamente ND.",
+      "affectsCanonicalScore": false
+    },
+    {
+      "key": "INDIVIDUAL_CONDITIONS",
+      "prompt": "¿Qué condición individual o de la persona requiere considerar el profesional?",
+      "purpose": "Registrar contexto profesional sin atribuir culpa ni diagnóstico.",
+      "affectsCanonicalScore": false
+    },
+    {
+      "key": "CONTROL_EFFECTIVENESS",
+      "prompt": "¿Qué evidencia observaste sobre cobertura y efectividad de controles?",
+      "purpose": "Sustentar la selección humana sin reemplazar la valoración canónica.",
+      "affectsCanonicalScore": false
+    },
+    {
+      "key": "EVENT_HISTORY",
+      "prompt": "¿Qué antecedentes de eventos o exposición son relevantes?",
+      "purpose": "Conservar hechos observados para la justificación profesional.",
+      "affectsCanonicalScore": false
+    },
+    {
+      "key": "RECURRING_FAILURES",
+      "prompt": "¿Se observaron fallas repetidas que ameritan revisión adicional?",
+      "purpose": "Señalar una necesidad de análisis sin confirmar causalidad.",
+      "affectsCanonicalScore": false
+    }
+  ],
+  "disclaimer": "Guía candidata. No asigna ND, no prueba causa raíz y no modifica la fórmula GTC45.",
+  "contentHash": "05f7a52d54e233e3e469c722267a9104a773fcb970f7ad3f68bb6fe1f4c94b77"
+}

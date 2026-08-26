@@ -1,0 +1,19 @@
+{
+  "methodKey": "GUIDED_5X5",
+  "semanticVersion": "1.0.0",
+  "displayName": "Matriz 5×5 guiada",
+  "methodKind": "INSPECTION_FINDING_RISK",
+  "calculationProviderKey": "GUIDED_5X5",
+  "calculationProviderVersion": "1.0.0",
+  "inputSchemaVersion": "1.0.0",
+  "resultSchemaVersion": "1.0.0",
+  "isDemo": true,
+  "regulatory": false,
+  "publicationStatus": "CANDIDATE",
+  "technicalReviewStatus": "PENDING",
+  "legalReviewStatus": "PENDING",
+  "sourceReferences": [],
+  "regulatoryContextReferences": ["EC_GUIDED_5X5_CONTEXT"],
+  "disclaimer": "Candidato DEMO sujeto a revisión técnica y legal. Las guías ayudan a justificar una selección humana y no convierten el método en obligación legal.",
+  "contentHash": "71abca2aef98539e11f52e408fb79555625cf014b4c1e86329c9c0b3e27bdc38"
+}

@@ -82,13 +82,21 @@ export function InspectionRiskBadge({
   );
 }
 
-export function InspectionDemoNotice({ compact = false }: { compact?: boolean }) {
+export function InspectionDemoNotice({
+  compact = false,
+  methodName = 'Matriz demostrativa 5×5',
+  disclaimer = 'Metodología demostrativa. No constituye una evaluación regulatoria validada.',
+}: {
+  compact?: boolean;
+  methodName?: string;
+  disclaimer?: string;
+}) {
   return (
     <div className={`inspection-demo-notice${compact ? ' compact' : ''}`} role="note">
       <span aria-hidden="true">i</span>
       <div>
-        <strong>Matriz demostrativa 5×5</strong>
-        <p>Metodología demostrativa. No constituye una evaluación regulatoria validada.</p>
+        <strong>{methodName}</strong>
+        <p>{disclaimer}</p>
       </div>
     </div>
   );

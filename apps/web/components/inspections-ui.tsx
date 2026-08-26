@@ -24,6 +24,13 @@ import {
 } from '@/lib/inspection-experience';
 import { queryKeys } from '@/lib/query-keys';
 import {
+  gtc45ConsequenceOptions,
+  gtc45DeficiencyOptions,
+  gtc45ExposureOptions,
+  guidedHumanSeverityCriteria,
+  guidedProbabilityCriteria,
+} from '@/lib/risk-method-input-options';
+import {
   AUTHORIZED_TECHNICAL_REVIEWER_LABELS,
   AUTHORIZED_TECHNICAL_WRITER_LABELS,
   humanRoleLabel,
@@ -94,14 +101,21 @@ type Finding = {
   description: string;
   category: FindingCategory;
   status: string;
-  initialLikelihood: number;
-  initialConsequence: number;
-  initialScore: number;
-  initialRiskLevel: string;
+  initialLikelihood: number | null;
+  initialConsequence: number | null;
+  initialScore: number | null;
+  initialRiskLevel: string | null;
+  initialResultLabel?: string | null;
+  initialMethodInput?: Record<string, unknown>;
+  initialMethodResult?: Record<string, unknown>;
   residualLikelihood?: number;
   residualConsequence?: number;
   residualScore?: number;
   residualRiskLevel?: string;
+  residualResultLabel?: string | null;
+  residualMethodInput?: Record<string, unknown> | null;
+  residualMethodResult?: Record<string, unknown> | null;
+  riskMethodVersionId?: string;
   riskMethodKey?: string;
   riskMethodVersion?: string;
   recurrenceCount: number;
@@ -149,6 +163,60 @@ type Inspection = {
   inspector?: { id: string; displayName: string };
   findings?: Finding[];
   overdueActions?: number;
+  riskMethodVersionId: string;
+  riskMethodSnapshot?: Record<string, unknown>;
+  riskMethodVersion: {
+    id: string;
+    semanticVersion: string;
+    displayName: string;
+    publicationStatus: string;
+    disclaimer: string;
+    methodDefinition: { methodKey: string };
+  };
+};
+
+type RiskCriterion = {
+  value: number;
+  key?: string;
+  label: string;
+  meaning?: string;
+  cues?: Array<{ key: string; label: string }>;
+};
+
+type RiskMethodCatalogItem = {
+  id: string;
+  methodKey: 'DEMO_5X5' | 'GUIDED_5X5' | 'GTC45_2010';
+  semanticVersion: string;
+  displayName: string;
+  purpose: string;
+  isDemo: boolean;
+  publicationStatus: string;
+  technicalReviewStatus: string;
+  legalReviewStatus: string;
+  disclaimer: string;
+  technicalSources: Array<{
+    title: string;
+    issuer: string;
+    edition: string;
+    sourceFingerprint: string;
+    licenseReproductionNote: string;
+    reviewStatus: string;
+  }>;
+  regulatoryContexts: Array<{ statement: string; officialSutMethodOptions: string }>;
+  guidanceVersions: Array<{
+    id: string;
+    guidanceVersion: string;
+    reviewStatus: string;
+    helpDefinitions: Array<{ key: string; prompt: string; purpose: string }>;
+    disclaimer: string;
+  }>;
+  criteria: null | {
+    probability?: RiskCriterion[];
+    severity?: RiskCriterion[];
+    deficiency?: RiskCriterion[];
+    exposure?: RiskCriterion[];
+    consequence?: RiskCriterion[];
+  };
 };
 
 type CreatedFinding = Finding & { recurrenceWindowDays: number };
@@ -163,10 +231,25 @@ type Analytics = {
   percentageClosed: number;
   findingsByCategory: Array<{ category: FindingCategory; count: number }>;
   findingsByWorkCenter: Array<{ workCenterId: string; name: string; count: number }>;
-  findingsByRiskLevel: Array<{ riskLevel: string; count: number }>;
+  findingsByRiskLevel: Array<{
+    methodKey: string;
+    methodVersion: string;
+    riskLevel: string | null;
+    count: number;
+  }>;
   initialVsResidual: {
-    initial: Array<{ riskLevel: string; count: number }>;
-    residual: Array<{ riskLevel: string | null; count: number }>;
+    initial: Array<{
+      methodKey: string;
+      methodVersion: string;
+      riskLevel: string | null;
+      count: number;
+    }>;
+    residual: Array<{
+      methodKey: string;
+      methodVersion: string;
+      riskLevel: string | null;
+      count: number;
+    }>;
   };
 };
 
@@ -198,10 +281,12 @@ type SystemicFindingSnapshot = {
   id: string;
   title: string;
   status: string;
-  initialScore: number;
-  initialRiskLevel: string;
+  initialScore: number | null;
+  initialRiskLevel: string | null;
+  initialResultLabel?: string | null;
   residualScore?: number | null;
   residualRiskLevel?: string | null;
+  residualResultLabel?: string | null;
   riskMethodKey: string;
   riskMethodVersion: string;
 };
@@ -297,6 +382,13 @@ function riskLevelLabel(value?: string | null): string {
   );
 }
 
+function riskExplanation(result?: Record<string, unknown> | null): string | null {
+  const explanation = result?.explanation;
+  if (!explanation || typeof explanation !== 'object') return null;
+  const summary = (explanation as Record<string, unknown>).summary;
+  return typeof summary === 'string' ? summary : null;
+}
+
 function labelRecurrence(value: string): string {
   return (
     {
@@ -345,6 +437,16 @@ function useInspectionContext(api: ReturnType<typeof useInspectionApi>, enabled 
   return useQuery({
     queryKey: queryKeys.organization.inspectionContext(organizationId ?? 'inactive'),
     queryFn: ({ signal }) => api.request<ContextData>('/inspections/context', { signal }),
+    enabled: Boolean(organizationId && api.moduleEnabled && enabled),
+    retry: shouldRetryGet,
+  });
+}
+
+function useRiskMethods(api: ReturnType<typeof useInspectionApi>, enabled = true) {
+  const organizationId = api.organizationId;
+  return useQuery({
+    queryKey: queryKeys.organization.riskMethods(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) => api.request<RiskMethodCatalogItem[]>('/risk-methods', { signal }),
     enabled: Boolean(organizationId && api.moduleEnabled && enabled),
     retry: shouldRetryGet,
   });
@@ -683,6 +785,7 @@ type InspectionForm = {
   title: string;
   description: string;
   scheduledFor: string;
+  riskMethodVersionId: string;
 };
 
 export function NewInspection() {
@@ -690,6 +793,7 @@ export function NewInspection() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const context = useInspectionContext(api);
+  const methods = useRiskMethods(api);
   const form = useForm<InspectionForm>({
     mode: 'onBlur',
     defaultValues: {
@@ -698,6 +802,7 @@ export function NewInspection() {
       title: '',
       description: '',
       scheduledFor: '',
+      riskMethodVersionId: '',
     },
   });
   const centerId = form.watch('workCenterId');
@@ -741,10 +846,10 @@ export function NewInspection() {
             capability="crear una inspección"
             authorizedRoles={WRITE_ROLE_COPY}
           />
-        ) : context.isLoading ? (
+        ) : context.isLoading || methods.isLoading ? (
           <InspectionSkeleton label="Cargando centros y áreas" />
-        ) : context.isError ? (
-          <PageQueryError retry={() => void context.refetch()} />
+        ) : context.isError || methods.isError ? (
+          <PageQueryError retry={() => void Promise.all([context.refetch(), methods.refetch()])} />
         ) : context.data?.workCenters.length === 0 ? (
           <InspectionState
             kind="empty"
@@ -835,6 +940,41 @@ export function NewInspection() {
                 <label htmlFor="scheduled">Fecha programada (opcional)</label>
                 <input id="scheduled" type="datetime-local" {...form.register('scheduledFor')} />
               </div>
+              <fieldset className="risk-method-selection">
+                <legend>Metodología de valoración</legend>
+                <p>
+                  Selecciona explícitamente la metodología que se usará para todos los hallazgos y
+                  sus valoraciones residuales en esta inspección.
+                </p>
+                <div className="risk-method-card-grid">
+                  {methods.data?.map((method) => (
+                    <label className="risk-method-card" key={method.id}>
+                      <input
+                        type="radio"
+                        value={method.id}
+                        {...form.register('riskMethodVersionId', {
+                          required: 'Selecciona una metodología de valoración.',
+                        })}
+                      />
+                      <span>
+                        <strong>{method.displayName}</strong>
+                        <small>
+                          Versión {method.semanticVersion} ·{' '}
+                          {method.publicationStatus === 'PUBLISHED'
+                            ? 'Histórica publicada'
+                            : 'Candidata para revisión'}
+                        </small>
+                        <span>{method.purpose}</span>
+                        <em>{method.disclaimer}</em>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {form.formState.errors.riskMethodVersionId ? (
+                  <p className="field-error">{form.formState.errors.riskMethodVersionId.message}</p>
+                ) : null}
+                <Link href="/app/risk-methods">Ver metodologías y fuentes</Link>
+              </fieldset>
               <p className="inspection-invariant-note">
                 Guardar el borrador no inicia la inspección.
               </p>
@@ -854,6 +994,96 @@ export function NewInspection() {
               </div>
             </form>
           </Card>
+        )}
+      </div>
+    </AccessGate>
+  );
+}
+
+export function RiskMethodLibrary() {
+  const api = useInspectionApi();
+  const methods = useRiskMethods(api);
+  return (
+    <AccessGate api={api}>
+      <div className="inspection-task-page">
+        <InspectionPageHeader
+          eyebrow="Configuración SST · Metodologías"
+          title="Metodologías de evaluación"
+          description="Consulta versiones, fuentes técnicas y contexto regulatorio antes de elegir una metodología para una inspección."
+          context={<ContextLine>{api.organizationName ?? 'Organización activa'}</ContextLine>}
+        />
+        {methods.isLoading ? (
+          <InspectionSkeleton label="Cargando metodologías" />
+        ) : methods.isError ? (
+          <PageQueryError retry={() => void methods.refetch()} />
+        ) : (
+          <div className="risk-method-library">
+            {methods.data?.map((method) => (
+              <Card className="risk-method-library-card" key={method.id}>
+                <div>
+                  <p className="eyebrow">
+                    {method.publicationStatus === 'PUBLISHED'
+                      ? 'Histórica publicada'
+                      : 'Candidata para revisión'}
+                  </p>
+                  <h2>{method.displayName}</h2>
+                  <p>{method.purpose}</p>
+                  <p>
+                    <strong>Versión:</strong> {method.semanticVersion}
+                  </p>
+                </div>
+                <div className="inspection-demo-notice compact" role="note">
+                  <span aria-hidden="true">i</span>
+                  <div>
+                    <strong>Método y ley son conceptos distintos</strong>
+                    <p>{method.disclaimer}</p>
+                  </div>
+                </div>
+                <section aria-label={`Fuentes de ${method.displayName}`}>
+                  <h3>Fuente técnica</h3>
+                  {method.technicalSources.length ? (
+                    method.technicalSources.map((source) => (
+                      <div className="risk-method-source" key={source.sourceFingerprint}>
+                        <strong>{source.title}</strong>
+                        <span>{source.issuer}</span>
+                        <span>{source.edition}</span>
+                        <p>{source.licenseReproductionNote}</p>
+                        <TechnicalDetails summary="Ver referencia técnica">
+                          <dl>
+                            <div>
+                              <dt>Huella de referencia</dt>
+                              <dd>
+                                <code>{source.sourceFingerprint}</code>
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>Revisión</dt>
+                              <dd>{source.reviewStatus}</dd>
+                            </div>
+                          </dl>
+                        </TechnicalDetails>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No tiene una fuente técnica externa vinculada.</p>
+                  )}
+                </section>
+                <section>
+                  <h3>Contexto regulatorio</h3>
+                  {method.regulatoryContexts.length ? (
+                    method.regulatoryContexts.map((context) => (
+                      <p key={context.statement}>{context.statement}</p>
+                    ))
+                  ) : (
+                    <p>No se ha asociado un contexto regulatorio específico.</p>
+                  )}
+                  <p>
+                    Esta referencia no significa que el método sea obligatorio para todos los casos.
+                  </p>
+                </section>
+              </Card>
+            ))}
+          </div>
         )}
       </div>
     </AccessGate>
@@ -972,7 +1202,11 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
               <span>Inspector: {query.data.inspector.displayName}</span>
             ) : null}
           </div>
-          <InspectionDemoNotice compact />
+          <InspectionDemoNotice
+            compact
+            methodName={query.data.riskMethodVersion.displayName}
+            disclaimer={query.data.riskMethodVersion.disclaimer}
+          />
           {notice ? (
             <p className="inspection-success" role="status">
               {notice}
@@ -1014,14 +1248,18 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
                       </span>
                       <strong>{finding.title}</strong>
                       <small>
-                        Probabilidad {finding.initialLikelihood} × consecuencia{' '}
-                        {finding.initialConsequence}
+                        {finding.initialResultLabel ??
+                          `Probabilidad ${finding.initialLikelihood} × consecuencia ${finding.initialConsequence}`}
                       </small>
                     </span>
-                    <InspectionRiskBadge
-                      level={finding.initialRiskLevel}
-                      score={finding.initialScore}
-                    />
+                    {finding.initialRiskLevel ? (
+                      <InspectionRiskBadge
+                        level={finding.initialRiskLevel}
+                        score={finding.initialScore}
+                      />
+                    ) : (
+                      <span className="risk-badge risk-pending">{finding.initialResultLabel}</span>
+                    )}
                     <DomainStatusBadge domain="finding" status={finding.status} />
                     {finding.recurrenceCount > 0 ? (
                       <span className="recurrence-chip">
@@ -1079,13 +1317,74 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
   );
 }
 
-type FindingForm = {
+type RiskInputForm = {
+  likelihood: number | undefined;
+  consequence: number | undefined;
+  guidedProbability: number | undefined;
+  guidedSeverity: number | undefined;
+  guidedProbabilityCues: string[];
+  guidedSeverityCues: string[];
+  selectionRationale: string;
+  professionalNote: string;
+  gtcDeficiency: 'VERY_HIGH' | 'HIGH' | 'MEDIUM' | 'LOW' | '';
+  gtcExposure: number | undefined;
+  gtcConsequence: number | undefined;
+  controlSource: string;
+  controlMedium: string;
+  controlIndividual: string;
+  guidanceSourceConditions: string;
+  guidanceControlEffectiveness: string;
+  guidanceEventHistory: string;
+};
+
+type FindingForm = RiskInputForm & {
   title: string;
   description: string;
   category: FindingCategory;
-  likelihood: number | undefined;
-  consequence: number | undefined;
 };
+
+function findingMethodInput(methodKey: string, input: RiskInputForm) {
+  if (methodKey === 'GUIDED_5X5')
+    return {
+      probability: Number(input.guidedProbability),
+      severity: Number(input.guidedSeverity),
+      severityDimension: 'HUMAN',
+      checkedProbabilityCueKeys: input.guidedProbabilityCues,
+      checkedSeverityCueKeys: input.guidedSeverityCues,
+      selectionRationale: input.selectionRationale,
+      professionalNote: input.professionalNote || undefined,
+    };
+  if (methodKey === 'GTC45_2010')
+    return {
+      deficiency: input.gtcDeficiency,
+      exposure: Number(input.gtcExposure),
+      consequence: Number(input.gtcConsequence),
+      existingControls: {
+        source: input.controlSource || undefined,
+        medium: input.controlMedium || undefined,
+        individual: input.controlIndividual || undefined,
+      },
+      guidanceResponses: {
+        SOURCE_CONDITIONS: input.guidanceSourceConditions,
+        CONTROL_EFFECTIVENESS: input.guidanceControlEffectiveness,
+        EVENT_HISTORY: input.guidanceEventHistory,
+      },
+      professionalRationale: input.selectionRationale,
+    };
+  return { likelihood: Number(input.likelihood), consequence: Number(input.consequence) };
+}
+
+function selectedGtcDeficiencyLabel(key: string) {
+  return gtc45DeficiencyOptions.find((option) => option.key === key)?.label ?? 'Sin selección';
+}
+
+function selectedGtcExposureLabel(value: number | undefined) {
+  return gtc45ExposureOptions.find((option) => option.value === value)?.label ?? 'Sin selección';
+}
+
+function selectedGtcConsequenceLabel(value: number | undefined) {
+  return gtc45ConsequenceOptions.find((option) => option.value === value)?.label ?? 'Sin selección';
+}
 
 export function NewFinding({ inspectionId }: { inspectionId: string }) {
   const api = useInspectionApi();
@@ -1109,6 +1408,21 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
       category: 'ELECTRICAL',
       likelihood: undefined,
       consequence: undefined,
+      guidedProbability: undefined,
+      guidedSeverity: undefined,
+      guidedProbabilityCues: [],
+      guidedSeverityCues: [],
+      selectionRationale: '',
+      professionalNote: '',
+      gtcDeficiency: '',
+      gtcExposure: undefined,
+      gtcConsequence: undefined,
+      controlSource: '',
+      controlMedium: '',
+      controlIndividual: '',
+      guidanceSourceConditions: '',
+      guidanceControlEffectiveness: '',
+      guidanceEventHistory: '',
     },
   });
   const values = form.watch();
@@ -1116,7 +1430,15 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
     mutationFn: (input: FindingForm) =>
       api.request<CreatedFinding>(`/inspections/${inspectionId}/findings`, {
         method: 'POST',
-        body: JSON.stringify(input),
+        body: JSON.stringify({
+          title: input.title,
+          description: input.description,
+          category: input.category,
+          methodInput: findingMethodInput(
+            inspection.data?.riskMethodVersion.methodDefinition.methodKey ?? 'DEMO_5X5',
+            input,
+          ),
+        }),
       }),
     onSuccess: async (result) => {
       setCreated(result);
@@ -1142,13 +1464,18 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
   }, [step]);
 
   async function continueStep() {
+    const methodKey = inspection.data?.riskMethodVersion.methodDefinition.methodKey;
     const fields: Array<keyof FindingForm> =
       step === 2
         ? ['title', 'description']
         : step === 3
           ? ['category']
           : step === 4
-            ? ['likelihood', 'consequence']
+            ? methodKey === 'GUIDED_5X5'
+              ? ['guidedProbability', 'guidedSeverity', 'selectionRationale']
+              : methodKey === 'GTC45_2010'
+                ? ['gtcDeficiency', 'gtcExposure', 'gtcConsequence', 'selectionRationale']
+                : ['likelihood', 'consequence']
             : [];
     const valid = fields.length === 0 || (await form.trigger(fields));
     if (valid) setStep((current) => Math.min(current + 1, 5));
@@ -1165,7 +1492,7 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
           <InspectionPageHeader
             eyebrow="Hallazgo guardado"
             title={created.title}
-            description="La valoración se calculó y guardó con la metodología demostrativa vigente."
+            description={`La valoración se calculó en el servidor y quedó vinculada a ${createdMethod.displayName} versión ${createdMethod.version}.`}
             context={
               <ContextLine>
                 {api.organizationName} · {created.workCenter?.name}
@@ -1176,19 +1503,33 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
           <Card className="inspection-result-card" role="status">
             <div>
               <p className="eyebrow">Resultado calculado automáticamente</p>
-              <strong className="inspection-result-score">{created.initialScore}</strong>
+              <strong className="inspection-result-score">
+                {created.initialScore ?? created.initialResultLabel ?? 'Resultado registrado'}
+              </strong>
             </div>
             <div>
-              <InspectionRiskBadge level={created.initialRiskLevel} score={created.initialScore} />
+              {created.initialRiskLevel ? (
+                <InspectionRiskBadge
+                  level={created.initialRiskLevel}
+                  score={created.initialScore}
+                />
+              ) : (
+                <span className="risk-badge risk-pending">{created.initialResultLabel}</span>
+              )}
               <h2>
-                Probabilidad {created.initialLikelihood} × consecuencia {created.initialConsequence}
+                {created.riskMethodKey === 'DEMO_5X5'
+                  ? `Probabilidad ${created.initialLikelihood} × consecuencia ${created.initialConsequence}`
+                  : (created.initialResultLabel ?? 'Resultado determinístico')}
               </h2>
               <p>
                 Metodología utilizada: {createdMethod.displayName} · versión {createdMethod.version}
               </p>
             </div>
           </Card>
-          <InspectionDemoNotice />
+          <InspectionDemoNotice
+            methodName={createdMethod.displayName}
+            disclaimer={createdMethod.contextSummary}
+          />
           {created.recurrenceCount > 0 ? (
             <div className="inspection-recurrence" role="note">
               <strong>{labelRecurrence(created.recurrenceStatus)}</strong>
@@ -1273,7 +1614,11 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
               </ContextLine>
             }
           />
-          <InspectionDemoNotice compact />
+          <InspectionDemoNotice
+            compact
+            methodName={inspection.data.riskMethodVersion.displayName}
+            disclaimer={inspection.data.riskMethodVersion.disclaimer}
+          />
           <div className="inspection-stepper" aria-label={`Paso ${step} de 5`}>
             <span>Paso {step} de 5</span>
             <div aria-hidden="true">
@@ -1286,12 +1631,7 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
             <form
               noValidate
               onSubmit={form.handleSubmit((input) => {
-                if (!mutation.isPending)
-                  mutation.mutate({
-                    ...input,
-                    likelihood: Number(values.likelihood),
-                    consequence: Number(values.consequence),
-                  });
+                if (!mutation.isPending) mutation.mutate(input);
               })}
             >
               <h2 className="sr-only" ref={stepHeadingRef} tabIndex={-1}>
@@ -1373,20 +1713,233 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
               ) : null}
               {step === 4 ? (
                 <div className="inspection-form">
-                  <QuestionScale
-                    name="likelihood"
-                    title="Probabilidad"
-                    descriptions={likelihoodDescriptions}
-                    register={form.register}
-                    error={form.formState.errors.likelihood?.message}
-                  />
-                  <QuestionScale
-                    name="consequence"
-                    title="Consecuencia"
-                    descriptions={consequenceDescriptions}
-                    register={form.register}
-                    error={form.formState.errors.consequence?.message}
-                  />
+                  <div className="inspection-method-heading">
+                    <span>Metodología utilizada</span>
+                    <strong>{inspection.data.riskMethodVersion.displayName}</strong>
+                    <small>Versión {inspection.data.riskMethodVersion.semanticVersion}</small>
+                  </div>
+                  {inspection.data.riskMethodVersion.methodDefinition.methodKey === 'GUIDED_5X5' ? (
+                    <>
+                      <fieldset className="risk-method-options">
+                        <legend>Probabilidad · ¿qué nivel describe mejor la situación?</legend>
+                        {guidedProbabilityCriteria.map((criterion) => (
+                          <label key={criterion.value}>
+                            <input
+                              type="radio"
+                              value={criterion.value}
+                              {...form.register('guidedProbability', {
+                                required: 'Selecciona un nivel de probabilidad.',
+                                valueAsNumber: true,
+                              })}
+                            />
+                            <span>
+                              <strong>{criterion.label}</strong>
+                              <small>{criterion.meaning}</small>
+                            </span>
+                          </label>
+                        ))}
+                        {form.formState.errors.guidedProbability ? (
+                          <p className="field-error">
+                            {form.formState.errors.guidedProbability.message}
+                          </p>
+                        ) : null}
+                      </fieldset>
+                      <details className="risk-method-cues">
+                        <summary>¿Por qué elegir este nivel? Ver señales de decisión</summary>
+                        {guidedProbabilityCriteria
+                          .flatMap(({ cues }) => cues)
+                          .map((cue) => (
+                            <label key={cue.key}>
+                              <input
+                                type="checkbox"
+                                value={cue.key}
+                                {...form.register('guidedProbabilityCues')}
+                              />
+                              {cue.label}
+                            </label>
+                          ))}
+                      </details>
+                      <fieldset className="risk-method-options">
+                        <legend>Severidad humana · peor consecuencia razonable</legend>
+                        {guidedHumanSeverityCriteria.map((criterion) => (
+                          <label key={criterion.value}>
+                            <input
+                              type="radio"
+                              value={criterion.value}
+                              {...form.register('guidedSeverity', {
+                                required: 'Selecciona una severidad humana.',
+                                valueAsNumber: true,
+                              })}
+                            />
+                            <span>
+                              <strong>{criterion.label}</strong>
+                              <small>{criterion.meaning}</small>
+                            </span>
+                          </label>
+                        ))}
+                      </fieldset>
+                      <details className="risk-method-cues">
+                        <summary>¿Por qué elegir esta severidad? Ver señales</summary>
+                        {guidedHumanSeverityCriteria
+                          .flatMap(({ cues }) => cues)
+                          .map((cue) => (
+                            <label key={cue.key}>
+                              <input
+                                type="checkbox"
+                                value={cue.key}
+                                {...form.register('guidedSeverityCues')}
+                              />
+                              {cue.label}
+                            </label>
+                          ))}
+                      </details>
+                    </>
+                  ) : inspection.data.riskMethodVersion.methodDefinition.methodKey ===
+                    'GTC45_2010' ? (
+                    <>
+                      <div className="inspection-form-grid">
+                        <div className="field">
+                          <label htmlFor="gtc-deficiency">Nivel de deficiencia</label>
+                          <select
+                            id="gtc-deficiency"
+                            {...form.register('gtcDeficiency', {
+                              required: 'Selecciona el nivel de deficiencia.',
+                            })}
+                          >
+                            <option value="">Selecciona una opción</option>
+                            {gtc45DeficiencyOptions.map((option) => (
+                              <option key={option.key} value={option.key}>
+                                {option.label}
+                                {option.value === null ? ' · tratamiento especial IV' : ''}
+                              </option>
+                            ))}
+                          </select>
+                          <small>Bajo no se convierte en ND=0.</small>
+                        </div>
+                        <div className="field">
+                          <label htmlFor="gtc-exposure">Nivel de exposición</label>
+                          <select
+                            id="gtc-exposure"
+                            {...form.register('gtcExposure', {
+                              required: 'Selecciona el nivel de exposición.',
+                              valueAsNumber: true,
+                            })}
+                          >
+                            <option value="">Selecciona una opción</option>
+                            {gtc45ExposureOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label} · {option.value} — {option.meaning}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <fieldset className="risk-control-locations">
+                        <legend>Controles existentes</legend>
+                        <div className="field">
+                          <label htmlFor="control-source">Control en la fuente</label>
+                          <textarea id="control-source" {...form.register('controlSource')} />
+                        </div>
+                        <div className="field">
+                          <label htmlFor="control-medium">Control en el medio</label>
+                          <textarea id="control-medium" {...form.register('controlMedium')} />
+                        </div>
+                        <div className="field">
+                          <label htmlFor="control-individual">
+                            Control relacionado con la persona
+                          </label>
+                          <textarea
+                            id="control-individual"
+                            {...form.register('controlIndividual')}
+                          />
+                        </div>
+                      </fieldset>
+                      <details className="risk-method-cues">
+                        <summary>¿Por qué? Abrir guía experta candidata</summary>
+                        <div className="field">
+                          <label htmlFor="guidance-source">
+                            ¿Qué condición en la fuente observaste?
+                          </label>
+                          <textarea
+                            id="guidance-source"
+                            {...form.register('guidanceSourceConditions')}
+                          />
+                        </div>
+                        <div className="field">
+                          <label htmlFor="guidance-controls">
+                            ¿Qué evidencia observaste sobre efectividad de controles?
+                          </label>
+                          <textarea
+                            id="guidance-controls"
+                            {...form.register('guidanceControlEffectiveness')}
+                          />
+                        </div>
+                        <div className="field">
+                          <label htmlFor="guidance-history">
+                            ¿Qué antecedentes de eventos son relevantes?
+                          </label>
+                          <textarea
+                            id="guidance-history"
+                            {...form.register('guidanceEventHistory')}
+                          />
+                        </div>
+                        <p>Esta guía no asigna ND, NE ni NC y no modifica el cálculo.</p>
+                      </details>
+                      <div className="field">
+                        <label htmlFor="gtc-consequence">Nivel de consecuencia</label>
+                        <select
+                          id="gtc-consequence"
+                          {...form.register('gtcConsequence', {
+                            required: 'Selecciona el nivel de consecuencia.',
+                            valueAsNumber: true,
+                          })}
+                        >
+                          <option value="">Selecciona una opción</option>
+                          {gtc45ConsequenceOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label} · {option.value} — {option.meaning}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <QuestionScale
+                        name="likelihood"
+                        title="Probabilidad"
+                        descriptions={likelihoodDescriptions}
+                        register={form.register}
+                        error={form.formState.errors.likelihood?.message}
+                      />
+                      <QuestionScale
+                        name="consequence"
+                        title="Consecuencia"
+                        descriptions={consequenceDescriptions}
+                        register={form.register}
+                        error={form.formState.errors.consequence?.message}
+                      />
+                    </>
+                  )}
+                  {inspection.data.riskMethodVersion.methodDefinition.methodKey !== 'DEMO_5X5' ? (
+                    <div className="field">
+                      <label htmlFor="selection-rationale">Justificación profesional</label>
+                      <textarea
+                        id="selection-rationale"
+                        rows={4}
+                        maxLength={1000}
+                        {...form.register('selectionRationale', {
+                          required: 'Explica brevemente por qué elegiste estos criterios.',
+                          minLength: { value: 10, message: 'Usa al menos 10 caracteres.' },
+                        })}
+                      />
+                      {form.formState.errors.selectionRationale ? (
+                        <p className="field-error">
+                          {form.formState.errors.selectionRationale.message}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <div className="inspection-server-calculation" role="status">
                     <strong>Valoración preparada</strong>
                     <span>
@@ -1411,13 +1964,38 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
                     <strong>{FINDING_CATEGORY_LABELS[values.category]}</strong>
                   </div>
                   <div>
-                    <span>Probabilidad</span>
-                    <strong>{values.likelihood} de 5</strong>
+                    <span>Metodología</span>
+                    <strong>
+                      {inspection.data.riskMethodVersion.displayName} · v
+                      {inspection.data.riskMethodVersion.semanticVersion}
+                    </strong>
                   </div>
-                  <div>
-                    <span>Consecuencia</span>
-                    <strong>{values.consequence} de 5</strong>
-                  </div>
+                  {inspection.data.riskMethodVersion.methodDefinition.methodKey === 'GTC45_2010' ? (
+                    <div>
+                      <span>Criterios seleccionados</span>
+                      <strong>
+                        Deficiencia {selectedGtcDeficiencyLabel(values.gtcDeficiency)} · Exposición{' '}
+                        {selectedGtcExposureLabel(values.gtcExposure)} · Consecuencia{' '}
+                        {selectedGtcConsequenceLabel(values.gtcConsequence)}
+                      </strong>
+                    </div>
+                  ) : inspection.data.riskMethodVersion.methodDefinition.methodKey ===
+                    'GUIDED_5X5' ? (
+                    <div>
+                      <span>Criterios seleccionados</span>
+                      <strong>
+                        Probabilidad {values.guidedProbability} · Severidad humana{' '}
+                        {values.guidedSeverity}
+                      </strong>
+                    </div>
+                  ) : (
+                    <div>
+                      <span>Criterios seleccionados</span>
+                      <strong>
+                        Probabilidad {values.likelihood} · Consecuencia {values.consequence}
+                      </strong>
+                    </div>
+                  )}
                   <p className="inspection-invariant-note">
                     Guardar registra el hallazgo. No completa la inspección.
                   </p>
@@ -1482,9 +2060,7 @@ type ActionForm = {
   dueAt: string;
 };
 type EvidenceForm = { type: 'NOTE' | 'EXTERNAL_LINK'; note: string; externalUrl: string };
-type VerifyForm = {
-  likelihood: number | undefined;
-  consequence: number | undefined;
+type VerifyForm = RiskInputForm & {
   basis: '' | 'RECORDED_EVIDENCE' | 'FIELD_OBSERVATION' | 'OTHER_JUSTIFIED';
   note: string;
   selfVerificationAcknowledged: boolean;
@@ -1531,6 +2107,21 @@ export function FindingDetail({
     defaultValues: {
       likelihood: undefined,
       consequence: undefined,
+      guidedProbability: undefined,
+      guidedSeverity: undefined,
+      guidedProbabilityCues: [],
+      guidedSeverityCues: [],
+      selectionRationale: '',
+      professionalNote: '',
+      gtcDeficiency: '',
+      gtcExposure: undefined,
+      gtcConsequence: undefined,
+      controlSource: '',
+      controlMedium: '',
+      controlIndividual: '',
+      guidanceSourceConditions: '',
+      guidanceControlEffectiveness: '',
+      guidanceEventHistory: '',
       basis: '',
       note: '',
       selfVerificationAcknowledged: false,
@@ -1626,8 +2217,9 @@ export function FindingDetail({
       api.request(`/inspections/${inspectionId}/findings/${findingId}/verify`, {
         method: 'POST',
         body: JSON.stringify({
-          likelihood: Number(input.likelihood),
-          consequence: Number(input.consequence),
+          riskMethodVersionId: finding.data?.riskMethodVersionId,
+          methodInput: findingMethodInput(finding.data?.riskMethodKey ?? 'DEMO_5X5', input),
+          residualRationale: input.selectionRationale || undefined,
           basis: input.basis,
           note: input.note || undefined,
           selfVerificationAcknowledged: input.selfVerificationAcknowledged,
@@ -1707,10 +2299,14 @@ export function FindingDetail({
             }
           />
           <div className="inspection-object-strip">
-            <InspectionRiskBadge
-              level={finding.data.initialRiskLevel}
-              score={finding.data.initialScore}
-            />
+            {finding.data.initialRiskLevel ? (
+              <InspectionRiskBadge
+                level={finding.data.initialRiskLevel}
+                score={finding.data.initialScore}
+              />
+            ) : (
+              <span className="risk-badge risk-pending">{finding.data.initialResultLabel}</span>
+            )}
             <DomainStatusBadge domain="finding" status={finding.data.status} />
             {finding.data.inspection?.isDemo ? <DemoChip /> : null}
             <span>Metodología utilizada: {methodPresentation.displayName}</span>
@@ -1733,7 +2329,11 @@ export function FindingDetail({
               </dl>
             </TechnicalDetails>
           </div>
-          <InspectionDemoNotice compact />
+          <InspectionDemoNotice
+            compact
+            methodName={methodPresentation.displayName}
+            disclaimer={methodPresentation.contextSummary}
+          />
           {notice ? (
             <p className="inspection-success" role="status">
               {notice}
@@ -1758,29 +2358,45 @@ export function FindingDetail({
                 <div className="inspection-risk-pair">
                   <Card>
                     <span>Riesgo inicial</span>
-                    <strong>{finding.data.initialScore}</strong>
+                    <strong>
+                      {finding.data.initialScore ?? finding.data.initialResultLabel ?? '—'}
+                    </strong>
                     <p>
-                      Probabilidad {finding.data.initialLikelihood} × consecuencia{' '}
-                      {finding.data.initialConsequence}
+                      {riskExplanation(finding.data.initialMethodResult) ??
+                        finding.data.initialResultLabel}
                     </p>
-                    <InspectionRiskBadge
-                      level={finding.data.initialRiskLevel}
-                      score={finding.data.initialScore}
-                    />
+                    {finding.data.initialRiskLevel ? (
+                      <InspectionRiskBadge
+                        level={finding.data.initialRiskLevel}
+                        score={finding.data.initialScore}
+                      />
+                    ) : (
+                      <span className="risk-badge risk-pending">
+                        {finding.data.initialResultLabel}
+                      </span>
+                    )}
                   </Card>
-                  <Card className={!finding.data.residualScore ? 'pending' : ''}>
+                  <Card className={!finding.data.residualMethodResult ? 'pending' : ''}>
                     <span>Riesgo residual</span>
-                    {finding.data.residualScore ? (
+                    {finding.data.residualMethodResult ? (
                       <>
-                        <strong>{finding.data.residualScore}</strong>
+                        <strong>
+                          {finding.data.residualScore ?? finding.data.residualResultLabel ?? '—'}
+                        </strong>
                         <p>
-                          Probabilidad {finding.data.residualLikelihood} × consecuencia{' '}
-                          {finding.data.residualConsequence}
+                          {riskExplanation(finding.data.residualMethodResult) ??
+                            finding.data.residualResultLabel}
                         </p>
-                        <InspectionRiskBadge
-                          level={finding.data.residualRiskLevel}
-                          score={finding.data.residualScore}
-                        />
+                        {finding.data.residualRiskLevel ? (
+                          <InspectionRiskBadge
+                            level={finding.data.residualRiskLevel}
+                            score={finding.data.residualScore}
+                          />
+                        ) : (
+                          <span className="risk-badge risk-pending">
+                            {finding.data.residualResultLabel}
+                          </span>
+                        )}
                       </>
                     ) : (
                       <>
@@ -2232,20 +2848,192 @@ export function FindingDetail({
               noValidate
               onSubmit={verifyForm.handleSubmit((input) => verify.mutate(input))}
             >
-              <QuestionScale
-                name="likelihood"
-                title="Probabilidad residual"
-                descriptions={likelihoodDescriptions}
-                register={verifyForm.register}
-                error={verifyForm.formState.errors.likelihood?.message}
-              />
-              <QuestionScale
-                name="consequence"
-                title="Consecuencia residual"
-                descriptions={consequenceDescriptions}
-                register={verifyForm.register}
-                error={verifyForm.formState.errors.consequence?.message}
-              />
+              <div className="inspection-method-heading">
+                <span>Misma metodología de la valoración inicial</span>
+                <strong>{methodPresentation.displayName}</strong>
+                <small>Versión {methodPresentation.version}</small>
+              </div>
+              {finding.data.riskMethodKey === 'GUIDED_5X5' ? (
+                <>
+                  <div className="field">
+                    <label htmlFor="residual-guided-probability">Probabilidad residual</label>
+                    <select
+                      id="residual-guided-probability"
+                      {...verifyForm.register('guidedProbability', {
+                        required: 'Selecciona la probabilidad residual.',
+                        valueAsNumber: true,
+                      })}
+                    >
+                      <option value="">Selecciona una opción</option>
+                      {guidedProbabilityCriteria.map((criterion) => (
+                        <option key={criterion.value} value={criterion.value}>
+                          {criterion.label} — {criterion.meaning}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <details className="risk-method-cues">
+                    <summary>¿Por qué? Señales para la probabilidad residual</summary>
+                    {guidedProbabilityCriteria
+                      .flatMap(({ cues }) => cues)
+                      .map((cue) => (
+                        <label key={cue.key}>
+                          <input
+                            type="checkbox"
+                            value={cue.key}
+                            {...verifyForm.register('guidedProbabilityCues')}
+                          />
+                          {cue.label}
+                        </label>
+                      ))}
+                  </details>
+                  <div className="field">
+                    <label htmlFor="residual-guided-severity">Severidad humana residual</label>
+                    <select
+                      id="residual-guided-severity"
+                      {...verifyForm.register('guidedSeverity', {
+                        required: 'Selecciona la severidad residual.',
+                        valueAsNumber: true,
+                      })}
+                    >
+                      <option value="">Selecciona una opción</option>
+                      {guidedHumanSeverityCriteria.map((criterion) => (
+                        <option key={criterion.value} value={criterion.value}>
+                          {criterion.label} — {criterion.meaning}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <details className="risk-method-cues">
+                    <summary>¿Por qué? Señales para la severidad residual</summary>
+                    {guidedHumanSeverityCriteria
+                      .flatMap(({ cues }) => cues)
+                      .map((cue) => (
+                        <label key={cue.key}>
+                          <input
+                            type="checkbox"
+                            value={cue.key}
+                            {...verifyForm.register('guidedSeverityCues')}
+                          />
+                          {cue.label}
+                        </label>
+                      ))}
+                  </details>
+                </>
+              ) : finding.data.riskMethodKey === 'GTC45_2010' ? (
+                <>
+                  <div className="inspection-form-grid">
+                    <div className="field">
+                      <label htmlFor="residual-gtc-deficiency">Deficiencia posterior</label>
+                      <select
+                        id="residual-gtc-deficiency"
+                        {...verifyForm.register('gtcDeficiency', {
+                          required: 'Selecciona el nivel de deficiencia residual.',
+                        })}
+                      >
+                        <option value="">Selecciona una opción</option>
+                        {gtc45DeficiencyOptions.map((option) => (
+                          <option key={option.key} value={option.key}>
+                            {option.label}
+                            {option.value === null ? ' · tratamiento especial IV' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="residual-gtc-exposure">Exposición posterior</label>
+                      <select
+                        id="residual-gtc-exposure"
+                        {...verifyForm.register('gtcExposure', {
+                          required: 'Selecciona el nivel de exposición residual.',
+                          valueAsNumber: true,
+                        })}
+                      >
+                        <option value="">Selecciona una opción</option>
+                        {gtc45ExposureOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label} · {option.value}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="residual-gtc-consequence">Consecuencia posterior</label>
+                    <select
+                      id="residual-gtc-consequence"
+                      {...verifyForm.register('gtcConsequence', {
+                        required: 'Selecciona la consecuencia residual.',
+                        valueAsNumber: true,
+                      })}
+                    >
+                      <option value="">Selecciona una opción</option>
+                      {gtc45ConsequenceOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label} · {option.value}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <fieldset className="risk-control-locations">
+                    <legend>Controles después de la intervención</legend>
+                    <div className="field">
+                      <label htmlFor="residual-control-source">Control en la fuente</label>
+                      <textarea
+                        id="residual-control-source"
+                        {...verifyForm.register('controlSource')}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="residual-control-medium">Control en el medio</label>
+                      <textarea
+                        id="residual-control-medium"
+                        {...verifyForm.register('controlMedium')}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="residual-control-individual">
+                        Control relacionado con la persona
+                      </label>
+                      <textarea
+                        id="residual-control-individual"
+                        {...verifyForm.register('controlIndividual')}
+                      />
+                    </div>
+                  </fieldset>
+                </>
+              ) : (
+                <>
+                  <QuestionScale
+                    name="likelihood"
+                    title="Probabilidad residual"
+                    descriptions={likelihoodDescriptions}
+                    register={verifyForm.register}
+                    error={verifyForm.formState.errors.likelihood?.message}
+                  />
+                  <QuestionScale
+                    name="consequence"
+                    title="Consecuencia residual"
+                    descriptions={consequenceDescriptions}
+                    register={verifyForm.register}
+                    error={verifyForm.formState.errors.consequence?.message}
+                  />
+                </>
+              )}
+              {finding.data.riskMethodKey !== 'DEMO_5X5' ? (
+                <div className="field">
+                  <label htmlFor="residual-rationale">Justificación profesional posterior</label>
+                  <textarea
+                    id="residual-rationale"
+                    rows={4}
+                    maxLength={1000}
+                    {...verifyForm.register('selectionRationale', {
+                      required: 'Registra una justificación nueva para el riesgo residual.',
+                      minLength: { value: 10, message: 'Usa al menos 10 caracteres.' },
+                    })}
+                  />
+                </div>
+              ) : null}
               <div className="field">
                 <label htmlFor="verification-basis">Base de verificación</label>
                 <select
@@ -2419,12 +3207,15 @@ function SystemicReviewPanel({
             <article key={item.id}>
               <strong>{item.title}</strong>
               <p>
-                Riesgo inicial: {item.initialScore} · {riskLevelLabel(item.initialRiskLevel)}
+                Riesgo inicial: {item.initialScore ?? item.initialResultLabel ?? 'Registrado'} ·{' '}
+                {item.initialRiskLevel
+                  ? riskLevelLabel(item.initialRiskLevel)
+                  : item.initialResultLabel}
               </p>
               <p>
                 Riesgo residual:{' '}
-                {item.residualScore
-                  ? `${item.residualScore} · ${riskLevelLabel(item.residualRiskLevel)}`
+                {item.residualScore || item.residualResultLabel
+                  ? `${item.residualScore ?? item.residualResultLabel} · ${item.residualRiskLevel ? riskLevelLabel(item.residualRiskLevel) : item.residualResultLabel}`
                   : 'Pendiente'}
               </p>
               <p>
@@ -2933,8 +3724,18 @@ export function InspectionAnalytics({ filters = {} }: { filters?: InspectionAnal
                   </p>
                   {query.data.findingsByRiskLevel.length ? (
                     query.data.findingsByRiskLevel.map((item) => (
-                      <div className="inspection-data-row" key={item.riskLevel}>
-                        <InspectionRiskBadge level={item.riskLevel} />
+                      <div
+                        className="inspection-data-row"
+                        key={`${item.methodKey}:${item.methodVersion}:${item.riskLevel}`}
+                      >
+                        <span>
+                          {
+                            presentInspectionRiskMethod(item.methodKey, item.methodVersion)
+                              .displayName
+                          }
+                          {' · '}
+                          {item.riskLevel ? riskLevelLabel(item.riskLevel) : 'Escala propia'}
+                        </span>
                         <strong>{item.count}</strong>
                       </div>
                     ))
@@ -2946,8 +3747,18 @@ export function InspectionAnalytics({ filters = {} }: { filters?: InspectionAnal
                   <h2>Riesgo residual verificado</h2>
                   {query.data.initialVsResidual.residual.length ? (
                     query.data.initialVsResidual.residual.map((item) => (
-                      <div className="inspection-data-row" key={item.riskLevel ?? 'pending'}>
-                        <InspectionRiskBadge level={item.riskLevel} pending={!item.riskLevel} />
+                      <div
+                        className="inspection-data-row"
+                        key={`${item.methodKey}:${item.methodVersion}:${item.riskLevel ?? 'own-scale'}`}
+                      >
+                        <span>
+                          {
+                            presentInspectionRiskMethod(item.methodKey, item.methodVersion)
+                              .displayName
+                          }
+                          {' · '}
+                          {item.riskLevel ? riskLevelLabel(item.riskLevel) : 'Escala propia'}
+                        </span>
                         <strong>{item.count}</strong>
                       </div>
                     ))
