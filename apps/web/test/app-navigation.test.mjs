@@ -48,9 +48,10 @@ test('nested application routes retain the correct active parent item', () => {
 test('domain links follow effective feature visibility while management stays available', () => {
   const inspections = appNavigationItems.find((item) => item.id === 'inspections');
   const technicalRisk = appNavigationItems.find((item) => item.id === 'technical-risk');
+  const workPermits = appNavigationItems.find((item) => item.id === 'work-permits');
   const modules = appNavigationItems.find((item) => item.id === 'modules');
 
-  assert.ok(inspections && technicalRisk && modules);
+  assert.ok(inspections && technicalRisk && workPermits && modules);
   assert.equal(
     isNavigationItemVisible(inspections, undefined),
     true,
@@ -58,5 +59,7 @@ test('domain links follow effective feature visibility while management stays av
   );
   assert.equal(isNavigationItemVisible(inspections, { 'module.inspections': true }), true);
   assert.equal(isNavigationItemVisible(technicalRisk, { 'module.technical_risk': false }), false);
+  assert.equal(isNavigationItemVisible(workPermits, undefined), true);
+  assert.equal(isNavigationItemVisible(workPermits, { 'module.work_permits': false }), false);
   assert.equal(isNavigationItemVisible(modules, undefined), true);
 });

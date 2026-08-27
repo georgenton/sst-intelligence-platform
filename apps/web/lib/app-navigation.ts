@@ -169,6 +169,6 @@ export function isNavigationItemVisible(
   features: Record<string, boolean | number | string> | undefined,
 ) {
   if (!item.requiredFeature) return true;
-  if (!features) return false;
+  if (!features) return true;
   return features?.[item.requiredFeature] === true;
 }
