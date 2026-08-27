@@ -1,4 +1,10 @@
-import { isDemoActive, isModuleAccessActive, parseEntitlement, roleAllows } from './entitlement';
+import {
+  isDemoActive,
+  isModuleAccessActive,
+  isWorkPermitsDemoPreviewActive,
+  parseEntitlement,
+  roleAllows,
+} from './entitlement';
 
 describe('entitlement rules', () => {
   it('parses persisted values without guessing arbitrary strings', () => {
@@ -21,6 +27,17 @@ describe('entitlement rules', () => {
     expect(isModuleAccessActive('DEMO', future, now)).toBe(true);
     expect(isModuleAccessActive('ACTIVE', null, now)).toBe(true);
     expect(isModuleAccessActive('ACTIVE', past, now)).toBe(false);
+  });
+
+  it('limits the Work Permits preview to an unexpired DEMO organization', () => {
+    const now = new Date('2026-08-27T12:00:00.000Z');
+    const future = new Date('2026-08-28T12:00:00.000Z');
+    const past = new Date('2026-08-26T12:00:00.000Z');
+
+    expect(isWorkPermitsDemoPreviewActive('DEMO', future, now)).toBe(true);
+    expect(isWorkPermitsDemoPreviewActive('DEMO', past, now)).toBe(false);
+    expect(isWorkPermitsDemoPreviewActive('ACTIVE', future, now)).toBe(false);
+    expect(isWorkPermitsDemoPreviewActive('DEMO', null, now)).toBe(false);
   });
 
   it('keeps role checks organization-specific and explicit', () => {

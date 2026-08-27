@@ -381,6 +381,12 @@ describe('critical platform integration', () => {
         (item: { status: string }) => item.status === 'DEMO',
       ),
     ).toBe(true);
+    expect(dashboard.body.entitlements.features['module.work_permits']).toBe(true);
+    await request(app.getHttpServer())
+      .get('/api/v1/work-permits/templates')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .set('x-organization-id', orgAId)
+      .expect(200);
     expect(
       await prisma.auditLog.count({ where: { organizationId: orgAId, action: 'DEMO_ACTIVATED' } }),
     ).toBe(1);
@@ -395,6 +401,11 @@ describe('critical platform integration', () => {
     });
     await request(app.getHttpServer())
       .get('/api/v1/entitlements/protected/technical-risk')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .set('x-organization-id', orgAId)
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/api/v1/work-permits/templates')
       .set('Authorization', `Bearer ${tokenA}`)
       .set('x-organization-id', orgAId)
       .expect(403);

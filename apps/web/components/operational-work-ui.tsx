@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { queryKeys } from '@/lib/query-keys';
+import { humanOperationalPriorityLabel, humanRiskLevelLabel } from '@/lib/human-lexicon';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
 import {
@@ -87,6 +88,10 @@ const statusLabels: Record<string, string> = {
   NEEDS_REVISION: 'Requiere ajustes',
   NEEDS_EXPERT_REVIEW: 'Revisión experta',
   PENDING_VERIFICATION: 'Verificación pendiente',
+  PENDING_APPROVAL: 'Pendiente de aprobación',
+  AUTHORIZED: 'Autorizado',
+  ACTIVE: 'Activo',
+  SUSPENDED: 'Suspendido',
 };
 
 const moduleLabels: Record<string, string> = {
@@ -291,13 +296,7 @@ export function OperationalWorkQueue({
                 <div className="command-item-meta">
                   <span>{moduleLabels[item.module] ?? 'Trabajo operativo'}</span>
                   <span>{statusLabels[item.status] ?? 'Pendiente'}</span>
-                  <span>
-                    {item.priority === 'URGENT'
-                      ? 'Urgente'
-                      : item.priority === 'HIGH'
-                        ? 'Alta prioridad'
-                        : 'Prioridad normal'}
-                  </span>
+                  <span>{humanOperationalPriorityLabel(item.priority)} prioridad</span>
                 </div>
                 <h2>{item.title}</h2>
                 <p>{item.summary}</p>
@@ -319,7 +318,7 @@ export function OperationalWorkQueue({
                   <p className="muted">
                     Método registrado: {item.riskContext.method}
                     {item.riskContext.level
-                      ? ` · nivel ${item.riskContext.level.toLocaleLowerCase('es')}`
+                      ? ` · nivel ${humanRiskLevelLabel(item.riskContext.level)}`
                       : ''}
                   </p>
                 ) : null}
@@ -596,7 +595,7 @@ export function ObligationExecutionDetail({ obligationId }: { obligationId: stri
         queryKey: queryKeys.organization.obligation(organizationId!, obligationId),
       }),
       queryClient.invalidateQueries({
-        queryKey: queryKeys.organization.workQueue(organizationId!),
+        queryKey: queryKeys.organization.workQueueRoot(organizationId!),
       }),
       queryClient.invalidateQueries({
         queryKey: queryKeys.organization.dashboard(organizationId!),

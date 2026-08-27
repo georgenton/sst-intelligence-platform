@@ -11,7 +11,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { humanRoleLabel } from '@/lib/human-lexicon';
+import { humanRiskLevelLabel, humanRoleLabel } from '@/lib/human-lexicon';
 import type { FieldValues, Path, UseFormRegister } from 'react-hook-form';
 import { statusMeta, type StatusDomain } from '@/lib/inspection-experience';
 import { WorkspaceHeader } from './workspace';
@@ -54,13 +54,6 @@ export function DomainStatusBadge({ domain, status }: { domain: StatusDomain; st
   );
 }
 
-const RISK_LABELS: Record<string, string> = {
-  LOW: 'Bajo',
-  MODERATE: 'Moderado',
-  HIGH: 'Alto',
-  CRITICAL: 'Crítico',
-};
-
 export function InspectionRiskBadge({
   level,
   score,
@@ -75,7 +68,7 @@ export function InspectionRiskBadge({
   }
   return (
     <span className={`risk-badge risk-${level.toLowerCase()}`}>
-      {RISK_LABELS[level] ?? level}
+      {humanRiskLevelLabel(level)}
       {score !== undefined && score !== null ? <strong>{score}</strong> : null}
     </span>
   );

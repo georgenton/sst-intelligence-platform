@@ -27,6 +27,8 @@ export const queryKeys = {
     scope: (organizationId: string) => [...privateRoot, 'org', organizationId] as const,
     dashboard: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'dashboard'] as const,
+    workQueueRoot: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'work-queue'] as const,
     workQueue: (organizationId: string, filters = '') =>
       [...privateRoot, 'org', organizationId, 'work-queue', filters] as const,
     obligations: (organizationId: string, filters = '') =>

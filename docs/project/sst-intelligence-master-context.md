@@ -188,3 +188,11 @@ documentary expansion where possible and a bounded generic Critical Work Permit 
 F are implemented and awaiting external review. Block E is safely deferred because exact verified
 text is not extractable without human transcription; the regulatory corpus and publication state
 remain unchanged. The program adds no new legal interpretation, pricing strategy or AI authority.
+
+The final production-closure repair establishes two additional product invariants. Command Center
+always renders actionable items from the shared Operational Work Queue before initial SST setup
+guidance; an unconfigured organization may see setup as a secondary recommendation, never as a
+replacement for real work. Work Permits uses the dedicated `module.work_permits` capability as a
+bounded active-demo preview. Its `FeatureDefinition` is deterministic global reference data, but
+it has no `PlanFeature` assignment. Future commercial packaging remains **PENDING PRODUCT
+DECISION**.

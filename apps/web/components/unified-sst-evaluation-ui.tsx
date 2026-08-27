@@ -7,6 +7,10 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { queryKeys } from '@/lib/query-keys';
 import type { ApplicabilityProfileVersion } from '@/lib/applicability-types';
+import {
+  applicabilityStateLabels,
+  humanOrganizationImplementationStatusLabel,
+} from '@/lib/human-lexicon';
 import { useOrganization } from './app-shell';
 import {
   ApplicabilityPageHeader,
@@ -427,7 +431,9 @@ export function UnifiedSstEvaluationDetailView({ evaluationId }: { evaluationId:
                   <p className="applicability-kicker">Interpretación propuesta</p>
                   <h2>{item.requirement.title}</h2>
                 </div>
-                <span className="regulatory-status">{item.proposedState}</span>
+                <span className="regulatory-status">
+                  {applicabilityStateLabels[item.proposedState] ?? 'Estado propuesto'}
+                </span>
               </div>
               <dl>
                 <div>
@@ -446,7 +452,9 @@ export function UnifiedSstEvaluationDetailView({ evaluationId }: { evaluationId:
                 </div>
                 <div>
                   <dt>Estado declarado</dt>
-                  <dd>{item.currentStateSnapshot?.status ?? 'No declarado todavía'}</dd>
+                  <dd>
+                    {humanOrganizationImplementationStatusLabel(item.currentStateSnapshot?.status)}
+                  </dd>
                 </div>
                 <div>
                   <dt>Evidencia de la organización</dt>

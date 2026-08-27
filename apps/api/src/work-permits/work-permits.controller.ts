@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nest
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AccessTokenGuard } from '../auth/access-token.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { WORK_PERMITS_FEATURE_KEY } from '../catalog/entitlement';
 import { RequireEntitlement } from '../catalog/entitlement.decorator';
 import { EntitlementGuard } from '../catalog/entitlement.guard';
 import type { ApiRequest, AuthenticatedUser } from '../common/request-context';
@@ -29,7 +30,7 @@ const APPROVE_ROLES = ['ORG_OWNER', 'ORG_ADMIN', 'SST_MANAGER'] as const;
 @ApiTags('work-permits')
 @ApiBearerAuth()
 @Controller('work-permits')
-@RequireEntitlement('module.work_permits')
+@RequireEntitlement(WORK_PERMITS_FEATURE_KEY)
 @UseGuards(AccessTokenGuard, OrganizationGuard, EntitlementGuard)
 export class WorkPermitsController {
   constructor(private readonly permits: WorkPermitsService) {}

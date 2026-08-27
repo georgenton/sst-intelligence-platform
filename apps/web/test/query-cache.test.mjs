@@ -68,6 +68,29 @@ test('query factories distinguish public, global, user and organization ownershi
   assert.equal(isPrivateQueryKey(queryKeys.user.organizations('user-a')), true);
 });
 
+test('work queue root invalidates the dashboard and every filtered queue variant', async () => {
+  const queryClient = new QueryClient();
+  const defaultQueue = queryKeys.organization.workQueue('org-a');
+  const dashboardQueue = queryKeys.organization.workQueue('org-a', 'dashboard');
+  const filteredQueue = queryKeys.organization.workQueue('org-a', 'status=READY_FOR_REVIEW');
+  const otherOrganizationQueue = queryKeys.organization.workQueue('org-b', 'dashboard');
+
+  queryClient.setQueryData(defaultQueue, { items: [] });
+  queryClient.setQueryData(dashboardQueue, { items: [] });
+  queryClient.setQueryData(filteredQueue, { items: [] });
+  queryClient.setQueryData(otherOrganizationQueue, { items: [] });
+
+  await queryClient.invalidateQueries({
+    queryKey: queryKeys.organization.workQueueRoot('org-a'),
+    refetchType: 'none',
+  });
+
+  assert.equal(queryClient.getQueryState(defaultQueue)?.isInvalidated, true);
+  assert.equal(queryClient.getQueryState(dashboardQueue)?.isInvalidated, true);
+  assert.equal(queryClient.getQueryState(filteredQueue)?.isInvalidated, true);
+  assert.equal(queryClient.getQueryState(otherOrganizationQueue)?.isInvalidated, false);
+});
+
 test('module catalog remains global while tenant state varies by organization', () => {
   const catalogForOrgA = queryKeys.global.moduleCatalog();
   const catalogForOrgB = queryKeys.global.moduleCatalog();

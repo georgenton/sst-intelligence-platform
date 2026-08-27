@@ -23,16 +23,22 @@ Safely structure verified official text without turning structure into legal int
 Priority: IESS C.D.513, MDT-2024-196 Annex 3, Decreto Ejecutivo 255, MDT-2024-196 Annex 2 and then
 remaining verified artifacts. Unreviewed OCR or LLM reconstruction is deferred.
 
-### C — Operational execution core — implemented, awaiting review
+### C — Operational execution core — implemented, final closure repair in review
 
 Deliver Obligation Execution, the Operational Work Queue and Command Center V2 so the platform can
 answer “¿Qué necesita mi atención hoy?”. See
 [Operational Execution Program V1](../product/operational-execution-program-v1.md).
 
-### D — Critical Work Permits — bounded V1 implemented, awaiting review
+Actionable queue work has absolute presentation precedence over onboarding. Setup guidance remains
+the primary empty state only when the organization is unconfigured and the queue has no actionable
+items.
+
+### D — Critical Work Permits — bounded V1 implemented, preview closure in review
 
 Start with a bounded generic internal/demo permit lifecycle. Sector-specific or legal templates wait
-for approved professional/legal content.
+for approved professional/legal content. The dedicated `module.work_permits` capability is enabled
+only for an active bounded demo in V1. No commercial plan assignment or pricing decision has been
+made; future packaging is **PENDING PRODUCT DECISION**.
 
 ### E — Incident management
 

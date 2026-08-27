@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { queryKeys } from '@/lib/query-keys';
+import { humanRiskLevelLabel } from '@/lib/human-lexicon';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
 import { useDashboardData } from './use-app-data';
@@ -403,7 +404,7 @@ export function WorkPermitDetail({ permitId }: { permitId: string }) {
         queryKey: queryKeys.organization.workPermits(organizationId!),
       }),
       queryClient.invalidateQueries({
-        queryKey: queryKeys.organization.workQueue(organizationId!),
+        queryKey: queryKeys.organization.workQueueRoot(organizationId!),
       }),
     ]);
   };
@@ -580,7 +581,7 @@ export function WorkPermitDetail({ permitId }: { permitId: string }) {
                     <h3>{risk.title}</h3>
                     <p>
                       {risk.methodName}
-                      {risk.level ? ` · nivel ${risk.level.toLocaleLowerCase('es')}` : ''}
+                      {risk.level ? ` · nivel ${humanRiskLevelLabel(risk.level)}` : ''}
                     </p>
                     <Link href={`/app/technical-risk/${risk.assessmentId}`}>
                       Abrir evaluación →

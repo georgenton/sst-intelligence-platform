@@ -73,6 +73,8 @@ async function referenceSnapshot(prisma) {
     regulatoryRuleDraftRequirements,
     regulatorySourceRelationships,
     regulatoryInterpretationReviews,
+    workPermitFeatureDefinitions,
+    workPermitPlanFeatures,
   ] = await Promise.all([
     prisma.methodologySource.findMany({ orderBy: { id: 'asc' } }),
     prisma.methodologySourceVersion.findMany({ orderBy: { id: 'asc' } }),
@@ -99,6 +101,14 @@ async function referenceSnapshot(prisma) {
     }),
     prisma.regulatorySourceRelationship.findMany({ orderBy: { id: 'asc' } }),
     prisma.regulatoryInterpretationReview.findMany({ orderBy: { id: 'asc' } }),
+    prisma.featureDefinition.findMany({
+      where: { key: 'module.work_permits' },
+      orderBy: { id: 'asc' },
+    }),
+    prisma.planFeature.findMany({
+      where: { feature: { key: 'module.work_permits' } },
+      orderBy: { id: 'asc' },
+    }),
   ]);
   return {
     sources,
@@ -119,6 +129,8 @@ async function referenceSnapshot(prisma) {
     regulatoryRuleDraftRequirements,
     regulatorySourceRelationships,
     regulatoryInterpretationReviews,
+    workPermitFeatureDefinitions,
+    workPermitPlanFeatures,
   };
 }
 
@@ -132,17 +144,38 @@ async function existingGlobalReferenceSnapshot(prisma) {
 }
 
 async function operationalCounts(prisma) {
-  const [users, memberships, organizations, workCenters, inspections, findings, actions] =
-    await Promise.all([
-      prisma.user.count(),
-      prisma.membership.count(),
-      prisma.organization.count(),
-      prisma.workCenter.count(),
-      prisma.inspection.count(),
-      prisma.inspectionFinding.count(),
-      prisma.correctiveAction.count(),
-    ]);
-  return { users, memberships, organizations, workCenters, inspections, findings, actions };
+  const [
+    users,
+    memberships,
+    organizations,
+    workCenters,
+    inspections,
+    findings,
+    actions,
+    obligations,
+    permits,
+  ] = await Promise.all([
+    prisma.user.count(),
+    prisma.membership.count(),
+    prisma.organization.count(),
+    prisma.workCenter.count(),
+    prisma.inspection.count(),
+    prisma.inspectionFinding.count(),
+    prisma.correctiveAction.count(),
+    prisma.obligationExecution.count(),
+    prisma.workPermit.count(),
+  ]);
+  return {
+    users,
+    memberships,
+    organizations,
+    workCenters,
+    inspections,
+    findings,
+    actions,
+    obligations,
+    permits,
+  };
 }
 
 function assertExpectedReferences(snapshot) {
@@ -174,6 +207,15 @@ function assertExpectedReferences(snapshot) {
   assert.equal(snapshot.regulatoryRuleDraftRequirements.length, 5);
   assert.equal(snapshot.regulatorySourceRelationships.length, 9);
   assert.equal(snapshot.regulatoryInterpretationReviews.length, 0);
+  assert.deepEqual(
+    snapshot.workPermitFeatureDefinitions.map(({ key, description, valueType }) => ({
+      key,
+      description,
+      valueType,
+    })),
+    [{ key: 'module.work_permits', description: 'Módulo de permisos', valueType: 'BOOLEAN' }],
+  );
+  assert.equal(snapshot.workPermitPlanFeatures.length, 0);
 
   const currentVersions = snapshot.regulatorySources.map((source) => {
     const versionsForSource = snapshot.regulatorySourceVersions.filter(
@@ -430,6 +472,8 @@ try {
       inspections: 0,
       findings: 0,
       actions: 0,
+      obligations: 0,
+      permits: 0,
     });
     evidence.freshDatabaseWithoutGeneralSeed = true;
 
@@ -448,6 +492,20 @@ try {
   const productionLike = await createDisposableSchema('production_like');
   try {
     runPackageScript('prisma:deploy', productionLike.url);
+    const legacyWorkPermitFeature = await productionLike.prisma.featureDefinition.create({
+      data: { key: 'module.work_permits', description: 'Módulo de permisos', valueType: 'BOOLEAN' },
+    });
+    const legacyGrowthPlan = await productionLike.prisma.plan.create({
+      data: {
+        key: 'GROWTH',
+        name: 'Growth fixture',
+        description: 'Disposable legacy commercial assignment fixture.',
+        sortOrder: 30,
+      },
+    });
+    await productionLike.prisma.planFeature.create({
+      data: { planId: legacyGrowthPlan.id, featureId: legacyWorkPermitFeature.id, value: 'true' },
+    });
     const existingGlobalReferences = await existingGlobalReferenceSnapshot(productionLike.prisma);
     const fixtureIds = await createHistoricalCustomerFixture(productionLike.prisma);
     const customerBefore = await customerSnapshot(productionLike.prisma, fixtureIds);
@@ -476,6 +534,16 @@ try {
   const drift = await createDisposableSchema('drift');
   try {
     runPackageScript('production:release', drift.url);
+    await drift.prisma.featureDefinition.update({
+      where: { key: 'module.work_permits' },
+      data: { description: 'Disposable feature drift' },
+    });
+    const catalogDriftOutput = runPackageScript('reference:sync', drift.url, false);
+    assert.match(catalogDriftOutput, /CATALOG_REFERENCE_DRIFT:FEATURE:module\.work_permits/);
+    await drift.prisma.featureDefinition.update({
+      where: { key: 'module.work_permits' },
+      data: { description: 'Módulo de permisos' },
+    });
     await drift.prisma.riskMethodVersion.update({
       where: { id: '54000000-0000-4000-8000-000000000003' },
       data: { displayName: 'Mutated disposable GTC45 reference' },

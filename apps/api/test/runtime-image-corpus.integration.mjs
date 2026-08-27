@@ -143,6 +143,8 @@ async function referenceSnapshot(prisma) {
     ruleDraftRequirements,
     regulatoryRuleVersions,
     relationships,
+    workPermitFeatures,
+    workPermitPlanAssignments,
   ] = await Promise.all([
     prisma.regulatorySource.findMany({ orderBy: { id: 'asc' } }),
     prisma.regulatorySourceVersion.findMany({ orderBy: { id: 'asc' } }),
@@ -162,6 +164,14 @@ async function referenceSnapshot(prisma) {
       orderBy: { id: 'asc' },
     }),
     prisma.regulatorySourceRelationship.findMany({ orderBy: { id: 'asc' } }),
+    prisma.featureDefinition.findMany({
+      where: { key: 'module.work_permits' },
+      orderBy: { id: 'asc' },
+    }),
+    prisma.planFeature.findMany({
+      where: { feature: { key: 'module.work_permits' } },
+      orderBy: { id: 'asc' },
+    }),
   ]);
   return {
     sources,
@@ -175,6 +185,8 @@ async function referenceSnapshot(prisma) {
     ruleDraftRequirements,
     regulatoryRuleVersions,
     relationships,
+    workPermitFeatures,
+    workPermitPlanAssignments,
   };
 }
 
@@ -191,6 +203,10 @@ function assertExpectedReferences(snapshot) {
   assert.equal(snapshot.requirementSources.length, 6);
   assert.equal(snapshot.ruleDraftRequirements.length, 5);
   assert.equal(snapshot.relationships.length, 9);
+  assert.equal(snapshot.workPermitFeatures.length, 1);
+  assert.equal(snapshot.workPermitFeatures[0]?.description, 'Módulo de permisos');
+  assert.equal(snapshot.workPermitFeatures[0]?.valueType, 'BOOLEAN');
+  assert.equal(snapshot.workPermitPlanAssignments.length, 0);
 
   const currentVersions = snapshot.sources.map(
     (source) =>
@@ -248,14 +264,32 @@ function assertExpectedReferences(snapshot) {
 }
 
 async function operationalCounts(prisma) {
-  const [users, organizations, inspections, findings, technicalAssessments] = await Promise.all([
+  const [
+    users,
+    organizations,
+    inspections,
+    findings,
+    technicalAssessments,
+    obligations,
+    workPermits,
+  ] = await Promise.all([
     prisma.user.count(),
     prisma.organization.count(),
     prisma.inspection.count(),
     prisma.inspectionFinding.count(),
     prisma.technicalAssessment.count(),
+    prisma.obligationExecution.count(),
+    prisma.workPermit.count(),
   ]);
-  return { users, organizations, inspections, findings, technicalAssessments };
+  return {
+    users,
+    organizations,
+    inspections,
+    findings,
+    technicalAssessments,
+    obligations,
+    workPermits,
+  };
 }
 
 async function createHistoricalCustomerFixture(prisma) {
@@ -418,6 +452,8 @@ try {
       inspections: 0,
       findings: 0,
       technicalAssessments: 0,
+      obligations: 0,
+      workPermits: 0,
     });
     evidence.freshRelease = true;
 

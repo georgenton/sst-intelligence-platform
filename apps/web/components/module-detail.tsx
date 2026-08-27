@@ -3,6 +3,7 @@
 import { Card, StatusBadge } from '@sst/ui';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { humanModuleAccessStatusLabel } from '@/lib/human-lexicon';
 import { useDashboardData } from './use-app-data';
 
 export function ModuleDetail() {
@@ -29,7 +30,7 @@ export function ModuleDetail() {
   return (
     <div className="stack">
       <div>
-        <StatusBadge>{item.status}</StatusBadge>
+        <StatusBadge>{humanModuleAccessStatusLabel(item.status)}</StatusBadge>
         <p className="eyebrow">{item.status === 'DEMO' ? 'Demostración conceptual' : 'Módulo'}</p>
         <h2>{item.module.name}</h2>
         <p className="muted">{item.module.objective}</p>
@@ -51,7 +52,7 @@ export function ModuleDetail() {
       </div>
       <Card className="stack">
         <p>
-          <strong>Estado:</strong> {item.status}
+          <strong>Estado:</strong> {humanModuleAccessStatusLabel(item.status)}
         </p>
         <p className="muted">
           Los flujos profundos de este módulo no forman parte del incremento actual.

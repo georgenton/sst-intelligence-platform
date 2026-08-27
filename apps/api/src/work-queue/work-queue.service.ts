@@ -4,6 +4,8 @@ import {
   type WorkQueueItemType,
   type WorkQueueModule,
 } from '@sst/contracts';
+import { WORK_PERMITS_FEATURE_KEY } from '../catalog/entitlement';
+import { EntitlementService } from '../catalog/entitlement.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { WorkQueueQueryDto } from './dto';
 
@@ -30,7 +32,10 @@ type QueueItem = {
 
 @Injectable()
 export class WorkQueueService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly entitlements: EntitlementService,
+  ) {}
 
   async list(organizationId: string, query: WorkQueueQueryDto) {
     const now = new Date();
@@ -41,6 +46,8 @@ export class WorkQueueService {
       ...(query.dueTo ? { lte: new Date(query.dueTo) } : {}),
     };
     const moduleEnabled = (module: WorkQueueModule) => !query.module || query.module === module;
+    const effectiveEntitlements = await this.entitlements.effective(organizationId);
+    const workPermitsEnabled = effectiveEntitlements.features[WORK_PERMITS_FEATURE_KEY] === true;
 
     const [actions, assessments, expertItems, obligations, systemicReviews, permits] =
       await Promise.all([
@@ -167,7 +174,7 @@ export class WorkQueueService {
               orderBy: { createdAt: 'desc' },
             })
           : [],
-        moduleEnabled('WORK_PERMITS') && !query.priority
+        moduleEnabled('WORK_PERMITS') && workPermitsEnabled && !query.priority
           ? this.prisma.workPermit.findMany({
               where: {
                 organizationId,

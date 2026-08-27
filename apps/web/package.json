@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
+    "@prisma/client": "6.19.2",
     "@sst/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "24.10.13",

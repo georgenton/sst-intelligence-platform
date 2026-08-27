@@ -1,7 +1,7 @@
 # Operational Execution Program V1
 
-Status: implementation complete and awaiting external review on baseline
-`861218c38e5d2bba1f2bd0d0623f104cda862bbf`.
+Status: implementation complete; final production-closure repair in external review from baseline
+`8d4a744bac87984cc07ff0b93a897828758cd446`.
 
 ## Outcome
 
@@ -38,6 +38,14 @@ Refactor `/app` into Necesita atención, Estado operativo and Análisis. Attenti
 links, human empty states and no dead-end cards. The layout becomes denser without implementing an
 arbitrary user density selector.
 
+The production-closure root cause was a mutually exclusive render branch: the
+`not-yet-configured` state was evaluated before queue error and queue item state, so setup guidance
+replaced actionable work. The repaired precedence is deterministic: queue items first; setup only
+as a secondary recommendation when those items coexist with incomplete configuration; setup as the
+primary empty state only with zero actionable work. Configured organizations with zero work retain
+the healthy operational empty state. The Command Center consumes the queue's existing order and
+does not calculate another priority.
+
 ## Block D — Workspace UX V2
 
 Implement shared workspace primitives and two bounded pilots: Inspection/Finding and Technical
@@ -60,10 +68,17 @@ The first template is generic INTERNAL/DEMO and makes no Ecuador compliance clai
 are conservative; VIEWER cannot authorize and self-approval is constrained. Pending approval,
 suspended and due/expiry work joins the shared Work Queue and Command Center.
 
+`module.work_permits` is the dedicated API-authoritative capability. V1 provides it only as a
+bounded preview while an organization has an active demo window. Expiry removes access and Work
+Queue permit projections without deleting or rewriting stored permit history. The global
+`FeatureDefinition` is created by production-safe reference sync; no commercial `PlanFeature`
+assignment is created. Future commercial packaging is **PENDING PRODUCT DECISION**.
+
 ## Cross-cutting gates
 
 - Auth coordinator, AbortSignal/session generation and API authorization remain unchanged.
-- No new commercial feature key unless an explicit product decision is made.
+- Product capabilities may be defined independently of pricing. `module.work_permits` has one
+  global definition and zero commercial plan assignments in V1.
 - No historical finding, residual valuation, legacy Technical Risk or regulatory evaluation is
   recalculated.
 - GTC45 is not Ecuadorian law; LOW is not zero; no full copyrighted text is stored.

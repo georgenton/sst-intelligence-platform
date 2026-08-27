@@ -54,3 +54,38 @@ export function resolveCommandCenterConfigurationState({
   if (status === 'error') return 'unavailable';
   return profileVersionCount > 0 ? 'configured' : 'not-yet-configured';
 }
+
+export type CommandCenterAttentionPrimaryState =
+  | 'actionable-work'
+  | 'configuration-guidance'
+  | 'configuration-loading'
+  | 'configuration-unavailable'
+  | 'queue-unavailable'
+  | 'operational-empty';
+
+export function resolveCommandCenterAttentionPresentation({
+  configurationState,
+  queueStatus,
+  actionableWorkCount,
+}: {
+  configurationState: CommandCenterConfigurationState;
+  queueStatus: 'pending' | 'error' | 'success';
+  actionableWorkCount: number;
+}) {
+  const hasActionableWork = queueStatus === 'success' && actionableWorkCount > 0;
+  const showConfigurationRecommendation = configurationState === 'not-yet-configured';
+
+  let primary: CommandCenterAttentionPrimaryState;
+  if (hasActionableWork) primary = 'actionable-work';
+  else if (queueStatus === 'error') primary = 'queue-unavailable';
+  else if (configurationState === 'not-yet-configured') primary = 'configuration-guidance';
+  else if (configurationState === 'loading') primary = 'configuration-loading';
+  else if (configurationState === 'unavailable') primary = 'configuration-unavailable';
+  else primary = 'operational-empty';
+
+  return {
+    primary,
+    showConfigurationRecommendation:
+      primary === 'actionable-work' && showConfigurationRecommendation,
+  };
+}

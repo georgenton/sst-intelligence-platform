@@ -211,7 +211,7 @@ function RiskValuationSummary({ assessment }: { assessment: Assessment }) {
         <p>
           Resultado determinístico:{' '}
           <strong>
-            {level}
+            {technicalRiskLabel(level)}
             {score === null ? '' : ` · ${score}`}
           </strong>
         </p>
