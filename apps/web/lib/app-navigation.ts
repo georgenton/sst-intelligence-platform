@@ -6,7 +6,7 @@ export type AppNavigationItem = {
   href: string;
   group: AppNavigationGroupId;
   match: 'exact' | 'segment';
-  requiredFeature?: 'module.inspections' | 'module.technical_risk';
+  requiredFeature?: 'module.inspections' | 'module.technical_risk' | 'module.work_permits';
 };
 
 export type AppNavigationGroup = {
@@ -26,6 +26,13 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
     label: 'Operación',
     items: [
       {
+        id: 'work-queue',
+        label: 'Cola de trabajo',
+        href: '/app/work',
+        group: 'operation',
+        match: 'segment',
+      },
+      {
         id: 'sst-evaluation',
         label: 'Evaluación SST',
         href: '/app/evaluation',
@@ -39,6 +46,14 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         group: 'operation',
         match: 'segment',
         requiredFeature: 'module.inspections',
+      },
+      {
+        id: 'work-permits',
+        label: 'Permisos de trabajo',
+        href: '/app/work-permits',
+        group: 'operation',
+        match: 'segment',
+        requiredFeature: 'module.work_permits',
       },
       {
         id: 'regulatory-library',

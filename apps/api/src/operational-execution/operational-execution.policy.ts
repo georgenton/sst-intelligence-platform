@@ -1,0 +1,9 @@
+export const OBLIGATION_WRITE_ROLES = [
+  'ORG_OWNER',
+  'ORG_ADMIN',
+  'SST_MANAGER',
+  'SST_TECHNICIAN',
+  'CONSULTANT',
+] as const;
+
+export const OBLIGATION_REVIEW_ROLES = ['ORG_OWNER', 'ORG_ADMIN', 'SST_MANAGER'] as const;

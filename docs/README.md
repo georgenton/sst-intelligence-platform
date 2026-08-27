@@ -3,6 +3,19 @@
 Canonical documentation is grouped by concern. Product and domain decisions live here; generated
 validation reports remain in `.artifacts/` and are not source documentation.
 
+## Canonical project continuity
+
+- [Master project context](project/sst-intelligence-master-context.md)
+- [Master roadmap](project/sst-intelligence-roadmap.md)
+- [Operational Execution Program V1](product/operational-execution-program-v1.md)
+- [Workspace UX V2](architecture/workspace-ux-v2.md)
+- [Obligation Execution V1](domain/obligation-execution-v1.md)
+- [Operational Work Queue V1](domain/operational-work-queue-v1.md)
+- [Command Center V2](product/command-center-v2.md)
+- [Critical Work Permits V1](domain/critical-work-permits-v1.md)
+- [Density and preferences future](product/density-and-user-preferences-future.md)
+- [Documentary attempt V1](regulatory/operational-execution-documentary-attempt-v1.md)
+
 ## Adaptive SST
 
 - [Adaptive SST roadmap](product/adaptive-sst-roadmap.md)

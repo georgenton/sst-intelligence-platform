@@ -141,6 +141,48 @@ enum ActionEvidenceType {
   EXTERNAL_LINK
 }
 
+enum ObligationExecutionOriginType {
+  APPROVED_REQUIREMENT
+  CANDIDATE_REQUIREMENT
+  INTERNAL_PROGRAM
+  MANUAL
+}
+
+enum ObligationExecutionStatus {
+  OPEN
+  IN_PROGRESS
+  BLOCKED
+  READY_FOR_REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum ObligationExecutionReviewDecision {
+  APPROVED
+  NEEDS_REVISION
+}
+
+enum ObligationExecutionEvidenceType {
+  NOTE
+  EXTERNAL_LINK
+}
+
+enum PermitTemplateStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+}
+
+enum WorkPermitStatus {
+  DRAFT
+  PENDING_APPROVAL
+  AUTHORIZED
+  ACTIVE
+  SUSPENDED
+  CLOSED
+  CANCELLED
+}
+
 enum TechnicalMethodStatus {
   DRAFT
   ACTIVE
@@ -523,6 +565,14 @@ model User {
   regulatoryEvaluationsCreated UnifiedSstEvaluation[]                @relation("UnifiedEvaluationCreator")
   riskMethodPoliciesCreated    OrganizationRiskMethodPolicyVersion[]
   guidedProfilesCreated        OrganizationGuided5x5ProfileVersion[]
+  obligationsAssigned          ObligationExecution[]                 @relation("ObligationAssignee")
+  obligationsCreated           ObligationExecution[]                 @relation("ObligationCreator")
+  obligationsCompleted         ObligationExecution[]                 @relation("ObligationCompleter")
+  obligationsReviewed          ObligationExecution[]                 @relation("ObligationReviewer")
+  obligationEvidenceCreated    ObligationExecutionEvidence[]         @relation("ObligationEvidenceCreator")
+  workPermitsRequested         WorkPermit[]                          @relation("WorkPermitRequester")
+  workPermitsApproved          WorkPermit[]                          @relation("WorkPermitApprover")
+  workPermitsClosed            WorkPermit[]                          @relation("WorkPermitCloser")
 }
 
 model RefreshSession {
@@ -597,6 +647,9 @@ model Organization {
   guided5x5Profiles          OrganizationGuided5x5ProfileVersion[]
   findingRegulatoryLinks     InspectionFindingRegulatoryLink[]
   technicalRegulatoryLinks   TechnicalAssessmentRegulatoryLink[]
+  obligationExecutions       ObligationExecution[]
+  obligationEvidence         ObligationExecutionEvidence[]
+  workPermits                WorkPermit[]
 }
 
 model WorkCenter {
@@ -614,6 +667,8 @@ model WorkCenter {
   findings             InspectionFinding[]
   technicalAssessments TechnicalAssessment[]
   adaptiveScopes       AdaptiveSessionScope[]
+  obligationExecutions ObligationExecution[]
+  workPermits          WorkPermit[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -904,6 +959,132 @@ model ActionEvidence {
   createdBy          User               @relation("EvidenceCreator", fields: [createdById], references: [id])
 
   @@index([organizationId, correctiveActionId])
+}
+
+model ObligationExecution {
+  id                  String                             @id @default(uuid()) @db.Uuid
+  organizationId      String                             @db.Uuid
+  workCenterId        String?                            @db.Uuid
+  title               String                             @db.VarChar(200)
+  description         String?                            @db.VarChar(4000)
+  originType          ObligationExecutionOriginType
+  requirementId       String?                            @db.Uuid
+  regulatoryUnitId    String?                            @db.Uuid
+  internalReference   String?                            @db.VarChar(500)
+  manualReference     String?                            @db.VarChar(500)
+  status              ObligationExecutionStatus          @default(OPEN)
+  priority            ActionPriority                     @default(MEDIUM)
+  assignedToUserId    String?                            @db.Uuid
+  dueAt               DateTime?
+  evidenceExpectation String?                            @db.VarChar(2000)
+  reviewRequired      Boolean                            @default(false)
+  createdById         String                             @db.Uuid
+  completedById       String?                            @db.Uuid
+  completedAt         DateTime?
+  reviewedById        String?                            @db.Uuid
+  reviewDecision      ObligationExecutionReviewDecision?
+  reviewedAt          DateTime?
+  reviewComment       String?                            @db.VarChar(2000)
+  provenanceSnapshot  Json
+  version             Int                                @default(1)
+  createdAt           DateTime                           @default(now())
+  updatedAt           DateTime                           @updatedAt
+  organization        Organization                       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  workCenter          WorkCenter?                        @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  requirement         RegulatoryRequirement?             @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  regulatoryUnit      RegulatoryUnit?                    @relation(fields: [regulatoryUnitId], references: [id], onDelete: Restrict)
+  assignedTo          User?                              @relation("ObligationAssignee", fields: [assignedToUserId], references: [id], onDelete: Restrict)
+  createdBy           User                               @relation("ObligationCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  completedBy         User?                              @relation("ObligationCompleter", fields: [completedById], references: [id], onDelete: Restrict)
+  reviewedBy          User?                              @relation("ObligationReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  evidence            ObligationExecutionEvidence[]
+
+  @@index([organizationId, status, dueAt])
+  @@index([organizationId, assignedToUserId, status])
+  @@index([organizationId, workCenterId, status])
+  @@index([requirementId])
+  @@index([regulatoryUnitId])
+}
+
+model ObligationExecutionEvidence {
+  id                    String                          @id @default(uuid()) @db.Uuid
+  organizationId        String                          @db.Uuid
+  obligationExecutionId String                          @db.Uuid
+  type                  ObligationExecutionEvidenceType
+  note                  String?                         @db.VarChar(2000)
+  externalUrl           String?                         @db.VarChar(1000)
+  createdById           String                          @db.Uuid
+  createdAt             DateTime                        @default(now())
+  organization          Organization                    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  obligationExecution   ObligationExecution             @relation(fields: [obligationExecutionId], references: [id], onDelete: Cascade)
+  createdBy             User                            @relation("ObligationEvidenceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, obligationExecutionId, createdAt])
+}
+
+model PermitTemplate {
+  id          String                  @id @default(uuid()) @db.Uuid
+  templateKey String                  @unique @db.VarChar(160)
+  name        String                  @db.VarChar(200)
+  description String                  @db.VarChar(1000)
+  isDemo      Boolean                 @default(false)
+  createdAt   DateTime                @default(now())
+  versions    PermitTemplateVersion[]
+}
+
+model PermitTemplateVersion {
+  id               String               @id @default(uuid()) @db.Uuid
+  permitTemplateId String               @db.Uuid
+  version          String               @db.VarChar(32)
+  status           PermitTemplateStatus @default(DRAFT)
+  schema           Json
+  contentHash      String               @db.VarChar(71)
+  disclaimer       String               @db.VarChar(1000)
+  publishedAt      DateTime?
+  createdAt        DateTime             @default(now())
+  permitTemplate   PermitTemplate       @relation(fields: [permitTemplateId], references: [id], onDelete: Restrict)
+  workPermits      WorkPermit[]
+
+  @@unique([permitTemplateId, version])
+  @@index([status, publishedAt])
+}
+
+model WorkPermit {
+  id                      String                @id @default(uuid()) @db.Uuid
+  organizationId          String                @db.Uuid
+  workCenterId            String                @db.Uuid
+  permitTemplateVersionId String                @db.Uuid
+  templateSnapshot        Json
+  area                    String                @db.VarChar(240)
+  activity                String                @db.VarChar(1000)
+  plannedStartAt          DateTime
+  plannedEndAt            DateTime
+  requesterUserId         String                @db.Uuid
+  approverUserId          String?               @db.Uuid
+  approvedAt              DateTime?
+  approvalComment         String?               @db.VarChar(2000)
+  closedByUserId          String?               @db.Uuid
+  closedAt                DateTime?
+  closureNote             String?               @db.VarChar(2000)
+  hazards                 Json
+  linkedRiskReferences    Json
+  controls                Json
+  preconditions           Json
+  evidenceReferences      Json
+  status                  WorkPermitStatus      @default(DRAFT)
+  version                 Int                   @default(1)
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  organization            Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  workCenter              WorkCenter            @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  permitTemplateVersion   PermitTemplateVersion @relation(fields: [permitTemplateVersionId], references: [id], onDelete: Restrict)
+  requester               User                  @relation("WorkPermitRequester", fields: [requesterUserId], references: [id], onDelete: Restrict)
+  approver                User?                 @relation("WorkPermitApprover", fields: [approverUserId], references: [id], onDelete: Restrict)
+  closedBy                User?                 @relation("WorkPermitCloser", fields: [closedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, plannedStartAt])
+  @@index([organizationId, workCenterId, status])
+  @@index([organizationId, requesterUserId, status])
 }
 
 model InspectionAlert {
@@ -1361,6 +1542,7 @@ model RegulatoryRequirement {
   unifiedItems            UnifiedSstEvaluationItem[]
   findingLinks            InspectionFindingRegulatoryLink[]
   technicalLinks          TechnicalAssessmentRegulatoryLink[]
+  obligationExecutions    ObligationExecution[]
 
   @@index([editorialStatus, createdAt])
   @@index([scopeHint])
@@ -1391,6 +1573,7 @@ model RegulatoryUnit {
   unifiedItems          UnifiedSstEvaluationItem[]
   findingLinks          InspectionFindingRegulatoryLink[]
   technicalLinks        TechnicalAssessmentRegulatoryLink[]
+  obligationExecutions  ObligationExecution[]
 
   @@unique([sourceVersionId, identifier])
   @@unique([sourceVersionId, ordinal])

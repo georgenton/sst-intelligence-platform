@@ -1,0 +1,210 @@
+import { ValidationPipe } from '@nestjs/common';
+import type { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import request from 'supertest';
+import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/prisma/prisma.service';
+
+describe('work permits integration', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  beforeAll(async () => {
+    const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = module.createNestApplication();
+    app.setGlobalPrefix('api/v1');
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+    );
+    await app.init();
+    prisma = app.get(PrismaService);
+  });
+
+  afterAll(async () => app.close());
+
+  async function register(label: string) {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({
+        email: `${label.toLowerCase().replaceAll(' ', '-')}-${suffix}@example.test`,
+        displayName: label,
+        password: 'work-permit-password-strong-123',
+      })
+      .expect(201);
+    return { token: response.body.accessToken as string, userId: response.body.user.id as string };
+  }
+
+  async function organization(token: string, label: string) {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/organizations')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: `${label} ${suffix}`, country: 'Ecuador' })
+      .expect(201);
+    return response.body.id as string;
+  }
+
+  async function enablePermits(organizationId: string) {
+    const module = await prisma.moduleDefinition.findUniqueOrThrow({
+      where: { key: 'WORK_PERMITS' },
+    });
+    await prisma.organizationModule.upsert({
+      where: { organizationId_moduleId: { organizationId, moduleId: module.id } },
+      update: { status: 'ACTIVE', source: 'MANUAL' },
+      create: { organizationId, moduleId: module.id, status: 'ACTIVE', source: 'MANUAL' },
+    });
+  }
+
+  function api(token: string, organizationId: string) {
+    const base = (method: 'get' | 'post', path: string) => {
+      const operation =
+        method === 'get'
+          ? request(app.getHttpServer()).get(`/api/v1${path}`)
+          : request(app.getHttpServer()).post(`/api/v1${path}`);
+      return operation
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-organization-id', organizationId);
+    };
+    return { get: (path: string) => base('get', path), post: (path: string) => base('post', path) };
+  }
+
+  it('enforces entitlement, tenant isolation, separate approval, concurrency and lifecycle', async () => {
+    const owner = await register('Permit Owner');
+    const manager = await register('Permit Manager');
+    const viewer = await register('Permit Viewer');
+    const orgA = await organization(owner.token, 'Permit Organization A');
+    const orgB = await organization(owner.token, 'Permit Organization B');
+    await enablePermits(orgA);
+    await prisma.membership.createMany({
+      data: [
+        { organizationId: orgA, userId: manager.userId, role: 'SST_MANAGER', status: 'ACTIVE' },
+        { organizationId: orgA, userId: viewer.userId, role: 'VIEWER', status: 'ACTIVE' },
+      ],
+    });
+    const centerA = await prisma.workCenter.findFirstOrThrow({ where: { organizationId: orgA } });
+    const centerB = await prisma.workCenter.findFirstOrThrow({ where: { organizationId: orgB } });
+    const template = await api(owner.token, orgA).get('/work-permits/templates').expect(200);
+    const templateId = template.body[0].id as string;
+
+    await api(owner.token, orgB).get('/work-permits/templates').expect(403);
+    await api(viewer.token, orgA)
+      .post('/work-permits')
+      .send({
+        permitTemplateVersionId: templateId,
+        workCenterId: centerA.id,
+        area: 'Área de prueba',
+        activity: 'Actividad no autorizada',
+        plannedStartAt: new Date(Date.now() + 3_600_000).toISOString(),
+        plannedEndAt: new Date(Date.now() + 7_200_000).toISOString(),
+        hazards: ['Peligro controlado'],
+        linkedRiskAssessmentIds: [],
+        controls: ['Control'],
+        preconditions: ['Precondición'],
+        evidenceReferences: [],
+      })
+      .expect(403);
+    await api(owner.token, orgA)
+      .post('/work-permits')
+      .send({
+        permitTemplateVersionId: templateId,
+        workCenterId: centerB.id,
+        area: 'Centro ajeno',
+        activity: 'No debe crearse',
+        plannedStartAt: new Date(Date.now() + 3_600_000).toISOString(),
+        plannedEndAt: new Date(Date.now() + 7_200_000).toISOString(),
+        hazards: ['Peligro'],
+        linkedRiskAssessmentIds: [],
+        controls: ['Control'],
+        preconditions: ['Precondición'],
+        evidenceReferences: [],
+      })
+      .expect(400);
+
+    const created = await api(owner.token, orgA)
+      .post('/work-permits')
+      .send({
+        permitTemplateVersionId: templateId,
+        workCenterId: centerA.id,
+        area: 'Sala de máquinas',
+        activity: 'Intervención interna planificada',
+        plannedStartAt: new Date(Date.now() + 3_600_000).toISOString(),
+        plannedEndAt: new Date(Date.now() + 7_200_000).toISOString(),
+        hazards: ['Energía residual'],
+        linkedRiskAssessmentIds: [],
+        controls: ['Aislamiento documentado'],
+        preconditions: ['Confirmar ausencia de energía'],
+        evidenceReferences: ['Registro interno de aislamiento'],
+      })
+      .expect(201);
+    const permitId = created.body.id as string;
+    expect(created.body).toMatchObject({ status: 'DRAFT', version: 1 });
+    await api(owner.token, orgB).get(`/work-permits/${permitId}`).expect(403);
+    await api(owner.token, orgA)
+      .post(`/work-permits/${permitId}/transition`)
+      .send({ status: 'PENDING_APPROVAL', expectedVersion: 1 })
+      .expect(201);
+    await api(owner.token, orgA)
+      .post(`/work-permits/${permitId}/approve`)
+      .send({ expectedVersion: 2 })
+      .expect(403)
+      .expect(({ body }) => expect(body.code).toBe('WORK_PERMIT_SELF_APPROVAL_FORBIDDEN'));
+    await api(viewer.token, orgA)
+      .post(`/work-permits/${permitId}/approve`)
+      .send({ expectedVersion: 2 })
+      .expect(403);
+
+    const queue = await api(owner.token, orgA).get('/work-queue?module=WORK_PERMITS').expect(200);
+    expect(queue.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceId: permitId,
+          type: 'WORK_PERMIT_APPROVAL',
+          status: 'PENDING_APPROVAL',
+        }),
+      ]),
+    );
+    const approvals = await Promise.all([
+      api(manager.token, orgA)
+        .post(`/work-permits/${permitId}/approve`)
+        .send({ expectedVersion: 2 }),
+      api(manager.token, orgA)
+        .post(`/work-permits/${permitId}/approve`)
+        .send({ expectedVersion: 2 }),
+    ]);
+    expect(approvals.map(({ status }) => status).sort()).toEqual([201, 409]);
+    await api(owner.token, orgA)
+      .post(`/work-permits/${permitId}/transition`)
+      .send({ status: 'ACTIVE', expectedVersion: 3 })
+      .expect(201);
+    await api(owner.token, orgA)
+      .post(`/work-permits/${permitId}/transition`)
+      .send({ status: 'SUSPENDED', expectedVersion: 4 })
+      .expect(201);
+    await api(owner.token, orgA)
+      .get('/work-queue?module=WORK_PERMITS')
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body.items).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ sourceId: permitId, type: 'WORK_PERMIT_SUSPENDED' }),
+          ]),
+        ),
+      );
+    await api(owner.token, orgA)
+      .post(`/work-permits/${permitId}/transition`)
+      .send({ status: 'ACTIVE', expectedVersion: 5 })
+      .expect(201);
+    await api(owner.token, orgA)
+      .post(`/work-permits/${permitId}/transition`)
+      .send({
+        status: 'CLOSED',
+        closureNote: 'Actividad finalizada y área liberada.',
+        expectedVersion: 6,
+      })
+      .expect(201)
+      .expect(({ body }) => expect(body).toMatchObject({ status: 'CLOSED', version: 7 }));
+    expect(
+      await prisma.auditLog.count({ where: { organizationId: orgA, entityType: 'WorkPermit' } }),
+    ).toBeGreaterThanOrEqual(6);
+  });
+});

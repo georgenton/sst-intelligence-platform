@@ -14,6 +14,7 @@ import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import { InspectionsModule } from './inspections/inspections.module';
 import { OrganizationsModule } from './organizations/organizations.module';
+import { OperationalExecutionModule } from './operational-execution/operational-execution.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RegulatorySourceModule } from './regulatory-sources/regulatory-source.module';
 import { RegulatoryRiskLinkModule } from './regulatory-risk-links/regulatory-risk-link.module';
@@ -21,6 +22,8 @@ import { RiskMethodologyModule } from './risk-methodology/risk-methodology.modul
 import { SolutionFinderModule } from './solution-finder/solution-finder.module';
 import { TechnicalRiskModule } from './technical-risk/technical-risk.module';
 import { UnifiedSstEvaluationModule } from './unified-sst-evaluation/unified-sst-evaluation.module';
+import { WorkQueueModule } from './work-queue/work-queue.module';
+import { WorkPermitsModule } from './work-permits/work-permits.module';
 
 @Module({
   imports: [
@@ -44,6 +47,7 @@ import { UnifiedSstEvaluationModule } from './unified-sst-evaluation/unified-sst
     AuthModule,
     EntitlementsModule,
     OrganizationsModule,
+    OperationalExecutionModule,
     CatalogModule,
     AiModule,
     AdaptiveConfigurationModule,
@@ -56,6 +60,8 @@ import { UnifiedSstEvaluationModule } from './unified-sst-evaluation/unified-sst
     InspectionsModule,
     TechnicalRiskModule,
     UnifiedSstEvaluationModule,
+    WorkQueueModule,
+    WorkPermitsModule,
   ],
   controllers: [HealthController],
   providers: [HealthService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
