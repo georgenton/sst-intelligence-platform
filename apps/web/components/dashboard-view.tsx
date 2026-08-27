@@ -3,6 +3,7 @@
 import { Card } from '@sst/ui';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { resolveCommandCenterConfigurationState } from '@/lib/command-center-state';
 import { queryKeys } from '@/lib/query-keys';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
@@ -103,6 +104,16 @@ export function DashboardView() {
       auth.request<QueueResponse>('/work-queue?pageSize=8', { signal }, organizationId!),
     enabled: Boolean(organizationId),
   });
+  const profileVersions = useQuery({
+    queryKey: queryKeys.organization.applicabilityProfileVersions(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<Array<{ id: string }>>(
+        '/applicability/profile-versions',
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId),
+  });
 
   if (!organizationId)
     return (
@@ -154,6 +165,10 @@ export function DashboardView() {
 
   const data = dashboard.data;
   const queueItems = queue.data?.items ?? [];
+  const configurationState = resolveCommandCenterConfigurationState({
+    status: profileVersions.status,
+    profileVersionCount: profileVersions.data?.length ?? 0,
+  });
   const blocked = queueItems.filter((item) => item.status === 'BLOCKED').length;
   const inProgress = queueItems.filter((item) => item.status === 'IN_PROGRESS').length;
   const pendingReview = queueItems.filter((item) =>
@@ -180,7 +195,12 @@ export function DashboardView() {
 
       <ContextSummary>
         <span>Plan {data.entitlements.plan.name}</span>
-        <span>{data.organization._count.workCenters} centros de trabajo</span>
+        <Link
+          href="/app/settings/organization#work-centers"
+          aria-label={`${data.organization._count.workCenters} centros de trabajo. Abrir centros de trabajo`}
+        >
+          {data.organization._count.workCenters} centros de trabajo
+        </Link>
         <span>{data.organization._count.memberships} personas con acceso</span>
       </ContextSummary>
 
@@ -190,7 +210,24 @@ export function DashboardView() {
         description="Ordenado por vencimiento, fecha próxima, revisión profesional y bloqueos. Los puntajes de métodos distintos no se comparan entre sí."
         actions={<Link href="/app/work">Ver todo →</Link>}
       >
-        {queue.isError ? (
+        {configurationState === 'not-yet-configured' ? (
+          <Card className="command-empty-state">
+            <h3>Completa la configuración inicial de SST</h3>
+            <p>
+              Necesitamos conocer algunos datos de tu organización antes de mostrar señales y
+              recomendaciones con contexto suficiente.
+            </p>
+            <Link className="button" href="/app/applicability">
+              Comenzar configuración SST
+            </Link>
+          </Card>
+        ) : configurationState === 'unavailable' ? (
+          <Card role="alert">
+            <h3>No pudimos confirmar la configuración inicial</h3>
+            <p>La cola permanece separada y puedes abrirla para revisar trabajo registrado.</p>
+            <Link href="/app/work">Abrir cola de trabajo →</Link>
+          </Card>
+        ) : queue.isError ? (
           <Card role="alert">
             <h3>No pudimos consultar la cola operativa</h3>
             <p>Las demás métricas permanecen disponibles. Reintenta esta sección.</p>

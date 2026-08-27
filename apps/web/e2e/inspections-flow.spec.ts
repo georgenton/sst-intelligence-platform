@@ -251,7 +251,12 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   ]);
   expect(verificationResponse.ok(), await verificationResponse.text()).toBe(true);
   await expect(page.getByText('Cerrado').first()).toBeVisible();
-  await expect(page.getByText('Bajo').first()).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'Riesgo inicial y residual' })
+      .locator('.risk-badge.risk-low')
+      .filter({ hasText: 'Bajo' }),
+  ).toBeVisible();
 
   for (const theme of ['operativo', 'sereno', 'noche', 'contraste']) {
     await page.getByLabel('Tema visual').selectOption(theme);

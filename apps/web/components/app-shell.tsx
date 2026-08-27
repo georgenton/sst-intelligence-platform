@@ -149,16 +149,6 @@ export function AppShell({ children }: PropsWithChildren) {
   const current = organizations.data?.find((item) => item.id === activeId);
   const transitioning =
     transitionTarget !== undefined || Boolean(userId && contextUserId !== userId);
-  const navigationContext = useQuery({
-    queryKey: queryKeys.organization.dashboard(activeId ?? 'inactive'),
-    queryFn: ({ signal }) =>
-      auth.request<{ entitlements: { features: Record<string, boolean | number | string> } }>(
-        '/dashboard',
-        { signal },
-        activeId!,
-      ),
-    enabled: Boolean(activeId && !transitioning),
-  });
   const demoActive =
     current?.status === 'DEMO' &&
     current.demoExpiresAt !== undefined &&
@@ -185,7 +175,7 @@ export function AppShell({ children }: PropsWithChildren) {
         Saltar al contenido principal
       </a>
       <div className="app-layout">
-        <AppSidebar pathname={pathname} features={navigationContext.data?.entitlements.features} />
+        <AppSidebar pathname={pathname} />
         <div className="app-main">
           <AppTopbar
             activeId={activeId}

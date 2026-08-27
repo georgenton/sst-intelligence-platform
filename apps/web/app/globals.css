@@ -712,7 +712,8 @@ h2 {
   flex-wrap: wrap;
   gap: 8px;
 }
-.workspace-context-summary > span {
+.workspace-context-summary > span,
+.workspace-context-summary > a {
   padding: 6px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
