@@ -47,6 +47,7 @@ import {
   type TechnicalAnswerValues,
 } from './technical-risk-experience-ui';
 import { useDashboardData } from './use-app-data';
+import { WorkspaceInspector } from './workspace';
 
 type Method = {
   id: string;
@@ -1811,7 +1812,7 @@ function TechnicalAssessmentResult({
             )}
           </section>
         </div>
-        <aside className="technical-result-rail" aria-label="Proveniencia y revisión">
+        <WorkspaceInspector className="technical-result-rail" label="Proveniencia y revisión">
           <MethodVersionSummary
             name={provenance.name}
             code={assessment.methodKey}
@@ -1861,7 +1862,7 @@ function TechnicalAssessmentResult({
             </dl>
             <ReviewHistory reviews={assessment.reviews} />
           </section>
-        </aside>
+        </WorkspaceInspector>
       </div>
     </div>
   );

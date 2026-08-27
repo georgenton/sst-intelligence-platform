@@ -14,6 +14,7 @@ import {
 import { humanRoleLabel } from '@/lib/human-lexicon';
 import type { FieldValues, Path, UseFormRegister } from 'react-hook-form';
 import { statusMeta, type StatusDomain } from '@/lib/inspection-experience';
+import { WorkspaceHeader } from './workspace';
 
 export function InspectionPageHeader({
   eyebrow,
@@ -29,15 +30,13 @@ export function InspectionPageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="inspection-page-header">
-      <div className="inspection-page-copy">
-        <p className="eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
-        <p className="inspection-lede">{description}</p>
-        {context}
-      </div>
-      {actions ? <div className="inspection-header-actions focus-dim">{actions}</div> : null}
-    </header>
+    <WorkspaceHeader
+      eyebrow={eyebrow}
+      title={title}
+      description={description}
+      context={context}
+      actions={actions}
+    />
   );
 }
 

@@ -26,6 +26,7 @@ import {
   humanRoleLabel,
 } from '@/lib/human-lexicon';
 import { TechnicalDetails } from './technical-details';
+import { WorkspaceHeader } from './workspace';
 
 export type TechnicalAnswerValues = { answers: Record<string, unknown> };
 
@@ -43,15 +44,13 @@ export function TechnicalRiskPageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="technical-risk-page-header">
-      <div>
-        <p className="eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
-        <p className="technical-risk-lede">{description}</p>
-        {context}
-      </div>
-      {actions ? <div className="technical-risk-header-actions focus-dim">{actions}</div> : null}
-    </header>
+    <WorkspaceHeader
+      eyebrow={eyebrow}
+      title={title}
+      description={description}
+      context={context}
+      actions={actions}
+    />
   );
 }
 

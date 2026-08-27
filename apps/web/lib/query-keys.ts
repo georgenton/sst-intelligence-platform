@@ -27,6 +27,18 @@ export const queryKeys = {
     scope: (organizationId: string) => [...privateRoot, 'org', organizationId] as const,
     dashboard: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'dashboard'] as const,
+    workQueue: (organizationId: string, filters = '') =>
+      [...privateRoot, 'org', organizationId, 'work-queue', filters] as const,
+    obligations: (organizationId: string, filters = '') =>
+      [...privateRoot, 'org', organizationId, 'obligations', filters] as const,
+    obligation: (organizationId: string, obligationId: string) =>
+      [...privateRoot, 'org', organizationId, 'obligations', obligationId] as const,
+    workPermitTemplates: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'work-permits', 'templates'] as const,
+    workPermits: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'work-permits', 'list'] as const,
+    workPermit: (organizationId: string, permitId: string) =>
+      [...privateRoot, 'org', organizationId, 'work-permits', permitId] as const,
     details: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'organization'] as const,
     workCenters: (organizationId: string) =>

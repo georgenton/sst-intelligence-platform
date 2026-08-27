@@ -55,6 +55,7 @@ import {
 } from './inspection-experience-ui';
 import { useDashboardData } from './use-app-data';
 import { TechnicalDetails } from './technical-details';
+import { WorkspaceInspector } from './workspace';
 
 type ContextData = {
   workCenters: Array<{
@@ -2807,7 +2808,10 @@ export function FindingDetail({
               ) : null}
             </div>
 
-            <aside className="inspection-context-rail focus-dim" aria-label="Contexto del hallazgo">
+            <WorkspaceInspector
+              className="inspection-context-rail focus-dim"
+              label="Contexto del hallazgo"
+            >
               <Card>
                 <h2>Progreso del hallazgo</h2>
                 <ol className="inspection-workflow-steps">
@@ -2870,7 +2874,7 @@ export function FindingDetail({
                   ))}
                 </Card>
               ) : null}
-            </aside>
+            </WorkspaceInspector>
           </div>
 
           <InspectionDialog

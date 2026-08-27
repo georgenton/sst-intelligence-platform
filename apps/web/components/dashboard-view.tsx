@@ -1,176 +1,94 @@
 'use client';
 
-import { Card, StatusBadge } from '@sst/ui';
+import { Card } from '@sst/ui';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import {
-  resolveAsyncCollectionState,
-  resolveAttentionState,
-  resolveCommandCenterConfigurationState,
-} from '@/lib/command-center-state';
 import { queryKeys } from '@/lib/query-keys';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
-import { useDashboardData, type DashboardData, type ModuleItem } from './use-app-data';
-import { TechnicalDetails } from './technical-details';
+import { useDashboardData } from './use-app-data';
+import { ContextSummary, WorkspaceHeader, WorkspaceSection, WorkspaceShell } from './workspace';
 
-type InspectionAlert = {
-  id: string;
+type QueueItem = {
   type: string;
-  severity: string;
-  status: string;
-  message: string;
-  finding: {
-    id: string;
-    title: string;
-    recurrenceCount: number;
-    workCenter: { name: string };
-    inspection: { id: string };
-  };
-};
-
-type TechnicalAssessment = {
-  id: string;
+  sourceId: string;
   title: string;
+  summary: string;
   status: string;
-  methodKey: string;
-  methodVersion: string;
-  workCenter: { name: string };
-  result?: { score: number | null; level: string | null };
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  dueAt: string | null;
+  overdue: boolean;
+  module: string;
+  deepLink: string;
+  origin: string;
+  workCenter: { id: string; name: string } | null;
+  assignee: { id: string; displayName: string } | null;
+  regulatoryContext: { label: string; candidate: boolean } | null;
 };
 
-type TechnicalRiskResponse = {
-  items: TechnicalAssessment[];
-  analytics: {
-    total: number;
-    draft: number;
-    completed: number;
-    reviewed: number;
-    highCritical: number;
-  };
+type QueueResponse = { items: QueueItem[]; total: number; generatedAt: string };
+
+const statusLabels: Record<string, string> = {
+  OPEN: 'Abierto',
+  IN_PROGRESS: 'En curso',
+  BLOCKED: 'Bloqueado',
+  READY_FOR_REVIEW: 'Listo para revisión',
+  COMPLETED: 'Completado',
+  NEEDS_REVISION: 'Requiere ajustes',
+  NEEDS_EXPERT_REVIEW: 'Revisión experta pendiente',
+  PENDING_VERIFICATION: 'Verificación pendiente',
 };
 
-const riskLabels: Record<string, string> = {
-  LOW: 'Bajo',
-  MODERATE: 'Moderado',
-  HIGH: 'Alto',
-  CRITICAL: 'Crítico',
+const moduleLabels: Record<string, string> = {
+  INSPECTIONS: 'Inspecciones',
+  TECHNICAL_RISK: 'Riesgo técnico',
+  REGULATORY: 'Contexto normativo',
+  OPERATIONAL_EXECUTION: 'Ejecución operativa',
+  WORK_PERMITS: 'Permisos de trabajo',
 };
 
-const moduleStatusLabels: Record<string, string> = {
-  ACTIVE: 'Activo',
-  DEMO: 'Demostración',
-  EXPIRED: 'Vencido',
-  INACTIVE: 'Inactivo',
-};
+function formatDue(item: QueueItem) {
+  if (!item.dueAt) return 'Sin fecha comprometida';
+  return `${item.overdue ? 'Venció' : 'Fecha objetivo'} ${new Date(item.dueAt).toLocaleDateString('es-EC')}`;
+}
 
-const alertTypeLabels: Record<string, string> = {
-  RECURRENCE: 'Recurrencia',
-  RESIDUAL_RISK: 'Riesgo residual',
-  HIGH_RESIDUAL_RISK: 'Riesgo residual alto',
-};
-
-function CommandMetric({ href, label, value }: { href: string; label: string; value: number }) {
+function AttentionRow({ item }: { item: QueueItem }) {
   return (
-    <Link className="command-metric" href={href} aria-label={`${value} ${label}. Abrir ${label}`}>
+    <article className="command-attention-item command-attention-item--compact">
+      <div>
+        <div className="command-item-meta">
+          <span>{moduleLabels[item.module] ?? 'Trabajo operativo'}</span>
+          <span className={`queue-priority queue-priority-${item.priority.toLowerCase()}`}>
+            {item.priority === 'URGENT' ? 'Urgente' : item.priority === 'HIGH' ? 'Alta' : 'Normal'}
+          </span>
+          <span>{statusLabels[item.status] ?? 'Pendiente'}</span>
+        </div>
+        <h3>{item.title}</h3>
+        <p>{item.summary}</p>
+        <small>
+          {item.workCenter?.name ?? 'Alcance de organización'} · {formatDue(item)}
+          {item.assignee ? ` · ${item.assignee.displayName}` : ''}
+        </small>
+        {item.regulatoryContext?.candidate ? (
+          <p className="candidate-notice">
+            Referencia candidata: requiere revisión antes de tratarla como aprobada.
+          </p>
+        ) : null}
+      </div>
+      <Link className="button secondary" href={item.deepLink}>
+        Abrir
+      </Link>
+    </article>
+  );
+}
+
+function Metric({ value, label, href }: { value: number; label: string; href: string }) {
+  return (
+    <Link className="command-metric" href={href}>
       <strong>{value}</strong>
       <span>{label}</span>
-      <span aria-hidden="true" className="command-metric__action">
-        Ver detalle →
-      </span>
+      <small>Ver detalle →</small>
     </Link>
-  );
-}
-
-function CommandSection({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="command-section">
-      <header>
-        <h2>{title}</h2>
-        {description && <p>{description}</p>}
-      </header>
-      {children}
-    </section>
-  );
-}
-
-function ModuleCard({ item }: { item: ModuleItem }) {
-  const destination =
-    item.module.key === 'INSPECTIONS_INTELLIGENCE'
-      ? '/app/inspections'
-      : item.module.key === 'TECHNICAL_RISK'
-        ? '/app/technical-risk'
-        : `/app/modules/${item.module.key}`;
-  return (
-    <Card className="command-module-card">
-      <div>
-        <StatusBadge>{moduleStatusLabels[item.status] ?? item.status}</StatusBadge>
-        <h3>{item.module.name}</h3>
-        <p>{item.module.description}</p>
-      </div>
-      <Link href={destination}>Abrir {item.module.name} →</Link>
-    </Card>
-  );
-}
-
-function InspectionAttention({
-  inspections,
-}: {
-  inspections: NonNullable<DashboardData['inspections']>;
-}) {
-  const items = [
-    inspections.highCriticalFindings > 0
-      ? {
-          id: 'risk',
-          title: `${inspections.highCriticalFindings} hallazgos altos o críticos`,
-          detail: 'El nivel proviene del cálculo determinístico registrado en cada hallazgo.',
-          href: '/app/inspections/analytics',
-          action: 'Ver análisis',
-        }
-      : null,
-    inspections.overdueActions > 0
-      ? {
-          id: 'overdue',
-          title: `${inspections.overdueActions} acciones vencidas`,
-          detail: 'La fecha límite ya pasó y la acción todavía no está completada ni cancelada.',
-          href: '/app/inspections',
-          action: 'Ver inspecciones',
-        }
-      : null,
-    inspections.recurrences > 0
-      ? {
-          id: 'recurrence',
-          title: `${inspections.recurrences} alertas de recurrencia`,
-          detail: 'La recurrencia requiere seguimiento; no confirma una causa raíz.',
-          href: '/app/inspections/alerts',
-          action: 'Ver alertas',
-        }
-      : null,
-  ].filter((item): item is NonNullable<typeof item> => item !== null);
-
-  if (items.length === 0) return null;
-  return (
-    <div className="command-attention-list">
-      {items.map((item) => (
-        <article className="command-attention-item" key={item.id}>
-          <div>
-            <h3>{item.title}</h3>
-            <p>{item.detail}</p>
-          </div>
-          <Link className="button secondary" href={item.href}>
-            {item.action}
-          </Link>
-        </article>
-      ))}
-    </div>
   );
 }
 
@@ -179,354 +97,158 @@ export function DashboardView() {
   const organization = useOrganization();
   const dashboard = useDashboardData();
   const organizationId = organization.activeId;
-  const features = dashboard.data?.entitlements.features;
-  const inspectionsEnabled = features?.['module.inspections'] === true;
-  const technicalRiskEnabled = features?.['module.technical_risk'] === true;
-
-  const alerts = useQuery({
-    queryKey: queryKeys.organization.inspectionAlerts(organizationId ?? 'inactive'),
+  const queue = useQuery({
+    queryKey: queryKeys.organization.workQueue(organizationId ?? 'inactive', 'dashboard'),
     queryFn: ({ signal }) =>
-      auth.request<{ items: InspectionAlert[] }>(
-        '/inspections/alerts',
-        { signal },
-        organizationId!,
-      ),
-    enabled: Boolean(organizationId && inspectionsEnabled),
-  });
-  const technicalRisk = useQuery({
-    queryKey: queryKeys.organization.technicalRiskAssessments(organizationId ?? 'inactive'),
-    queryFn: ({ signal }) =>
-      auth.request<TechnicalRiskResponse>(
-        '/technical-risk/assessments',
-        { signal },
-        organizationId!,
-      ),
-    enabled: Boolean(organizationId && technicalRiskEnabled),
-  });
-  const profileVersions = useQuery({
-    queryKey: queryKeys.organization.applicabilityProfileVersions(organizationId ?? 'inactive'),
-    queryFn: ({ signal }) =>
-      auth.request<Array<{ id: string }>>(
-        '/applicability/profile-versions',
-        { signal },
-        organizationId!,
-      ),
+      auth.request<QueueResponse>('/work-queue?pageSize=8', { signal }, organizationId!),
     enabled: Boolean(organizationId),
   });
 
-  if (!organization.activeId)
+  if (!organizationId)
     return (
-      <div className="command-center command-center--empty">
-        <p className="eyebrow">Inicio</p>
-        <h1>Configura tu organización</h1>
-        <p>La organización activa define el contexto seguro de cada consulta y operación.</p>
-        <Link className="button" href="/app/organizations">
-          Crear organización
-        </Link>
-      </div>
+      <WorkspaceShell>
+        <WorkspaceHeader
+          eyebrow="Inicio"
+          title="Configura tu organización"
+          description="La organización activa define el contexto seguro de cada consulta y operación."
+          actions={
+            <Link className="button" href="/app/organizations">
+              Crear organización
+            </Link>
+          }
+        />
+      </WorkspaceShell>
     );
 
-  if (dashboard.isLoading)
+  if (dashboard.isLoading || queue.isLoading)
     return (
-      <div className="command-center" aria-busy="true" aria-label="Cargando Centro de comando">
+      <WorkspaceShell className="command-center">
         <div className="command-skeleton command-skeleton--title" />
         <div className="command-metrics">
           <div className="command-skeleton" />
           <div className="command-skeleton" />
           <div className="command-skeleton" />
         </div>
-      </div>
+      </WorkspaceShell>
     );
 
   if (dashboard.isError || !dashboard.data)
     return (
-      <div className="command-center">
-        <p className="eyebrow">Inicio</p>
-        <h1>Centro de comando</h1>
-        <Card className="command-error" role="alert">
-          <h2>No pudimos cargar el contexto operativo</h2>
-          <p>Reintenta para consultar los datos de la organización activa.</p>
-          <button
-            className="button secondary"
-            type="button"
-            onClick={() => void dashboard.refetch()}
-          >
-            Reintentar
-          </button>
-        </Card>
-      </div>
+      <WorkspaceShell>
+        <WorkspaceHeader
+          eyebrow="Inicio"
+          title="Centro de comando"
+          description="No pudimos cargar el contexto operativo de la organización activa."
+          actions={
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => void dashboard.refetch()}
+            >
+              Reintentar
+            </button>
+          }
+        />
+      </WorkspaceShell>
     );
 
   const data = dashboard.data;
-  const inspectionAttentionCount = data.inspections
-    ? data.inspections.highCriticalFindings +
-      data.inspections.overdueActions +
-      data.inspections.recurrences
-    : 0;
-  const technicalRiskItems = technicalRiskEnabled ? (technicalRisk.data?.items ?? []) : [];
-  const completedAssessments = technicalRiskItems
-    .filter((item) => item.status === 'COMPLETED')
-    .slice(0, 3);
-  const drafts = technicalRiskItems
-    .filter((item) => item.status === 'DRAFT' || item.status === 'IN_PROGRESS')
-    .slice(0, 3);
-  const alertItems = inspectionsEnabled ? (alerts.data?.items ?? []) : [];
-  const alertsState = resolveAsyncCollectionState({
-    enabled: inspectionsEnabled,
-    status: alerts.status,
-    itemCount: alertItems.length,
-  });
-  const technicalRiskAttentionState = resolveAsyncCollectionState({
-    enabled: technicalRiskEnabled,
-    status: technicalRisk.status,
-    itemCount: completedAssessments.length,
-  });
-  const technicalRiskProgressState = resolveAsyncCollectionState({
-    enabled: technicalRiskEnabled,
-    status: technicalRisk.status,
-    itemCount: drafts.length,
-  });
-  const attention = resolveAttentionState({
-    knownAttentionCount: inspectionAttentionCount + completedAssessments.length + alertItems.length,
-    sourceStates: [alertsState, technicalRiskAttentionState],
-  });
-  const configurationState = resolveCommandCenterConfigurationState({
-    status: profileVersions.status,
-    profileVersionCount: profileVersions.data?.length ?? 0,
-  });
+  const queueItems = queue.data?.items ?? [];
+  const blocked = queueItems.filter((item) => item.status === 'BLOCKED').length;
+  const inProgress = queueItems.filter((item) => item.status === 'IN_PROGRESS').length;
+  const pendingReview = queueItems.filter((item) =>
+    ['READY_FOR_REVIEW', 'COMPLETED', 'NEEDS_EXPERT_REVIEW'].includes(item.status),
+  ).length;
 
   return (
-    <div className="command-center">
-      <header className="command-header">
-        <div>
-          <p className="eyebrow">Inicio · {data.organization.name}</p>
-          <h1>Centro de comando</h1>
-          <p>
-            Revisa atención operativa, trabajo en curso y accesos disponibles con datos de la
-            organización activa.
-          </p>
-        </div>
-        <div className="command-header__actions" aria-label="Acciones disponibles">
-          {technicalRiskEnabled && (
-            <Link className="button secondary" href="/app/technical-risk/new">
-              Nueva evaluación
+    <WorkspaceShell className="command-center command-center-v2">
+      <WorkspaceHeader
+        eyebrow={`Inicio · ${data.organization.name}`}
+        title="Centro de comando"
+        description="Prioriza lo que necesita atención, confirma el estado operativo y abre el análisis sin perder el contexto de la organización."
+        actions={
+          <>
+            <Link className="button secondary" href="/app/work">
+              Ver cola completa
             </Link>
-          )}
-          {inspectionsEnabled && (
-            <Link className="button" href="/app/inspections/new">
-              Nueva inspección
+            <Link className="button" href="/app/work/obligations/new">
+              Nueva actividad
             </Link>
-          )}
-        </div>
-      </header>
+          </>
+        }
+      />
 
-      <div className="command-context" role="note">
-        <div>
-          <span>Plan actual</span>
-          <strong>{data.entitlements.plan.name}</strong>
-        </div>
-        <p>Consulta las capacidades disponibles y los límites incluidos en tu plan.</p>
-      </div>
+      <ContextSummary>
+        <span>Plan {data.entitlements.plan.name}</span>
+        <span>{data.organization._count.workCenters} centros de trabajo</span>
+        <span>{data.organization._count.memberships} personas con acceso</span>
+      </ContextSummary>
 
-      <CommandSection
-        title="Vista operativa"
-        description="Cada indicador abre una superficie funcional existente."
+      <WorkspaceSection
+        eyebrow="Prioridad"
+        title="Necesita atención"
+        description="Ordenado por vencimiento, fecha próxima, revisión profesional y bloqueos. Los puntajes de métodos distintos no se comparan entre sí."
+        actions={<Link href="/app/work">Ver todo →</Link>}
       >
-        <div className="command-metrics">
-          <CommandMetric
-            href="/app/settings/organization#work-centers"
-            label="centros de trabajo"
-            value={data.organization._count.workCenters}
-          />
-          <CommandMetric
-            href="/app/settings/members"
-            label="miembros"
-            value={data.organization._count.memberships}
-          />
-          {data.inspections && (
-            <>
-              <CommandMetric
-                href="/app/inspections/analytics"
-                label="hallazgos altos o críticos"
-                value={data.inspections.highCriticalFindings}
-              />
-              <CommandMetric
-                href="/app/inspections"
-                label="acciones vencidas"
-                value={data.inspections.overdueActions}
-              />
-              <CommandMetric
-                href="/app/inspections/alerts"
-                label="recurrencias activas"
-                value={data.inspections.recurrences}
-              />
-            </>
-          )}
-          {technicalRisk.data && (
-            <CommandMetric
-              href="/app/technical-risk"
-              label="evaluaciones técnicas"
-              value={technicalRisk.data.analytics.total}
-            />
-          )}
-        </div>
-      </CommandSection>
-
-      <div className="command-grid">
-        <CommandSection
-          title="Requiere atención"
-          description="Señales existentes, sin un puntaje ni prioridad añadidos por la interfaz."
-        >
-          {data.inspections && <InspectionAttention inspections={data.inspections} />}
-          {completedAssessments.length > 0 && (
-            <div className="command-attention-list">
-              {completedAssessments.map((assessment) => (
-                <article className="command-attention-item" key={assessment.id}>
-                  <div>
-                    <h3>{assessment.title}</h3>
-                    <p>
-                      Evaluación completada. Consulta el resultado y el estado actual de revisión.
-                    </p>
-                    <div className="command-item-meta">
-                      <span>{assessment.workCenter.name}</span>
-                      <span>Metodología utilizada: evaluación técnica registrada</span>
-                      {assessment.result?.level && (
-                        <span
-                          className={`risk-badge risk-${assessment.result.level.toLowerCase()}`}
-                        >
-                          {riskLabels[assessment.result.level] ?? assessment.result.level}
-                          {assessment.result.score === null ? '' : ` · ${assessment.result.score}`}
-                        </span>
-                      )}
-                    </div>
-                    <TechnicalDetails>
-                      <p>
-                        Identificador: <code>{assessment.methodKey}</code>
-                      </p>
-                      <p>Versión: {assessment.methodVersion}</p>
-                    </TechnicalDetails>
-                  </div>
-                  <Link className="button secondary" href={`/app/technical-risk/${assessment.id}`}>
-                    Abrir evaluación
-                  </Link>
-                </article>
-              ))}
-            </div>
-          )}
-          {attention.sourcesLoading && <p role="status">Comprobando señales adicionales…</p>}
-          {configurationState === 'not-yet-configured' ? (
-            <Card className="command-empty-state">
-              <h3>Completa la configuración inicial de SST</h3>
-              <p>
-                Necesitamos conocer algunos datos de tu organización antes de poder mostrar señales
-                y recomendaciones.
-              </p>
-              <Link className="button" href="/app/applicability">
-                Comenzar configuración SST
-              </Link>
-            </Card>
-          ) : null}
-          {attention.showEmpty && configurationState === 'configured' && (
-            <Card className="command-empty-state">
-              <h3>Sin elementos que requieran atención hoy</h3>
-              <p>La configuración existe y las fuentes consultadas no reportan señales activas.</p>
-            </Card>
-          )}
-          {configurationState === 'unavailable' ? (
-            <p className="command-section-error" role="alert">
-              No pudimos confirmar si la configuración inicial de SST está completa.
-            </p>
-          ) : null}
-          {alertsState === 'error' && (
-            <p className="command-section-error" role="alert">
-              No pudimos comprobar las alertas detalladas. Puedes abrir el módulo para reintentar.
-            </p>
-          )}
-          {technicalRiskAttentionState === 'error' && (
-            <p className="command-section-error" role="alert">
-              No pudimos comprobar las evaluaciones técnicas para esta sección.
-            </p>
-          )}
-          {alertItems.length > 0 ? (
-            <div className="command-alerts">
-              <h3>Alertas abiertas</h3>
-              {alertItems.slice(0, 3).map((alert) => (
-                <Link
-                  href={`/app/inspections/${alert.finding.inspection.id}/findings/${alert.finding.id}`}
-                  className="command-alert-link"
-                  key={alert.id}
-                >
-                  <strong>{alert.finding.title}</strong>
-                  <span>{alert.finding.workCenter.name}</span>
-                  <span>{alertTypeLabels[alert.type] ?? alert.type}</span>
-                </Link>
-              ))}
-              <Link href="/app/inspections/alerts">Ver todas las alertas →</Link>
-            </div>
-          ) : null}
-        </CommandSection>
-
-        {technicalRiskEnabled && (
-          <CommandSection
-            title="En progreso"
-            description="Trabajo real que puede continuarse ahora."
-          >
-            {technicalRiskProgressState === 'loading' && (
-              <Card className="command-empty-state" role="status">
-                <h3>Comprobando evaluaciones en curso…</h3>
-                <p>Estamos consultando el trabajo disponible para esta organización.</p>
-              </Card>
-            )}
-            {technicalRiskProgressState === 'error' && (
-              <p className="command-section-error" role="alert">
-                No pudimos cargar las evaluaciones técnicas.
-              </p>
-            )}
-            {technicalRiskProgressState === 'success-with-data' && (
-              <div className="command-progress-list">
-                {drafts.map((assessment) => (
-                  <Link href={`/app/technical-risk/${assessment.id}`} key={assessment.id}>
-                    <span>
-                      <StatusBadge>
-                        {assessment.status === 'DRAFT' ? 'Borrador' : 'En progreso'}
-                      </StatusBadge>
-                      <strong>{assessment.title}</strong>
-                      <small>{assessment.workCenter.name}</small>
-                    </span>
-                    <span aria-hidden="true">Continuar →</span>
-                  </Link>
-                ))}
-              </div>
-            )}
-            {technicalRiskProgressState === 'success-empty' && (
-              <Card className="command-empty-state">
-                <h3>Sin evaluaciones en curso</h3>
-                <p>No hay borradores o evaluaciones técnicas en progreso disponibles.</p>
-                <Link href="/app/technical-risk/new">Nueva evaluación →</Link>
-              </Card>
-            )}
-          </CommandSection>
-        )}
-      </div>
-
-      <CommandSection
-        title="Módulos operativos"
-        description="Disponibilidad y estado efectivos de esta organización."
-      >
-        {data.organization.modules.length > 0 ? (
-          <div className="command-modules">
-            {data.organization.modules.map((item) => (
-              <ModuleCard item={item} key={item.module.key} />
+        {queue.isError ? (
+          <Card role="alert">
+            <h3>No pudimos consultar la cola operativa</h3>
+            <p>Las demás métricas permanecen disponibles. Reintenta esta sección.</p>
+            <button className="button secondary" type="button" onClick={() => void queue.refetch()}>
+              Reintentar
+            </button>
+          </Card>
+        ) : queueItems.length ? (
+          <div className="command-attention-list">
+            {queueItems.slice(0, 5).map((item) => (
+              <AttentionRow item={item} key={`${item.type}-${item.sourceId}`} />
             ))}
           </div>
         ) : (
           <Card className="command-empty-state">
-            <h3>Sin módulos operativos habilitados</h3>
-            <p>Consulta el catálogo y el plan actual para conocer las capacidades disponibles.</p>
-            <Link href="/app/modules">Ver módulos →</Link>
+            <h3>No hay trabajo que requiera atención inmediata</h3>
+            <p>Las fuentes consultadas no reportan vencimientos, revisiones o bloqueos activos.</p>
+            <Link href="/app/work">Revisar toda la operación →</Link>
           </Card>
         )}
-      </CommandSection>
-    </div>
+      </WorkspaceSection>
+
+      <WorkspaceSection
+        eyebrow="Seguimiento"
+        title="Estado operativo"
+        description="Una lectura compacta del trabajo activo; completar una actividad no certifica cumplimiento legal."
+      >
+        <div className="command-metrics">
+          <Metric value={inProgress} label="en curso" href="/app/work?status=IN_PROGRESS" />
+          <Metric value={pendingReview} label="pendientes de revisión" href="/app/work" />
+          <Metric value={blocked} label="bloqueados" href="/app/work?status=BLOCKED" />
+          <Metric value={queue.data?.total ?? 0} label="elementos activos" href="/app/work" />
+        </div>
+      </WorkspaceSection>
+
+      <WorkspaceSection
+        eyebrow="Lectura"
+        title="Análisis"
+        description="Indicadores del contexto actual; cada cifra conduce a su fuente funcional."
+      >
+        <div className="command-metrics">
+          <Metric
+            value={data.inspections?.highCriticalFindings ?? 0}
+            label="hallazgos altos o críticos"
+            href="/app/inspections/analytics"
+          />
+          <Metric
+            value={data.inspections?.overdueActions ?? 0}
+            label="acciones correctivas vencidas"
+            href="/app/inspections?overdue=true"
+          />
+          <Metric
+            value={data.inspections?.recurrences ?? 0}
+            label="recurrencias activas"
+            href="/app/inspections/alerts"
+          />
+        </div>
+      </WorkspaceSection>
+    </WorkspaceShell>
   );
 }
