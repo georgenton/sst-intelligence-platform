@@ -11,3 +11,4 @@ export * from './risk-methodology.js';
 export * from './regulatory-pilot.js';
 export * from './regulatory-review-corpus.js';
 export * from './operational-execution.js';
+export * from './organization-team.js';

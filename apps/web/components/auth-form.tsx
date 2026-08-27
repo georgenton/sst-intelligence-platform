@@ -6,13 +6,10 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { safeAuthReturnPath } from '@/lib/auth-return-path';
 import { useAuth } from './auth-provider';
 
 type Fields = { email: string; password: string; displayName: string };
-
-function safeAppReturnPath(value: string | null) {
-  return value?.startsWith('/app') && !value.startsWith('//') ? value : '/app';
-}
 
 export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const auth = useAuth();
@@ -25,6 +22,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     formState: { errors, isSubmitting },
   } = useForm<Fields>();
   const isRegister = mode === 'register';
+  const returnPath = safeAuthReturnPath(search.get('next'));
 
   const submit = handleSubmit(async (fields) => {
     setServerError('');
@@ -33,9 +31,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       else await auth.login(fields);
       const sessionId = search.get('sessionId');
       router.push(
-        sessionId
-          ? `/app/organizations?sessionId=${encodeURIComponent(sessionId)}`
-          : safeAppReturnPath(search.get('next')),
+        sessionId ? `/app/organizations?sessionId=${encodeURIComponent(sessionId)}` : returnPath,
       );
     } catch (error) {
       setServerError(
@@ -106,7 +102,9 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       </form>
       <p className="muted">
         {isRegister ? '¿Ya tienes cuenta? ' : '¿Primera vez? '}
-        <Link href={isRegister ? '/auth/login' : '/auth/register'}>
+        <Link
+          href={`${isRegister ? '/auth/login' : '/auth/register'}?next=${encodeURIComponent(returnPath)}`}
+        >
           {isRegister ? 'Inicia sesión' : 'Regístrate'}
         </Link>
       </p>

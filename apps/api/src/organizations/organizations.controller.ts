@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AccessTokenGuard } from '../auth/access-token.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -7,12 +17,15 @@ import { requestMetadata } from '../common/request-context';
 import {
   CreateOrganizationDto,
   CreateWorkCenterDto,
+  InvitationTokenDto,
   InviteMemberDto,
+  UpdateMemberRoleDto,
   UpdateOrganizationDto,
   UpdateWorkCenterDto,
 } from './dto';
 import { OrganizationGuard } from './organization.guard';
 import { OrganizationContext, OrganizationIdParam, Roles } from './organization-context.decorator';
+import { OrganizationTeamService } from './organization-team.service';
 import { OrganizationsService } from './organizations.service';
 import { RolesGuard } from './roles.guard';
 
@@ -21,7 +34,10 @@ import { RolesGuard } from './roles.guard';
 @Controller('organizations')
 @UseGuards(AccessTokenGuard)
 export class OrganizationsController {
-  constructor(private readonly organizations: OrganizationsService) {}
+  constructor(
+    private readonly organizations: OrganizationsService,
+    private readonly team: OrganizationTeamService,
+  ) {}
 
   @Get()
   list(@CurrentUser() user: AuthenticatedUser) {
@@ -56,7 +72,7 @@ export class OrganizationsController {
   @OrganizationIdParam()
   @UseGuards(OrganizationGuard)
   members(@OrganizationContext() organization: { id: string }) {
-    return this.organizations.members(organization.id);
+    return this.team.members(organization.id);
   }
 
   @Get(':id/work-centers')
@@ -124,6 +140,87 @@ export class OrganizationsController {
     @Body() body: InviteMemberDto,
     @Req() request: ApiRequest,
   ) {
-    return this.organizations.invite(organization.id, user.id, body, requestMetadata(request));
+    return this.team.invite(organization.id, user.id, body, requestMetadata(request));
+  }
+
+  @Get(':id/invitations')
+  @OrganizationIdParam()
+  @Roles('ORG_OWNER', 'ORG_ADMIN')
+  @UseGuards(OrganizationGuard, RolesGuard)
+  invitations(@OrganizationContext() organization: { id: string }) {
+    return this.team.invitations(organization.id);
+  }
+
+  @Post(':id/invitations/:invitationId/revoke')
+  @OrganizationIdParam()
+  @Roles('ORG_OWNER', 'ORG_ADMIN')
+  @UseGuards(OrganizationGuard, RolesGuard)
+  revokeInvitation(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('invitationId', new ParseUUIDPipe()) invitationId: string,
+    @Req() request: ApiRequest,
+  ) {
+    return this.team.revoke(organization.id, invitationId, user.id, requestMetadata(request));
+  }
+
+  @Patch(':id/members/:membershipId/role')
+  @OrganizationIdParam()
+  @Roles('ORG_OWNER', 'ORG_ADMIN')
+  @UseGuards(OrganizationGuard, RolesGuard)
+  updateMemberRole(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('membershipId', new ParseUUIDPipe()) membershipId: string,
+    @Body() body: UpdateMemberRoleDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.team.updateMemberRole(
+      organization.id,
+      membershipId,
+      user.id,
+      body.role,
+      requestMetadata(request),
+    );
+  }
+
+  @Post(':id/members/:membershipId/deactivate')
+  @OrganizationIdParam()
+  @Roles('ORG_OWNER', 'ORG_ADMIN')
+  @UseGuards(OrganizationGuard, RolesGuard)
+  deactivateMember(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('membershipId', new ParseUUIDPipe()) membershipId: string,
+    @Req() request: ApiRequest,
+  ) {
+    return this.team.deactivateMember(
+      organization.id,
+      membershipId,
+      user.id,
+      requestMetadata(request),
+    );
+  }
+}
+
+@ApiTags('organization-invitations')
+@ApiBearerAuth()
+@Controller('organization-invitations')
+@UseGuards(AccessTokenGuard)
+export class OrganizationInvitationsController {
+  constructor(private readonly team: OrganizationTeamService) {}
+
+  @Post('inspect')
+  inspect(@CurrentUser() user: AuthenticatedUser, @Body() body: InvitationTokenDto) {
+    return this.team.inspect(body.token, user.email);
+  }
+
+  @Post('accept')
+  accept(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: InvitationTokenDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.team.accept(body.token, user, requestMetadata(request));
   }
 }
