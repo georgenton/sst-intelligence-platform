@@ -1,5 +1,8 @@
 # Roadmap modular
 
+> Historical module-level roadmap. Cross-product priority and current delivery state are canonical
+> in [SST Intelligence — master roadmap](../project/sst-intelligence-roadmap.md).
+
 El incremento actual entrega CORE y presentaciones conceptuales de INSPECTIONS_INTELLIGENCE,
 TECHNICAL_RISK, WORK_PERMITS, PSYCHOSOCIAL y COMPLIANCE. Los siguientes slices deben desarrollar un
 módulo por vez, incluyendo modelo aislado por `organizationId`, permisos, entitlements, auditoría,

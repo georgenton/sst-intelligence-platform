@@ -1,5 +1,8 @@
 # Adaptive SST roadmap
 
+> This remains the detailed Adaptive SST track. Overall priority and current cross-product delivery
+> are canonical in [SST Intelligence — master roadmap](../project/sst-intelligence-roadmap.md).
+
 Product Walkthrough Hardening V1.1 now provides the prerequisite auth reliability, human-language
 surface and method-ready presentation seams. Risk Methodology runtime remains a later, separately
 authorized integration; this roadmap does not import PR #25 Phase 1 contracts or candidate methods.

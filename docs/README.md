@@ -3,6 +3,13 @@
 Canonical documentation is grouped by concern. Product and domain decisions live here; generated
 validation reports remain in `.artifacts/` and are not source documentation.
 
+## Canonical project continuity
+
+- [Master project context](project/sst-intelligence-master-context.md)
+- [Master roadmap](project/sst-intelligence-roadmap.md)
+- [Operational Execution Program V1](product/operational-execution-program-v1.md)
+- [Workspace UX V2](architecture/workspace-ux-v2.md)
+
 ## Adaptive SST
 
 - [Adaptive SST roadmap](product/adaptive-sst-roadmap.md)
