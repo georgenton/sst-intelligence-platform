@@ -130,7 +130,9 @@ test('perfil versionado, evaluación explícita y trace de aplicabilidad', async
   });
   await organizationContext.getByLabel('Estado declarado').selectOption('PARTIALLY_IMPLEMENTED');
   await organizationContext.getByRole('button', { name: 'Guardar estado declarado' }).click();
-  await expect(firstCandidate.getByText('PARTIALLY_IMPLEMENTED')).toBeVisible();
+  await expect(
+    firstCandidate.getByRole('definition').filter({ hasText: 'Parcialmente implementado' }),
+  ).toBeVisible();
   await organizationContext
     .getByLabel('Nota de evidencia organizacional')
     .fill('Registro interno sintético para el recorrido E2E.');

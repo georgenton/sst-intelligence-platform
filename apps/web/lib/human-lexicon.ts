@@ -42,6 +42,58 @@ export function humanPriorityLabel(priority: string): string {
   return { HIGH: 'Alta', MEDIUM: 'Media', LOW: 'Baja' }[priority] ?? 'Media';
 }
 
+const operationalPriorityLabels: Record<string, string> = {
+  URGENT: 'Urgente',
+  HIGH: 'Alta',
+  MEDIUM: 'Media',
+  LOW: 'Baja',
+};
+
+export function humanOperationalPriorityLabel(priority?: string | null): string {
+  return priority
+    ? (operationalPriorityLabels[priority] ?? 'Prioridad registrada')
+    : 'Sin prioridad';
+}
+
+const semanticRiskLevelLabels: Record<string, string> = {
+  CRITICAL: 'Crítico',
+  HIGH: 'Alto',
+  MODERATE: 'Moderado',
+  MEDIUM: 'Medio',
+  LOW: 'Bajo',
+};
+
+export function humanRiskLevelLabel(level?: string | null): string {
+  return level ? (semanticRiskLevelLabels[level] ?? level) : 'Sin nivel';
+}
+
+const moduleAccessStatusLabels: Record<string, string> = {
+  ACTIVE: 'Activo',
+  TRIAL: 'Prueba temporal',
+  DEMO: 'Demostración temporal',
+  SUSPENDED: 'Suspendido',
+  EXPIRED: 'Vencido',
+};
+
+export function humanModuleAccessStatusLabel(status?: string | null): string {
+  return status ? (moduleAccessStatusLabels[status] ?? 'Estado registrado') : 'No incluido';
+}
+
+const organizationImplementationStatusLabels: Record<string, string> = {
+  UNKNOWN: 'Sin información',
+  NOT_IMPLEMENTED: 'No implementado',
+  PLANNED: 'Planificado',
+  IN_PROGRESS: 'En progreso',
+  PARTIALLY_IMPLEMENTED: 'Parcialmente implementado',
+  IMPLEMENTED: 'Implementado',
+};
+
+export function humanOrganizationImplementationStatusLabel(status?: string | null): string {
+  return status
+    ? (organizationImplementationStatusLabels[status] ?? 'Estado declarado')
+    : 'No declarado todavía';
+}
+
 const featureLabels: Record<string, string> = {
   'module.inspections': 'Inspecciones inteligentes',
   'module.technical_risk': 'Evaluación de riesgo técnico',

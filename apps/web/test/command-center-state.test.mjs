@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   resolveAsyncCollectionState,
   resolveAttentionState,
+  resolveCommandCenterAttentionPresentation,
   resolveCommandCenterConfigurationState,
 } from '../lib/command-center-state.ts';
 
@@ -109,5 +110,64 @@ test('distinguishes an unassessed organization from configured empty signals', (
   assert.equal(
     resolveCommandCenterConfigurationState({ status: 'error', profileVersionCount: 0 }),
     'unavailable',
+  );
+});
+
+test('command center attention precedence is explicit for configured and unconfigured organizations', () => {
+  const matrix = [
+    {
+      label: 'unconfigured without work',
+      configurationState: 'not-yet-configured',
+      actionableWorkCount: 0,
+      primary: 'configuration-guidance',
+      showConfigurationRecommendation: false,
+    },
+    {
+      label: 'unconfigured with actionable work',
+      configurationState: 'not-yet-configured',
+      actionableWorkCount: 2,
+      primary: 'actionable-work',
+      showConfigurationRecommendation: true,
+    },
+    {
+      label: 'configured without work',
+      configurationState: 'configured',
+      actionableWorkCount: 0,
+      primary: 'operational-empty',
+      showConfigurationRecommendation: false,
+    },
+    {
+      label: 'configured with actionable work',
+      configurationState: 'configured',
+      actionableWorkCount: 2,
+      primary: 'actionable-work',
+      showConfigurationRecommendation: false,
+    },
+  ];
+
+  for (const entry of matrix) {
+    assert.deepEqual(
+      resolveCommandCenterAttentionPresentation({
+        configurationState: entry.configurationState,
+        queueStatus: 'success',
+        actionableWorkCount: entry.actionableWorkCount,
+      }),
+      {
+        primary: entry.primary,
+        showConfigurationRecommendation: entry.showConfigurationRecommendation,
+      },
+      entry.label,
+    );
+  }
+});
+
+test('queue failure is never hidden by onboarding guidance', () => {
+  assert.deepEqual(
+    resolveCommandCenterAttentionPresentation({
+      configurationState: 'not-yet-configured',
+      queueStatus: 'error',
+      actionableWorkCount: 0,
+    }),
+    { primary: 'queue-unavailable', showConfigurationRecommendation: false },
   );
 });

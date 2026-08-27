@@ -33,6 +33,7 @@ import {
 import {
   AUTHORIZED_TECHNICAL_REVIEWER_LABELS,
   AUTHORIZED_TECHNICAL_WRITER_LABELS,
+  humanRiskLevelLabel,
   humanRoleLabel,
 } from '@/lib/human-lexicon';
 import { presentInspectionRiskMethod } from '@/lib/risk-method-presentation';
@@ -388,10 +389,7 @@ function labelPriority(value: string): string {
 }
 
 function riskLevelLabel(value?: string | null): string {
-  return (
-    { LOW: 'Bajo', MODERATE: 'Moderado', HIGH: 'Alto', CRITICAL: 'Crítico' }[value ?? ''] ??
-    'Sin nivel'
-  );
+  return humanRiskLevelLabel(value);
 }
 
 function riskExplanation(result?: Record<string, unknown> | null): string | null {
@@ -566,7 +564,10 @@ export function InspectionsDashboard({ filters = {} }: { filters?: InspectionsDa
       key: 'inspectionStatus',
       label: statusMeta('inspection', filters.inspectionStatus).label,
     },
-    filters.riskLevel && { key: 'riskLevel', label: `Riesgo ${filters.riskLevel.toLowerCase()}` },
+    filters.riskLevel && {
+      key: 'riskLevel',
+      label: `Riesgo ${humanRiskLevelLabel(filters.riskLevel).toLocaleLowerCase('es')}`,
+    },
     filters.findingStatus && {
       key: 'findingStatus',
       label: `Hallazgos ${statusMeta('finding', filters.findingStatus).label.toLowerCase()}`,
@@ -1260,8 +1261,9 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
                       </span>
                       <strong>{finding.title}</strong>
                       <small>
-                        {finding.initialResultLabel ??
-                          `Probabilidad ${finding.initialLikelihood} × consecuencia ${finding.initialConsequence}`}
+                        {finding.initialResultLabel
+                          ? humanRiskLevelLabel(finding.initialResultLabel)
+                          : `Probabilidad ${finding.initialLikelihood} × consecuencia ${finding.initialConsequence}`}
                       </small>
                     </span>
                     {finding.initialRiskLevel ? (
@@ -1270,7 +1272,9 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
                         score={finding.initialScore}
                       />
                     ) : (
-                      <span className="risk-badge risk-pending">{finding.initialResultLabel}</span>
+                      <span className="risk-badge risk-pending">
+                        {humanRiskLevelLabel(finding.initialResultLabel)}
+                      </span>
                     )}
                     <DomainStatusBadge domain="finding" status={finding.status} />
                     {finding.recurrenceCount > 0 ? (
@@ -1516,7 +1520,10 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
             <div>
               <p className="eyebrow">Resultado calculado automáticamente</p>
               <strong className="inspection-result-score">
-                {created.initialScore ?? created.initialResultLabel ?? 'Resultado registrado'}
+                {created.initialScore ??
+                  (created.initialResultLabel
+                    ? humanRiskLevelLabel(created.initialResultLabel)
+                    : 'Resultado registrado')}
               </strong>
             </div>
             <div>
@@ -1526,12 +1533,16 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
                   score={created.initialScore}
                 />
               ) : (
-                <span className="risk-badge risk-pending">{created.initialResultLabel}</span>
+                <span className="risk-badge risk-pending">
+                  {humanRiskLevelLabel(created.initialResultLabel)}
+                </span>
               )}
               <h2>
                 {created.riskMethodKey === 'DEMO_5X5'
                   ? `Probabilidad ${created.initialLikelihood} × consecuencia ${created.initialConsequence}`
-                  : (created.initialResultLabel ?? 'Resultado determinístico')}
+                  : created.initialResultLabel
+                    ? humanRiskLevelLabel(created.initialResultLabel)
+                    : 'Resultado determinístico'}
               </h2>
               <p>
                 Metodología utilizada: {createdMethod.displayName} · versión {createdMethod.version}
@@ -2317,7 +2328,9 @@ export function FindingDetail({
                 score={finding.data.initialScore}
               />
             ) : (
-              <span className="risk-badge risk-pending">{finding.data.initialResultLabel}</span>
+              <span className="risk-badge risk-pending">
+                {humanRiskLevelLabel(finding.data.initialResultLabel)}
+              </span>
             )}
             <DomainStatusBadge domain="finding" status={finding.data.status} />
             {finding.data.inspection?.isDemo ? <DemoChip /> : null}
@@ -2398,11 +2411,14 @@ export function FindingDetail({
                   <Card>
                     <span>Riesgo inicial</span>
                     <strong>
-                      {finding.data.initialScore ?? finding.data.initialResultLabel ?? '—'}
+                      {finding.data.initialScore ??
+                        (finding.data.initialResultLabel
+                          ? humanRiskLevelLabel(finding.data.initialResultLabel)
+                          : '—')}
                     </strong>
                     <p>
                       {riskExplanation(finding.data.initialMethodResult) ??
-                        finding.data.initialResultLabel}
+                        humanRiskLevelLabel(finding.data.initialResultLabel)}
                     </p>
                     {finding.data.initialRiskLevel ? (
                       <InspectionRiskBadge
@@ -2411,7 +2427,7 @@ export function FindingDetail({
                       />
                     ) : (
                       <span className="risk-badge risk-pending">
-                        {finding.data.initialResultLabel}
+                        {humanRiskLevelLabel(finding.data.initialResultLabel)}
                       </span>
                     )}
                   </Card>
@@ -2420,11 +2436,14 @@ export function FindingDetail({
                     {finding.data.residualMethodResult ? (
                       <>
                         <strong>
-                          {finding.data.residualScore ?? finding.data.residualResultLabel ?? '—'}
+                          {finding.data.residualScore ??
+                            (finding.data.residualResultLabel
+                              ? humanRiskLevelLabel(finding.data.residualResultLabel)
+                              : '—')}
                         </strong>
                         <p>
                           {riskExplanation(finding.data.residualMethodResult) ??
-                            finding.data.residualResultLabel}
+                            humanRiskLevelLabel(finding.data.residualResultLabel)}
                         </p>
                         {finding.data.residualRiskLevel ? (
                           <InspectionRiskBadge
@@ -2433,7 +2452,7 @@ export function FindingDetail({
                           />
                         ) : (
                           <span className="risk-badge risk-pending">
-                            {finding.data.residualResultLabel}
+                            {humanRiskLevelLabel(finding.data.residualResultLabel)}
                           </span>
                         )}
                       </>
@@ -3249,15 +3268,20 @@ function SystemicReviewPanel({
             <article key={item.id}>
               <strong>{item.title}</strong>
               <p>
-                Riesgo inicial: {item.initialScore ?? item.initialResultLabel ?? 'Registrado'} ·{' '}
+                Riesgo inicial:{' '}
+                {item.initialScore ??
+                  (item.initialResultLabel
+                    ? humanRiskLevelLabel(item.initialResultLabel)
+                    : 'Registrado')}{' '}
+                ·{' '}
                 {item.initialRiskLevel
                   ? riskLevelLabel(item.initialRiskLevel)
-                  : item.initialResultLabel}
+                  : humanRiskLevelLabel(item.initialResultLabel)}
               </p>
               <p>
                 Riesgo residual:{' '}
                 {item.residualScore || item.residualResultLabel
-                  ? `${item.residualScore ?? item.residualResultLabel} · ${item.residualRiskLevel ? riskLevelLabel(item.residualRiskLevel) : item.residualResultLabel}`
+                  ? `${item.residualScore ?? (item.residualResultLabel ? humanRiskLevelLabel(item.residualResultLabel) : '')} · ${item.residualRiskLevel ? riskLevelLabel(item.residualRiskLevel) : humanRiskLevelLabel(item.residualResultLabel)}`
                   : 'Pendiente'}
               </p>
               <p>

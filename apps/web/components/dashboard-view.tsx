@@ -3,7 +3,11 @@
 import { Card } from '@sst/ui';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { resolveCommandCenterConfigurationState } from '@/lib/command-center-state';
+import {
+  resolveCommandCenterAttentionPresentation,
+  resolveCommandCenterConfigurationState,
+} from '@/lib/command-center-state';
+import { humanOperationalPriorityLabel } from '@/lib/human-lexicon';
 import { queryKeys } from '@/lib/query-keys';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
@@ -38,6 +42,10 @@ const statusLabels: Record<string, string> = {
   NEEDS_REVISION: 'Requiere ajustes',
   NEEDS_EXPERT_REVIEW: 'Revisión experta pendiente',
   PENDING_VERIFICATION: 'Verificación pendiente',
+  PENDING_APPROVAL: 'Pendiente de aprobación',
+  AUTHORIZED: 'Autorizado',
+  ACTIVE: 'Activo',
+  SUSPENDED: 'Suspendido',
 };
 
 const moduleLabels: Record<string, string> = {
@@ -60,7 +68,7 @@ function AttentionRow({ item }: { item: QueueItem }) {
         <div className="command-item-meta">
           <span>{moduleLabels[item.module] ?? 'Trabajo operativo'}</span>
           <span className={`queue-priority queue-priority-${item.priority.toLowerCase()}`}>
-            {item.priority === 'URGENT' ? 'Urgente' : item.priority === 'HIGH' ? 'Alta' : 'Normal'}
+            {humanOperationalPriorityLabel(item.priority)}
           </span>
           <span>{statusLabels[item.status] ?? 'Pendiente'}</span>
         </div>
@@ -169,6 +177,11 @@ export function DashboardView() {
     status: profileVersions.status,
     profileVersionCount: profileVersions.data?.length ?? 0,
   });
+  const attentionPresentation = resolveCommandCenterAttentionPresentation({
+    configurationState,
+    queueStatus: queue.status,
+    actionableWorkCount: queueItems.length,
+  });
   const blocked = queueItems.filter((item) => item.status === 'BLOCKED').length;
   const inProgress = queueItems.filter((item) => item.status === 'IN_PROGRESS').length;
   const pendingReview = queueItems.filter((item) =>
@@ -210,7 +223,25 @@ export function DashboardView() {
         description="Ordenado por vencimiento, fecha próxima, revisión profesional y bloqueos. Los puntajes de métodos distintos no se comparan entre sí."
         actions={<Link href="/app/work">Ver todo →</Link>}
       >
-        {configurationState === 'not-yet-configured' ? (
+        {attentionPresentation.primary === 'actionable-work' ? (
+          <div className="command-attention-list">
+            {queueItems.slice(0, 5).map((item) => (
+              <AttentionRow item={item} key={`${item.type}-${item.sourceId}`} />
+            ))}
+            {attentionPresentation.showConfigurationRecommendation ? (
+              <Card className="command-empty-state">
+                <h3>Completa también la configuración inicial de SST</h3>
+                <p>
+                  El trabajo operativo permanece primero. Completar la configuración mejora el
+                  contexto de futuras señales y recomendaciones.
+                </p>
+                <Link className="button secondary" href="/app/applicability">
+                  Continuar configuración SST
+                </Link>
+              </Card>
+            ) : null}
+          </div>
+        ) : attentionPresentation.primary === 'configuration-guidance' ? (
           <Card className="command-empty-state">
             <h3>Completa la configuración inicial de SST</h3>
             <p>
@@ -221,13 +252,18 @@ export function DashboardView() {
               Comenzar configuración SST
             </Link>
           </Card>
-        ) : configurationState === 'unavailable' ? (
+        ) : attentionPresentation.primary === 'configuration-loading' ? (
+          <Card role="status">
+            <h3>Confirmando la configuración inicial</h3>
+            <p>La cola operativa ya fue consultada y no reporta trabajo accionable.</p>
+          </Card>
+        ) : attentionPresentation.primary === 'configuration-unavailable' ? (
           <Card role="alert">
             <h3>No pudimos confirmar la configuración inicial</h3>
             <p>La cola permanece separada y puedes abrirla para revisar trabajo registrado.</p>
             <Link href="/app/work">Abrir cola de trabajo →</Link>
           </Card>
-        ) : queue.isError ? (
+        ) : attentionPresentation.primary === 'queue-unavailable' ? (
           <Card role="alert">
             <h3>No pudimos consultar la cola operativa</h3>
             <p>Las demás métricas permanecen disponibles. Reintenta esta sección.</p>
@@ -235,12 +271,6 @@ export function DashboardView() {
               Reintentar
             </button>
           </Card>
-        ) : queueItems.length ? (
-          <div className="command-attention-list">
-            {queueItems.slice(0, 5).map((item) => (
-              <AttentionRow item={item} key={`${item.type}-${item.sourceId}`} />
-            ))}
-          </div>
         ) : (
           <Card className="command-empty-state">
             <h3>No hay trabajo que requiera atención inmediata</h3>
