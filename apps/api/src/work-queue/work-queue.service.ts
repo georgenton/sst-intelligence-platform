@@ -179,7 +179,20 @@ export class WorkQueueService {
               where: {
                 organizationId,
                 status: { in: ['PENDING_APPROVAL', 'AUTHORIZED', 'ACTIVE', 'SUSPENDED'] },
-                ...(query.assignedToUserId ? { requesterUserId: query.assignedToUserId } : {}),
+                ...(query.assignedToUserId
+                  ? {
+                      OR: [
+                        {
+                          status: 'PENDING_APPROVAL',
+                          approverUserId: query.assignedToUserId,
+                        },
+                        {
+                          status: { in: ['AUTHORIZED', 'ACTIVE', 'SUSPENDED'] },
+                          requesterUserId: query.assignedToUserId,
+                        },
+                      ],
+                    }
+                  : {}),
                 ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
                 ...(Object.keys(dueFilter).length ? { plannedStartAt: dueFilter } : {}),
               },
@@ -192,6 +205,7 @@ export class WorkQueueService {
                 createdAt: true,
                 workCenter: { select: { id: true, name: true } },
                 requester: { select: { id: true, displayName: true } },
+                approver: { select: { id: true, displayName: true } },
                 permitTemplateVersion: {
                   select: { permitTemplate: { select: { name: true, isDemo: true } } },
                 },
@@ -348,7 +362,7 @@ export class WorkQueueService {
             : ('MEDIUM' as const),
         dueAt: permit.plannedStartAt,
         overdue: permit.plannedStartAt < now,
-        assignee: permit.requester,
+        assignee: permit.status === 'PENDING_APPROVAL' ? permit.approver : permit.requester,
         origin: permit.permitTemplateVersion.permitTemplate.isDemo
           ? 'Plantilla interna demostrativa'
           : 'Plantilla interna',

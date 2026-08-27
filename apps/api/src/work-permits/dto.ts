@@ -24,6 +24,7 @@ export class WorkPermitQueryDto {
 export class CreateWorkPermitDto {
   @IsUUID() permitTemplateVersionId!: string;
   @IsUUID() workCenterId!: string;
+  @IsUUID() approverUserId!: string;
   @IsString() @Length(2, 240) area!: string;
   @IsString() @Length(3, 1000) activity!: string;
   @IsDateString() plannedStartAt!: string;

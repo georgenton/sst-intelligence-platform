@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { WORK_PERMIT_APPROVER_ROLES } from '@sst/contracts';
 import { AccessTokenGuard } from '../auth/access-token.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { WORK_PERMITS_FEATURE_KEY } from '../catalog/entitlement';
@@ -25,7 +26,7 @@ const WRITE_ROLES = [
   'SST_TECHNICIAN',
   'CONSULTANT',
 ] as const;
-const APPROVE_ROLES = ['ORG_OWNER', 'ORG_ADMIN', 'SST_MANAGER'] as const;
+const APPROVE_ROLES = WORK_PERMIT_APPROVER_ROLES;
 
 @ApiTags('work-permits')
 @ApiBearerAuth()
@@ -43,6 +44,14 @@ export class WorkPermitsController {
   @Get()
   list(@OrganizationContext() organization: { id: string }, @Query() query: WorkPermitQueryDto) {
     return this.permits.list(organization.id, query);
+  }
+
+  @Get('approvers')
+  approvers(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.permits.approvers(organization.id, user.id);
   }
 
   @Post()

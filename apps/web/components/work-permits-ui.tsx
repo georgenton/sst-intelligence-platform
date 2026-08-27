@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { queryKeys } from '@/lib/query-keys';
-import { humanRiskLevelLabel } from '@/lib/human-lexicon';
+import { humanRiskLevelLabel, humanRoleLabel } from '@/lib/human-lexicon';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
 import { useDashboardData } from './use-app-data';
@@ -28,6 +28,10 @@ type Template = {
   permitTemplate: { name: string; description: string; isDemo: boolean };
 };
 type WorkCenter = { id: string; name: string; isActive: boolean };
+type PermitApprover = {
+  role: string;
+  user: { id: string; displayName: string; email: string };
+};
 type RiskAssessment = {
   id: string;
   title: string;
@@ -172,6 +176,7 @@ export function WorkPermitList() {
 type PermitForm = {
   permitTemplateVersionId: string;
   workCenterId: string;
+  approverUserId: string;
   area: string;
   activity: string;
   plannedStartAt: string;
@@ -197,6 +202,7 @@ export function NewWorkPermit() {
     defaultValues: {
       permitTemplateVersionId: '',
       workCenterId: '',
+      approverUserId: '',
       area: '',
       activity: '',
       plannedStartAt: '',
@@ -222,6 +228,12 @@ export function NewWorkPermit() {
         { signal },
         organizationId!,
       ),
+    enabled: Boolean(organizationId),
+  });
+  const approvers = useQuery({
+    queryKey: queryKeys.organization.workPermitApprovers(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<PermitApprover[]>('/work-permits/approvers', { signal }, organizationId!),
     enabled: Boolean(organizationId),
   });
   const risks = useQuery({
@@ -300,6 +312,23 @@ export function NewWorkPermit() {
               <input {...form.register('area', { required: true, minLength: 2 })} />
             </label>
           </div>
+          <label>
+            Persona aprobadora
+            <select {...form.register('approverUserId', { required: true })}>
+              <option value="">Seleccionar</option>
+              {approvers.data?.map((approver) => (
+                <option value={approver.user.id} key={approver.user.id}>
+                  {approver.user.displayName} · {humanRoleLabel(approver.role)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {approvers.isSuccess && approvers.data.length === 0 ? (
+            <p className="candidate-notice">
+              Necesitas otro Propietario, Administrador o Responsable SST activo. Puedes invitarlo
+              desde Configuración → Equipo.
+            </p>
+          ) : null}
           <label>
             Actividad
             <textarea rows={3} {...form.register('activity', { required: true, minLength: 3 })} />
@@ -480,7 +509,7 @@ export function WorkPermitDetail({ permitId }: { permitId: string }) {
                     Enviar a aprobación
                   </button>
                 ) : null}
-                {data.status === 'PENDING_APPROVAL' && data.requester.id !== auth.user?.id ? (
+                {data.status === 'PENDING_APPROVAL' && data.approver?.id === auth.user?.id ? (
                   <button className="button" type="button" onClick={() => approve.mutate()}>
                     Autorizar
                   </button>
@@ -488,6 +517,13 @@ export function WorkPermitDetail({ permitId }: { permitId: string }) {
                 {data.status === 'PENDING_APPROVAL' && data.requester.id === auth.user?.id ? (
                   <p className="muted">
                     La persona solicitante no puede autorizar su propio permiso.
+                  </p>
+                ) : null}
+                {data.status === 'PENDING_APPROVAL' &&
+                data.requester.id !== auth.user?.id &&
+                data.approver?.id !== auth.user?.id ? (
+                  <p className="muted">
+                    La autorización está asignada a {data.approver?.displayName ?? 'otra persona'}.
                   </p>
                 ) : null}
                 {data.status === 'AUTHORIZED' ? (
@@ -605,7 +641,9 @@ export function WorkPermitDetail({ permitId }: { permitId: string }) {
               <h2>Aprobación</h2>
               <p>
                 {data.approver
-                  ? `${data.approver.displayName} · ${data.approvedAt ? new Date(data.approvedAt).toLocaleString('es-EC') : ''}`
+                  ? data.approvedAt
+                    ? `${data.approver.displayName} · ${new Date(data.approvedAt).toLocaleString('es-EC')}`
+                    : `Designada: ${data.approver.displayName}`
                   : 'Pendiente'}
               </p>
             </section>

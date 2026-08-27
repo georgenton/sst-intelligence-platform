@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Prisma, WorkPermitStatus } from '@prisma/client';
-import { assertWorkPermitTransition } from '@sst/contracts';
+import { assertWorkPermitTransition, WORK_PERMIT_APPROVER_ROLES } from '@sst/contracts';
 import { AuditService, type AuditEvent } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
@@ -56,6 +56,22 @@ export class WorkPermitsService {
     });
   }
 
+  approvers(organizationId: string, requesterUserId: string) {
+    return this.prisma.membership.findMany({
+      where: {
+        organizationId,
+        status: 'ACTIVE',
+        role: { in: [...WORK_PERMIT_APPROVER_ROLES] },
+        userId: { not: requesterUserId },
+      },
+      select: {
+        role: true,
+        user: { select: { id: true, displayName: true, email: true } },
+      },
+      orderBy: [{ role: 'asc' }, { user: { displayName: 'asc' } }],
+    });
+  }
+
   async list(organizationId: string, query: WorkPermitQueryDto) {
     const where: Prisma.WorkPermitWhereInput = {
       organizationId,
@@ -101,7 +117,13 @@ export class WorkPermitsService {
       throw new BadRequestException(
         'Documenta peligros, controles y precondiciones antes de crear el permiso.',
       );
-    const [center, template, assessments] = await Promise.all([
+    if (input.approverUserId === userId) {
+      throw new BadRequestException({
+        code: 'WORK_PERMIT_SELF_APPROVER_FORBIDDEN',
+        message: 'Selecciona una persona aprobadora diferente de quien solicita.',
+      });
+    }
+    const [center, template, assessments, approverMembership] = await Promise.all([
       this.prisma.workCenter.findFirst({
         where: { id: input.workCenterId, organizationId, isActive: true },
         select: { id: true },
@@ -129,10 +151,25 @@ export class WorkPermitsService {
             },
           })
         : [],
+      this.prisma.membership.findFirst({
+        where: {
+          organizationId,
+          userId: input.approverUserId,
+          status: 'ACTIVE',
+          role: { in: [...WORK_PERMIT_APPROVER_ROLES] },
+        },
+        select: { id: true },
+      }),
     ]);
     if (!center)
       throw new BadRequestException('El centro de trabajo no pertenece a la organización activa.');
     if (!template) throw new BadRequestException('La plantilla publicada no está disponible.');
+    if (!approverMembership) {
+      throw new BadRequestException({
+        code: 'WORK_PERMIT_APPROVER_NOT_ELIGIBLE',
+        message: 'La persona aprobadora no pertenece a la organización o su rol no es elegible.',
+      });
+    }
     if (assessments.length !== new Set(input.linkedRiskAssessmentIds).size)
       throw new BadRequestException(
         'Una evaluación de riesgo vinculada no pertenece a la organización activa.',
@@ -168,6 +205,7 @@ export class WorkPermitsService {
         plannedStartAt: start,
         plannedEndAt: end,
         requesterUserId: userId,
+        approverUserId: input.approverUserId,
         hazards: input.hazards,
         linkedRiskReferences: riskSnapshots,
         controls: input.controls,
@@ -246,6 +284,12 @@ export class WorkPermitsService {
         code: 'WORK_PERMIT_SELF_APPROVAL_FORBIDDEN',
         message: 'La persona solicitante no puede autorizar su propio permiso.',
       });
+    if (current.approverUserId && current.approverUserId !== userId) {
+      throw new ForbiddenException({
+        code: 'WORK_PERMIT_ASSIGNED_APPROVER_REQUIRED',
+        message: 'Este permiso está asignado a otra persona aprobadora.',
+      });
+    }
     const now = new Date();
     const result = await this.prisma.workPermit.updateMany({
       where: { id, organizationId, status: 'PENDING_APPROVAL', version: input.expectedVersion },
@@ -273,7 +317,13 @@ export class WorkPermitsService {
   private async current(organizationId: string, id: string) {
     const permit = await this.prisma.workPermit.findFirst({
       where: { id, organizationId },
-      select: { id: true, status: true, version: true, requesterUserId: true },
+      select: {
+        id: true,
+        status: true,
+        version: true,
+        requesterUserId: true,
+        approverUserId: true,
+      },
     });
     if (!permit) throw new NotFoundException('Permiso de trabajo no encontrado.');
     return permit;
