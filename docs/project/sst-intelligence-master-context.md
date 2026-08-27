@@ -180,9 +180,11 @@ Engineering must not decide or fabricate:
 Technical and product work may continue around these questions while candidate state remains
 explicit.
 
-## Active program
+## Current implementation program
 
 The current implementation program is [Operational Execution Program V1](../product/operational-execution-program-v1.md):
 Obligation Execution, an Operational Work Queue, Command Center V2, Workspace UX V2 pilots, safe
-documentary expansion where possible and a bounded generic Critical Work Permit V1. It adds no new
-legal interpretation, pricing strategy or AI authority.
+documentary expansion where possible and a bounded generic Critical Work Permit V1. Blocks A–D and
+F are implemented and awaiting external review. Block E is safely deferred because exact verified
+text is not extractable without human transcription; the regulatory corpus and publication state
+remain unchanged. The program adds no new legal interpretation, pricing strategy or AI authority.

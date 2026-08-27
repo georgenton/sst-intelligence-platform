@@ -23,13 +23,13 @@ Safely structure verified official text without turning structure into legal int
 Priority: IESS C.D.513, MDT-2024-196 Annex 3, Decreto Ejecutivo 255, MDT-2024-196 Annex 2 and then
 remaining verified artifacts. Unreviewed OCR or LLM reconstruction is deferred.
 
-### C — Operational execution core — active
+### C — Operational execution core — implemented, awaiting review
 
 Deliver Obligation Execution, the Operational Work Queue and Command Center V2 so the platform can
 answer “¿Qué necesita mi atención hoy?”. See
 [Operational Execution Program V1](../product/operational-execution-program-v1.md).
 
-### D — Critical Work Permits
+### D — Critical Work Permits — bounded V1 implemented, awaiting review
 
 Start with a bounded generic internal/demo permit lifecycle. Sector-specific or legal templates wait
 for approved professional/legal content.
@@ -95,5 +95,6 @@ Completed foundations include platform/auth/tenancy, intelligent inspections, Te
 Applicability and Adaptive Configuration foundations, regulatory source/provision/requirement
 foundations, Risk Methodology runtime and Unified Regulatory Evidence Runtime V1.
 
-Current active delivery is Track C plus the first bounded slice of Track D and Workspace UX V2.
-Track B proceeds only when exact verified text is safely extractable. Track A remains pending.
+The current candidate release implements Track C, the first bounded slice of Track D and Workspace
+UX V2. Track B was attempted and safely deferred because the ordered artifacts need verified human
+transcription before structuring. Track A remains pending. No later track is represented as active.

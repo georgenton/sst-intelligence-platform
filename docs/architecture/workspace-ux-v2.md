@@ -1,6 +1,6 @@
 # Workspace UX V2
 
-Status: canonical architecture direction; implementation proceeds through bounded pilots.
+Status: canonical architecture direction; shared primitives and two bounded pilots implemented.
 
 ## Problem
 
@@ -52,6 +52,10 @@ component system or mechanically use every primitive.
 2. Technical Risk: reuse the same inspector for exact method version, regulatory links and review
    history. Technical Risk maximizes reuse because it already separates method provenance,
    regulatory provenance and professional review.
+
+Both pilots now use the shared `WorkspaceHeader`/`WorkspaceInspector` composition while preserving
+their existing routes and domain actions. Obligation Execution and Work Permits also consume the
+primitives, validating reuse without turning the workspace into a universal domain component.
 
 ## Command Center V2
 
