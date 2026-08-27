@@ -1,11 +1,17 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { isDemoActive, isModuleAccessActive, parseEntitlement } from './entitlement';
+import {
+  isDemoActive,
+  isModuleAccessActive,
+  isWorkPermitsDemoPreviewActive,
+  parseEntitlement,
+  WORK_PERMITS_FEATURE_KEY,
+} from './entitlement';
 
 const MODULE_FEATURES: Record<string, string> = {
   INSPECTIONS_INTELLIGENCE: 'module.inspections',
   TECHNICAL_RISK: 'module.technical_risk',
-  WORK_PERMITS: 'module.work_permits',
+  WORK_PERMITS: WORK_PERMITS_FEATURE_KEY,
   PSYCHOSOCIAL: 'module.psychosocial',
   COMPLIANCE: 'module.compliance',
 };
@@ -19,6 +25,7 @@ export class EntitlementService {
     const organization = await this.prisma.organization.findUniqueOrThrow({
       where: { id: organizationId },
       select: {
+        status: true,
         demoExpiresAt: true,
         subscriptions: {
           where: {
@@ -61,10 +68,14 @@ export class EntitlementService {
       );
       if (feature && active) features[feature] = true;
     }
+    const demoActive = isDemoActive(organization.demoExpiresAt, now);
+    if (isWorkPermitsDemoPreviewActive(organization.status, organization.demoExpiresAt, now)) {
+      features[WORK_PERMITS_FEATURE_KEY] = true;
+    }
     return {
       plan: plan ? { key: plan.key, name: plan.name } : { key: 'FREE', name: 'Free' },
       features,
-      demoActive: isDemoActive(organization.demoExpiresAt, now),
+      demoActive,
       demoExpiresAt: organization.demoExpiresAt,
     };
   }

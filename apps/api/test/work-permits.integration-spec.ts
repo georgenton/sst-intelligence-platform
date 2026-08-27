@@ -44,14 +44,15 @@ describe('work permits integration', () => {
     return response.body.id as string;
   }
 
-  async function enablePermits(organizationId: string) {
-    const module = await prisma.moduleDefinition.findUniqueOrThrow({
-      where: { key: 'WORK_PERMITS' },
-    });
-    await prisma.organizationModule.upsert({
-      where: { organizationId_moduleId: { organizationId, moduleId: module.id } },
-      update: { status: 'ACTIVE', source: 'MANUAL' },
-      create: { organizationId, moduleId: module.id, status: 'ACTIVE', source: 'MANUAL' },
+  async function setDemoPreview(organizationId: string, active: boolean) {
+    const now = new Date();
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        status: 'DEMO',
+        demoStartedAt: now,
+        demoExpiresAt: new Date(now.getTime() + (active ? 86_400_000 : -1_000)),
+      },
     });
   }
 
@@ -74,7 +75,7 @@ describe('work permits integration', () => {
     const viewer = await register('Permit Viewer');
     const orgA = await organization(owner.token, 'Permit Organization A');
     const orgB = await organization(owner.token, 'Permit Organization B');
-    await enablePermits(orgA);
+    await setDemoPreview(orgA, true);
     await prisma.membership.createMany({
       data: [
         { organizationId: orgA, userId: manager.userId, role: 'SST_MANAGER', status: 'ACTIVE' },
@@ -87,6 +88,8 @@ describe('work permits integration', () => {
     const templateId = template.body[0].id as string;
 
     await api(owner.token, orgB).get('/work-permits/templates').expect(403);
+    await api(owner.token, orgB).get('/work-permits').expect(403);
+    await api(owner.token, orgB).post('/work-permits').send({}).expect(403);
     await api(viewer.token, orgA)
       .post('/work-permits')
       .send({
@@ -153,6 +156,15 @@ describe('work permits integration', () => {
       .send({ expectedVersion: 2 })
       .expect(403);
 
+    await api(owner.token, orgB)
+      .get('/work-queue?module=WORK_PERMITS')
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body.items).not.toEqual(
+          expect.arrayContaining([expect.objectContaining({ sourceId: permitId })]),
+        ),
+      );
+
     const queue = await api(owner.token, orgA).get('/work-queue?module=WORK_PERMITS').expect(200);
     expect(queue.body.items).toEqual(
       expect.arrayContaining([
@@ -163,6 +175,23 @@ describe('work permits integration', () => {
         }),
       ]),
     );
+
+    await setDemoPreview(orgA, false);
+    await api(owner.token, orgA).get('/work-permits').expect(403);
+    await api(owner.token, orgA).get(`/work-permits/${permitId}`).expect(403);
+    await api(owner.token, orgA)
+      .get('/work-queue?module=WORK_PERMITS')
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body.items).not.toEqual(
+          expect.arrayContaining([expect.objectContaining({ sourceId: permitId })]),
+        ),
+      );
+    expect(
+      await prisma.workPermit.findUnique({ where: { id: permitId }, select: { status: true } }),
+    ).toEqual({ status: 'PENDING_APPROVAL' });
+    await setDemoPreview(orgA, true);
+
     const approvals = await Promise.all([
       api(manager.token, orgA)
         .post(`/work-permits/${permitId}/approve`)
@@ -206,5 +235,9 @@ describe('work permits integration', () => {
     expect(
       await prisma.auditLog.count({ where: { organizationId: orgA, entityType: 'WorkPermit' } }),
     ).toBeGreaterThanOrEqual(6);
+    await setDemoPreview(orgA, false);
+    expect(
+      await prisma.workPermit.findUnique({ where: { id: permitId }, select: { status: true } }),
+    ).toEqual({ status: 'CLOSED' });
   });
 });

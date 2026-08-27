@@ -33,7 +33,6 @@ const BASELINE_PLAN_FEATURES = {
     'module.inspections': 'false',
     'module.psychosocial': 'false',
     'module.technical_risk': 'false',
-    'module.work_permits': 'false',
     'organization.max_members': '2',
     'organization.max_work_centers': '1',
   },
@@ -45,7 +44,6 @@ const BASELINE_PLAN_FEATURES = {
     'module.inspections': 'true',
     'module.psychosocial': 'false',
     'module.technical_risk': 'false',
-    'module.work_permits': 'false',
     'organization.max_members': '10',
     'organization.max_work_centers': '3',
   },
@@ -57,7 +55,6 @@ const BASELINE_PLAN_FEATURES = {
     'module.inspections': 'true',
     'module.psychosocial': 'true',
     'module.technical_risk': 'true',
-    'module.work_permits': 'true',
     'organization.max_members': '50',
     'organization.max_work_centers': '12',
   },
@@ -69,7 +66,6 @@ const BASELINE_PLAN_FEATURES = {
     'module.inspections': 'true',
     'module.psychosocial': 'true',
     'module.technical_risk': 'true',
-    'module.work_permits': 'true',
     'organization.max_members': '10000',
     'organization.max_work_centers': '10000',
   },
@@ -230,13 +226,13 @@ describe('regulatory source foundation integration', () => {
     ).toBe(0);
   });
 
-  it('preserves the exact baseline commercial feature and plan assignment matrix', async () => {
+  it('preserves commercial assignments while keeping Work Permits preview-only', async () => {
     const featureKeys = await prisma.featureDefinition.findMany({
       select: { key: true },
       orderBy: { key: 'asc' },
     });
     expect(featureKeys.map(({ key }) => key)).toEqual(
-      Object.keys(BASELINE_PLAN_FEATURES.FREE).sort(),
+      [...Object.keys(BASELINE_PLAN_FEATURES.FREE), 'module.work_permits'].sort(),
     );
 
     const plans = await prisma.plan.findMany({
