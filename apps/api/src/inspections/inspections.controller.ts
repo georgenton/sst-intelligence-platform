@@ -21,6 +21,7 @@ import {
   UpdateActionDto,
   UpdateFindingDto,
   UpdateInspectionDto,
+  UpdateInspectionCriterionResultDto,
   VerifyFindingDto,
 } from './dto';
 import {
@@ -204,6 +205,27 @@ export class InspectionsController {
       inspectionId,
       'COMPLETED',
       user.id,
+      requestMetadata(request),
+    );
+  }
+
+  @Patch(':inspectionId/criteria/:criterionId')
+  @Roles(...INSPECTION_WRITE_ROLES)
+  @UseGuards(RolesGuard)
+  updateCriterionResult(
+    @OrganizationContext() organization: OrgContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('inspectionId') inspectionId: string,
+    @Param('criterionId') criterionId: string,
+    @Body() body: UpdateInspectionCriterionResultDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.inspections.updateCriterionResult(
+      organization.id,
+      inspectionId,
+      criterionId,
+      user.id,
+      body,
       requestMetadata(request),
     );
   }

@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsIn,
@@ -21,6 +22,8 @@ import {
   CorrectiveActionStatus,
   FindingStatus,
   InspectionStatus,
+  InspectionDomain,
+  InspectionCriterionOutcome,
   InspectionSystemicReviewSufficiency,
   InspectionVerificationBasis,
   RiskLevel,
@@ -45,6 +48,7 @@ export class InspectionQueryDto {
 export class CreateInspectionDto {
   @IsUUID() workCenterId!: string;
   @IsUUID() riskMethodVersionId!: string;
+  @IsOptional() @IsEnum(InspectionDomain) inspectionDomain?: InspectionDomain;
   @IsOptional() @IsUUID() workAreaId?: string;
   @IsString() @Length(3, 160) title!: string;
   @IsOptional() @IsString() @Length(0, 2000) description?: string;
@@ -62,8 +66,18 @@ export class CreateFindingDto {
   @IsString() @Length(3, 4000) description!: string;
   @IsIn(FINDING_CATEGORIES) category!: string;
   @IsOptional() @IsObject() methodInput?: Record<string, unknown>;
+  @IsOptional() @IsUUID() criterionResultId?: string;
   @IsOptional() @IsInt() @Min(1) @Max(5) likelihood?: number;
   @IsOptional() @IsInt() @Min(1) @Max(5) consequence?: number;
+}
+
+export class UpdateInspectionCriterionResultDto {
+  @IsEnum(InspectionCriterionOutcome) outcome!: InspectionCriterionOutcome;
+  @IsOptional() @IsString() @Length(1, 2000) note?: string;
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  evidenceReferences?: string[];
 }
 
 export class UpdateFindingDto {
