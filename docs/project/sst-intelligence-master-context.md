@@ -1,7 +1,7 @@
 # SST Intelligence — master project context
 
 Status: canonical continuity document. Baseline: production `main` at
-`74d7e0384cb8314dccfa48fd1a9a2f83fab58df7` on 2026-08-27.
+`b543d68b1b9b361ca264b87c03845eb34caec747` on 2026-08-31.
 
 This document is the authoritative entry point for future engineering sessions. Detailed domain,
 architecture, security, deployment and source-review documents remain authoritative inside their
@@ -84,9 +84,9 @@ Own NestJS auth uses Argon2id, access JWTs, rotating hashed refresh tokens, Secu
 refresh-family reuse handling, proactive single-flight refresh, one retry after 401 and session
 generation/abort protection. AUTH-001 is closed. Organization context, memberships, roles and Work
 Centers are operational. Roles are `ORG_OWNER`, `ORG_ADMIN`, `SST_MANAGER`, `SST_TECHNICIAN`,
-`CONSULTANT` and `VIEWER`; API guards remain authoritative. The Team & Invitations V1 candidate
-adds the bounded operational path to invite a second professional, but remains pending external
-review and merge.
+`CONSULTANT` and `VIEWER`; API guards remain authoritative. Team & Invitations V1 is production
+closed: Owner/Admin manual-link invitations, current-membership authorization and bounded role
+management now provide the operational separation-of-duties path.
 
 ### Inspections
 
@@ -205,3 +205,9 @@ transactional terminal outcomes, conservative non-owner role management and non-
 deactivation. Work Permit drafts select a current same-tenant eligible approver; pending approval is
 assigned to that member in the shared Work Queue. It adds no email provider, team pricing key,
 commercial Work Permit assignment, incident, PPE, training or regulatory interpretation.
+
+The active implementation candidate is [Inspection Standards V1](../domain/inspection-standards-v1.md).
+It introduces direct, versioned binding from an inspection domain to an exact technical standard
+version through organization policy. It deliberately does not implement a Protocol Engine. The
+technical basis, risk method and regulatory foundation remain separate, and only synthetic demo
+standard content enters the global reference catalog before professional/content review.
