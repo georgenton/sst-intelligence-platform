@@ -72,20 +72,46 @@ describe('work permits integration', () => {
   it('enforces entitlement, tenant isolation, separate approval, concurrency and lifecycle', async () => {
     const owner = await register('Permit Owner');
     const manager = await register('Permit Manager');
+    const otherAdmin = await register('Permit Other Admin');
     const viewer = await register('Permit Viewer');
+    const otherOrganizationManager = await register('Other Organization Manager');
     const orgA = await organization(owner.token, 'Permit Organization A');
     const orgB = await organization(owner.token, 'Permit Organization B');
     await setDemoPreview(orgA, true);
     await prisma.membership.createMany({
       data: [
         { organizationId: orgA, userId: manager.userId, role: 'SST_MANAGER', status: 'ACTIVE' },
+        { organizationId: orgA, userId: otherAdmin.userId, role: 'ORG_ADMIN', status: 'ACTIVE' },
         { organizationId: orgA, userId: viewer.userId, role: 'VIEWER', status: 'ACTIVE' },
+        {
+          organizationId: orgB,
+          userId: otherOrganizationManager.userId,
+          role: 'SST_MANAGER',
+          status: 'ACTIVE',
+        },
       ],
     });
     const centerA = await prisma.workCenter.findFirstOrThrow({ where: { organizationId: orgA } });
     const centerB = await prisma.workCenter.findFirstOrThrow({ where: { organizationId: orgB } });
     const template = await api(owner.token, orgA).get('/work-permits/templates').expect(200);
     const templateId = template.body[0].id as string;
+    await api(owner.token, orgA)
+      .get('/work-permits/approvers')
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ user: expect.objectContaining({ id: manager.userId }) }),
+            expect.objectContaining({ user: expect.objectContaining({ id: otherAdmin.userId }) }),
+          ]),
+        );
+        expect(body).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ user: expect.objectContaining({ id: owner.userId }) }),
+            expect.objectContaining({ user: expect.objectContaining({ id: viewer.userId }) }),
+          ]),
+        );
+      });
 
     await api(owner.token, orgB).get('/work-permits/templates').expect(403);
     await api(owner.token, orgB).get('/work-permits').expect(403);
@@ -95,6 +121,7 @@ describe('work permits integration', () => {
       .send({
         permitTemplateVersionId: templateId,
         workCenterId: centerA.id,
+        approverUserId: manager.userId,
         area: 'Área de prueba',
         activity: 'Actividad no autorizada',
         plannedStartAt: new Date(Date.now() + 3_600_000).toISOString(),
@@ -111,6 +138,7 @@ describe('work permits integration', () => {
       .send({
         permitTemplateVersionId: templateId,
         workCenterId: centerB.id,
+        approverUserId: manager.userId,
         area: 'Centro ajeno',
         activity: 'No debe crearse',
         plannedStartAt: new Date(Date.now() + 3_600_000).toISOString(),
@@ -122,12 +150,31 @@ describe('work permits integration', () => {
         evidenceReferences: [],
       })
       .expect(400);
+    await api(owner.token, orgA)
+      .post('/work-permits')
+      .send({
+        permitTemplateVersionId: templateId,
+        workCenterId: centerA.id,
+        approverUserId: otherOrganizationManager.userId,
+        area: 'Área de prueba',
+        activity: 'Aprobador de otra organización',
+        plannedStartAt: new Date(Date.now() + 3_600_000).toISOString(),
+        plannedEndAt: new Date(Date.now() + 7_200_000).toISOString(),
+        hazards: ['Peligro'],
+        linkedRiskAssessmentIds: [],
+        controls: ['Control'],
+        preconditions: ['Precondición'],
+        evidenceReferences: [],
+      })
+      .expect(400)
+      .expect(({ body }) => expect(body.code).toBe('WORK_PERMIT_APPROVER_NOT_ELIGIBLE'));
 
     const created = await api(owner.token, orgA)
       .post('/work-permits')
       .send({
         permitTemplateVersionId: templateId,
         workCenterId: centerA.id,
+        approverUserId: manager.userId,
         area: 'Sala de máquinas',
         activity: 'Intervención interna planificada',
         plannedStartAt: new Date(Date.now() + 3_600_000).toISOString(),
@@ -155,6 +202,11 @@ describe('work permits integration', () => {
       .post(`/work-permits/${permitId}/approve`)
       .send({ expectedVersion: 2 })
       .expect(403);
+    await api(otherAdmin.token, orgA)
+      .post(`/work-permits/${permitId}/approve`)
+      .send({ expectedVersion: 2 })
+      .expect(403)
+      .expect(({ body }) => expect(body.code).toBe('WORK_PERMIT_ASSIGNED_APPROVER_REQUIRED'));
 
     await api(owner.token, orgB)
       .get('/work-queue?module=WORK_PERMITS')
@@ -172,9 +224,28 @@ describe('work permits integration', () => {
           sourceId: permitId,
           type: 'WORK_PERMIT_APPROVAL',
           status: 'PENDING_APPROVAL',
+          assignee: expect.objectContaining({ id: manager.userId }),
         }),
       ]),
     );
+    await api(manager.token, orgA)
+      .get(`/work-queue?module=WORK_PERMITS&assignedToUserId=${manager.userId}`)
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body.items).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ sourceId: permitId, type: 'WORK_PERMIT_APPROVAL' }),
+          ]),
+        ),
+      );
+    await api(owner.token, orgA)
+      .get(`/work-queue?module=WORK_PERMITS&assignedToUserId=${owner.userId}`)
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body.items).not.toEqual(
+          expect.arrayContaining([expect.objectContaining({ sourceId: permitId })]),
+        ),
+      );
 
     await setDemoPreview(orgA, false);
     await api(owner.token, orgA).get('/work-permits').expect(403);

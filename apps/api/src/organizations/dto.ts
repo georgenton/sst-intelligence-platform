@@ -1,5 +1,6 @@
 import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, Length } from 'class-validator';
 import { MembershipRole } from '@prisma/client';
+import { Transform } from 'class-transformer';
 
 export class CreateOrganizationDto {
   @IsString()
@@ -29,9 +30,21 @@ export class UpdateOrganizationDto {
 }
 
 export class InviteMemberDto {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsEmail()
   email!: string;
 
+  @IsEnum(MembershipRole)
+  role!: MembershipRole;
+}
+
+export class InvitationTokenDto {
+  @IsString()
+  @Length(32, 256)
+  token!: string;
+}
+
+export class UpdateMemberRoleDto {
   @IsEnum(MembershipRole)
   role!: MembershipRole;
 }

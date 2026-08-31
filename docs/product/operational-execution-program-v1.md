@@ -1,7 +1,7 @@
 # Operational Execution Program V1
 
-Status: implementation complete; final production-closure repair in external review from baseline
-`8d4a744bac87984cc07ff0b93a897828758cd446`.
+Status: production program complete; Team & Invitations operational-enablement candidate is in
+external review from main baseline `74d7e0384cb8314dccfa48fd1a9a2f83fab58df7`.
 
 ## Outcome
 
@@ -74,6 +74,20 @@ Queue permit projections without deleting or rewriting stored permit history. Th
 `FeatureDefinition` is created by production-safe reference sync; no commercial `PlanFeature`
 assignment is created. Future commercial packaging is **PENDING PRODUCT DECISION**.
 
+## Block G — Organization Team & Invitations V1
+
+Make the existing tenant membership model operational without adding an admin backdoor or email
+provider. Owner/Admin can create a seven-day, hash-only, single-use invitation and manually copy its
+link. The authenticated invitee must use the matching normalized email. Transaction locks and
+uniqueness protect double accept and accept/revoke races. Members can read their team; Owner/Admin
+can change or deactivate non-owner access while retaining history and audit.
+
+Work Permit creation now selects a different eligible approver from active same-organization
+members. The API validates tenant, current role and assignment, while the Work Queue projects
+pending approval to that person. Team Management introduces no feature or pricing key; Work Permit
+preview packaging remains unchanged. See
+[Organization Team & Invitations V1](../domain/organization-team-invitations-v1.md).
+
 ## Cross-cutting gates
 
 - Auth coordinator, AbortSignal/session generation and API authorization remain unchanged.
@@ -97,7 +111,7 @@ auth/security. Normal engineering tradeoffs are decided and documented.
 
 ## Implementation closure
 
-Blocks A, B, C, D and the bounded Block F are implemented. Block E is safely `DEFERRED` because the
-ordered artifacts require human transcription/review before exact structure can be asserted; no
-regulatory corpus records changed. No stop condition requiring a product, pricing, legal or Anita
-decision was triggered.
+Blocks A, B, C, D and the bounded Block F are in production. Block G is implemented as a candidate
+pending external review. Block E is safely `DEFERRED` because the ordered artifacts require human
+transcription/review before exact structure can be asserted; no regulatory corpus records changed.
+No stop condition requiring a product, pricing, legal or Anita decision was triggered.

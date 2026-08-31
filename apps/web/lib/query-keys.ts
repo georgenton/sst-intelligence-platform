@@ -21,6 +21,8 @@ export const queryKeys = {
     all: [...privateRoot, 'user'] as const,
     scope: (userId: string) => [...privateRoot, 'user', userId] as const,
     organizations: (userId: string) => [...privateRoot, 'user', userId, 'organizations'] as const,
+    invitationPreview: (userId: string) =>
+      [...privateRoot, 'user', userId, 'organization-invitation'] as const,
   },
   organization: {
     all: [...privateRoot, 'org'] as const,
@@ -37,6 +39,8 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'obligations', obligationId] as const,
     workPermitTemplates: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'work-permits', 'templates'] as const,
+    workPermitApprovers: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'work-permits', 'approvers'] as const,
     workPermits: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'work-permits', 'list'] as const,
     workPermit: (organizationId: string, permitId: string) =>
@@ -47,6 +51,8 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'work-centers'] as const,
     members: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'members'] as const,
+    invitations: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'invitations'] as const,
     entitlements: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'entitlements'] as const,
     subscription: (organizationId: string) =>

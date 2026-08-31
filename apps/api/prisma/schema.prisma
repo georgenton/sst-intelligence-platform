@@ -22,6 +22,13 @@ enum MembershipStatus {
   SUSPENDED
 }
 
+enum OrganizationInvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
 enum OrganizationStatus {
   ACTIVE
   DEMO
@@ -573,6 +580,8 @@ model User {
   workPermitsRequested         WorkPermit[]                          @relation("WorkPermitRequester")
   workPermitsApproved          WorkPermit[]                          @relation("WorkPermitApprover")
   workPermitsClosed            WorkPermit[]                          @relation("WorkPermitCloser")
+  invitationsSent              OrganizationInvitation[]              @relation("OrganizationInvitationSender")
+  invitationsAccepted          OrganizationInvitation[]              @relation("OrganizationInvitationAcceptor")
 }
 
 model RefreshSession {
@@ -2187,18 +2196,26 @@ model Membership {
 }
 
 model OrganizationInvitation {
-  id             String         @id @default(uuid()) @db.Uuid
-  organizationId String         @db.Uuid
-  email          String
-  role           MembershipRole
-  tokenHash      String
-  expiresAt      DateTime
-  acceptedAt     DateTime?
-  createdAt      DateTime       @default(now())
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id               String                       @id @default(uuid()) @db.Uuid
+  organizationId   String                       @db.Uuid
+  emailNormalized  String                       @db.VarChar(320)
+  role             MembershipRole
+  status           OrganizationInvitationStatus @default(PENDING)
+  tokenHash        String                       @unique @db.VarChar(64)
+  pendingKey       String?                      @unique @db.VarChar(400)
+  expiresAt        DateTime
+  invitedByUserId  String                       @db.Uuid
+  acceptedByUserId String?                      @db.Uuid
+  acceptedAt       DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+  organization     Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy        User                         @relation("OrganizationInvitationSender", fields: [invitedByUserId], references: [id], onDelete: Restrict)
+  acceptedBy       User?                        @relation("OrganizationInvitationAcceptor", fields: [acceptedByUserId], references: [id], onDelete: Restrict)
 
-  @@unique([organizationId, email])
-  @@index([organizationId, expiresAt])
+  @@index([organizationId, status, expiresAt])
+  @@index([organizationId, emailNormalized, createdAt])
 }
 
 model ModuleDefinition {

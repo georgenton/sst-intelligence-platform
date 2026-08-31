@@ -1,11 +1,10 @@
-import { randomBytes, createHash } from 'node:crypto';
 import {
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, type MembershipRole } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import type { AuditEvent } from '../audit/audit.service';
 import { EntitlementService } from '../catalog/entitlement.service';
@@ -299,69 +298,6 @@ export class OrganizationsService {
       message: 'La organización alcanzó el límite disponible en su plan.',
       details: { featureKey: WORK_CENTER_LIMIT_FEATURE, currentUsage, limit },
     });
-  }
-
-  members(organizationId: string) {
-    return this.prisma.membership.findMany({
-      where: { organizationId },
-      select: {
-        id: true,
-        role: true,
-        status: true,
-        createdAt: true,
-        user: { select: { id: true, email: true, displayName: true } },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-  }
-
-  async invite(
-    organizationId: string,
-    actorUserId: string,
-    input: { email: string; role: MembershipRole },
-    context: Context,
-  ) {
-    if (input.role === 'ORG_OWNER')
-      throw new ForbiddenException('La propiedad de la organización requiere un flujo dedicado.');
-    const [members, pendingInvitations] = await Promise.all([
-      this.prisma.membership.count({ where: { organizationId, status: 'ACTIVE' } }),
-      this.prisma.organizationInvitation.count({
-        where: { organizationId, acceptedAt: null, expiresAt: { gt: new Date() } },
-      }),
-    ]);
-    await this.entitlements.requireCapacity(
-      organizationId,
-      'organization.max_members',
-      members + pendingInvitations,
-    );
-    const rawToken = randomBytes(32).toString('base64url');
-    const invitation = await this.prisma.organizationInvitation.upsert({
-      where: { organizationId_email: { organizationId, email: input.email.toLowerCase() } },
-      update: {
-        role: input.role,
-        tokenHash: createHash('sha256').update(rawToken).digest('hex'),
-        expiresAt: new Date(Date.now() + 7 * 86_400_000),
-        acceptedAt: null,
-      },
-      create: {
-        organizationId,
-        email: input.email.toLowerCase(),
-        role: input.role,
-        tokenHash: createHash('sha256').update(rawToken).digest('hex'),
-        expiresAt: new Date(Date.now() + 7 * 86_400_000),
-      },
-      select: { id: true, email: true, role: true, expiresAt: true },
-    });
-    await this.audit.record({
-      organizationId,
-      actorUserId,
-      action: 'MEMBERSHIP_INVITED',
-      entityType: 'OrganizationInvitation',
-      entityId: invitation.id,
-      metadata: { delivery: 'CONSOLE_DEVELOPMENT_PROVIDER' },
-      ...context,
-    });
-    return { ...invitation, delivery: 'CONSOLE_DEVELOPMENT_PROVIDER' as const };
   }
 
   private isUniqueConstraintError(error: unknown): error is { code: string } {

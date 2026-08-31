@@ -23,7 +23,7 @@ Safely structure verified official text without turning structure into legal int
 Priority: IESS C.D.513, MDT-2024-196 Annex 3, Decreto Ejecutivo 255, MDT-2024-196 Annex 2 and then
 remaining verified artifacts. Unreviewed OCR or LLM reconstruction is deferred.
 
-### C — Operational execution core — implemented, final closure repair in review
+### C — Operational execution core — implemented in production
 
 Deliver Obligation Execution, the Operational Work Queue and Command Center V2 so the platform can
 answer “¿Qué necesita mi atención hoy?”. See
@@ -33,12 +33,20 @@ Actionable queue work has absolute presentation precedence over onboarding. Setu
 the primary empty state only when the organization is unconfigured and the queue has no actionable
 items.
 
-### D — Critical Work Permits — bounded V1 implemented, preview closure in review
+### D — Critical Work Permits — bounded V1 implemented in production preview
 
 Start with a bounded generic internal/demo permit lifecycle. Sector-specific or legal templates wait
 for approved professional/legal content. The dedicated `module.work_permits` capability is enabled
 only for an active bounded demo in V1. No commercial plan assignment or pricing decision has been
 made; future packaging is **PENDING PRODUCT DECISION**.
+
+### D.1 — Organization Team & Invitations — candidate in external review
+
+Foundational B2B team management closes the operational separation-of-duties gap: Owner/Admin
+manual-link invitations, authenticated matching-email acceptance, conservative role management,
+non-destructive deactivation and audit. Work Permit requesters select a different active same-tenant
+Owner/Admin/Responsible SST approver. No email provider, owner transfer, new paid feature or pricing
+decision is introduced.
 
 ### E — Incident management
 
@@ -101,6 +109,7 @@ Completed foundations include platform/auth/tenancy, intelligent inspections, Te
 Applicability and Adaptive Configuration foundations, regulatory source/provision/requirement
 foundations, Risk Methodology runtime and Unified Regulatory Evidence Runtime V1.
 
-The current candidate release implements Track C, the first bounded slice of Track D and Workspace
-UX V2. Track B was attempted and safely deferred because the ordered artifacts need verified human
-transcription before structuring. Track A remains pending. No later track is represented as active.
+Production implements Track C, the first bounded preview slice of Track D and Workspace UX V2. The
+current candidate implements Track D.1 without starting later operational domains. Track B was
+attempted and safely deferred because the ordered artifacts need verified human transcription before
+structuring. Track A remains pending. No later track is represented as active.

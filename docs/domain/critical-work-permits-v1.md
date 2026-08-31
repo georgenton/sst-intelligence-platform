@@ -32,15 +32,19 @@ capability only while an authorized demo organization has an active bounded demo
 zero commercial `PlanFeature` assignments; future packaging and pricing remain **PENDING PRODUCT
 DECISION**. Expiry restores ordinary entitlement behavior without removing permit history.
 
-Writers use the existing operational roles. Approval is limited to `ORG_OWNER`, `ORG_ADMIN` and
-`SST_MANAGER`; `VIEWER` is read-only and the requester cannot approve their own permit. UI
-visibility is convenience only—the API enforces entitlement, role, tenant, self-approval and
-version checks. Material actions are audited.
+Writers use the existing operational roles. At draft creation the requester selects a different,
+active approver from the current organization's `ORG_OWNER`, `ORG_ADMIN` or `SST_MANAGER` members.
+The API rejects free-form/cross-tenant, inactive, ineligible and self approvers. Only the assigned
+approver may authorize the pending permit while their current membership and role remain valid;
+`VIEWER` is read-only. UI visibility is convenience only—the API enforces entitlement, role,
+tenant, assignment, self-approval and version checks. Material actions are audited. See
+[Organization Team & Invitations V1](organization-team-invitations-v1.md).
 
 ## Shared operational surfaces
 
 Pending approvals, suspended permits and actionable planned permits appear in the Operational Work
-Queue and therefore in Command Center “Necesita atención”. The module keeps its own canonical list
+Queue with the selected approver as the pending item assignee and therefore in Command Center
+“Necesita atención”. The module keeps its own canonical list
 and detail routes; it does not create a separate pending-work dashboard. When preview access is not
 effective, permit records are excluded from the shared Work Queue so private data and unusable deep
 links are not exposed.

@@ -1,7 +1,7 @@
 # SST Intelligence — master project context
 
 Status: canonical continuity document. Baseline: production `main` at
-`861218c38e5d2bba1f2bd0d0623f104cda862bbf` on 2026-08-27.
+`74d7e0384cb8314dccfa48fd1a9a2f83fab58df7` on 2026-08-27.
 
 This document is the authoritative entry point for future engineering sessions. Detailed domain,
 architecture, security, deployment and source-review documents remain authoritative inside their
@@ -84,7 +84,9 @@ Own NestJS auth uses Argon2id, access JWTs, rotating hashed refresh tokens, Secu
 refresh-family reuse handling, proactive single-flight refresh, one retry after 401 and session
 generation/abort protection. AUTH-001 is closed. Organization context, memberships, roles and Work
 Centers are operational. Roles are `ORG_OWNER`, `ORG_ADMIN`, `SST_MANAGER`, `SST_TECHNICIAN`,
-`CONSULTANT` and `VIEWER`; API guards remain authoritative.
+`CONSULTANT` and `VIEWER`; API guards remain authoritative. The Team & Invitations V1 candidate
+adds the bounded operational path to invite a second professional, but remains pending external
+review and merge.
 
 ### Inspections
 
@@ -182,7 +184,7 @@ explicit.
 
 ## Current implementation program
 
-The current implementation program is [Operational Execution Program V1](../product/operational-execution-program-v1.md):
+The production implementation program is [Operational Execution Program V1](../product/operational-execution-program-v1.md):
 Obligation Execution, an Operational Work Queue, Command Center V2, Workspace UX V2 pilots, safe
 documentary expansion where possible and a bounded generic Critical Work Permit V1. Blocks A–D and
 F are implemented and awaiting external review. Block E is safely deferred because exact verified
@@ -196,3 +198,10 @@ replacement for real work. Work Permits uses the dedicated `module.work_permits`
 bounded active-demo preview. Its `FeatureDefinition` is deterministic global reference data, but
 it has no `PlanFeature` assignment. Future commercial packaging remains **PENDING PRODUCT
 DECISION**.
+
+The current candidate adds [Organization Team & Invitations V1](../domain/organization-team-invitations-v1.md):
+Owner/Admin manual-link invitations with hash-only single-use tokens, authenticated email binding,
+transactional terminal outcomes, conservative non-owner role management and non-destructive member
+deactivation. Work Permit drafts select a current same-tenant eligible approver; pending approval is
+assigned to that member in the shared Work Queue. It adds no email provider, team pricing key,
+commercial Work Permit assignment, incident, PPE, training or regulatory interpretation.

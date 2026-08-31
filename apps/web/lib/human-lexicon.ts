@@ -11,6 +11,27 @@ export function humanRoleLabel(role?: string | null): string {
   return role ? (roleLabels[role] ?? 'Rol de la organización') : 'Rol sin definir';
 }
 
+const membershipStatusLabels: Record<string, string> = {
+  ACTIVE: 'Activo',
+  INVITED: 'Invitado',
+  SUSPENDED: 'Inactivo',
+};
+
+export function humanMembershipStatusLabel(status?: string | null): string {
+  return status ? (membershipStatusLabels[status] ?? 'Estado registrado') : 'Estado sin definir';
+}
+
+const invitationStatusLabels: Record<string, string> = {
+  PENDING: 'Pendiente',
+  ACCEPTED: 'Aceptada',
+  REVOKED: 'Revocada',
+  EXPIRED: 'Vencida',
+};
+
+export function humanInvitationStatusLabel(status?: string | null): string {
+  return status ? (invitationStatusLabels[status] ?? 'Estado registrado') : 'Estado sin definir';
+}
+
 export const AUTHORIZED_TECHNICAL_REVIEWER_LABELS = 'Propietario, Administrador o Responsable SST';
 
 export const AUTHORIZED_TECHNICAL_WRITER_LABELS =
