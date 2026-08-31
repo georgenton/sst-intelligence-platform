@@ -13,6 +13,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import { InspectionsModule } from './inspections/inspections.module';
+import { InspectionStandardsModule } from './inspection-standards/inspection-standards.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { OperationalExecutionModule } from './operational-execution/operational-execution.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -57,6 +58,7 @@ import { WorkPermitsModule } from './work-permits/work-permits.module';
     RiskMethodologyModule,
     SolutionFinderModule,
     DashboardModule,
+    InspectionStandardsModule,
     InspectionsModule,
     TechnicalRiskModule,
     UnifiedSstEvaluationModule,

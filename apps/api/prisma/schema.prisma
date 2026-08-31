@@ -108,6 +108,48 @@ enum InspectionStatus {
   CANCELED
 }
 
+enum InspectionDomain {
+  ELECTRICAL
+  FIRE_PROTECTION
+  MACHINERY
+  CHEMICAL_STORAGE
+  EMERGENCY
+  INFRASTRUCTURE
+}
+
+enum InspectionStandardRightsType {
+  PUBLIC_OFFICIAL
+  LICENSED
+  CUSTOMER_PROVIDED
+  REFERENCE_ONLY
+  INTERNAL_ORGANIZATION_STANDARD
+  DEMO_SYNTHETIC
+}
+
+enum InspectionStandardSourceType {
+  GLOBAL_REFERENCE
+  ORGANIZATION_AUTHORED
+}
+
+enum InspectionStandardSourceStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
+enum InspectionStandardVersionStatus {
+  DRAFT
+  AVAILABLE
+  RETIRED
+}
+
+enum InspectionCriterionOutcome {
+  CONFORME
+  NO_CONFORME
+  NO_APLICA
+  NO_VERIFICADO
+}
+
 enum FindingStatus {
   OPEN
   ACTION_IN_PROGRESS
@@ -537,51 +579,53 @@ enum InspectionSystemicReviewSufficiency {
 }
 
 model User {
-  id                           String                                @id @default(uuid()) @db.Uuid
-  email                        String                                @unique
+  id                           String                                        @id @default(uuid()) @db.Uuid
+  email                        String                                        @unique
   passwordHash                 String
   displayName                  String
-  createdAt                    DateTime                              @default(now())
-  updatedAt                    DateTime                              @updatedAt
+  createdAt                    DateTime                                      @default(now())
+  updatedAt                    DateTime                                      @updatedAt
   refreshSessions              RefreshSession[]
   memberships                  Membership[]
-  claimedGuidedSessions        GuidedFlowSession[]                   @relation("ClaimedBy")
-  auditLogs                    AuditLog[]                            @relation("AuditActor")
+  claimedGuidedSessions        GuidedFlowSession[]                           @relation("ClaimedBy")
+  auditLogs                    AuditLog[]                                    @relation("AuditActor")
   aiInteractions               AiInteraction[]
   upgradeRequests              UpgradeRequest[]
-  inspections                  Inspection[]                          @relation("InspectionInspector")
-  findingsCreated              InspectionFinding[]                   @relation("FindingCreator")
-  actionsAssigned              CorrectiveAction[]                    @relation("ActionAssignee")
-  actionsCreated               CorrectiveAction[]                    @relation("ActionCreator")
-  actionsVerified              CorrectiveAction[]                    @relation("ActionVerifier")
-  evidenceCreated              ActionEvidence[]                      @relation("EvidenceCreator")
-  alertsAcknowledged           InspectionAlert[]                     @relation("AlertAcknowledger")
-  systemicReviewsCreated       InspectionSystemicReview[]            @relation("SystemicReviewCreator")
-  systemicReviewsCompleted     InspectionSystemicReview[]            @relation("SystemicReviewCompleter")
-  technicalAssessments         TechnicalAssessment[]                 @relation("TechnicalAssessmentCreator")
-  technicalAssessmentsReviewed TechnicalAssessment[]                 @relation("TechnicalAssessmentReviewer")
-  technicalEvidenceCreated     TechnicalAssessmentEvidence[]         @relation("TechnicalEvidenceCreator")
-  technicalReviews             TechnicalAssessmentReview[]           @relation("TechnicalReviewReviewer")
+  inspections                  Inspection[]                                  @relation("InspectionInspector")
+  findingsCreated              InspectionFinding[]                           @relation("FindingCreator")
+  actionsAssigned              CorrectiveAction[]                            @relation("ActionAssignee")
+  actionsCreated               CorrectiveAction[]                            @relation("ActionCreator")
+  actionsVerified              CorrectiveAction[]                            @relation("ActionVerifier")
+  evidenceCreated              ActionEvidence[]                              @relation("EvidenceCreator")
+  alertsAcknowledged           InspectionAlert[]                             @relation("AlertAcknowledger")
+  systemicReviewsCreated       InspectionSystemicReview[]                    @relation("SystemicReviewCreator")
+  systemicReviewsCompleted     InspectionSystemicReview[]                    @relation("SystemicReviewCompleter")
+  technicalAssessments         TechnicalAssessment[]                         @relation("TechnicalAssessmentCreator")
+  technicalAssessmentsReviewed TechnicalAssessment[]                         @relation("TechnicalAssessmentReviewer")
+  technicalEvidenceCreated     TechnicalAssessmentEvidence[]                 @relation("TechnicalEvidenceCreator")
+  technicalReviews             TechnicalAssessmentReview[]                   @relation("TechnicalReviewReviewer")
   sstProfileVersions           OrganizationSstProfileVersion[]
   applicabilityAssessments     ApplicabilityAssessment[]
-  adaptiveSessions             AdaptiveConfigurationSession[]        @relation("AdaptiveSessionCreator")
-  adaptiveAnswers              AdaptiveFactAnswer[]                  @relation("AdaptiveAnswerAuthor")
-  adaptiveDeclarations         AdaptiveCurrentStateDeclaration[]     @relation("AdaptiveDeclarationAuthor")
-  adaptiveEvidence             AdaptiveCurrentStateEvidence[]        @relation("AdaptiveEvidenceAuthor")
+  adaptiveSessions             AdaptiveConfigurationSession[]                @relation("AdaptiveSessionCreator")
+  adaptiveAnswers              AdaptiveFactAnswer[]                          @relation("AdaptiveAnswerAuthor")
+  adaptiveDeclarations         AdaptiveCurrentStateDeclaration[]             @relation("AdaptiveDeclarationAuthor")
+  adaptiveEvidence             AdaptiveCurrentStateEvidence[]                @relation("AdaptiveEvidenceAuthor")
   regulatoryReviews            RegulatoryInterpretationReview[]
-  regulatoryEvaluationsCreated UnifiedSstEvaluation[]                @relation("UnifiedEvaluationCreator")
+  regulatoryEvaluationsCreated UnifiedSstEvaluation[]                        @relation("UnifiedEvaluationCreator")
   riskMethodPoliciesCreated    OrganizationRiskMethodPolicyVersion[]
   guidedProfilesCreated        OrganizationGuided5x5ProfileVersion[]
-  obligationsAssigned          ObligationExecution[]                 @relation("ObligationAssignee")
-  obligationsCreated           ObligationExecution[]                 @relation("ObligationCreator")
-  obligationsCompleted         ObligationExecution[]                 @relation("ObligationCompleter")
-  obligationsReviewed          ObligationExecution[]                 @relation("ObligationReviewer")
-  obligationEvidenceCreated    ObligationExecutionEvidence[]         @relation("ObligationEvidenceCreator")
-  workPermitsRequested         WorkPermit[]                          @relation("WorkPermitRequester")
-  workPermitsApproved          WorkPermit[]                          @relation("WorkPermitApprover")
-  workPermitsClosed            WorkPermit[]                          @relation("WorkPermitCloser")
-  invitationsSent              OrganizationInvitation[]              @relation("OrganizationInvitationSender")
-  invitationsAccepted          OrganizationInvitation[]              @relation("OrganizationInvitationAcceptor")
+  obligationsAssigned          ObligationExecution[]                         @relation("ObligationAssignee")
+  obligationsCreated           ObligationExecution[]                         @relation("ObligationCreator")
+  obligationsCompleted         ObligationExecution[]                         @relation("ObligationCompleter")
+  obligationsReviewed          ObligationExecution[]                         @relation("ObligationReviewer")
+  obligationEvidenceCreated    ObligationExecutionEvidence[]                 @relation("ObligationEvidenceCreator")
+  workPermitsRequested         WorkPermit[]                                  @relation("WorkPermitRequester")
+  workPermitsApproved          WorkPermit[]                                  @relation("WorkPermitApprover")
+  workPermitsClosed            WorkPermit[]                                  @relation("WorkPermitCloser")
+  invitationsSent              OrganizationInvitation[]                      @relation("OrganizationInvitationSender")
+  invitationsAccepted          OrganizationInvitation[]                      @relation("OrganizationInvitationAcceptor")
+  inspectionStandardPolicies   OrganizationInspectionStandardPolicyVersion[]
+  inspectionCriterionResults   InspectionCriterionResult[]
 }
 
 model RefreshSession {
@@ -604,15 +648,15 @@ model RefreshSession {
 }
 
 model Organization {
-  id                         String                                @id @default(uuid()) @db.Uuid
+  id                         String                                        @id @default(uuid()) @db.Uuid
   name                       String
   country                    String
   sector                     String?
-  status                     OrganizationStatus                    @default(ACTIVE)
+  status                     OrganizationStatus                            @default(ACTIVE)
   demoStartedAt              DateTime?
   demoExpiresAt              DateTime?
-  createdAt                  DateTime                              @default(now())
-  updatedAt                  DateTime                              @updatedAt
+  createdAt                  DateTime                                      @default(now())
+  updatedAt                  DateTime                                      @updatedAt
   workCenters                WorkCenter[]
   memberships                Membership[]
   invitations                OrganizationInvitation[]
@@ -659,6 +703,9 @@ model Organization {
   obligationExecutions       ObligationExecution[]
   obligationEvidence         ObligationExecutionEvidence[]
   workPermits                WorkPermit[]
+  inspectionStandardSources  InspectionStandardSource[]
+  inspectionStandardPolicies OrganizationInspectionStandardPolicyVersion[]
+  inspectionCriterionResults InspectionCriterionResult[]
 }
 
 model WorkCenter {
@@ -702,34 +749,174 @@ model WorkArea {
   @@index([organizationId, workCenterId])
 }
 
+model InspectionStandardSource {
+  id             String                         @id @default(uuid()) @db.Uuid
+  organizationId String?                        @db.Uuid
+  code           String                         @unique
+  name           String
+  publisher      String
+  originCountry  String?
+  referenceUrl   String?
+  rightsType     InspectionStandardRightsType
+  sourceType     InspectionStandardSourceType
+  status         InspectionStandardSourceStatus @default(DRAFT)
+  createdAt      DateTime                       @default(now())
+  updatedAt      DateTime                       @updatedAt
+  organization   Organization?                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  versions       InspectionStandardVersion[]
+
+  @@index([organizationId, status])
+  @@index([sourceType, status])
+}
+
+model InspectionStandardVersion {
+  id             String                                        @id @default(uuid()) @db.Uuid
+  sourceId       String                                        @db.Uuid
+  versionCode    String
+  editionLabel   String
+  publishedAt    DateTime?
+  effectiveFrom  DateTime?
+  effectiveTo    DateTime?
+  status         InspectionStandardVersionStatus               @default(DRAFT)
+  contentDigest  String                                        @db.VarChar(71)
+  metadata       Json                                          @default("{}")
+  createdAt      DateTime                                      @default(now())
+  source         InspectionStandardSource                      @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+  sections       InspectionStandardSection[]
+  criteria       InspectionStandardCriterion[]
+  policyBindings OrganizationInspectionStandardPolicyBinding[]
+  inspections    Inspection[]
+
+  @@unique([sourceId, versionCode])
+  @@index([status, createdAt])
+}
+
+model InspectionStandardSection {
+  id                String                        @id @default(uuid()) @db.Uuid
+  standardVersionId String                        @db.Uuid
+  parentSectionId   String?                       @db.Uuid
+  code              String
+  title             String
+  displayOrder      Int
+  standardVersion   InspectionStandardVersion     @relation(fields: [standardVersionId], references: [id], onDelete: Cascade)
+  parentSection     InspectionStandardSection?    @relation("InspectionStandardSectionTree", fields: [parentSectionId], references: [id], onDelete: Restrict)
+  childSections     InspectionStandardSection[]   @relation("InspectionStandardSectionTree")
+  criteria          InspectionStandardCriterion[]
+
+  @@unique([standardVersionId, code])
+  @@index([standardVersionId, displayOrder])
+}
+
+model InspectionStandardCriterion {
+  id                   String                      @id @default(uuid()) @db.Uuid
+  standardVersionId    String                      @db.Uuid
+  sectionId            String?                     @db.Uuid
+  code                 String
+  title                String
+  guidance             String
+  evidenceExpectation  String?
+  sourceLocator        String?
+  displayOrder         Int
+  notApplicableAllowed Boolean                     @default(false)
+  required             Boolean                     @default(true)
+  contentDigest        String                      @db.VarChar(71)
+  standardVersion      InspectionStandardVersion   @relation(fields: [standardVersionId], references: [id], onDelete: Cascade)
+  section              InspectionStandardSection?  @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  results              InspectionCriterionResult[]
+
+  @@unique([standardVersionId, code])
+  @@index([standardVersionId, displayOrder])
+  @@index([sectionId, displayOrder])
+}
+
+model OrganizationInspectionStandardPolicyVersion {
+  id             String                                        @id @default(uuid()) @db.Uuid
+  organizationId String                                        @db.Uuid
+  version        Int
+  createdById    String                                        @db.Uuid
+  reason         String?
+  createdAt      DateTime                                      @default(now())
+  organization   Organization                                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User                                          @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  bindings       OrganizationInspectionStandardPolicyBinding[]
+  inspections    Inspection[]
+
+  @@unique([organizationId, version])
+  @@index([organizationId, createdAt])
+}
+
+model OrganizationInspectionStandardPolicyBinding {
+  id                String                                      @id @default(uuid()) @db.Uuid
+  policyVersionId   String                                      @db.Uuid
+  inspectionDomain  InspectionDomain
+  standardVersionId String                                      @db.Uuid
+  policyVersion     OrganizationInspectionStandardPolicyVersion @relation(fields: [policyVersionId], references: [id], onDelete: Cascade)
+  standardVersion   InspectionStandardVersion                   @relation(fields: [standardVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([policyVersionId, inspectionDomain])
+  @@index([standardVersionId])
+}
+
 model Inspection {
-  id                  String              @id @default(uuid()) @db.Uuid
-  organizationId      String              @db.Uuid
-  workCenterId        String              @db.Uuid
-  workAreaId          String?             @db.Uuid
-  title               String
-  description         String?
-  inspectorUserId     String              @db.Uuid
-  status              InspectionStatus    @default(DRAFT)
-  startedAt           DateTime?
-  completedAt         DateTime?
-  scheduledFor        DateTime?
-  isDemo              Boolean             @default(false)
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  workCenter          WorkCenter          @relation(fields: [workCenterId], references: [id])
-  workArea            WorkArea?           @relation(fields: [workAreaId], references: [id])
-  inspector           User                @relation("InspectionInspector", fields: [inspectorUserId], references: [id])
-  riskMethodVersionId String              @default(dbgenerated("'54000000-0000-4000-8000-000000000001'::uuid")) @db.Uuid
-  riskMethodSnapshot  Json                @default("{}")
-  findings            InspectionFinding[]
-  riskMethodVersion   RiskMethodVersion   @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
+  id                      String                                       @id @default(uuid()) @db.Uuid
+  organizationId          String                                       @db.Uuid
+  workCenterId            String                                       @db.Uuid
+  workAreaId              String?                                      @db.Uuid
+  title                   String
+  description             String?
+  inspectorUserId         String                                       @db.Uuid
+  status                  InspectionStatus                             @default(DRAFT)
+  startedAt               DateTime?
+  completedAt             DateTime?
+  scheduledFor            DateTime?
+  isDemo                  Boolean                                      @default(false)
+  createdAt               DateTime                                     @default(now())
+  updatedAt               DateTime                                     @updatedAt
+  organization            Organization                                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workCenter              WorkCenter                                   @relation(fields: [workCenterId], references: [id])
+  workArea                WorkArea?                                    @relation(fields: [workAreaId], references: [id])
+  inspector               User                                         @relation("InspectionInspector", fields: [inspectorUserId], references: [id])
+  riskMethodVersionId     String                                       @default(dbgenerated("'54000000-0000-4000-8000-000000000001'::uuid")) @db.Uuid
+  riskMethodSnapshot      Json                                         @default("{}")
+  inspectionDomain        InspectionDomain?
+  standardPolicyVersionId String?                                      @db.Uuid
+  standardVersionId       String?                                      @db.Uuid
+  standardSnapshot        Json?
+  findings                InspectionFinding[]
+  criterionResults        InspectionCriterionResult[]
+  riskMethodVersion       RiskMethodVersion                            @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
+  standardPolicyVersion   OrganizationInspectionStandardPolicyVersion? @relation(fields: [standardPolicyVersionId], references: [id], onDelete: Restrict)
+  standardVersion         InspectionStandardVersion?                   @relation(fields: [standardVersionId], references: [id], onDelete: Restrict)
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, workCenterId])
   @@index([organizationId, inspectorUserId])
   @@index([riskMethodVersionId])
+  @@index([organizationId, inspectionDomain])
+  @@index([standardPolicyVersionId])
+  @@index([standardVersionId])
+}
+
+model InspectionCriterionResult {
+  id                 String                      @id @default(uuid()) @db.Uuid
+  organizationId     String                      @db.Uuid
+  inspectionId       String                      @db.Uuid
+  criterionId        String                      @db.Uuid
+  outcome            InspectionCriterionOutcome  @default(NO_VERIFICADO)
+  note               String?
+  evidenceReferences Json                        @default("[]")
+  actorUserId        String                      @db.Uuid
+  observedAt         DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  organization       Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inspection         Inspection                  @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  criterion          InspectionStandardCriterion @relation(fields: [criterionId], references: [id], onDelete: Restrict)
+  actor              User                        @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  finding            InspectionFinding?
+
+  @@unique([inspectionId, criterionId])
+  @@index([organizationId, inspectionId, outcome])
+  @@index([criterionId])
 }
 
 model InspectionFinding {
@@ -770,6 +957,7 @@ model InspectionFinding {
   createdAt               DateTime                          @default(now())
   updatedAt               DateTime                          @updatedAt
   closedAt                DateTime?
+  criterionResultId       String?                           @unique @db.Uuid
   organization            Organization                      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   inspection              Inspection                        @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
   workCenter              WorkCenter                        @relation(fields: [workCenterId], references: [id])
@@ -781,6 +969,7 @@ model InspectionFinding {
   actions                 CorrectiveAction[]
   alerts                  InspectionAlert[]
   regulatoryLinks         InspectionFindingRegulatoryLink[]
+  criterionResult         InspectionCriterionResult?        @relation(fields: [criterionResultId], references: [id], onDelete: Restrict)
 
   @@index([organizationId, inspectionId])
   @@index([organizationId, workCenterId, category, createdAt])

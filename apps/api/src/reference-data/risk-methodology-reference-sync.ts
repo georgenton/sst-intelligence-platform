@@ -15,6 +15,7 @@ import {
   RISK_METHOD_REGULATORY_CONTEXT_MANIFESTS,
 } from '../risk-methodology/risk-method-reference-data';
 import { syncCatalogReferences } from './catalog-reference-sync';
+import { syncInspectionStandardReferences } from './inspection-standard-reference-sync';
 import { syncRegulatoryEvidenceReferences } from './regulatory-evidence-reference-sync';
 
 type JsonValue = Prisma.InputJsonValue;
@@ -458,7 +459,13 @@ export function syncGlobalReferenceData(prisma: PrismaClient) {
       const catalog = await syncCatalogReferences(transaction);
       await syncRiskMethodologyReferences(transaction);
       const regulatory = await syncRegulatoryEvidenceReferences(transaction);
-      return { catalog, riskMethodology: await referenceCounts(transaction), regulatory };
+      const inspectionStandards = await syncInspectionStandardReferences(transaction);
+      return {
+        catalog,
+        riskMethodology: await referenceCounts(transaction),
+        regulatory,
+        inspectionStandards,
+      };
     },
     {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
