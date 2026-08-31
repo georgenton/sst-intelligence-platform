@@ -24,6 +24,7 @@ async function provisionDemoSession(page: Page, suffix: number) {
 
 async function createAndStartInspection(page: Page, title: string, methodName: RegExp) {
   await page.goto('/app/inspections/new');
+  await page.getByLabel('Dominio de inspección').selectOption('ELECTRICAL');
   await page
     .getByLabel('Centro de trabajo')
     .selectOption({ label: 'Centro Guayaquil (demostración)' });
