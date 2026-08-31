@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
+import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -17,6 +18,7 @@ describe('organization team and invitations integration', () => {
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = module.createNestApplication();
     app.setGlobalPrefix('api/v1');
+    app.use(cookieParser());
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
     );
@@ -37,6 +39,25 @@ describe('organization team and invitations integration', () => {
       email,
       token: await jwt.signAsync({ id: user.id, email, sub: user.id }),
       userId: user.id,
+    };
+  }
+
+  async function registerWithSession(label: string) {
+    const email = `${label.toLowerCase().replaceAll(' ', '-')}-${suffix}@example.test`;
+    const password = 'Membership-session-42!';
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({ email, displayName: label, password })
+      .expect(201);
+    const setCookie = response.headers['set-cookie'];
+    const refreshCookie = (Array.isArray(setCookie) ? setCookie[0] : setCookie)?.split(';')[0];
+    expect(refreshCookie).toMatch(/^sst_refresh=/);
+    return {
+      email,
+      password,
+      refreshCookie: refreshCookie!,
+      token: response.body.accessToken as string,
+      userId: response.body.user.id as string,
     };
   }
 
@@ -284,6 +305,7 @@ describe('organization team and invitations integration', () => {
   it('changes and deactivates non-owner roles without deleting historical membership', async () => {
     const owner = await register('Team Owner Lifecycle');
     const member = await register('Team Member Lifecycle');
+    const unrelated = await register('Team Unrelated Lifecycle');
     const organizationId = await organization(owner.token, 'Team Member Lifecycle');
     const created = await invite(owner.token, organizationId, member.email, 'SST_TECHNICIAN');
     await invitation(member.token, 'accept')
@@ -312,6 +334,16 @@ describe('organization team and invitations integration', () => {
       .get(`/organizations/${organizationId}/members`)
       .expect(403);
     const reactivation = await invite(owner.token, organizationId, member.email, 'CONSULTANT');
+    await invitation(unrelated.token, 'accept')
+      .send({ token: reactivation.body.token as string })
+      .expect(403)
+      .expect(({ body }) => expect(body.code).toBe('INVITATION_EMAIL_MISMATCH'));
+    expect(
+      await prisma.membership.findUniqueOrThrow({
+        where: { id: membership.id },
+        select: { id: true, role: true, status: true },
+      }),
+    ).toEqual({ id: membership.id, role: 'SST_MANAGER', status: 'SUSPENDED' });
     await invitation(member.token, 'accept')
       .send({ token: reactivation.body.token as string })
       .expect(201);
@@ -331,5 +363,107 @@ describe('organization team and invitations integration', () => {
         },
       }),
     ).toBe(3);
+  });
+
+  it('applies suspension and role downgrade immediately to existing and refreshed sessions', async () => {
+    const owner = await registerWithSession('Live Policy Owner');
+    const member = await registerWithSession('Live Suspended Member');
+    const admin = await registerWithSession('Live Downgraded Admin');
+    const suspensionOrganization = await organization(owner.token, 'Live Suspension');
+    const memberOtherOrganization = await organization(member.token, 'Live Other Membership');
+    const roleOrganization = await organization(owner.token, 'Live Role Downgrade');
+
+    const memberInvitation = await invite(
+      owner.token,
+      suspensionOrganization,
+      member.email,
+      'SST_MANAGER',
+    );
+    await invitation(member.token, 'accept')
+      .send({ token: memberInvitation.body.token as string })
+      .expect(201);
+    const memberMembership = await prisma.membership.findUniqueOrThrow({
+      where: {
+        userId_organizationId: {
+          userId: member.userId,
+          organizationId: suspensionOrganization,
+        },
+      },
+    });
+
+    await api(member.token, suspensionOrganization)
+      .get(`/organizations/${suspensionOrganization}/members`)
+      .expect(200);
+    await api(owner.token, suspensionOrganization)
+      .post(`/organizations/${suspensionOrganization}/members/${memberMembership.id}/deactivate`)
+      .expect(201);
+    await api(member.token, suspensionOrganization)
+      .get(`/organizations/${suspensionOrganization}/members`)
+      .expect(403);
+    await api(member.token, memberOtherOrganization)
+      .get(`/organizations/${memberOtherOrganization}/members`)
+      .expect(200);
+
+    const refreshed = await request(app.getHttpServer())
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', member.refreshCookie)
+      .expect(201);
+    const refreshedAccessToken = refreshed.body.accessToken as string;
+    await api(refreshedAccessToken, suspensionOrganization)
+      .get(`/organizations/${suspensionOrganization}/members`)
+      .expect(403);
+    await api(refreshedAccessToken, memberOtherOrganization)
+      .get(`/organizations/${memberOtherOrganization}/members`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${refreshedAccessToken}`)
+      .expect(200)
+      .expect(({ body }) => {
+        const organizationIds = body.memberships.map(
+          (item: { organization: { id: string } }) => item.organization.id,
+        );
+        expect(organizationIds).toContain(memberOtherOrganization);
+        expect(organizationIds).not.toContain(suspensionOrganization);
+      });
+
+    const adminInvitation = await invite(owner.token, roleOrganization, admin.email, 'ORG_ADMIN');
+    await invitation(admin.token, 'accept')
+      .send({ token: adminInvitation.body.token as string })
+      .expect(201);
+    const adminMembership = await prisma.membership.findUniqueOrThrow({
+      where: {
+        userId_organizationId: { userId: admin.userId, organizationId: roleOrganization },
+      },
+    });
+    await api(admin.token, roleOrganization)
+      .patch(`/organizations/${roleOrganization}`)
+      .send({ name: `Admin active ${suffix}` })
+      .expect(200);
+    await api(owner.token, roleOrganization)
+      .patch(`/organizations/${roleOrganization}/members/${adminMembership.id}/role`)
+      .send({ role: 'VIEWER' })
+      .expect(200);
+    await api(admin.token, roleOrganization)
+      .patch(`/organizations/${roleOrganization}`)
+      .send({ name: `Admin stale ${suffix}` })
+      .expect(403)
+      .expect(({ body }) => expect(body.code).toBe('ROLE_REQUIRED'));
+    await api(admin.token, roleOrganization)
+      .get(`/organizations/${roleOrganization}/members`)
+      .expect(200);
+
+    const ownerMembership = await prisma.membership.findUniqueOrThrow({
+      where: {
+        userId_organizationId: { userId: owner.userId, organizationId: roleOrganization },
+      },
+    });
+    await api(owner.token, roleOrganization)
+      .patch(`/organizations/${roleOrganization}/members/${ownerMembership.id}/role`)
+      .send({ role: 'VIEWER' })
+      .expect(403);
+    await api(owner.token, roleOrganization)
+      .post(`/organizations/${roleOrganization}/members/${ownerMembership.id}/deactivate`)
+      .expect(403);
   });
 });

@@ -1,11 +1,17 @@
 'use client';
 
+import { ApiClientError } from '@sst/api-client';
 import { Button, Card, StatusBadge } from '@sst/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { storeActiveOrganization } from '@/lib/active-organization-storage';
 import { humanInvitationStatusLabel, humanRoleLabel } from '@/lib/human-lexicon';
+import {
+  clearStoredInvitationToken,
+  isTerminalInvitationErrorCode,
+  isTerminalInvitationStatus,
+} from '@/lib/invitation-token-lifecycle';
 import { queryKeys } from '@/lib/query-keys';
 import { useAuth } from './auth-provider';
 
@@ -28,6 +34,10 @@ export function InvitationAcceptanceView() {
   const queryClient = useQueryClient();
   const [token, setToken] = useState('');
   const [storageUnavailable, setStorageUnavailable] = useState(false);
+  const clearStoredToken = useCallback(
+    () => clearStoredInvitationToken(window.sessionStorage, invitationTokenKey),
+    [],
+  );
 
   useEffect(() => {
     const fragmentToken = new URLSearchParams(window.location.hash.slice(1)).get('token') ?? '';
@@ -61,11 +71,7 @@ export function InvitationAcceptanceView() {
         body: JSON.stringify({ token }),
       }),
     onSuccess: async (result) => {
-      try {
-        window.sessionStorage.removeItem(invitationTokenKey);
-      } catch {
-        // The accepted server-side token remains single-use even without browser storage.
-      }
+      clearStoredToken();
       if (auth.user) {
         storeActiveOrganization(window.localStorage, auth.user.id, result.organization.id, [
           result.organization.id,
@@ -77,6 +83,17 @@ export function InvitationAcceptanceView() {
       window.location.assign('/app');
     },
   });
+
+  useEffect(() => {
+    if (isTerminalInvitationStatus(preview.data?.status)) clearStoredToken();
+  }, [clearStoredToken, preview.data?.status]);
+
+  useEffect(() => {
+    const error = acceptance.error ?? preview.error;
+    if (error instanceof ApiClientError && isTerminalInvitationErrorCode(error.payload.code)) {
+      clearStoredToken();
+    }
+  }, [acceptance.error, clearStoredToken, preview.error]);
 
   if (auth.loading || (!token && !storageUnavailable)) {
     return <p>Cargando invitación…</p>;
