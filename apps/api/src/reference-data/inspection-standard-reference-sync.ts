@@ -15,13 +15,22 @@ function assertSame(label: string, actual: unknown, expected: unknown) {
 
 export async function syncInspectionStandardReferences(prisma: Prisma.TransactionClient) {
   for (const manifest of INSPECTION_STANDARD_MANIFESTS) {
+    const rightsType = manifest.source.rightsType ?? 'DEMO_SYNTHETIC';
+    const versionStatus = manifest.version.status ?? 'AVAILABLE';
+    const versionMetadata = manifest.version.metadata
+      ? { domain: manifest.version.domain, ...manifest.version.metadata }
+      : { domain: manifest.version.domain, synthetic: true };
     const source = await prisma.inspectionStandardSource.upsert({
       where: { code: manifest.source.code },
       update: {},
       create: {
-        ...manifest.source,
+        id: manifest.source.id,
+        code: manifest.source.code,
+        name: manifest.source.name,
         publisher: manifest.source.publisher,
-        rightsType: 'DEMO_SYNTHETIC',
+        originCountry: manifest.source.originCountry,
+        referenceUrl: manifest.source.referenceUrl,
+        rightsType,
         sourceType: 'GLOBAL_REFERENCE',
         status: 'ACTIVE',
       },
@@ -33,6 +42,8 @@ export async function syncInspectionStandardReferences(prisma: Prisma.Transactio
         organizationId: source.organizationId,
         name: source.name,
         publisher: source.publisher,
+        originCountry: source.originCountry,
+        referenceUrl: source.referenceUrl,
         rightsType: source.rightsType,
         sourceType: source.sourceType,
         status: source.status,
@@ -41,7 +52,9 @@ export async function syncInspectionStandardReferences(prisma: Prisma.Transactio
         organizationId: null,
         name: manifest.source.name,
         publisher: manifest.source.publisher,
-        rightsType: 'DEMO_SYNTHETIC',
+        originCountry: manifest.source.originCountry ?? null,
+        referenceUrl: manifest.source.referenceUrl ?? null,
+        rightsType,
         sourceType: 'GLOBAL_REFERENCE',
         status: 'ACTIVE',
       },
@@ -57,9 +70,9 @@ export async function syncInspectionStandardReferences(prisma: Prisma.Transactio
         sourceId: source.id,
         versionCode: manifest.version.versionCode,
         editionLabel: manifest.version.editionLabel,
-        status: 'AVAILABLE',
+        status: versionStatus,
         contentDigest: inspectionStandardManifestDigest(manifest),
-        metadata: { domain: manifest.version.domain, synthetic: true },
+        metadata: versionMetadata,
       },
     });
     if (version.id !== manifest.version.id) drift(`${manifest.source.code}:VERSION_IDENTITY`);
@@ -73,9 +86,9 @@ export async function syncInspectionStandardReferences(prisma: Prisma.Transactio
       },
       {
         editionLabel: manifest.version.editionLabel,
-        status: 'AVAILABLE',
+        status: versionStatus,
         contentDigest: inspectionStandardManifestDigest(manifest),
-        metadata: { domain: manifest.version.domain, synthetic: true },
+        metadata: versionMetadata,
       },
     );
 
@@ -113,6 +126,7 @@ export async function syncInspectionStandardReferences(prisma: Prisma.Transactio
         displayOrder: criterion.displayOrder,
         notApplicableAllowed: criterion.notApplicableAllowed,
         required: criterion.required,
+        ...(criterion.sourceLocator ? { sourceLocator: criterion.sourceLocator } : {}),
       });
       const row = await prisma.inspectionStandardCriterion.upsert({
         where: {
@@ -133,6 +147,7 @@ export async function syncInspectionStandardReferences(prisma: Prisma.Transactio
           title: row.title,
           guidance: row.guidance,
           evidenceExpectation: row.evidenceExpectation,
+          sourceLocator: row.sourceLocator,
           displayOrder: row.displayOrder,
           notApplicableAllowed: row.notApplicableAllowed,
           required: row.required,
@@ -142,6 +157,7 @@ export async function syncInspectionStandardReferences(prisma: Prisma.Transactio
           title: criterion.title,
           guidance: criterion.guidance,
           evidenceExpectation: criterion.evidenceExpectation ?? null,
+          sourceLocator: criterion.sourceLocator ?? null,
           displayOrder: criterion.displayOrder,
           notApplicableAllowed: criterion.notApplicableAllowed,
           required: criterion.required,

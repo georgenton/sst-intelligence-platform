@@ -8,5 +8,6 @@ import { WorkPermitsService } from './work-permits.service';
 @Module({
   controllers: [WorkPermitsController],
   providers: [WorkPermitsService, OrganizationGuard, RolesGuard, EntitlementGuard],
+  exports: [WorkPermitsService],
 })
 export class WorkPermitsModule {}

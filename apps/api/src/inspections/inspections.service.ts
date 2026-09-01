@@ -24,6 +24,7 @@ import { AuditService, type AuditEvent } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RiskMethodologyService } from '../risk-methodology/risk-methodology.service';
 import { InspectionStandardsService } from '../inspection-standards/inspection-standards.service';
+import { InspectionBasisService } from '../inspection-basis/inspection-basis.service';
 import type {
   AlertQueryDto,
   CompleteSystemicReviewDto,
@@ -50,6 +51,7 @@ export class InspectionsService {
     private readonly audit: AuditService,
     private readonly riskMethods: RiskMethodologyService,
     private readonly inspectionStandards: InspectionStandardsService,
+    private readonly inspectionBases: InspectionBasisService,
   ) {}
 
   context(organizationId: string) {
@@ -129,9 +131,19 @@ export class InspectionsService {
       where: { id: organizationId },
       select: { status: true },
     });
-    const resolvedStandard = input.inspectionDomain
-      ? await this.inspectionStandards.resolveRequired(organizationId, input.inspectionDomain)
+    const resolvedBasis = input.inspectionDomain
+      ? await this.inspectionBases.resolveActive(organizationId, input.inspectionDomain)
       : null;
+    const resolvedStandard =
+      input.inspectionDomain && !resolvedBasis
+        ? await this.inspectionStandards.resolveRequired(organizationId, input.inspectionDomain)
+        : null;
+    const primarySource = resolvedBasis?.technicalSources.find(
+      ({ role }) => role === 'PRIMARY_TECHNICAL',
+    );
+    const criteria = resolvedBasis
+      ? resolvedBasis.technicalSources.flatMap(({ standardVersion }) => standardVersion.criteria)
+      : (resolvedStandard?.standardVersion.criteria ?? []);
     const inspection = await this.prisma.inspection.create({
       data: {
         organizationId,
@@ -146,13 +158,20 @@ export class InspectionsService {
         riskMethodSnapshot: this.riskMethods.snapshot(methodVersion),
         inspectionDomain: input.inspectionDomain,
         standardPolicyVersionId: resolvedStandard?.policy.id,
-        standardVersionId: resolvedStandard?.standardVersion.id,
-        standardSnapshot: resolvedStandard
-          ? this.inspectionStandards.snapshot(resolvedStandard.standardVersion)
+        standardVersionId:
+          primarySource?.standardVersion.id ?? resolvedStandard?.standardVersion.id,
+        standardSnapshot: primarySource
+          ? this.inspectionStandards.snapshot(primarySource.standardVersion)
+          : resolvedStandard
+            ? this.inspectionStandards.snapshot(resolvedStandard.standardVersion)
+            : undefined,
+        inspectionBasisVersionId: resolvedBasis?.id,
+        inspectionBasisSnapshot: resolvedBasis
+          ? this.inspectionBases.snapshot(resolvedBasis)
           : undefined,
-        criterionResults: resolvedStandard
+        criterionResults: criteria.length
           ? {
-              create: resolvedStandard.standardVersion.criteria.map((criterion) => ({
+              create: criteria.map((criterion) => ({
                 organizationId,
                 criterionId: criterion.id,
                 actorUserId: userId,
@@ -166,6 +185,7 @@ export class InspectionsService {
         workCenter: { select: { id: true, name: true } },
         workArea: { select: { id: true, name: true } },
         standardVersion: { include: { source: true } },
+        inspectionBasisVersion: { include: { definition: true } },
         criterionResults: true,
       },
     });
@@ -181,6 +201,7 @@ export class InspectionsService {
         riskMethodVersionId: methodVersion.id,
         inspectionDomain: inspection.inspectionDomain,
         standardVersionId: inspection.standardVersionId,
+        inspectionBasisVersionId: inspection.inspectionBasisVersionId,
       },
       context,
     );
@@ -209,11 +230,30 @@ export class InspectionsService {
         standardPolicyVersion: {
           include: { createdBy: { select: { id: true, displayName: true } } },
         },
+        inspectionBasisVersion: {
+          include: {
+            definition: true,
+            technicalSources: {
+              orderBy: { displayOrder: 'asc' },
+              include: { standardVersion: { include: { source: true } } },
+            },
+            regulatoryUnits: {
+              orderBy: { displayOrder: 'asc' },
+              include: {
+                regulatoryUnit: {
+                  include: { sourceVersion: { include: { source: true } } },
+                },
+              },
+            },
+          },
+        },
         criterionResults: {
           where: { organizationId },
           orderBy: { criterion: { displayOrder: 'asc' } },
           include: {
-            criterion: { include: { section: true } },
+            criterion: {
+              include: { section: true, standardVersion: { include: { source: true } } },
+            },
             actor: { select: { id: true, displayName: true } },
             finding: { select: { id: true, title: true, status: true } },
           },
