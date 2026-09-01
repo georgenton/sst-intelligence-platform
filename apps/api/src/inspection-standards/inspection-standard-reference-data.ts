@@ -204,7 +204,7 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
     source: {
       id: '57400000-0000-4000-8000-000000000001',
       code: 'PILOT_RETIE_CO_2026',
-      name: 'RETIE · piloto de referencia técnica',
+      name: 'RETIE · piloto técnico · pendiente de revisión profesional',
       publisher: 'Ministerio de Minas y Energía de Colombia',
       originCountry: 'Colombia (CO)',
       referenceUrl:
@@ -219,11 +219,15 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
       metadata: {
         pilot: true,
         jurisdictionCode: 'CO',
+        officialTitle: 'Reglamento Técnico de Instalaciones Eléctricas — RETIE',
+        officialModification: 'Resolución 40284 del 23 de junio de 2026',
+        officialModificationDate: '2026-06-23',
         sourceNature: 'FOREIGN_TECHNICAL_REGULATION_REFERENCE',
         officialStructure: 'FOUR_BOOKS',
         professionalReview: 'PENDING_ANITA',
         applicabilityBoundary: 'NOT_ECUADORIAN_LAW',
         reuseBoundary: 'PLATFORM_AUTHORED_CRITERIA_ONLY',
+        criterionWording: 'PLATFORM_AUTHORED_NOT_OFFICIAL_QUOTATION',
       },
     },
     section: {
@@ -242,7 +246,7 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
           'Registre únicamente la condición visible. Este criterio piloto no certifica RETIE ni aplicabilidad en Ecuador.',
         evidenceExpectation: 'Nota o evidencia visual interna de la condición observada.',
         sourceLocator:
-          'Página oficial RETIE · Resolución 40284 de 2026 · criterio original del piloto',
+          'Página oficial RETIE · Resolución 40284 del 23 de junio de 2026 · criterio original de la plataforma',
         displayOrder: 1,
         notApplicableAllowed: false,
         required: true,
@@ -255,7 +259,7 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
         guidance:
           'Compare únicamente la identificación y el uso observado; no emita una declaración de cumplimiento.',
         sourceLocator:
-          'Página oficial RETIE · Libro 3 como referencia general · criterio original del piloto',
+          'Página oficial RETIE · Resolución 40284 del 23 de junio de 2026 · Libro 3 como referencia general · criterio original de la plataforma',
         displayOrder: 2,
         notApplicableAllowed: true,
         required: true,
@@ -266,7 +270,7 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
     source: {
       id: '57400000-0000-4000-8000-000000000002',
       code: 'PILOT_REBT_ES_2002',
-      name: 'REBT · piloto de referencia técnica',
+      name: 'REBT · Real Decreto 842/2002 · piloto técnico · pendiente de revisión profesional',
       publisher: 'Boletín Oficial del Estado · España',
       originCountry: 'España (ES)',
       referenceUrl: 'https://www.boe.es/buscar/act.php?id=BOE-A-2002-18099',
@@ -280,11 +284,17 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
       metadata: {
         pilot: true,
         jurisdictionCode: 'ES',
+        officialTitle:
+          'Real Decreto 842/2002, de 2 de agosto, por el que se aprueba el Reglamento electrotécnico para baja tensión',
+        officialIdentifier: 'BOE-A-2002-18099',
+        officialPublication: 'BOE núm. 224, 18 de septiembre de 2002',
         sourceNature: 'FOREIGN_TECHNICAL_REGULATION_REFERENCE',
         consolidationNature: 'INFORMATIONAL',
+        consolidatedRevisionPublished: '2025-09-03',
         professionalReview: 'PENDING_ANITA',
         applicabilityBoundary: 'NOT_ECUADORIAN_LAW',
         reuseBoundary: 'PLATFORM_AUTHORED_CRITERIA_ONLY',
+        criterionWording: 'PLATFORM_AUTHORED_NOT_OFFICIAL_QUOTATION',
       },
     },
     section: {
@@ -302,7 +312,7 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
         guidance:
           'Documente identificación y accesibilidad sin declarar conformidad con la normativa española.',
         sourceLocator:
-          'BOE-A-2002-18099 · referencia oficial general · criterio original del piloto',
+          'BOE-A-2002-18099 · texto consolidado informativo · criterio original de la plataforma',
         displayOrder: 1,
         notApplicableAllowed: true,
         required: true,
@@ -315,7 +325,7 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
         guidance:
           'Registre la observación y derive cualquier valoración al flujo profesional de hallazgos.',
         sourceLocator:
-          'BOE-A-2002-18099 · referencia oficial general · criterio original del piloto',
+          'BOE-A-2002-18099 · texto consolidado informativo · criterio original de la plataforma',
         displayOrder: 2,
         notApplicableAllowed: false,
         required: true,
@@ -326,7 +336,7 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
     source: {
       id: '57400000-0000-4000-8000-000000000003',
       code: 'PILOT_RTQ_EC_UIO_2026',
-      name: 'Reglas Técnicas Metropolitanas de Quito · piloto',
+      name: 'Reglas Técnicas Metropolitanas de Quito · piloto técnico · pendiente de revisión profesional',
       publisher: 'Cuerpo de Bomberos del Distrito Metropolitano de Quito',
       originCountry: 'Distrito Metropolitano de Quito (EC-UIO)',
       referenceUrl:
@@ -341,10 +351,13 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
       metadata: {
         pilot: true,
         jurisdictionCode: 'EC-UIO',
+        officialAuthority: 'Cuerpo de Bomberos del Distrito Metropolitano de Quito',
+        officialResolution: 'Resolución ADMQ 017-2026 del 09 de julio de 2026',
         sourceNature: 'LOCAL_OFFICIAL_REGULATION_REFERENCE',
         professionalReview: 'PENDING_ANITA',
         applicabilityBoundary: 'USER_CONFIGURED_QUITO_CONTEXT_ONLY',
         reuseBoundary: 'PLATFORM_AUTHORED_CRITERIA_ONLY',
+        criterionWording: 'PLATFORM_AUTHORED_NOT_OFFICIAL_QUOTATION',
       },
     },
     section: {
@@ -361,7 +374,8 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
           'Los controles de respuesta observados mantienen acceso visible y sin obstrucciones.',
         guidance:
           'Registre el estado puntual. La fuente se configura solo como contexto del Distrito Metropolitano de Quito.',
-        sourceLocator: 'Página oficial Normativa Técnica · RTQ 1 · criterio original del piloto',
+        sourceLocator:
+          'Cuerpo de Bomberos del Distrito Metropolitano de Quito · Normativa Técnica · RTQ 1 · criterio original de la plataforma',
         displayOrder: 1,
         notApplicableAllowed: false,
         required: true,
@@ -372,7 +386,7 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
     source: {
       id: '57400000-0000-4000-8000-000000000003',
       code: 'PILOT_RTQ_EC_UIO_2026',
-      name: 'Reglas Técnicas Metropolitanas de Quito · piloto',
+      name: 'Reglas Técnicas Metropolitanas de Quito · piloto técnico · pendiente de revisión profesional',
       publisher: 'Cuerpo de Bomberos del Distrito Metropolitano de Quito',
       originCountry: 'Distrito Metropolitano de Quito (EC-UIO)',
       referenceUrl:
@@ -387,10 +401,13 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
       metadata: {
         pilot: true,
         jurisdictionCode: 'EC-UIO',
+        officialAuthority: 'Cuerpo de Bomberos del Distrito Metropolitano de Quito',
+        officialResolution: 'Resolución ADMQ 017-2026 del 09 de julio de 2026',
         sourceNature: 'LOCAL_OFFICIAL_REGULATION_REFERENCE',
         professionalReview: 'PENDING_ANITA',
         applicabilityBoundary: 'USER_CONFIGURED_QUITO_CONTEXT_ONLY',
         reuseBoundary: 'PLATFORM_AUTHORED_CRITERIA_ONLY',
+        criterionWording: 'PLATFORM_AUTHORED_NOT_OFFICIAL_QUOTATION',
       },
     },
     section: {
@@ -407,7 +424,8 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
           'Las áreas observadas para materiales peligrosos cuentan con identificación operativa visible.',
         guidance:
           'Documente la señalización observada sin generalizar la regla metropolitana fuera de Quito.',
-        sourceLocator: 'Página oficial Normativa Técnica · RTQ 4 · criterio original del piloto',
+        sourceLocator:
+          'Cuerpo de Bomberos del Distrito Metropolitano de Quito · Normativa Técnica · RTQ 4 · criterio original de la plataforma',
         displayOrder: 1,
         notApplicableAllowed: true,
         required: true,
@@ -433,6 +451,9 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
       metadata: {
         pilot: true,
         jurisdictionCode: 'EU',
+        officialTitle:
+          'Regulation (EC) No 1272/2008 on classification, labelling and packaging of substances and mixtures',
+        officialIdentifier: 'CELEX 32008R1272',
         sourceNature: 'FOREIGN_REGULATION_REFERENCE',
         pilotScope: 'METADATA_ONLY',
         professionalReview: 'PENDING_ANITA',

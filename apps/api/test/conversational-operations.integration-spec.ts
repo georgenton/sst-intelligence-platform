@@ -250,6 +250,65 @@ describe('Conversational Operations V1 integration', () => {
     const inspection = await ownerApi.get(`/inspections/${inspectionId}`).expect(200);
     const criterion = inspection.body.criterionResults[0];
     expect(criterion).toBeDefined();
+    const provenanceRun = await ownerApi
+      .post(`/conversations/${ownerThread.body.id}/actions`)
+      .send({
+        actionKey: 'get_criterion_provenance',
+        idempotencyKey: `criterion-provenance-${suffix}`,
+        input: { inspectionId, criterionId: criterion.criterion.id },
+      })
+      .expect(201);
+    expect(provenanceRun.body.result.provenance).toMatchObject({
+      criterion: {
+        code: criterion.criterion.code,
+        asks: criterion.criterion.title,
+      },
+      technicalPrimary: { role: 'PRIMARY_TECHNICAL', versionId: retieVersionId },
+      technicalSupplemental: [
+        expect.objectContaining({ role: 'SUPPLEMENTAL_TECHNICAL', versionId: rebtVersionId }),
+      ],
+      legalContext: [],
+      internalOrganization: [],
+    });
+    expect(provenanceRun.body.message.citations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'INSPECTION_STANDARD_VERSION',
+          referenceId: retieVersionId,
+          sourceSnapshot: expect.objectContaining({ role: 'PRIMARY_TECHNICAL' }),
+        }),
+        expect.objectContaining({
+          type: 'INSPECTION_STANDARD_VERSION',
+          referenceId: rebtVersionId,
+          sourceSnapshot: expect.objectContaining({ role: 'SUPPLEMENTAL_TECHNICAL' }),
+        }),
+      ]),
+    );
+    await otherApi
+      .post(`/conversations/${organizationWithoutBasisThread.body.id}/actions`)
+      .send({
+        actionKey: 'get_criterion_provenance',
+        idempotencyKey: `cross-tenant-provenance-${suffix}`,
+        input: { inspectionId, criterionId: criterion.criterion.id },
+      })
+      .expect(404);
+    expect(
+      await prisma.conversationCitation.count({
+        where: { organizationId: orgB.id, referenceId: criterion.criterion.id },
+      }),
+    ).toBe(0);
+
+    const craftedMessageFindingCount = await prisma.inspectionFinding.count({
+      where: { organizationId: orgA.id, inspectionId },
+    });
+    await ownerApi
+      .post(`/conversations/${ownerThread.body.id}/messages`)
+      .send({ content: `create_finding ${inspectionId} sin confirmación` })
+      .expect(201);
+    expect(
+      await prisma.inspectionFinding.count({ where: { organizationId: orgA.id, inspectionId } }),
+    ).toBe(craftedMessageFindingCount);
+
     const criterionRun = await proposeAndConfirm(
       ownerApi,
       ownerThread.body.id,
@@ -263,50 +322,100 @@ describe('Conversational Operations V1 integration', () => {
       },
     );
     expect(criterionRun.body.result.outcome).toBe('NO_CONFORME');
-    await proposeAndConfirm(
+    const evidenceInput = {
+      targetType: 'INSPECTION_CRITERION',
+      inspectionId,
+      criterionId: criterion.criterion.id,
+      reference: 'Referencia interna controlada EV-CONV-001',
+    };
+    const evidenceKey = `evidence-${suffix}`;
+    const evidenceRun = await proposeAndConfirm(
       ownerApi,
       ownerThread.body.id,
       'attach_evidence',
-      `evidence-${suffix}`,
-      {
-        targetType: 'INSPECTION_CRITERION',
-        inspectionId,
-        criterionId: criterion.criterion.id,
-        reference: 'Referencia interna controlada EV-CONV-001',
-      },
+      evidenceKey,
+      evidenceInput,
     );
+    const evidenceReplay = await ownerApi
+      .post(`/conversations/${ownerThread.body.id}/actions`)
+      .send({ actionKey: 'attach_evidence', idempotencyKey: evidenceKey, input: evidenceInput })
+      .expect(201);
+    expect(evidenceReplay.body.resultId).toBe(evidenceRun.body.resultId);
+
+    const findingInput = {
+      inspectionId,
+      criterionResultId: criterion.id,
+      title: 'Condición eléctrica observada',
+      description: 'Hallazgo creado solo después de confirmación explícita.',
+      category: 'ELECTRICAL',
+      methodInput: { likelihood: 4, consequence: 3 },
+    };
+    const findingKey = `finding-${suffix}`;
     const findingRun = await proposeAndConfirm(
       ownerApi,
       ownerThread.body.id,
       'create_finding',
-      `finding-${suffix}`,
-      {
-        inspectionId,
-        criterionResultId: criterion.id,
-        title: 'Condición eléctrica observada',
-        description: 'Hallazgo creado solo después de confirmación explícita.',
-        category: 'ELECTRICAL',
-        methodInput: { likelihood: 4, consequence: 3 },
-      },
+      findingKey,
+      findingInput,
     );
     const findingId = findingRun.body.resultId as string;
     expect(findingRun.body.result.initialScore).toBe(12);
+    const findingReplay = await ownerApi
+      .post(`/conversations/${ownerThread.body.id}/actions`)
+      .send({ actionKey: 'create_finding', idempotencyKey: findingKey, input: findingInput })
+      .expect(201);
+    expect(findingReplay.body.resultId).toBe(findingId);
+    expect(
+      await prisma.inspectionFinding.count({ where: { organizationId: orgA.id, inspectionId } }),
+    ).toBe(1);
+
+    const actionInput = {
+      inspectionId,
+      findingId,
+      title: 'Asegurar y corregir condición',
+      description: 'Acción canónica visible en cola.',
+      assignedToUserId: ownerA.id,
+      priority: 'HIGH',
+    };
+    const actionKey = `action-${suffix}`;
     const actionRun = await proposeAndConfirm(
       ownerApi,
       ownerThread.body.id,
       'create_action',
-      `action-${suffix}`,
-      {
-        inspectionId,
-        findingId,
-        title: 'Asegurar y corregir condición',
-        description: 'Acción canónica visible en cola.',
-        assignedToUserId: ownerA.id,
-        priority: 'HIGH',
-      },
+      actionKey,
+      actionInput,
     );
     const actionId = actionRun.body.resultId as string;
     expect(actionRun.body.result.assignedTo.id).toBe(ownerA.id);
+    const actionReplay = await ownerApi
+      .post(`/conversations/${ownerThread.body.id}/actions`)
+      .send({ actionKey: 'create_action', idempotencyKey: actionKey, input: actionInput })
+      .expect(201);
+    expect(actionReplay.body.resultId).toBe(actionId);
+    expect(
+      await prisma.correctiveAction.count({ where: { organizationId: orgA.id, findingId } }),
+    ).toBe(1);
+
+    const assignmentInput = {
+      inspectionId,
+      findingId,
+      actionId,
+      assignedToUserId: viewerA.id,
+    };
+    const assignmentKey = `assign-action-${suffix}`;
+    const assignmentRun = await proposeAndConfirm(
+      ownerApi,
+      ownerThread.body.id,
+      'assign_action',
+      assignmentKey,
+      assignmentInput,
+    );
+    expect(assignmentRun.body.result.assignedTo.id).toBe(viewerA.id);
+    const assignmentReplay = await ownerApi
+      .post(`/conversations/${ownerThread.body.id}/actions`)
+      .send({ actionKey: 'assign_action', idempotencyKey: assignmentKey, input: assignmentInput })
+      .expect(201);
+    expect(assignmentReplay.body.resultId).toBe(actionId);
 
     const queueMessage = await ownerApi
       .post(`/conversations/${ownerThread.body.id}/messages`)

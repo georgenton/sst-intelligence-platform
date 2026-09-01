@@ -126,6 +126,23 @@ type WorkQueueItem = {
   assignee?: { id: string; displayName: string } | null;
 };
 
+type CriterionProvenance = {
+  criterion: { code: string; asks: string; sourceLocator?: string | null };
+  technicalPrimary: { name: string; edition: string; jurisdiction?: string | null } | null;
+  technicalSupplemental: Array<{ name: string; edition: string; jurisdiction?: string | null }>;
+  legalContext: Array<{
+    identifier: string;
+    locator: string;
+    source: string;
+    jurisdiction?: string | null;
+  }>;
+  internalOrganization: Array<{
+    name: string;
+    edition: string;
+    jurisdiction?: string | null;
+  }>;
+};
+
 type InspectionContext = {
   workCenters: Array<{
     id: string;
@@ -322,6 +339,18 @@ function queueItems(value: unknown): WorkQueueItem[] {
   return Array.isArray(items) ? (items as WorkQueueItem[]) : [];
 }
 
+function criterionProvenance(value: unknown): CriterionProvenance | null {
+  if (!value || typeof value !== 'object') return null;
+  const provenance = (value as { provenance?: unknown }).provenance;
+  if (!provenance || typeof provenance !== 'object') return null;
+  const criterion = (provenance as { criterion?: unknown }).criterion;
+  if (!criterion || typeof criterion !== 'object') return null;
+  const asks = (criterion as { asks?: unknown }).asks;
+  const code = (criterion as { code?: unknown }).code;
+  if (typeof asks !== 'string' || typeof code !== 'string') return null;
+  return provenance as CriterionProvenance;
+}
+
 function MessageResult({
   message,
   onExplain,
@@ -331,6 +360,65 @@ function MessageResult({
   onExplain(item: WorkQueueItem): void;
   busy: boolean;
 }) {
+  const provenance = criterionProvenance(message.structuredData?.result);
+  if (provenance) {
+    return (
+      <Card
+        className="conversation-guidance-card"
+        aria-label="Procedencia estructurada del criterio"
+      >
+        <span className="conversation-kicker">Por qué se solicita</span>
+        <h4>
+          {provenance.criterion.code} · {provenance.criterion.asks}
+        </h4>
+        {provenance.criterion.sourceLocator ? (
+          <p>Localizador almacenado: {provenance.criterion.sourceLocator}</p>
+        ) : null}
+        <dl className="conversation-source-groups">
+          <div>
+            <dt>Base técnica principal</dt>
+            <dd>
+              {provenance.technicalPrimary
+                ? `${provenance.technicalPrimary.name} · ${provenance.technicalPrimary.edition}`
+                : 'No registrada'}
+            </dd>
+          </div>
+          <div>
+            <dt>Referencias técnicas suplementarias</dt>
+            <dd>
+              {provenance.technicalSupplemental.length
+                ? provenance.technicalSupplemental.map(({ name }) => name).join(', ')
+                : 'Ninguna'}
+            </dd>
+          </div>
+          <div>
+            <dt>Fundamento normativo</dt>
+            <dd>
+              {provenance.legalContext.length
+                ? provenance.legalContext
+                    .map(({ identifier, jurisdiction }) =>
+                      [identifier, jurisdiction].filter(Boolean).join(' · '),
+                    )
+                    .join(', ')
+                : 'Sin relación legal explícita'}
+            </dd>
+          </div>
+          <div>
+            <dt>Referencias de la organización</dt>
+            <dd>
+              {provenance.internalOrganization.length
+                ? provenance.internalOrganization.map(({ name }) => name).join(', ')
+                : 'Ninguna'}
+            </dd>
+          </div>
+        </dl>
+        <p className="conversation-boundary-note">
+          Explicación construida solo con relaciones guardadas; no infiere aplicabilidad legal ni
+          criterio profesional.
+        </p>
+      </Card>
+    );
+  }
   const items = queueItems(message.structuredData?.result);
   if (!items.length) return null;
   return (
@@ -380,17 +468,29 @@ function Citations({ citations }: { citations: Citation[] }) {
   return (
     <div className="conversation-citations" aria-label="Fuentes verificables">
       <span>Fuentes:</span>
-      {citations.map((citation) =>
-        citation.deepLink ? (
+      {citations.map((citation) => {
+        const role = citation.sourceSnapshot?.role;
+        const roleLabel =
+          role === 'PRIMARY_TECHNICAL'
+            ? 'Base técnica principal'
+            : role === 'SUPPLEMENTAL_TECHNICAL'
+              ? 'Referencia técnica suplementaria'
+              : role === 'INTERNAL_ORGANIZATION'
+                ? 'Referencia de la organización'
+                : role === 'LEGAL_CONTEXT'
+                  ? 'Fundamento normativo'
+                  : null;
+        const label = roleLabel ? `${roleLabel}: ${citation.label}` : citation.label;
+        return citation.deepLink ? (
           <Link className="conversation-citation" href={citation.deepLink} key={citation.id}>
-            {citation.label}
+            {label}
           </Link>
         ) : (
           <span className="conversation-citation" key={citation.id}>
-            {citation.label}
+            {label}
           </span>
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }

@@ -39,6 +39,12 @@ item. Source labels, jurisdiction, official locator and snapshots come from pers
 the provider cannot invent them. Foreign technical sources remain references in their own
 jurisdiction and are not described as Ecuadorian law.
 
+`get_criterion_provenance` returns an explicit stored-provenance projection: what the criterion
+asks, exactly one `PRIMARY_TECHNICAL` source, zero-to-many `SUPPLEMENTAL_TECHNICAL` sources,
+explicit `LEGAL_CONTEXT` RegulatoryUnits and zero-to-many `INTERNAL_ORGANIZATION` sources. The
+same roles are retained in citation snapshots and rendered as separate human groups; they are not
+collapsed into an untyped citation list.
+
 Conversation attachments are reference-only. The existing domain receives the canonical criterion
 reference or ActionEvidence; the conversation stores only the resulting destination type, ID and
 human label. It is not a second evidence repository.

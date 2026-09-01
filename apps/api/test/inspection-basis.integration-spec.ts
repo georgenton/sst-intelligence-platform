@@ -112,8 +112,18 @@ describe('Inspection Basis V2 integration', () => {
       .send({
         ...composition,
         technicalSources: [
-          ...composition.technicalSources,
-          { standardVersionId: standardA, role: 'PRIMARY_TECHNICAL', displayOrder: 3 },
+          { standardVersionId: standardA, role: 'PRIMARY_TECHNICAL', displayOrder: 1 },
+          { standardVersionId: standardB, role: 'PRIMARY_TECHNICAL', displayOrder: 2 },
+        ],
+      })
+      .expect(400);
+    await api(ownerA.token, orgA.id)
+      .post('/inspection-bases')
+      .send({
+        ...composition,
+        technicalSources: [
+          { standardVersionId: standardA, role: 'PRIMARY_TECHNICAL', displayOrder: 1 },
+          { standardVersionId: standardA, role: 'SUPPLEMENTAL_TECHNICAL', displayOrder: 2 },
         ],
       })
       .expect(400);
@@ -222,5 +232,41 @@ describe('Inspection Basis V2 integration', () => {
       0,
     );
     await api(ownerB.token, orgB.id).get('/inspection-bases/active/ELECTRICAL').expect(404);
+
+    const [concurrentDraftA, concurrentDraftB] = await Promise.all([
+      api(ownerA.token, orgA.id)
+        .post('/inspection-bases')
+        .send({
+          name: `Base concurrente A ${suffix}`,
+          inspectionDomain: 'ELECTRICAL',
+          technicalSources: [
+            { standardVersionId: standardA, role: 'PRIMARY_TECHNICAL', displayOrder: 1 },
+          ],
+        })
+        .expect(201),
+      api(ownerA.token, orgA.id)
+        .post('/inspection-bases')
+        .send({
+          name: `Base concurrente B ${suffix}`,
+          inspectionDomain: 'ELECTRICAL',
+          technicalSources: [
+            { standardVersionId: standardB, role: 'PRIMARY_TECHNICAL', displayOrder: 1 },
+          ],
+        })
+        .expect(201),
+    ]);
+    await Promise.all([
+      api(ownerA.token, orgA.id)
+        .post(`/inspection-bases/versions/${concurrentDraftA.body.id as string}/activate`)
+        .expect(201),
+      api(ownerA.token, orgA.id)
+        .post(`/inspection-bases/versions/${concurrentDraftB.body.id as string}/activate`)
+        .expect(201),
+    ]);
+    expect(
+      await prisma.inspectionBasisVersion.count({
+        where: { organizationId: orgA.id, inspectionDomain: 'ELECTRICAL', status: 'ACTIVE' },
+      }),
+    ).toBe(1);
   });
 });

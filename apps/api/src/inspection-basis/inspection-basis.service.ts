@@ -205,7 +205,12 @@ export class InspectionBasisService {
           data: { status: 'ACTIVE' },
         });
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      {
+        // The organization row is the activation mutex. READ COMMITTED lets a concurrent waiter
+        // observe the winner after acquiring that lock instead of failing on a stale serializable
+        // snapshot; the partial unique index remains the final database invariant.
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+      },
     );
     return this.getVersion(organizationId, versionId);
   }

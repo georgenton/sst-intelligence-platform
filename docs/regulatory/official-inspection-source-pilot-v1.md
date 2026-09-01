@@ -23,3 +23,33 @@ standard content.
 
 RETIE, REBT and CLP are never presented as Ecuadorian law. RTQ is never generalized beyond Quito.
 No source is represented as selected or approved by Anita.
+
+## Verified official provenance
+
+- **RETIE:** Ministerio de Minas y Energía de Colombia, official RETIE page. The current page
+  identifies **Resolución 40284 del 23 de junio de 2026** as the latest modification and publishes
+  the regulation in four books. The pilot stores the official page locator and metadata only; it
+  does not ingest the books.
+- **REBT:** **Real Decreto 842/2002**, BOE-A-2002-18099, Spain. BOE labels its consolidated text as
+  informational and without legal value of its own; the pilot does not claim Ecuador applicability.
+- **RTQ:** Cuerpo de Bomberos del Distrito Metropolitano de Quito, official Normativa Técnica page,
+  RTQ 1 and RTQ 4 under Resolución ADMQ 017-2026. Its boundary is `EC-UIO`, not national Ecuador.
+- **CLP:** Regulation (EC) No 1272/2008, CELEX 32008R1272. V1 stores metadata only and exposes no
+  executable criterion.
+
+## Executable pilot criteria inventory
+
+All wording below is original platform-authored safety wording, not an official quotation. The
+locator identifies the source context used for professional review; it does not turn the wording
+into a legal requirement.
+
+| Source | Code                         | Short title                                              | Source locator                                           | Wording           |
+| ------ | ---------------------------- | -------------------------------------------------------- | -------------------------------------------------------- | ----------------- |
+| RETIE  | `RETIE-PILOT-ENCLOSURE`      | Cerramientos íntegros y sin partes energizadas expuestas | Official RETIE page · Resolución 40284, 23 June 2026     | Platform-authored |
+| RETIE  | `RETIE-PILOT-IDENTIFICATION` | Identificación operativa visible                         | Official RETIE page · Resolución 40284, Book 3 reference | Platform-authored |
+| REBT   | `REBT-PILOT-PROTECTION`      | Protecciones identificadas y accesibles                  | BOE-A-2002-18099 · informational consolidated text       | Platform-authored |
+| REBT   | `REBT-PILOT-VISIBLE-DAMAGE`  | Ausencia de daño material visible                        | BOE-A-2002-18099 · informational consolidated text       | Platform-authored |
+| RTQ    | `RTQ1-PILOT-ACCESS`          | Acceso visible a controles de respuesta                  | Bomberos Quito · Normativa Técnica · RTQ 1               | Platform-authored |
+| RTQ    | `RTQ4-PILOT-IDENTIFICATION`  | Identificación de áreas con materiales peligrosos        | Bomberos Quito · Normativa Técnica · RTQ 4               | Platform-authored |
+
+Counts: RETIE=2, REBT=2, RTQ=2, CLP=0.

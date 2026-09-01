@@ -383,7 +383,41 @@ export class ConversationalActionRegistryService {
       : null;
     const regulatoryLinks =
       basis?.criterionRegulatoryLinks.filter(({ criterion }) => criterion.id === criterionId) ?? [];
+    const technicalSources = basis?.technicalSources ?? [];
+    const primarySource = technicalSources.find(({ role }) => role === 'PRIMARY_TECHNICAL');
+    const supplementalSources = technicalSources.filter(
+      ({ role }) => role === 'SUPPLEMENTAL_TECHNICAL',
+    );
+    const internalSources = technicalSources.filter(({ role }) => role === 'INTERNAL_ORGANIZATION');
+    const technicalCitations: ConversationalCitation[] = technicalSources.map(
+      ({ role, standardVersion }) => ({
+        type: 'INSPECTION_STANDARD_VERSION',
+        referenceId: standardVersion.id,
+        label: `${standardVersion.source.name} · ${standardVersion.editionLabel}`,
+        sourceSnapshot: {
+          role,
+          jurisdiction: standardVersion.source.originCountry,
+          referenceUrl: standardVersion.source.referenceUrl,
+          rightsType: standardVersion.source.rightsType,
+        },
+      }),
+    );
+    if (!basis) {
+      technicalCitations.push({
+        type: 'INSPECTION_STANDARD_VERSION',
+        referenceId: result.criterion.standardVersion.id,
+        label: `${result.criterion.standardVersion.source.name} · ${result.criterion.standardVersion.editionLabel}`,
+        sourceSnapshot: {
+          role: 'PRIMARY_TECHNICAL',
+          legacyDirectStandard: true,
+          jurisdiction: result.criterion.standardVersion.source.originCountry,
+          referenceUrl: result.criterion.standardVersion.source.referenceUrl,
+          rightsType: result.criterion.standardVersion.source.rightsType,
+        },
+      });
+    }
     const citations: ConversationalCitation[] = [
+      ...(basis ? this.basisCitations(basis).slice(0, 1) : []),
       {
         type: 'INSPECTION_STANDARD_CRITERION',
         referenceId: result.criterion.id,
@@ -394,24 +428,53 @@ export class ConversationalActionRegistryService {
           standardVersionId: result.criterion.standardVersionId,
         },
       },
-      {
-        type: 'INSPECTION_STANDARD_VERSION',
-        referenceId: result.criterion.standardVersion.id,
-        label: `${result.criterion.standardVersion.source.name} · ${result.criterion.standardVersion.editionLabel}`,
-        sourceSnapshot: {
-          jurisdiction: result.criterion.standardVersion.source.originCountry,
-          referenceUrl: result.criterion.standardVersion.source.referenceUrl,
-          rightsType: result.criterion.standardVersion.source.rightsType,
-        },
-      },
-      ...regulatoryLinks.map(({ regulatoryUnit }) => this.regulatoryCitation(regulatoryUnit)),
+      ...technicalCitations,
+      ...regulatoryLinks.map(({ regulatoryUnit }) =>
+        this.regulatoryCitation(regulatoryUnit, 'LEGAL_CONTEXT'),
+      ),
     ];
-    if (basis) citations.unshift(...this.basisCitations(basis).slice(0, 1));
     return {
       summary: provenanceOnly
         ? 'Esta explicación usa únicamente las relaciones de procedencia almacenadas.'
         : `${result.criterion.title} Resultado actual: ${humanState(result.outcome)}.`,
-      data: { result, regulatoryLinks, semanticBoundary: 'STORED_RELATIONSHIPS_ONLY' },
+      data: {
+        result,
+        regulatoryLinks,
+        provenance: {
+          criterion: {
+            code: result.criterion.code,
+            asks: result.criterion.title,
+            guidance: result.criterion.guidance,
+            sourceLocator: result.criterion.sourceLocator,
+          },
+          technicalPrimary: primarySource
+            ? this.technicalSourceProvenance(primarySource)
+            : {
+                role: 'PRIMARY_TECHNICAL',
+                legacyDirectStandard: true,
+                versionId: result.criterion.standardVersion.id,
+                name: result.criterion.standardVersion.source.name,
+                edition: result.criterion.standardVersion.editionLabel,
+                jurisdiction: result.criterion.standardVersion.source.originCountry,
+                referenceUrl: result.criterion.standardVersion.source.referenceUrl,
+              },
+          technicalSupplemental: supplementalSources.map((source) =>
+            this.technicalSourceProvenance(source),
+          ),
+          legalContext: regulatoryLinks.map(({ regulatoryUnit }) => ({
+            role: 'LEGAL_CONTEXT',
+            unitId: regulatoryUnit.id,
+            identifier: regulatoryUnit.identifier,
+            locator: regulatoryUnit.locator,
+            source: regulatoryUnit.sourceVersion.source.canonicalTitle,
+            jurisdiction: regulatoryUnit.sourceVersion.source.countryCode,
+          })),
+          internalOrganization: internalSources.map((source) =>
+            this.technicalSourceProvenance(source),
+          ),
+        },
+        semanticBoundary: 'STORED_RELATIONSHIPS_ONLY',
+      },
       citations,
       resultReference: { type: 'INSPECTION_STANDARD_CRITERION', id: criterionId },
     };
@@ -803,13 +866,13 @@ export class ConversationalActionRegistryService {
         deepLink: `/app/settings/inspection-bases?version=${inspection.inspectionBasisVersion.id}`,
         sourceSnapshot: inspection.inspectionBasisSnapshot,
       });
-      for (const { standardVersion } of inspection.inspectionBasisVersion.technicalSources) {
+      for (const { role, standardVersion } of inspection.inspectionBasisVersion.technicalSources) {
         citations.push({
           type: 'INSPECTION_STANDARD_VERSION',
           referenceId: standardVersion.id,
           label: `${standardVersion.source.name} · ${standardVersion.editionLabel}`,
           sourceSnapshot: {
-            role: 'TECHNICAL_SOURCE',
+            role,
             jurisdiction: standardVersion.source.originCountry,
             referenceUrl: standardVersion.source.referenceUrl,
           },
@@ -817,7 +880,7 @@ export class ConversationalActionRegistryService {
       }
       citations.push(
         ...inspection.inspectionBasisVersion.regulatoryUnits.map(({ regulatoryUnit }) =>
-          this.regulatoryCitation(regulatoryUnit),
+          this.regulatoryCitation(regulatoryUnit, 'LEGAL_CONTEXT'),
         ),
       );
     } else if (inspection.standardVersion) {
@@ -844,32 +907,61 @@ export class ConversationalActionRegistryService {
           semanticBoundary: basis.semanticBoundary,
         },
       },
-      ...basis.technicalSources.map(({ standardVersion }) => ({
+      ...basis.technicalSources.map(({ role, standardVersion }) => ({
         type: 'INSPECTION_STANDARD_VERSION' as const,
         referenceId: standardVersion.id,
         label: `${standardVersion.source.name} · ${standardVersion.editionLabel}`,
         sourceSnapshot: {
+          role,
           jurisdiction: standardVersion.source.originCountry,
           referenceUrl: standardVersion.source.referenceUrl,
           rightsType: standardVersion.source.rightsType,
         },
       })),
-      ...basis.regulatoryUnits.map(({ regulatoryUnit }) => this.regulatoryCitation(regulatoryUnit)),
+      ...basis.regulatoryUnits.map(({ regulatoryUnit }) =>
+        this.regulatoryCitation(regulatoryUnit, 'LEGAL_CONTEXT'),
+      ),
     ];
   }
 
-  private regulatoryCitation(unit: {
-    id: string;
-    identifier: string;
-    locator: string;
-    sourceVersion: { source: { canonicalTitle: string; countryCode?: string | null } };
-  }): ConversationalCitation {
+  private technicalSourceProvenance(source: {
+    role: string;
+    standardVersion: {
+      id: string;
+      editionLabel: string;
+      source: {
+        name: string;
+        originCountry: string | null;
+        referenceUrl: string | null;
+      };
+    };
+  }) {
+    return {
+      role: source.role,
+      versionId: source.standardVersion.id,
+      name: source.standardVersion.source.name,
+      edition: source.standardVersion.editionLabel,
+      jurisdiction: source.standardVersion.source.originCountry,
+      referenceUrl: source.standardVersion.source.referenceUrl,
+    };
+  }
+
+  private regulatoryCitation(
+    unit: {
+      id: string;
+      identifier: string;
+      locator: string;
+      sourceVersion: { source: { canonicalTitle: string; countryCode?: string | null } };
+    },
+    role?: 'LEGAL_CONTEXT',
+  ): ConversationalCitation {
     return {
       type: 'REGULATORY_UNIT',
       referenceId: unit.id,
       label: `${unit.identifier} · ${unit.locator}`,
       deepLink: `/app/applicability/sources?unit=${unit.id}`,
       sourceSnapshot: {
+        ...(role ? { role } : {}),
         source: unit.sourceVersion.source.canonicalTitle,
         jurisdiction: unit.sourceVersion.source.countryCode ?? null,
       },
