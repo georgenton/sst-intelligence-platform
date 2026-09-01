@@ -116,3 +116,38 @@ export function isPpeReplacementDue(input: {
 export function ppeConditionRequiresReview(condition: string) {
   return condition === 'REVIEW_REQUIRED' || condition === 'UNSERVICEABLE';
 }
+
+export const TRAINING_SESSION_STATUSES = ['DRAFT', 'SCHEDULED', 'COMPLETED', 'CANCELLED'] as const;
+export type TrainingSessionStatus = (typeof TRAINING_SESSION_STATUSES)[number];
+
+const trainingSessionTransitions: Record<TrainingSessionStatus, readonly TrainingSessionStatus[]> =
+  {
+    DRAFT: ['SCHEDULED', 'CANCELLED'],
+    SCHEDULED: ['COMPLETED', 'CANCELLED'],
+    COMPLETED: [],
+    CANCELLED: [],
+  };
+
+export function assertTrainingSessionTransition(
+  from: TrainingSessionStatus,
+  to: TrainingSessionStatus,
+) {
+  if (!trainingSessionTransitions[from].includes(to)) {
+    throw new Error(`INVALID_TRAINING_SESSION_TRANSITION:${from}:${to}`);
+  }
+}
+
+export type WorkerCompetencyStatus = 'CURRENT' | 'DUE_SOON' | 'EXPIRED' | 'NOT_COMPLETED';
+
+export function deriveWorkerCompetencyStatus(input: {
+  completionExists: boolean;
+  validUntil: Date | null;
+  now: Date;
+  dueSoonDays?: number;
+}): WorkerCompetencyStatus {
+  if (!input.completionExists) return 'NOT_COMPLETED';
+  if (!input.validUntil) return 'CURRENT';
+  if (input.validUntil < input.now) return 'EXPIRED';
+  const boundary = new Date(input.now.getTime() + (input.dueSoonDays ?? 30) * 24 * 60 * 60 * 1000);
+  return input.validUntil <= boundary ? 'DUE_SOON' : 'CURRENT';
+}

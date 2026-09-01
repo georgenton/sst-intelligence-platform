@@ -61,6 +61,7 @@ const moduleLabels: Record<string, string> = {
   WORK_PERMITS: 'Permisos de trabajo',
   INCIDENTS: 'Incidentes',
   PPE: 'EPP',
+  TRAINING: 'Capacitación',
 };
 
 function formatDue(item: QueueItem) {

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  deriveWorkerCompetencyStatus,
   workQueuePriorityRank,
   type WorkQueueItemType,
   type WorkQueueModule,
@@ -7,6 +8,7 @@ import {
 import {
   INCIDENTS_FEATURE_KEY,
   PPE_FEATURE_KEY,
+  TRAINING_FEATURE_KEY,
   WORK_PERMITS_FEATURE_KEY,
 } from '../catalog/entitlement';
 import { EntitlementService } from '../catalog/entitlement.service';
@@ -54,6 +56,7 @@ export class WorkQueueService {
     const workPermitsEnabled = effectiveEntitlements.features[WORK_PERMITS_FEATURE_KEY] === true;
     const incidentsEnabled = effectiveEntitlements.features[INCIDENTS_FEATURE_KEY] === true;
     const ppeEnabled = effectiveEntitlements.features[PPE_FEATURE_KEY] === true;
+    const trainingEnabled = effectiveEntitlements.features[TRAINING_FEATURE_KEY] === true;
 
     const [
       actions,
@@ -66,6 +69,9 @@ export class WorkQueueService {
       incidentActions,
       ppeReplacements,
       ppeConditionReviews,
+      trainingRequirements,
+      trainingCompletions,
+      trainingSessions,
     ] = await Promise.all([
       moduleEnabled('INSPECTIONS')
         ? this.prisma.correctiveAction.findMany({
@@ -351,7 +357,134 @@ export class WorkQueueService {
             orderBy: { createdAt: 'desc' },
           })
         : [],
+      moduleEnabled('TRAINING') &&
+      trainingEnabled &&
+      !query.assignedToUserId &&
+      (!query.priority || query.priority === 'HIGH' || query.priority === 'MEDIUM')
+        ? this.prisma.workerCompetencyRequirement.findMany({
+            where: {
+              organizationId,
+              status: 'REQUIRED',
+              ...(query.workCenterId ? { worker: { workCenterId: query.workCenterId } } : {}),
+              ...(Object.keys(dueFilter).length ? { requiredByDate: dueFilter } : {}),
+            },
+            select: {
+              id: true,
+              reason: true,
+              requiredByDate: true,
+              status: true,
+              createdAt: true,
+              worker: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  workCenter: { select: { id: true, name: true } },
+                },
+              },
+              trainingDefinition: { select: { title: true } },
+              linkedRegulatoryRequirement: {
+                select: { title: true, editorialStatus: true },
+              },
+              linkedAssessment: {
+                select: {
+                  methodSnapshot: true,
+                  result: { select: { level: true } },
+                },
+              },
+            },
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+          })
+        : [],
+      moduleEnabled('TRAINING') &&
+      trainingEnabled &&
+      !query.assignedToUserId &&
+      (!query.priority || query.priority === 'HIGH' || query.priority === 'MEDIUM')
+        ? this.prisma.workerTrainingCompletion.findMany({
+            where: {
+              organizationId,
+              ...(query.workCenterId ? { worker: { workCenterId: query.workCenterId } } : {}),
+            },
+            select: {
+              id: true,
+              completedAt: true,
+              validUntil: true,
+              createdAt: true,
+              trainingDefinitionId: true,
+              workerId: true,
+              worker: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  workCenter: { select: { id: true, name: true } },
+                },
+              },
+              trainingDefinition: { select: { title: true } },
+              requirement: {
+                select: {
+                  linkedRegulatoryRequirement: {
+                    select: { title: true, editorialStatus: true },
+                  },
+                  linkedAssessment: {
+                    select: {
+                      methodSnapshot: true,
+                      result: { select: { level: true } },
+                    },
+                  },
+                },
+              },
+            },
+            take: limit,
+            orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
+          })
+        : [],
+      moduleEnabled('TRAINING') &&
+      trainingEnabled &&
+      !query.assignedToUserId &&
+      (!query.priority || query.priority === 'HIGH')
+        ? this.prisma.trainingSession.findMany({
+            where: {
+              organizationId,
+              status: 'SCHEDULED',
+              scheduledEnd: Object.keys(dueFilter).length ? dueFilter : { lt: now },
+              ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
+            },
+            select: {
+              id: true,
+              status: true,
+              scheduledEnd: true,
+              createdAt: true,
+              workCenter: { select: { id: true, name: true } },
+              trainingDefinition: { select: { title: true } },
+              _count: { select: { participants: true, completions: true } },
+            },
+            take: limit,
+            orderBy: { scheduledEnd: 'asc' },
+          })
+        : [],
     ]);
+
+    const latestTrainingCompletions = trainingCompletions
+      .filter(
+        (completion, index, all) =>
+          all.findIndex(
+            (candidate) =>
+              candidate.workerId === completion.workerId &&
+              candidate.trainingDefinitionId === completion.trainingDefinitionId,
+          ) === index,
+      )
+      .filter((completion) => {
+        const status = deriveWorkerCompetencyStatus({
+          completionExists: true,
+          validUntil: completion.validUntil,
+          now,
+        });
+        if (status !== 'DUE_SOON' && status !== 'EXPIRED') return false;
+        if (!completion.validUntil) return false;
+        if (query.dueFrom && completion.validUntil < new Date(query.dueFrom)) return false;
+        if (query.dueTo && completion.validUntil > new Date(query.dueTo)) return false;
+        return true;
+      });
 
     const items: QueueItem[] = [
       ...actions.map((action) => {
@@ -591,6 +724,109 @@ export class WorkQueueService {
           riskContext: null,
           createdAt: issue.inspections[0]!.createdAt,
         })),
+      ...trainingRequirements
+        .map((requirement) => {
+          const overdue = Boolean(
+            requirement.requiredByDate && requirement.requiredByDate.getTime() < now.getTime(),
+          );
+          const snapshot = requirement.linkedAssessment?.methodSnapshot as
+            { displayName?: string } | undefined;
+          return {
+            type: 'TRAINING_REQUIRED' as const,
+            sourceId: requirement.id,
+            organizationId,
+            workCenter: requirement.worker.workCenter,
+            title: `${requirement.trainingDefinition.title} · ${requirement.worker.displayName}`,
+            summary: requirement.reason,
+            status: requirement.status,
+            priority: overdue ? ('HIGH' as const) : ('MEDIUM' as const),
+            dueAt: requirement.requiredByDate,
+            overdue,
+            assignee: null,
+            origin: 'Requisito profesional de capacitación',
+            module: 'TRAINING' as const,
+            deepLink: `/app/workers/${requirement.worker.id}#training-requirement-${requirement.id}`,
+            regulatoryContext: requirement.linkedRegulatoryRequirement
+              ? {
+                  label: requirement.linkedRegulatoryRequirement.title,
+                  candidate:
+                    requirement.linkedRegulatoryRequirement.editorialStatus !==
+                    'APPROVED_FOR_RULE_DRAFTING',
+                }
+              : null,
+            riskContext: requirement.linkedAssessment
+              ? {
+                  method: snapshot?.displayName ?? 'Método de riesgo registrado',
+                  level: requirement.linkedAssessment.result?.level ?? null,
+                }
+              : null,
+            createdAt: requirement.createdAt,
+          };
+        })
+        .filter((item) => !query.priority || item.priority === query.priority),
+      ...latestTrainingCompletions
+        .map((completion) => {
+          const status = deriveWorkerCompetencyStatus({
+            completionExists: true,
+            validUntil: completion.validUntil,
+            now,
+          });
+          const regulatoryRequirement = completion.requirement?.linkedRegulatoryRequirement;
+          const assessment = completion.requirement?.linkedAssessment;
+          const snapshot = assessment?.methodSnapshot as { displayName?: string } | undefined;
+          return {
+            type: 'TRAINING_DUE' as const,
+            sourceId: completion.id,
+            organizationId,
+            workCenter: completion.worker.workCenter,
+            title: `${completion.trainingDefinition.title} · ${completion.worker.displayName}`,
+            summary:
+              status === 'EXPIRED'
+                ? 'La vigencia operativa registrada expiró; evalúa una renovación.'
+                : 'La vigencia operativa registrada se aproxima a su fecha de renovación.',
+            status,
+            priority: status === 'EXPIRED' ? ('HIGH' as const) : ('MEDIUM' as const),
+            dueAt: completion.validUntil,
+            overdue: status === 'EXPIRED',
+            assignee: null,
+            origin: 'Vigencia de capacitación',
+            module: 'TRAINING' as const,
+            deepLink: `/app/workers/${completion.worker.id}#training-completion-${completion.id}`,
+            regulatoryContext: regulatoryRequirement
+              ? {
+                  label: regulatoryRequirement.title,
+                  candidate: regulatoryRequirement.editorialStatus !== 'APPROVED_FOR_RULE_DRAFTING',
+                }
+              : null,
+            riskContext: assessment
+              ? {
+                  method: snapshot?.displayName ?? 'Método de riesgo registrado',
+                  level: assessment.result?.level ?? null,
+                }
+              : null,
+            createdAt: completion.createdAt,
+          };
+        })
+        .filter((item) => !query.priority || item.priority === query.priority),
+      ...trainingSessions.map((session) => ({
+        type: 'TRAINING_SESSION_FOLLOW_UP' as const,
+        sourceId: session.id,
+        organizationId,
+        workCenter: session.workCenter,
+        title: session.trainingDefinition.title,
+        summary: `La sesión terminó con ${session._count.participants} participante(s) y ${session._count.completions} completitud(es) registradas.`,
+        status: session.status,
+        priority: 'HIGH' as const,
+        dueAt: session.scheduledEnd,
+        overdue: session.scheduledEnd < now,
+        assignee: null,
+        origin: 'Seguimiento de sesión de capacitación',
+        module: 'TRAINING' as const,
+        deepLink: `/app/training/sessions/${session.id}`,
+        regulatoryContext: null,
+        riskContext: null,
+        createdAt: session.createdAt,
+      })),
     ];
 
     items.sort((left, right) => {

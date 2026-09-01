@@ -97,6 +97,10 @@ const statusLabels: Record<string, string> = {
   REPORTED: 'Reportado',
   UNDER_INVESTIGATION: 'En investigación',
   ACTIONS_IN_PROGRESS: 'Acciones en curso',
+  REQUIRED: 'Requerido',
+  DUE_SOON: 'Próximo a vencer',
+  EXPIRED: 'Vencido',
+  SCHEDULED: 'Programada',
 };
 
 const moduleLabels: Record<string, string> = {
@@ -107,6 +111,7 @@ const moduleLabels: Record<string, string> = {
   WORK_PERMITS: 'Permisos de trabajo',
   INCIDENTS: 'Incidentes',
   PPE: 'EPP',
+  TRAINING: 'Capacitación',
 };
 
 function errorMessage(error: unknown) {

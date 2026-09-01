@@ -117,6 +117,31 @@ enum PpeCondition {
   UNSERVICEABLE
 }
 
+enum TrainingRequirementStatus {
+  REQUIRED
+  FULFILLED
+  CANCELLED
+}
+
+enum TrainingSessionStatus {
+  DRAFT
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum TrainingMode {
+  IN_PERSON
+  VIRTUAL
+  HYBRID
+}
+
+enum TrainingAttendance {
+  PRESENT
+  ABSENT
+  PARTIAL
+}
+
 enum OrganizationInvitationStatus {
   PENDING
   ACCEPTED
@@ -731,11 +756,16 @@ model User {
   incidentActionsCreated       IncidentAction[]                              @relation("IncidentActionCreator")
   incidentActionsVerified      IncidentAction[]                              @relation("IncidentActionVerifier")
   incidentEvidenceCreated      IncidentEvidence[]                            @relation("IncidentEvidenceCreator")
-  ppeCatalogItemsCreated       PpeCatalogItem[]                               @relation("PpeCatalogItemCreator")
-  ppeRequirementsAssigned      WorkerPpeRequirement[]                         @relation("PpeRequirementAssigner")
-  ppeIssuesIssued              PpeIssue[]                                     @relation("PpeIssueIssuer")
-  ppeAcknowledgementsRecorded  PpeIssue[]                                     @relation("PpeAcknowledgementRecorder")
-  ppeInspectionsRecorded       PpeInspection[]                                @relation("PpeInspectionRecorder")
+  ppeCatalogItemsCreated       PpeCatalogItem[]                              @relation("PpeCatalogItemCreator")
+  ppeRequirementsAssigned      WorkerPpeRequirement[]                        @relation("PpeRequirementAssigner")
+  ppeIssuesIssued              PpeIssue[]                                    @relation("PpeIssueIssuer")
+  ppeAcknowledgementsRecorded  PpeIssue[]                                    @relation("PpeAcknowledgementRecorder")
+  ppeInspectionsRecorded       PpeInspection[]                               @relation("PpeInspectionRecorder")
+  trainingDefinitionsCreated   TrainingDefinition[]                          @relation("TrainingDefinitionCreator")
+  trainingRequirementsAssigned WorkerCompetencyRequirement[]                 @relation("TrainingRequirementAssigner")
+  trainingSessionsCreated      TrainingSession[]                             @relation("TrainingSessionCreator")
+  trainingAttendanceRecorded   TrainingParticipant[]                         @relation("TrainingAttendanceRecorder")
+  trainingCompletionsRecorded  WorkerTrainingCompletion[]                    @relation("TrainingCompletionRecorder")
 }
 
 model RefreshSession {
@@ -827,6 +857,11 @@ model Organization {
   ppeRequirements            WorkerPpeRequirement[]
   ppeIssues                  PpeIssue[]
   ppeInspections             PpeInspection[]
+  trainingDefinitions        TrainingDefinition[]
+  trainingRequirements       WorkerCompetencyRequirement[]
+  trainingSessions           TrainingSession[]
+  trainingParticipants       TrainingParticipant[]
+  trainingCompletions        WorkerTrainingCompletion[]
 }
 
 model WorkCenter {
@@ -849,34 +884,38 @@ model WorkCenter {
   workers              Worker[]
   incidents            Incident[]
   ppeRequirements      WorkerPpeRequirement[]
+  trainingSessions     TrainingSession[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
 }
 
 model Worker {
-  id             String       @id @default(uuid()) @db.Uuid
-  organizationId String       @db.Uuid
-  displayName    String       @db.VarChar(200)
-  internalCode   String?      @db.VarChar(80)
-  status         WorkerStatus @default(ACTIVE)
-  workCenterId   String?      @db.Uuid
-  jobTitle       String?      @db.VarChar(200)
-  linkedUserId   String?      @db.Uuid
-  startDate      DateTime?    @db.Date
-  endDate        DateTime?    @db.Date
-  notes          String?      @db.VarChar(2000)
-  createdById    String       @db.Uuid
-  version        Int          @default(1)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  workCenter     WorkCenter?  @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
-  linkedUser     User?        @relation("WorkerLinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
-  createdBy      User         @relation("WorkerCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  incidentLinks  IncidentWorker[]
-  ppeRequirements WorkerPpeRequirement[]
-  ppeIssues       PpeIssue[]
+  id                   String                        @id @default(uuid()) @db.Uuid
+  organizationId       String                        @db.Uuid
+  displayName          String                        @db.VarChar(200)
+  internalCode         String?                       @db.VarChar(80)
+  status               WorkerStatus                  @default(ACTIVE)
+  workCenterId         String?                       @db.Uuid
+  jobTitle             String?                       @db.VarChar(200)
+  linkedUserId         String?                       @db.Uuid
+  startDate            DateTime?                     @db.Date
+  endDate              DateTime?                     @db.Date
+  notes                String?                       @db.VarChar(2000)
+  createdById          String                        @db.Uuid
+  version              Int                           @default(1)
+  createdAt            DateTime                      @default(now())
+  updatedAt            DateTime                      @updatedAt
+  organization         Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  workCenter           WorkCenter?                   @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  linkedUser           User?                         @relation("WorkerLinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  createdBy            User                          @relation("WorkerCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  incidentLinks        IncidentWorker[]
+  ppeRequirements      WorkerPpeRequirement[]
+  ppeIssues            PpeIssue[]
+  trainingRequirements WorkerCompetencyRequirement[]
+  trainingParticipants TrainingParticipant[]
+  trainingCompletions  WorkerTrainingCompletion[]
 
   @@unique([organizationId, internalCode])
   @@unique([organizationId, linkedUserId])
@@ -886,34 +925,34 @@ model Worker {
 }
 
 model Incident {
-  id                 String             @id @default(uuid()) @db.Uuid
-  organizationId     String             @db.Uuid
-  workCenterId       String             @db.Uuid
-  occurredAt         DateTime
-  reportedAt         DateTime?
-  reportedByUserId   String             @db.Uuid
-  title              String             @db.VarChar(200)
-  description        String             @db.VarChar(4000)
-  eventType          IncidentEventType
-  status             IncidentStatus     @default(DRAFT)
-  activityContext    String?            @db.VarChar(1000)
-  linkedInspectionId String?            @db.Uuid
-  linkedFindingId    String?            @db.Uuid
-  linkedAssessmentId String?            @db.Uuid
-  version            Int                @default(1)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  workCenter         WorkCenter         @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
-  reportedBy         User               @relation("IncidentReporter", fields: [reportedByUserId], references: [id], onDelete: Restrict)
-  linkedInspection   Inspection?        @relation(fields: [linkedInspectionId], references: [id], onDelete: Restrict)
-  linkedFinding      InspectionFinding? @relation(fields: [linkedFindingId], references: [id], onDelete: Restrict)
-  linkedAssessment   TechnicalAssessment? @relation(fields: [linkedAssessmentId], references: [id], onDelete: Restrict)
-  involvedWorkers    IncidentWorker[]
-  investigation      IncidentInvestigation?
+  id                  String                       @id @default(uuid()) @db.Uuid
+  organizationId      String                       @db.Uuid
+  workCenterId        String                       @db.Uuid
+  occurredAt          DateTime
+  reportedAt          DateTime?
+  reportedByUserId    String                       @db.Uuid
+  title               String                       @db.VarChar(200)
+  description         String                       @db.VarChar(4000)
+  eventType           IncidentEventType
+  status              IncidentStatus               @default(DRAFT)
+  activityContext     String?                      @db.VarChar(1000)
+  linkedInspectionId  String?                      @db.Uuid
+  linkedFindingId     String?                      @db.Uuid
+  linkedAssessmentId  String?                      @db.Uuid
+  version             Int                          @default(1)
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  organization        Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  workCenter          WorkCenter                   @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  reportedBy          User                         @relation("IncidentReporter", fields: [reportedByUserId], references: [id], onDelete: Restrict)
+  linkedInspection    Inspection?                  @relation(fields: [linkedInspectionId], references: [id], onDelete: Restrict)
+  linkedFinding       InspectionFinding?           @relation(fields: [linkedFindingId], references: [id], onDelete: Restrict)
+  linkedAssessment    TechnicalAssessment?         @relation(fields: [linkedAssessmentId], references: [id], onDelete: Restrict)
+  involvedWorkers     IncidentWorker[]
+  investigation       IncidentInvestigation?
   contributingFactors IncidentContributingFactor[]
-  actions            IncidentAction[]
-  evidence           IncidentEvidence[]
+  actions             IncidentAction[]
+  evidence            IncidentEvidence[]
 
   @@index([organizationId, status, occurredAt])
   @@index([organizationId, workCenterId, status])
@@ -1023,21 +1062,21 @@ model IncidentEvidence {
 }
 
 model PpeCatalogItem {
-  id                             String           @id @default(uuid()) @db.Uuid
-  organizationId                 String           @db.Uuid
-  name                           String           @db.VarChar(200)
+  id                             String                 @id @default(uuid()) @db.Uuid
+  organizationId                 String                 @db.Uuid
+  name                           String                 @db.VarChar(200)
   category                       PpeCategory
-  description                    String?          @db.VarChar(2000)
-  manufacturerModel              String?          @db.VarChar(200)
-  referenceStandard              String?          @db.VarChar(300)
+  description                    String?                @db.VarChar(2000)
+  manufacturerModel              String?                @db.VarChar(200)
+  referenceStandard              String?                @db.VarChar(300)
   defaultReplacementIntervalDays Int?
-  status                         PpeCatalogStatus @default(ACTIVE)
-  createdById                    String           @db.Uuid
-  version                        Int              @default(1)
-  createdAt                      DateTime         @default(now())
-  updatedAt                      DateTime         @updatedAt
-  organization                   Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  createdBy                      User             @relation("PpeCatalogItemCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  status                         PpeCatalogStatus       @default(ACTIVE)
+  createdById                    String                 @db.Uuid
+  version                        Int                    @default(1)
+  createdAt                      DateTime               @default(now())
+  updatedAt                      DateTime               @updatedAt
+  organization                   Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy                      User                   @relation("PpeCatalogItemCreator", fields: [createdById], references: [id], onDelete: Restrict)
   requirements                   WorkerPpeRequirement[]
   issues                         PpeIssue[]
 
@@ -1129,6 +1168,139 @@ model PpeInspection {
 
   @@index([organizationId, issueId, inspectedAt])
   @@index([organizationId, condition, inspectedAt])
+}
+
+model TrainingDefinition {
+  id             String                        @id @default(uuid()) @db.Uuid
+  organizationId String                        @db.Uuid
+  title          String                        @db.VarChar(240)
+  description    String?                       @db.VarChar(2000)
+  category       String                        @db.VarChar(120)
+  validityDays   Int?
+  isActive       Boolean                       @default(true)
+  createdById    String                        @db.Uuid
+  version        Int                           @default(1)
+  createdAt      DateTime                      @default(now())
+  updatedAt      DateTime                      @updatedAt
+  organization   Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy      User                          @relation("TrainingDefinitionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  requirements   WorkerCompetencyRequirement[]
+  sessions       TrainingSession[]
+  completions    WorkerTrainingCompletion[]
+
+  @@unique([organizationId, title])
+  @@index([organizationId, isActive, category])
+}
+
+model WorkerCompetencyRequirement {
+  id                            String                     @id @default(uuid()) @db.Uuid
+  organizationId                String                     @db.Uuid
+  workerId                      String                     @db.Uuid
+  trainingDefinitionId          String                     @db.Uuid
+  linkedAssessmentId            String?                    @db.Uuid
+  linkedRegulatoryRequirementId String?                    @db.Uuid
+  reason                        String                     @db.VarChar(2000)
+  requiredByDate                DateTime?                  @db.Date
+  renewalRequired               Boolean                    @default(true)
+  status                        TrainingRequirementStatus  @default(REQUIRED)
+  assignedById                  String                     @db.Uuid
+  assignedAt                    DateTime                   @default(now())
+  fulfilledAt                   DateTime?
+  version                       Int                        @default(1)
+  createdAt                     DateTime                   @default(now())
+  updatedAt                     DateTime                   @updatedAt
+  organization                  Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  worker                        Worker                     @relation(fields: [workerId], references: [id], onDelete: Restrict)
+  trainingDefinition            TrainingDefinition         @relation(fields: [trainingDefinitionId], references: [id], onDelete: Restrict)
+  linkedAssessment              TechnicalAssessment?       @relation(fields: [linkedAssessmentId], references: [id], onDelete: Restrict)
+  linkedRegulatoryRequirement   RegulatoryRequirement?     @relation(fields: [linkedRegulatoryRequirementId], references: [id], onDelete: Restrict)
+  assignedBy                    User                       @relation("TrainingRequirementAssigner", fields: [assignedById], references: [id], onDelete: Restrict)
+  completions                   WorkerTrainingCompletion[]
+
+  @@index([organizationId, workerId, status, requiredByDate])
+  @@index([organizationId, trainingDefinitionId, status])
+  @@index([organizationId, linkedAssessmentId])
+  @@index([organizationId, linkedRegulatoryRequirementId])
+}
+
+model TrainingSession {
+  id                   String                     @id @default(uuid()) @db.Uuid
+  organizationId       String                     @db.Uuid
+  trainingDefinitionId String                     @db.Uuid
+  workCenterId         String?                    @db.Uuid
+  scheduledStart       DateTime
+  scheduledEnd         DateTime
+  status               TrainingSessionStatus      @default(DRAFT)
+  instructorName       String?                    @db.VarChar(200)
+  location             String?                    @db.VarChar(300)
+  mode                 TrainingMode
+  createdById          String                     @db.Uuid
+  version              Int                        @default(1)
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  organization         Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  trainingDefinition   TrainingDefinition         @relation(fields: [trainingDefinitionId], references: [id], onDelete: Restrict)
+  workCenter           WorkCenter?                @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  createdBy            User                       @relation("TrainingSessionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  participants         TrainingParticipant[]
+  completions          WorkerTrainingCompletion[]
+
+  @@index([organizationId, status, scheduledStart])
+  @@index([organizationId, workCenterId, status])
+}
+
+model TrainingParticipant {
+  id                     String                    @id @default(uuid()) @db.Uuid
+  organizationId         String                    @db.Uuid
+  sessionId              String                    @db.Uuid
+  workerId               String                    @db.Uuid
+  enrolledAt             DateTime                  @default(now())
+  attendance             TrainingAttendance?
+  attendanceRecordedAt   DateTime?
+  attendanceRecordedById String?                   @db.Uuid
+  attendanceEvidenceNote String?                   @db.VarChar(2000)
+  attendanceEvidenceUrl  String?                   @db.VarChar(2000)
+  version                Int                       @default(1)
+  organization           Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  session                TrainingSession           @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  worker                 Worker                    @relation(fields: [workerId], references: [id], onDelete: Restrict)
+  attendanceRecordedBy   User?                     @relation("TrainingAttendanceRecorder", fields: [attendanceRecordedById], references: [id], onDelete: Restrict)
+  completion             WorkerTrainingCompletion?
+
+  @@unique([sessionId, workerId])
+  @@index([organizationId, workerId, attendance])
+  @@index([organizationId, sessionId, attendance])
+}
+
+model WorkerTrainingCompletion {
+  id                   String                       @id @default(uuid()) @db.Uuid
+  organizationId       String                       @db.Uuid
+  workerId             String                       @db.Uuid
+  trainingDefinitionId String                       @db.Uuid
+  sessionId            String                       @db.Uuid
+  participantId        String                       @unique @db.Uuid
+  requirementId        String?                      @db.Uuid
+  completedAt          DateTime
+  completionNote       String?                      @db.VarChar(2000)
+  certificateReference String?                      @db.VarChar(300)
+  evidenceUrl          String?                      @db.VarChar(2000)
+  validUntil           DateTime?                    @db.Date
+  recordedById         String                       @db.Uuid
+  renewsCompletionId   String?                      @unique @db.Uuid
+  createdAt            DateTime                     @default(now())
+  organization         Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  worker               Worker                       @relation(fields: [workerId], references: [id], onDelete: Restrict)
+  trainingDefinition   TrainingDefinition           @relation(fields: [trainingDefinitionId], references: [id], onDelete: Restrict)
+  session              TrainingSession              @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  participant          TrainingParticipant          @relation(fields: [participantId], references: [id], onDelete: Restrict)
+  requirement          WorkerCompetencyRequirement? @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  recordedBy           User                         @relation("TrainingCompletionRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+  renewsCompletion     WorkerTrainingCompletion?    @relation("TrainingCompletionRenewal", fields: [renewsCompletionId], references: [id], onDelete: Restrict)
+  renewedByCompletion  WorkerTrainingCompletion?    @relation("TrainingCompletionRenewal")
+
+  @@index([organizationId, workerId, validUntil])
+  @@index([organizationId, sessionId, completedAt])
+  @@index([organizationId, trainingDefinitionId, validUntil])
 }
 
 model WorkArea {
@@ -1819,6 +1991,7 @@ model TechnicalAssessment {
   regulatoryLinks         TechnicalAssessmentRegulatoryLink[]
   incidents               Incident[]
   ppeRequirements         WorkerPpeRequirement[]
+  trainingRequirements    WorkerCompetencyRequirement[]
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, workCenterId])
@@ -2147,6 +2320,7 @@ model RegulatoryRequirement {
   findingLinks            InspectionFindingRegulatoryLink[]
   technicalLinks          TechnicalAssessmentRegulatoryLink[]
   obligationExecutions    ObligationExecution[]
+  trainingRequirements    WorkerCompetencyRequirement[]
 
   @@index([editorialStatus, createdAt])
   @@index([scopeHint])

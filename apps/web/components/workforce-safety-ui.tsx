@@ -10,6 +10,7 @@ import { queryKeys } from '@/lib/query-keys';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
 import { WorkerPpePanel } from './ppe-ui';
+import { WorkerTrainingPanel } from './training-ui';
 import {
   ContextSummary,
   WorkspaceHeader,
@@ -427,11 +428,7 @@ export function WorkerWorkspace({ workerId }: { workerId: string }) {
             </p>
           </WorkspaceSection>
           <WorkerPpePanel workerId={data.id} workerStatus={data.status} />
-          <WorkspaceSection title="Capacitación" eyebrow="Competencia">
-            <p>
-              Requisitos, vigencias y renovaciones se mostrarán sin emitir una certificación legal.
-            </p>
-          </WorkspaceSection>
+          <WorkerTrainingPanel workerId={data.id} workerStatus={data.status} />
         </WorkspaceMain>
         <WorkspaceInspector label="Contexto del trabajador">
           <section>

@@ -29,6 +29,27 @@ async function prepareDemoRegistration(page: Page) {
   return sessionId;
 }
 
+async function horizontalOverflowSources(page: Page) {
+  return page.locator('body *').evaluateAll((elements) => {
+    const width = document.documentElement.clientWidth;
+    return elements
+      .map((element) => ({
+        element,
+        rect: element.getBoundingClientRect(),
+      }))
+      .filter(({ rect }) => rect.right > width + 1 || rect.left < -1)
+      .map(({ element, rect }) => ({
+        tag: element.tagName,
+        className: element.className,
+        text: element.textContent?.trim().slice(0, 100),
+        left: Math.round(rect.left),
+        right: Math.round(rect.right),
+        viewport: width,
+      }))
+      .slice(0, 12);
+  });
+}
+
 test.describe.serial('workforce safety operations', () => {
   test('registra y desactiva un trabajador sin consumir un asiento de acceso', async ({ page }) => {
     test.setTimeout(120_000);
@@ -68,9 +89,8 @@ test.describe.serial('workforce safety operations', () => {
 
     for (const width of [320, 640]) {
       await page.setViewportSize({ width, height: 844 });
-      expect(
-        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-      ).toBe(true);
+      const overflow = await horizontalOverflowSources(page);
+      expect(overflow, JSON.stringify(overflow, null, 2)).toEqual([]);
     }
 
     await page.getByRole('button', { name: 'Desactivar trabajador' }).click();
@@ -286,6 +306,151 @@ test.describe.serial('workforce safety operations', () => {
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       ).toBe(true);
+    }
+  });
+
+  test('gestiona capacitación desde el requisito hasta la vigencia y renovación', async ({
+    page,
+  }) => {
+    test.setTimeout(300_000);
+    const suffix = Date.now();
+    const email = `training-owner-${suffix}@example.test`;
+    const password = 'training-e2e-password-strong-123';
+    const workerName = `Operadora Capacitación ${suffix}`;
+    const trainingTitle = `Trabajo seguro interno ${suffix}`;
+    const diagnosticSessionId = await prepareDemoRegistration(page);
+    const registration = await registerE2eUser({
+      displayName: 'Owner Capacitación E2E',
+      email,
+      password,
+    });
+    expect(registration.statusCode, registration.body).toBe(201);
+
+    await page.goto(`/auth/login?sessionId=${encodeURIComponent(diagnosticSessionId)}`);
+    await page.getByLabel('Correo').fill(email);
+    await page.getByLabel('Contraseña').fill(password);
+    await page.getByRole('button', { name: 'Entrar' }).click();
+    await page.getByLabel('Nombre de empresa').fill(`Organización Capacitación ${suffix}`);
+    await page.getByLabel('Sector').fill('Operación industrial sintética');
+    await page.getByRole('button', { name: 'Crear y activar demo' }).click();
+    await expect(page.getByText(/Demostración conceptual activa/)).toBeVisible();
+
+    await page.getByRole('link', { name: 'Personas / Trabajadores', exact: true }).click();
+    await page.getByLabel('Nombre para la operación').fill(workerName);
+    await page.getByLabel('Centro de trabajo asignado').selectOption({ index: 1 });
+    await page.getByLabel('Cargo o función').fill('Operadora de proceso');
+    await page.getByRole('button', { name: 'Registrar trabajador' }).click();
+    await expect(
+      page.getByText('Trabajador registrado sin crear un asiento de acceso.'),
+    ).toBeVisible();
+
+    await page.getByRole('link', { name: 'Capacitación', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Capacitación', exact: true })).toBeVisible();
+    await page.getByLabel('Título').fill(trainingTitle);
+    await page.getByLabel('Categoría interna').fill('Seguridad operativa');
+    await page
+      .getByLabel('Descripción')
+      .fill('Definición interna sintética sin afirmar una obligación legal.');
+    await page.getByLabel('Vigencia operativa (días)').fill('30');
+    await page.getByRole('button', { name: 'Crear definición' }).click();
+    await expect(page.getByText('Definición interna creada.')).toBeVisible();
+
+    await page.getByRole('link', { name: 'Personas / Trabajadores', exact: true }).click();
+    const workerRow = page.locator('article').filter({ hasText: workerName });
+    await workerRow.getByRole('link', { name: 'Abrir espacio de trabajo' }).click();
+    await page.getByLabel('Capacitación requerida').selectOption({ label: trainingTitle });
+    await page
+      .getByLabel('Motivo profesional', { exact: true })
+      .fill('Necesidad profesional interna para una tarea sintética.');
+    await page.getByLabel('Fecha requerida').fill('2026-01-15');
+    await page.getByRole('button', { name: 'Añadir requisito de capacitación' }).click();
+    await expect(page.getByText('Requisito registrado.')).toBeVisible();
+    await expect(page.getByText('No completada', { exact: true })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Capacitación', exact: true }).click();
+    await page.getByLabel('Centro de trabajo').selectOption({ index: 1 });
+    await page.getByLabel('Inicio').fill('2026-01-10T08:00');
+    await page.getByLabel('Fin', { exact: true }).fill('2026-01-10T10:00');
+    await page.getByLabel('Modalidad').selectOption('IN_PERSON');
+    await page.getByLabel('Responsable o facilitador').fill('Profesional SST E2E');
+    const trainingDefinitionSelect = page.getByLabel('Capacitación');
+    await trainingDefinitionSelect.selectOption({ label: trainingTitle });
+    await expect(trainingDefinitionSelect).not.toHaveValue('');
+    await page.getByRole('button', { name: 'Crear sesión en borrador' }).click();
+    await expect(page.getByText('Sesión creada.')).toBeVisible();
+    const sessionRow = page.locator('article').filter({ hasText: trainingTitle }).first();
+    await sessionRow.getByRole('link', { name: 'Abrir sesión' }).click();
+    await page.getByLabel('Persona trabajadora activa').selectOption({ label: workerName });
+    await page.getByRole('button', { name: 'Inscribir trabajador' }).click();
+    await expect(page.getByRole('heading', { name: workerName })).toBeVisible();
+    await page.getByRole('button', { name: 'Programar sesión' }).click();
+    await expect(page.getByText('Programada', { exact: true })).toBeVisible();
+    const firstParticipantCard = page
+      .locator('.incident-action-card')
+      .filter({ hasText: workerName });
+    await firstParticipantCard.getByRole('combobox').selectOption('PRESENT');
+    await page
+      .getByLabel(`Evidencia de asistencia de ${workerName}`)
+      .fill('Lista de asistencia sintética revisada.');
+    await page.getByRole('button', { name: 'Registrar asistencia' }).click();
+    await expect(firstParticipantCard.locator('.status-badge')).toHaveText('Presente');
+    await page.getByLabel(`Fecha de completitud de ${workerName}`).fill('2026-01-10T10:00');
+    await page.getByRole('button', { name: 'Registrar completitud' }).click();
+    await expect(page.getByText(/vigencia:.*9 feb 2026/i)).toBeVisible();
+    await page.getByRole('button', { name: 'Cerrar sesión completada' }).click();
+    await expect(page.getByText('Completada', { exact: true })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Cola de trabajo', exact: true }).click();
+    const expiredQueueItem = page.locator('article').filter({ hasText: trainingTitle }).filter({
+      hasText: 'Vencido',
+    });
+    await expect(expiredQueueItem.getByText('Capacitación', { exact: true })).toBeVisible();
+    await expiredQueueItem.getByRole('link', { name: 'Abrir' }).click();
+    await expect(page).toHaveURL(/\/app\/workers\/[0-9a-f-]+#training-completion-/);
+    await expect(page.getByText('Vencida', { exact: true }).first()).toBeVisible();
+
+    await page.getByRole('link', { name: 'Capacitación', exact: true }).click();
+    await page.getByLabel('Inicio').fill('2026-08-31T08:00');
+    await page.getByLabel('Fin', { exact: true }).fill('2026-08-31T10:00');
+    await page.getByLabel('Modalidad').selectOption('HYBRID');
+    await page.getByLabel('Capacitación').selectOption({ label: trainingTitle });
+    await page.getByRole('button', { name: 'Crear sesión en borrador' }).click();
+    await expect(page.getByText('Sesión creada.')).toBeVisible();
+    await page
+      .locator('article')
+      .filter({ hasText: trainingTitle })
+      .first()
+      .getByRole('link', { name: 'Abrir sesión' })
+      .click();
+    await page.getByLabel('Persona trabajadora activa').selectOption({ label: workerName });
+    await page.getByRole('button', { name: 'Inscribir trabajador' }).click();
+    await page.getByRole('button', { name: 'Programar sesión' }).click();
+    const renewalParticipantCard = page
+      .locator('.incident-action-card')
+      .filter({ hasText: workerName });
+    await renewalParticipantCard.getByRole('combobox').selectOption('PARTIAL');
+    await page
+      .getByLabel(`Evidencia de asistencia de ${workerName}`)
+      .fill('Asistencia parcial documentada.');
+    await page.getByRole('button', { name: 'Registrar asistencia' }).click();
+    await expect(renewalParticipantCard.locator('.status-badge')).toHaveText('Asistencia parcial');
+    await page.getByLabel(`Fecha de completitud de ${workerName}`).fill('2026-08-31T10:00');
+    await page.getByRole('button', { name: 'Registrar completitud' }).click();
+    await expect(page.getByText(/Renovación registrada/)).toBeVisible();
+
+    await page.getByRole('link', { name: 'Personas / Trabajadores', exact: true }).click();
+    await page
+      .locator('article')
+      .filter({ hasText: workerName })
+      .getByRole('link', { name: 'Abrir espacio de trabajo' })
+      .click();
+    await expect(page.locator('[id^="training-completion-"]')).toHaveCount(2);
+    await expect(page.getByText(/registro anterior permanece preservado/)).toBeVisible();
+
+    for (const width of [320, 640]) {
+      await page.setViewportSize({ width, height: 844 });
+      const overflow = await horizontalOverflowSources(page);
+      expect(overflow, JSON.stringify(overflow, null, 2)).toEqual([]);
     }
   });
 });

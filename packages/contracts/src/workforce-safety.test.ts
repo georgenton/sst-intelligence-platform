@@ -3,9 +3,11 @@ import {
   assertIncidentActionTransition,
   assertIncidentTransition,
   assertPpeIssueTransition,
+  assertTrainingSessionTransition,
   assertWorkerDateRange,
   canReceiveNewWorkerAssignment,
   incidentClosureEligibility,
+  deriveWorkerCompetencyStatus,
   isPpeReplacementDue,
   ppeConditionRequiresReview,
 } from './workforce-safety.js';
@@ -88,5 +90,43 @@ describe('PPE lifecycle', () => {
     ).toBe(false);
     expect(ppeConditionRequiresReview('SERVICEABLE')).toBe(false);
     expect(ppeConditionRequiresReview('UNSERVICEABLE')).toBe(true);
+  });
+});
+
+describe('training and competency lifecycle', () => {
+  it('keeps the session lifecycle finite', () => {
+    expect(() => assertTrainingSessionTransition('DRAFT', 'SCHEDULED')).not.toThrow();
+    expect(() => assertTrainingSessionTransition('SCHEDULED', 'COMPLETED')).not.toThrow();
+    expect(() => assertTrainingSessionTransition('COMPLETED', 'SCHEDULED')).toThrow(
+      'INVALID_TRAINING_SESSION_TRANSITION',
+    );
+  });
+
+  it('derives current, due, expired and not-completed states from history', () => {
+    const now = new Date('2026-09-01T00:00:00.000Z');
+    expect(deriveWorkerCompetencyStatus({ completionExists: false, validUntil: null, now })).toBe(
+      'NOT_COMPLETED',
+    );
+    expect(
+      deriveWorkerCompetencyStatus({
+        completionExists: true,
+        validUntil: new Date('2026-09-15T00:00:00.000Z'),
+        now,
+      }),
+    ).toBe('DUE_SOON');
+    expect(
+      deriveWorkerCompetencyStatus({
+        completionExists: true,
+        validUntil: new Date('2026-08-31T00:00:00.000Z'),
+        now,
+      }),
+    ).toBe('EXPIRED');
+    expect(
+      deriveWorkerCompetencyStatus({
+        completionExists: true,
+        validUntil: new Date('2027-09-01T00:00:00.000Z'),
+        now,
+      }),
+    ).toBe('CURRENT');
   });
 });

@@ -24,6 +24,7 @@ import { RegulatoryRiskLinkModule } from './regulatory-risk-links/regulatory-ris
 import { RiskMethodologyModule } from './risk-methodology/risk-methodology.module';
 import { SolutionFinderModule } from './solution-finder/solution-finder.module';
 import { TechnicalRiskModule } from './technical-risk/technical-risk.module';
+import { TrainingModule } from './training/training.module';
 import { UnifiedSstEvaluationModule } from './unified-sst-evaluation/unified-sst-evaluation.module';
 import { WorkQueueModule } from './work-queue/work-queue.module';
 import { WorkPermitsModule } from './work-permits/work-permits.module';
@@ -66,6 +67,7 @@ import { WorkersModule } from './workers/workers.module';
     IncidentsModule,
     PpeModule,
     TechnicalRiskModule,
+    TrainingModule,
     UnifiedSstEvaluationModule,
     WorkQueueModule,
     WorkPermitsModule,
