@@ -83,3 +83,11 @@ historical findings or risk results are not recalculated.
 This closure does not approve or license a real standard, validate every domain professionally,
 implement supplemental/adaptive multi-standard composition or introduce a Protocol Engine. Those
 decisions remain outside V1 and, where professional judgment is required, **PENDING ANITA**.
+
+## Evolution to Inspection Basis V2
+
+Inspection Standards V1 remains the canonical catalog of exact technical sources, versions,
+sections and criteria. Inspection Basis V2 composes those immutable versions with explicit legal
+context and organization-owned references; it does not replace or mutate the V1 catalog. New
+basis-aware inspections snapshot the exact composition while legacy direct-standard inspections
+continue to render from their original binding. See [Inspection Basis V2](inspection-basis-v2.md).
