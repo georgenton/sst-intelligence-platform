@@ -6,7 +6,13 @@ export type AppNavigationItem = {
   href: string;
   group: AppNavigationGroupId;
   match: 'exact' | 'segment';
-  requiredFeature?: 'module.inspections' | 'module.technical_risk' | 'module.work_permits';
+  requiredFeature?:
+    | 'module.inspections'
+    | 'module.technical_risk'
+    | 'module.work_permits'
+    | 'module.incidents'
+    | 'module.ppe'
+    | 'module.training';
 };
 
 export type AppNavigationGroup = {
@@ -38,6 +44,14 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         href: '/app/workers',
         group: 'operation',
         match: 'segment',
+      },
+      {
+        id: 'incidents',
+        label: 'Incidentes',
+        href: '/app/incidents',
+        group: 'operation',
+        match: 'segment',
+        requiredFeature: 'module.incidents',
       },
       {
         id: 'sst-evaluation',

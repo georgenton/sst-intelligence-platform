@@ -5,6 +5,7 @@ import {
   isModuleAccessActive,
   isWorkPermitsDemoPreviewActive,
   parseEntitlement,
+  WORKFORCE_PREVIEW_FEATURE_KEYS,
   WORK_PERMITS_FEATURE_KEY,
 } from './entitlement';
 
@@ -71,6 +72,9 @@ export class EntitlementService {
     const demoActive = isDemoActive(organization.demoExpiresAt, now);
     if (isWorkPermitsDemoPreviewActive(organization.status, organization.demoExpiresAt, now)) {
       features[WORK_PERMITS_FEATURE_KEY] = true;
+    }
+    if (demoActive) {
+      for (const featureKey of WORKFORCE_PREVIEW_FEATURE_KEYS) features[featureKey] = true;
     }
     return {
       plan: plan ? { key: plan.key, name: plan.name } : { key: 'FREE', name: 'Free' },

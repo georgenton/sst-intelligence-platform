@@ -4,7 +4,7 @@ import {
   type WorkQueueItemType,
   type WorkQueueModule,
 } from '@sst/contracts';
-import { WORK_PERMITS_FEATURE_KEY } from '../catalog/entitlement';
+import { INCIDENTS_FEATURE_KEY, WORK_PERMITS_FEATURE_KEY } from '../catalog/entitlement';
 import { EntitlementService } from '../catalog/entitlement.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { WorkQueueQueryDto } from './dto';
@@ -48,173 +48,240 @@ export class WorkQueueService {
     const moduleEnabled = (module: WorkQueueModule) => !query.module || query.module === module;
     const effectiveEntitlements = await this.entitlements.effective(organizationId);
     const workPermitsEnabled = effectiveEntitlements.features[WORK_PERMITS_FEATURE_KEY] === true;
+    const incidentsEnabled = effectiveEntitlements.features[INCIDENTS_FEATURE_KEY] === true;
 
-    const [actions, assessments, expertItems, obligations, systemicReviews, permits] =
-      await Promise.all([
-        moduleEnabled('INSPECTIONS')
-          ? this.prisma.correctiveAction.findMany({
-              where: {
-                organizationId,
-                status: { notIn: ['COMPLETED', 'CANCELED'] },
-                ...(query.priority ? { priority: query.priority } : {}),
-                ...(query.assignedToUserId ? { assignedToUserId: query.assignedToUserId } : {}),
-                ...(query.workCenterId ? { finding: { workCenterId: query.workCenterId } } : {}),
-                ...(Object.keys(dueFilter).length ? { dueAt: dueFilter } : {}),
-              },
-              select: {
-                id: true,
-                title: true,
-                description: true,
-                status: true,
-                priority: true,
-                dueAt: true,
-                createdAt: true,
-                assignedTo: { select: { id: true, displayName: true } },
-                finding: {
-                  select: {
-                    id: true,
-                    inspectionId: true,
-                    initialRiskLevel: true,
-                    riskMethodSnapshot: true,
-                    workCenter: { select: { id: true, name: true } },
-                  },
+    const [
+      actions,
+      assessments,
+      expertItems,
+      obligations,
+      systemicReviews,
+      permits,
+      incidentInvestigations,
+      incidentActions,
+    ] = await Promise.all([
+      moduleEnabled('INSPECTIONS')
+        ? this.prisma.correctiveAction.findMany({
+            where: {
+              organizationId,
+              status: { notIn: ['COMPLETED', 'CANCELED'] },
+              ...(query.priority ? { priority: query.priority } : {}),
+              ...(query.assignedToUserId ? { assignedToUserId: query.assignedToUserId } : {}),
+              ...(query.workCenterId ? { finding: { workCenterId: query.workCenterId } } : {}),
+              ...(Object.keys(dueFilter).length ? { dueAt: dueFilter } : {}),
+            },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              status: true,
+              priority: true,
+              dueAt: true,
+              createdAt: true,
+              assignedTo: { select: { id: true, displayName: true } },
+              finding: {
+                select: {
+                  id: true,
+                  inspectionId: true,
+                  initialRiskLevel: true,
+                  riskMethodSnapshot: true,
+                  workCenter: { select: { id: true, name: true } },
                 },
               },
-              take: limit,
-              orderBy: { createdAt: 'desc' },
-            })
-          : [],
-        moduleEnabled('TECHNICAL_RISK') && !query.assignedToUserId && !query.priority
-          ? this.prisma.technicalAssessment.findMany({
-              where: {
-                organizationId,
-                status: 'COMPLETED',
-                ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
+            },
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+          })
+        : [],
+      moduleEnabled('TECHNICAL_RISK') && !query.assignedToUserId && !query.priority
+        ? this.prisma.technicalAssessment.findMany({
+            where: {
+              organizationId,
+              status: 'COMPLETED',
+              ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
+            },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              status: true,
+              createdAt: true,
+              methodSnapshot: true,
+              workCenter: { select: { id: true, name: true } },
+              result: { select: { level: true } },
+              reviews: { select: { decision: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+            },
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+          })
+        : [],
+      moduleEnabled('REGULATORY') &&
+      !query.assignedToUserId &&
+      !query.priority &&
+      !query.workCenterId
+        ? this.prisma.unifiedSstEvaluationItem.findMany({
+            where: {
+              proposedState: 'NEEDS_EXPERT_REVIEW',
+              evaluation: { organizationId },
+            },
+            select: {
+              id: true,
+              whyMatched: true,
+              requirement: { select: { title: true, editorialStatus: true } },
+              unit: { select: { identifier: true, locator: true } },
+              evaluation: { select: { id: true, createdAt: true } },
+            },
+            take: limit,
+            orderBy: { evaluation: { createdAt: 'desc' } },
+          })
+        : [],
+      moduleEnabled('OPERATIONAL_EXECUTION')
+        ? this.prisma.obligationExecution.findMany({
+            where: {
+              organizationId,
+              status: { notIn: ['COMPLETED', 'CANCELLED'] },
+              ...(query.priority ? { priority: query.priority } : {}),
+              ...(query.assignedToUserId ? { assignedToUserId: query.assignedToUserId } : {}),
+              ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
+              ...(Object.keys(dueFilter).length ? { dueAt: dueFilter } : {}),
+            },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              status: true,
+              priority: true,
+              dueAt: true,
+              createdAt: true,
+              originType: true,
+              requirement: { select: { title: true } },
+              regulatoryUnit: { select: { identifier: true, locator: true } },
+              workCenter: { select: { id: true, name: true } },
+              assignedTo: { select: { id: true, displayName: true } },
+            },
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+          })
+        : [],
+      moduleEnabled('INSPECTIONS') && !query.assignedToUserId && !query.priority
+        ? this.prisma.inspectionSystemicReview.findMany({
+            where: {
+              organizationId,
+              status: { in: ['OPEN', 'IN_REVIEW'] },
+              ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
+            },
+            select: {
+              id: true,
+              status: true,
+              category: true,
+              workCenterId: true,
+              workCenterName: true,
+              createdAt: true,
+              alert: { select: { message: true } },
+            },
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+          })
+        : [],
+      moduleEnabled('WORK_PERMITS') && workPermitsEnabled && !query.priority
+        ? this.prisma.workPermit.findMany({
+            where: {
+              organizationId,
+              status: { in: ['PENDING_APPROVAL', 'AUTHORIZED', 'ACTIVE', 'SUSPENDED'] },
+              ...(query.assignedToUserId
+                ? {
+                    OR: [
+                      {
+                        status: 'PENDING_APPROVAL',
+                        approverUserId: query.assignedToUserId,
+                      },
+                      {
+                        status: { in: ['AUTHORIZED', 'ACTIVE', 'SUSPENDED'] },
+                        requesterUserId: query.assignedToUserId,
+                      },
+                    ],
+                  }
+                : {}),
+              ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
+              ...(Object.keys(dueFilter).length ? { plannedStartAt: dueFilter } : {}),
+            },
+            select: {
+              id: true,
+              activity: true,
+              area: true,
+              status: true,
+              plannedStartAt: true,
+              createdAt: true,
+              workCenter: { select: { id: true, name: true } },
+              requester: { select: { id: true, displayName: true } },
+              approver: { select: { id: true, displayName: true } },
+              permitTemplateVersion: {
+                select: { permitTemplate: { select: { name: true, isDemo: true } } },
               },
-              select: {
-                id: true,
-                title: true,
-                description: true,
-                status: true,
-                createdAt: true,
-                methodSnapshot: true,
-                workCenter: { select: { id: true, name: true } },
-                result: { select: { level: true } },
-                reviews: { select: { decision: true }, orderBy: { createdAt: 'desc' }, take: 1 },
-              },
-              take: limit,
-              orderBy: { createdAt: 'desc' },
-            })
-          : [],
-        moduleEnabled('REGULATORY') &&
-        !query.assignedToUserId &&
-        !query.priority &&
-        !query.workCenterId
-          ? this.prisma.unifiedSstEvaluationItem.findMany({
-              where: {
-                proposedState: 'NEEDS_EXPERT_REVIEW',
-                evaluation: { organizationId },
-              },
-              select: {
-                id: true,
-                whyMatched: true,
-                requirement: { select: { title: true, editorialStatus: true } },
-                unit: { select: { identifier: true, locator: true } },
-                evaluation: { select: { id: true, createdAt: true } },
-              },
-              take: limit,
-              orderBy: { evaluation: { createdAt: 'desc' } },
-            })
-          : [],
-        moduleEnabled('OPERATIONAL_EXECUTION')
-          ? this.prisma.obligationExecution.findMany({
-              where: {
-                organizationId,
-                status: { notIn: ['COMPLETED', 'CANCELLED'] },
-                ...(query.priority ? { priority: query.priority } : {}),
-                ...(query.assignedToUserId ? { assignedToUserId: query.assignedToUserId } : {}),
-                ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
-                ...(Object.keys(dueFilter).length ? { dueAt: dueFilter } : {}),
-              },
-              select: {
-                id: true,
-                title: true,
-                description: true,
-                status: true,
-                priority: true,
-                dueAt: true,
-                createdAt: true,
-                originType: true,
-                requirement: { select: { title: true } },
-                regulatoryUnit: { select: { identifier: true, locator: true } },
-                workCenter: { select: { id: true, name: true } },
-                assignedTo: { select: { id: true, displayName: true } },
-              },
-              take: limit,
-              orderBy: { createdAt: 'desc' },
-            })
-          : [],
-        moduleEnabled('INSPECTIONS') && !query.assignedToUserId && !query.priority
-          ? this.prisma.inspectionSystemicReview.findMany({
-              where: {
-                organizationId,
-                status: { in: ['OPEN', 'IN_REVIEW'] },
-                ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
-              },
-              select: {
-                id: true,
-                status: true,
-                category: true,
-                workCenterId: true,
-                workCenterName: true,
-                createdAt: true,
-                alert: { select: { message: true } },
-              },
-              take: limit,
-              orderBy: { createdAt: 'desc' },
-            })
-          : [],
-        moduleEnabled('WORK_PERMITS') && workPermitsEnabled && !query.priority
-          ? this.prisma.workPermit.findMany({
-              where: {
-                organizationId,
-                status: { in: ['PENDING_APPROVAL', 'AUTHORIZED', 'ACTIVE', 'SUSPENDED'] },
-                ...(query.assignedToUserId
-                  ? {
-                      OR: [
-                        {
-                          status: 'PENDING_APPROVAL',
-                          approverUserId: query.assignedToUserId,
-                        },
-                        {
-                          status: { in: ['AUTHORIZED', 'ACTIVE', 'SUSPENDED'] },
-                          requesterUserId: query.assignedToUserId,
-                        },
-                      ],
-                    }
-                  : {}),
-                ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
-                ...(Object.keys(dueFilter).length ? { plannedStartAt: dueFilter } : {}),
-              },
-              select: {
-                id: true,
-                activity: true,
-                area: true,
-                status: true,
-                plannedStartAt: true,
-                createdAt: true,
-                workCenter: { select: { id: true, name: true } },
-                requester: { select: { id: true, displayName: true } },
-                approver: { select: { id: true, displayName: true } },
-                permitTemplateVersion: {
-                  select: { permitTemplate: { select: { name: true, isDemo: true } } },
+            },
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+          })
+        : [],
+      moduleEnabled('INCIDENTS') &&
+      incidentsEnabled &&
+      !query.assignedToUserId &&
+      (!query.priority || query.priority === 'HIGH') &&
+      !Object.keys(dueFilter).length
+        ? this.prisma.incident.findMany({
+            where: {
+              organizationId,
+              status: { in: ['REPORTED', 'UNDER_INVESTIGATION', 'ACTIONS_IN_PROGRESS'] },
+              OR: [
+                { investigation: { is: null } },
+                { investigation: { is: { status: 'IN_PROGRESS' } } },
+              ],
+              ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
+            },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              status: true,
+              createdAt: true,
+              workCenter: { select: { id: true, name: true } },
+            },
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+          })
+        : [],
+      moduleEnabled('INCIDENTS') && incidentsEnabled
+        ? this.prisma.incidentAction.findMany({
+            where: {
+              organizationId,
+              status: { notIn: ['COMPLETED', 'CANCELLED'] },
+              ...(query.priority ? { priority: query.priority } : {}),
+              ...(query.assignedToUserId ? { ownerUserId: query.assignedToUserId } : {}),
+              ...(query.workCenterId ? { incident: { workCenterId: query.workCenterId } } : {}),
+              ...(Object.keys(dueFilter).length ? { dueAt: dueFilter } : {}),
+            },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              status: true,
+              priority: true,
+              dueAt: true,
+              createdAt: true,
+              owner: { select: { id: true, displayName: true } },
+              incident: {
+                select: {
+                  id: true,
+                  title: true,
+                  workCenter: { select: { id: true, name: true } },
                 },
               },
-              take: limit,
-              orderBy: { createdAt: 'desc' },
-            })
-          : [],
-      ]);
+            },
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+          })
+        : [],
+    ]);
 
     const items: QueueItem[] = [
       ...actions.map((action) => {
@@ -371,6 +438,47 @@ export class WorkQueueService {
         regulatoryContext: null,
         riskContext: null,
         createdAt: permit.createdAt,
+      })),
+      ...incidentInvestigations.map((incident) => ({
+        type: 'INCIDENT_INVESTIGATION' as const,
+        sourceId: incident.id,
+        organizationId,
+        workCenter: incident.workCenter,
+        title: incident.title,
+        summary:
+          incident.status === 'REPORTED'
+            ? 'Incidente reportado pendiente de iniciar investigación.'
+            : 'Investigación de incidente pendiente de conclusión profesional.',
+        status: incident.status,
+        priority: 'HIGH' as const,
+        dueAt: null,
+        overdue: false,
+        assignee: null,
+        origin: 'Gestión de incidentes',
+        module: 'INCIDENTS' as const,
+        deepLink: `/app/incidents/${incident.id}`,
+        regulatoryContext: null,
+        riskContext: null,
+        createdAt: incident.createdAt,
+      })),
+      ...incidentActions.map((action) => ({
+        type: 'INCIDENT_ACTION' as const,
+        sourceId: action.id,
+        organizationId,
+        workCenter: action.incident.workCenter,
+        title: action.title,
+        summary: action.description ?? `Acción asociada a ${action.incident.title}.`,
+        status: action.status,
+        priority: action.priority,
+        dueAt: action.dueAt,
+        overdue: Boolean(action.dueAt && action.dueAt < now),
+        assignee: action.owner,
+        origin: 'Acción de incidente',
+        module: 'INCIDENTS' as const,
+        deepLink: `/app/incidents/${action.incident.id}?action=${action.id}`,
+        regulatoryContext: null,
+        riskContext: null,
+        createdAt: action.createdAt,
       })),
     ];
 

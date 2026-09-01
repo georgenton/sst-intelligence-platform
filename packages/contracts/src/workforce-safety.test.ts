@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { assertWorkerDateRange, canReceiveNewWorkerAssignment } from './workforce-safety.js';
+import {
+  assertIncidentActionTransition,
+  assertIncidentTransition,
+  assertWorkerDateRange,
+  canReceiveNewWorkerAssignment,
+  incidentClosureEligibility,
+} from './workforce-safety.js';
 
 describe('worker registry rules', () => {
   it('allows new assignments only for active workers', () => {
@@ -14,5 +20,41 @@ describe('worker registry rules', () => {
     expect(() =>
       assertWorkerDateRange(new Date('2026-08-10'), new Date('2026-08-10')),
     ).not.toThrow();
+  });
+});
+
+describe('incident management rules', () => {
+  it('keeps reporting, investigation, actions and closure explicit', () => {
+    expect(() => assertIncidentTransition('DRAFT', 'REPORTED')).not.toThrow();
+    expect(() => assertIncidentTransition('REPORTED', 'UNDER_INVESTIGATION')).not.toThrow();
+    expect(() => assertIncidentTransition('UNDER_INVESTIGATION', 'CLOSED')).not.toThrow();
+    expect(() => assertIncidentTransition('CLOSED', 'UNDER_INVESTIGATION')).toThrow();
+  });
+
+  it('requires verification before completing an incident action', () => {
+    expect(() => assertIncidentActionTransition('OPEN', 'PENDING_VERIFICATION')).not.toThrow();
+    expect(() => assertIncidentActionTransition('PENDING_VERIFICATION', 'COMPLETED')).not.toThrow();
+    expect(() => assertIncidentActionTransition('OPEN', 'COMPLETED')).toThrow();
+  });
+
+  it('closes only after investigation and every active action are complete', () => {
+    expect(
+      incidentClosureEligibility({
+        investigationStatus: 'IN_PROGRESS',
+        actionStatuses: ['COMPLETED'],
+      }).allowed,
+    ).toBe(false);
+    expect(
+      incidentClosureEligibility({
+        investigationStatus: 'COMPLETED',
+        actionStatuses: ['PENDING_VERIFICATION'],
+      }).allowed,
+    ).toBe(false);
+    expect(
+      incidentClosureEligibility({
+        investigationStatus: 'COMPLETED',
+        actionStatuses: ['COMPLETED', 'CANCELLED'],
+      }).allowed,
+    ).toBe(true);
   });
 });

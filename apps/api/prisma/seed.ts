@@ -490,6 +490,9 @@ const features = [
   ['module.inspections', 'Módulo de inspecciones', 'BOOLEAN'],
   ['module.technical_risk', 'Módulo de riesgo técnico', 'BOOLEAN'],
   ['module.work_permits', 'Módulo de permisos', 'BOOLEAN'],
+  ['module.incidents', 'Módulo de incidentes', 'BOOLEAN'],
+  ['module.ppe', 'Módulo de EPP', 'BOOLEAN'],
+  ['module.training', 'Módulo de capacitación', 'BOOLEAN'],
   ['module.psychosocial', 'Módulo psicosocial', 'BOOLEAN'],
   ['module.compliance', 'Módulo de cumplimiento', 'BOOLEAN'],
 ] as const;
