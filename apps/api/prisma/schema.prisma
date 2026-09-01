@@ -22,6 +22,11 @@ enum MembershipStatus {
   SUSPENDED
 }
 
+enum WorkerStatus {
+  ACTIVE
+  INACTIVE
+}
+
 enum OrganizationInvitationStatus {
   PENDING
   ACCEPTED
@@ -626,6 +631,8 @@ model User {
   invitationsAccepted          OrganizationInvitation[]                      @relation("OrganizationInvitationAcceptor")
   inspectionStandardPolicies   OrganizationInspectionStandardPolicyVersion[]
   inspectionCriterionResults   InspectionCriterionResult[]
+  workersCreated               Worker[]                                      @relation("WorkerCreator")
+  workerProfiles               Worker[]                                      @relation("WorkerLinkedUser")
 }
 
 model RefreshSession {
@@ -706,6 +713,7 @@ model Organization {
   inspectionStandardSources  InspectionStandardSource[]
   inspectionStandardPolicies OrganizationInspectionStandardPolicyVersion[]
   inspectionCriterionResults InspectionCriterionResult[]
+  workers                    Worker[]
 }
 
 model WorkCenter {
@@ -725,9 +733,38 @@ model WorkCenter {
   adaptiveScopes       AdaptiveSessionScope[]
   obligationExecutions ObligationExecution[]
   workPermits          WorkPermit[]
+  workers              Worker[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
+}
+
+model Worker {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  displayName    String       @db.VarChar(200)
+  internalCode   String?      @db.VarChar(80)
+  status         WorkerStatus @default(ACTIVE)
+  workCenterId   String?      @db.Uuid
+  jobTitle       String?      @db.VarChar(200)
+  linkedUserId   String?      @db.Uuid
+  startDate      DateTime?    @db.Date
+  endDate        DateTime?    @db.Date
+  notes          String?      @db.VarChar(2000)
+  createdById    String       @db.Uuid
+  version        Int          @default(1)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  workCenter     WorkCenter?  @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  linkedUser     User?        @relation("WorkerLinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  createdBy      User         @relation("WorkerCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, internalCode])
+  @@unique([organizationId, linkedUserId])
+  @@index([organizationId, status, displayName])
+  @@index([organizationId, workCenterId, status])
+  @@index([organizationId, linkedUserId])
 }
 
 model WorkArea {

@@ -25,6 +25,7 @@ import { TechnicalRiskModule } from './technical-risk/technical-risk.module';
 import { UnifiedSstEvaluationModule } from './unified-sst-evaluation/unified-sst-evaluation.module';
 import { WorkQueueModule } from './work-queue/work-queue.module';
 import { WorkPermitsModule } from './work-permits/work-permits.module';
+import { WorkersModule } from './workers/workers.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { WorkPermitsModule } from './work-permits/work-permits.module';
     UnifiedSstEvaluationModule,
     WorkQueueModule,
     WorkPermitsModule,
+    WorkersModule,
   ],
   controllers: [HealthController],
   providers: [HealthService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

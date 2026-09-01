@@ -33,6 +33,13 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         match: 'segment',
       },
       {
+        id: 'workers',
+        label: 'Personas / Trabajadores',
+        href: '/app/workers',
+        group: 'operation',
+        match: 'segment',
+      },
+      {
         id: 'sst-evaluation',
         label: 'Evaluación SST',
         href: '/app/evaluation',

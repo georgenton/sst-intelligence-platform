@@ -31,6 +31,7 @@ type Organization = {
 };
 type OrganizationContextValue = {
   activeId: string | null;
+  currentRole: string | null;
   setActiveId(id: string, notice?: string): Promise<void>;
   organizations: Organization[];
   loading: boolean;
@@ -156,12 +157,13 @@ export function AppShell({ children }: PropsWithChildren) {
   const context = useMemo(
     () => ({
       activeId,
+      currentRole: current?.memberships[0]?.role ?? null,
       setActiveId,
       organizations: organizations.data ?? [],
       loading: organizations.isLoading || transitioning,
       transitioning,
     }),
-    [activeId, organizations.data, organizations.isLoading, transitioning],
+    [activeId, current?.memberships, organizations.data, organizations.isLoading, transitioning],
   );
   if (auth.loading || (!auth.user && !auth.loading))
     return (
