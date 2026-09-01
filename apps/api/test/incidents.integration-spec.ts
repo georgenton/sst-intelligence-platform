@@ -197,8 +197,11 @@ describe('incident management integration', () => {
 
     await api(manager.token, orgA)
       .post(`/incidents/${incidentId}/close`)
-      .send({ status: 'CLOSED', expectedVersion: 3 })
-      .expect(409);
+      .send({ status: 'CLOSED', expectedVersion: 4 })
+      .expect(400)
+      .expect(({ body }) =>
+        expect(body.message).toBe('La investigación profesional debe estar completada.'),
+      );
     const queue = await api(owner.token, orgA).get('/work-queue?module=INCIDENTS').expect(200);
     expect(queue.body.items).toEqual(
       expect.arrayContaining([
@@ -227,6 +230,23 @@ describe('incident management integration', () => {
         expectedVersion: 1,
       })
       .expect(201);
+    await api(manager.token, orgA)
+      .post(`/incidents/${incidentId}/close`)
+      .send({ status: 'CLOSED', expectedVersion: 4 })
+      .expect(400)
+      .expect(({ body }) =>
+        expect(body.message).toBe('Todas las acciones no canceladas deben estar verificadas.'),
+      );
+    await api(owner.token, orgA)
+      .get(`/incidents/${incidentId}`)
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body.investigation).toMatchObject({
+          status: 'COMPLETED',
+          summary: 'Se documentaron condiciones observadas y se definió seguimiento preventivo.',
+          completedBy: { id: manager.userId },
+        }),
+      );
 
     await api(technician.token, orgA)
       .post(`/incidents/${incidentId}/actions/${actionId}/transition`)

@@ -355,6 +355,17 @@ describe('training and competency integration', () => {
       .post(`/training/sessions/${renewalSessionId}/participants`)
       .send({ workerId: worker.id })
       .expect(400);
+    await api(owner.token, orgA)
+      .post('/training/requirements')
+      .send({
+        workerId: worker.id,
+        trainingDefinitionId: definitionId,
+        reason: 'No se crea trabajo nuevo para una persona inactiva.',
+      })
+      .expect(400);
+    expect(await prisma.worker.findUniqueOrThrow({ where: { id: worker.id } })).toMatchObject({
+      status: 'INACTIVE',
+    });
     expect(
       await prisma.auditLog.count({
         where: { organizationId: orgA, action: { startsWith: 'TRAINING_' } },

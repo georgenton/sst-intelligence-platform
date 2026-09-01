@@ -1,21 +1,27 @@
 import { request as httpRequest } from 'node:http';
-import { networkInterfaces } from 'node:os';
+import type { BrowserContext, Page } from '@playwright/test';
+
+type E2eRegistration = {
+  body: string;
+  setCookie: string | undefined;
+  statusCode: number | undefined;
+};
+
+const registrationApiPorts = [3102, 3103, 3104] as const;
+let nextRegistrationApi = 0;
 
 export function registerE2eUser(data: { displayName: string; email: string; password: string }) {
   const body = JSON.stringify(data);
-  const localAddress = Object.values(networkInterfaces())
-    .flatMap((addresses) => addresses ?? [])
-    .find((address) => address.family === 'IPv4' && !address.internal)?.address;
-  if (!localAddress) throw new Error('E2E_NON_LOOPBACK_IPV4_UNAVAILABLE');
+  const port = registrationApiPorts[nextRegistrationApi % registrationApiPorts.length];
+  nextRegistrationApi += 1;
 
-  return new Promise<{ body: string; statusCode: number | undefined }>((resolve, reject) => {
+  return new Promise<E2eRegistration>((resolve, reject) => {
     const registration = httpRequest(
       {
-        hostname: localAddress,
-        port: 3101,
+        hostname: '127.0.0.1',
+        port,
         path: '/api/v1/auth/register',
         method: 'POST',
-        localAddress,
         headers: {
           'content-type': 'application/json',
           'content-length': Buffer.byteLength(body),
@@ -27,6 +33,7 @@ export function registerE2eUser(data: { displayName: string; email: string; pass
         response.on('end', () =>
           resolve({
             body: Buffer.concat(chunks).toString('utf8'),
+            setCookie: response.headers['set-cookie']?.[0],
             statusCode: response.statusCode,
           }),
         );
@@ -35,4 +42,34 @@ export function registerE2eUser(data: { displayName: string; email: string; pass
     registration.on('error', reject);
     registration.end(body);
   });
+}
+
+function refreshCookie(setCookie: string | undefined) {
+  const pair = setCookie?.split(';', 1)[0];
+  const separator = pair?.indexOf('=') ?? -1;
+  if (!pair || separator < 1) throw new Error('E2E_REFRESH_COOKIE_MISSING');
+  return { name: pair.slice(0, separator), value: pair.slice(separator + 1) };
+}
+
+export async function activateE2eUserSession(
+  page: Page,
+  registration: E2eRegistration,
+  destination = '/app',
+) {
+  const cookie = refreshCookie(registration.setCookie);
+  await addApiCookie(page.context(), cookie);
+  await page.goto(destination);
+}
+
+async function addApiCookie(context: BrowserContext, cookie: { name: string; value: string }) {
+  await context.addCookies([
+    {
+      ...cookie,
+      domain: '127.0.0.1',
+      httpOnly: true,
+      path: '/api/v1/auth',
+      sameSite: 'Lax',
+      secure: false,
+    },
+  ]);
 }

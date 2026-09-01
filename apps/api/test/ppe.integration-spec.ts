@@ -280,7 +280,11 @@ describe('PPE operations integration', () => {
     expect(workspace.body.issues).toHaveLength(3);
     expect(workspace.body.issues).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: issueId, status: 'REPLACED' }),
+        expect.objectContaining({
+          id: issueId,
+          status: 'REPLACED',
+          replacementIssue: expect.objectContaining({ id: replacement.body.id }),
+        }),
         expect.objectContaining({
           id: replacement.body.id,
           status: 'ISSUED',
@@ -288,6 +292,32 @@ describe('PPE operations integration', () => {
         }),
       ]),
     );
+    expect(await prisma.ppeIssue.count({ where: { replacesIssueId: issueId } })).toBe(1);
+
+    await prisma.worker.update({ where: { id: worker.id }, data: { status: 'INACTIVE' } });
+    await api(viewer.token, orgA)
+      .get(`/ppe/workers/${worker.id}`)
+      .expect(200)
+      .expect(({ body }) => expect(body.issues).toHaveLength(3));
+    await api(owner.token, orgA)
+      .post('/ppe/requirements')
+      .send({
+        workerId: worker.id,
+        ppeCatalogItemId: catalogId,
+        reason: 'No se crea trabajo nuevo para una persona inactiva.',
+      })
+      .expect(400);
+    await api(owner.token, orgA)
+      .post('/ppe/issues')
+      .send({
+        workerId: worker.id,
+        ppeCatalogItemId: catalogId,
+        issuedAt: '2026-09-01T08:00:00.000Z',
+      })
+      .expect(400);
+    expect(await prisma.worker.findUniqueOrThrow({ where: { id: worker.id } })).toMatchObject({
+      status: 'INACTIVE',
+    });
     await api(owner.token, orgB).get(`/ppe/workers/${worker.id}`).expect(404);
     expect(
       await prisma.auditLog.count({

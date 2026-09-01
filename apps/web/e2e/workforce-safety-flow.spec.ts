@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { registerE2eUser } from './support/register-e2e-user';
+import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 async function createOrganization(page: Page, name: string) {
   await page.getByRole('link', { name: 'Organizaciones', exact: true }).click();
@@ -65,10 +65,7 @@ test.describe.serial('workforce safety operations', () => {
     });
     expect(registration.statusCode, registration.body).toBe(201);
 
-    await page.goto('/auth/login');
-    await page.getByLabel('Correo').fill(email);
-    await page.getByLabel('Contraseña').fill(password);
-    await page.getByRole('button', { name: 'Entrar' }).click();
+    await activateE2eUserSession(page, registration);
     await createOrganization(page, organizationName);
 
     await page.getByRole('link', { name: 'Personas / Trabajadores', exact: true }).click();
@@ -121,10 +118,11 @@ test.describe.serial('workforce safety operations', () => {
     });
     expect(registration.statusCode, registration.body).toBe(201);
 
-    await page.goto(`/auth/login?sessionId=${encodeURIComponent(sessionId)}`);
-    await page.getByLabel('Correo').fill(email);
-    await page.getByLabel('Contraseña').fill(password);
-    await page.getByRole('button', { name: 'Entrar' }).click();
+    await activateE2eUserSession(
+      page,
+      registration,
+      `/app/organizations?sessionId=${encodeURIComponent(sessionId)}`,
+    );
     await page.getByLabel('Nombre de empresa').fill(organizationName);
     await page.getByLabel('Sector').fill('Operación industrial sintética');
     await page.getByRole('button', { name: 'Crear y activar demo' }).click();
@@ -241,10 +239,11 @@ test.describe.serial('workforce safety operations', () => {
     });
     expect(registration.statusCode, registration.body).toBe(201);
 
-    await page.goto(`/auth/login?sessionId=${encodeURIComponent(sessionId)}`);
-    await page.getByLabel('Correo').fill(email);
-    await page.getByLabel('Contraseña').fill(password);
-    await page.getByRole('button', { name: 'Entrar' }).click();
+    await activateE2eUserSession(
+      page,
+      registration,
+      `/app/organizations?sessionId=${encodeURIComponent(sessionId)}`,
+    );
     await page.getByLabel('Nombre de empresa').fill(`Organización EPP ${suffix}`);
     await page.getByLabel('Sector').fill('Operación industrial sintética');
     await page.getByRole('button', { name: 'Crear y activar demo' }).click();
@@ -339,10 +338,11 @@ test.describe.serial('workforce safety operations', () => {
     });
     expect(registration.statusCode, registration.body).toBe(201);
 
-    await page.goto(`/auth/login?sessionId=${encodeURIComponent(diagnosticSessionId)}`);
-    await page.getByLabel('Correo').fill(email);
-    await page.getByLabel('Contraseña').fill(password);
-    await page.getByRole('button', { name: 'Entrar' }).click();
+    await activateE2eUserSession(
+      page,
+      registration,
+      `/app/organizations?sessionId=${encodeURIComponent(diagnosticSessionId)}`,
+    );
     await page.getByLabel('Nombre de empresa').fill(`Organización Capacitación ${suffix}`);
     await page.getByLabel('Sector').fill('Operación industrial sintética');
     await page.getByRole('button', { name: 'Crear y activar demo' }).click();

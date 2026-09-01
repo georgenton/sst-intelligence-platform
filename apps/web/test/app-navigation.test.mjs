@@ -49,9 +49,12 @@ test('domain links follow effective feature visibility while management stays av
   const inspections = appNavigationItems.find((item) => item.id === 'inspections');
   const technicalRisk = appNavigationItems.find((item) => item.id === 'technical-risk');
   const workPermits = appNavigationItems.find((item) => item.id === 'work-permits');
+  const incidents = appNavigationItems.find((item) => item.id === 'incidents');
+  const ppe = appNavigationItems.find((item) => item.id === 'ppe');
+  const training = appNavigationItems.find((item) => item.id === 'training');
   const modules = appNavigationItems.find((item) => item.id === 'modules');
 
-  assert.ok(inspections && technicalRisk && workPermits && modules);
+  assert.ok(inspections && technicalRisk && workPermits && incidents && ppe && training && modules);
   assert.equal(
     isNavigationItemVisible(inspections, undefined),
     true,
@@ -61,5 +64,8 @@ test('domain links follow effective feature visibility while management stays av
   assert.equal(isNavigationItemVisible(technicalRisk, { 'module.technical_risk': false }), false);
   assert.equal(isNavigationItemVisible(workPermits, undefined), true);
   assert.equal(isNavigationItemVisible(workPermits, { 'module.work_permits': false }), false);
+  assert.equal(isNavigationItemVisible(incidents, { 'module.incidents': false }), false);
+  assert.equal(isNavigationItemVisible(ppe, { 'module.ppe': false }), false);
+  assert.equal(isNavigationItemVisible(training, { 'module.training': false }), false);
   assert.equal(isNavigationItemVisible(modules, undefined), true);
 });

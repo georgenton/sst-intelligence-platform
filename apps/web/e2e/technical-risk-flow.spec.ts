@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { registerE2eUser } from './support/register-e2e-user';
+import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 test('borrador, ejecución, resultado y revisión profesional de riesgo técnico', async ({
   page,
@@ -39,10 +39,11 @@ test('borrador, ejecución, resultado y revisión profesional de riesgo técnico
   });
   expect(registration.statusCode, registration.body).toBe(201);
 
-  await page.goto(`/auth/login?sessionId=${encodeURIComponent(sessionId)}`);
-  await page.getByLabel('Correo').fill(email);
-  await page.getByLabel('Contraseña').fill(password);
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await activateE2eUserSession(
+    page,
+    registration,
+    `/app/organizations?sessionId=${encodeURIComponent(sessionId)}`,
+  );
   await page.getByLabel('Nombre de empresa').fill(`Riesgo Técnico Demo ${suffix}`);
   await page.getByLabel('Sector').fill('Manufactura');
   await page.getByRole('button', { name: 'Crear y activar demo' }).click();

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { registerE2eUser } from './support/register-e2e-user';
+import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 async function prepareDemoRegistration(page: Page) {
   await page.goto('/diagnostico');
@@ -59,10 +59,11 @@ test('obligación visible durante setup y permiso demo con aprobación separada'
   });
   expect(ownerRegistration.statusCode, ownerRegistration.body).toBe(201);
 
-  await page.goto(`/auth/login?sessionId=${encodeURIComponent(sessionId)}`);
-  await page.getByLabel('Correo').fill(ownerEmail);
-  await page.getByLabel('Contraseña').fill(password);
-  await page.getByRole('button', { name: 'Entrar' }).click();
+  await activateE2eUserSession(
+    page,
+    ownerRegistration,
+    `/app/organizations?sessionId=${encodeURIComponent(sessionId)}`,
+  );
   await page.getByLabel('Nombre de empresa').fill(organizationName);
   await page.getByLabel('Sector').fill('Servicios operativos');
   await page.getByRole('button', { name: 'Crear y activar demo' }).click();

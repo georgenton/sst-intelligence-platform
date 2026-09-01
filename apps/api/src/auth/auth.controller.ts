@@ -10,17 +10,6 @@ import { LoginDto, RegisterDto } from './dto';
 import type { ApiRequest, AuthenticatedUser } from '../common/request-context';
 import { requestMetadata } from '../common/request-context';
 
-function positiveIntegerEnvironmentValue(name: string, fallback: number) {
-  const value = Number(process.env[name] ?? fallback);
-  if (!Number.isInteger(value) || value < 1) {
-    throw new Error(`${name} must be a positive integer`);
-  }
-  return value;
-}
-
-const authAttemptThrottleLimit = positiveIntegerEnvironmentValue('AUTH_ATTEMPT_THROTTLE_LIMIT', 5);
-const authRefreshThrottleLimit = positiveIntegerEnvironmentValue('AUTH_REFRESH_THROTTLE_LIMIT', 30);
-
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -43,7 +32,7 @@ export class AuthController {
   }
 
   @Post('register')
-  @Throttle({ default: { limit: authAttemptThrottleLimit, ttl: 60_000 } })
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async register(
     @Body() body: RegisterDto,
     @Req() request: ApiRequest,
@@ -55,7 +44,7 @@ export class AuthController {
   }
 
   @Post('login')
-  @Throttle({ default: { limit: authAttemptThrottleLimit, ttl: 60_000 } })
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async login(
     @Body() body: LoginDto,
     @Req() request: ApiRequest,
@@ -67,7 +56,7 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @Throttle({ default: { limit: authRefreshThrottleLimit, ttl: 60_000 } })
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   async refresh(@Req() request: ApiRequest, @Res({ passthrough: true }) response: Response) {
     const result = await this.auth.refresh(
       request.cookies?.sst_refresh as string | undefined,

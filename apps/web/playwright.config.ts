@@ -14,16 +14,17 @@ export default defineConfig({
     {
       command: 'pnpm --dir ../api dev',
       url: 'http://127.0.0.1:3101/api/v1/health',
-      env: {
-        ...process.env,
-        API_THROTTLE_LIMIT: '10000',
-        AUTH_ATTEMPT_THROTTLE_LIMIT: '10000',
-        AUTH_REFRESH_THROTTLE_LIMIT: '10000',
-        PORT: '3101',
-      },
+      env: { ...process.env, PORT: '3101' },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
+    ...[3102, 3103, 3104].map((port) => ({
+      command: 'pnpm --dir ../api dev',
+      url: `http://127.0.0.1:${port}/api/v1/health`,
+      env: { ...process.env, PORT: String(port) },
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    })),
     {
       command: 'pnpm exec next dev --webpack --port 3100',
       url: 'http://127.0.0.1:3100',

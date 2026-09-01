@@ -87,6 +87,35 @@ describe('worker registry integration', () => {
     const seatCountBefore = await prisma.membership.count({
       where: { organizationId: orgA, status: 'ACTIVE' },
     });
+    const userCountBefore = await prisma.user.count();
+
+    const concurrentLink = (label: string) =>
+      api(owner.token, orgA).post('/workers').send({
+        displayName: label,
+        linkedUserId: manager.userId,
+      });
+    const concurrentLinkResponses = await Promise.all([
+      concurrentLink('Vínculo concurrente A'),
+      concurrentLink('Vínculo concurrente B'),
+    ]);
+    expect(concurrentLinkResponses.map(({ status }) => status).sort()).toEqual([201, 409]);
+    expect(
+      await prisma.worker.count({ where: { organizationId: orgA, linkedUserId: manager.userId } }),
+    ).toBe(1);
+
+    await api(owner.token, orgA)
+      .post('/workers')
+      .send({ displayName: 'Perfil Owner A', linkedUserId: owner.userId })
+      .expect(201);
+    await api(owner.token, orgB)
+      .post('/workers')
+      .send({ displayName: 'Perfil Owner B', linkedUserId: owner.userId })
+      .expect(201);
+    expect(await prisma.worker.count({ where: { linkedUserId: owner.userId } })).toBe(2);
+    expect(await prisma.user.count()).toBe(userCountBefore);
+    expect(
+      await prisma.membership.count({ where: { organizationId: orgA, status: 'ACTIVE' } }),
+    ).toBe(seatCountBefore);
 
     for (const actor of [technician, consultant, viewer]) {
       await api(actor.token, orgA)
@@ -126,6 +155,7 @@ describe('worker registry integration', () => {
     expect(
       await prisma.membership.count({ where: { organizationId: orgA, status: 'ACTIVE' } }),
     ).toBe(seatCountBefore);
+    expect(await prisma.user.count()).toBe(userCountBefore);
 
     await api(owner.token, orgA)
       .post('/workers')

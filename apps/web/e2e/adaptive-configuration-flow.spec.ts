@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { registerE2eUser } from './support/register-e2e-user';
+import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 async function expectNoDocumentOverflow(page: import('@playwright/test').Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
@@ -19,11 +19,7 @@ test('preguntas adaptativas, propuesta por centro y estado actual declarado', as
   });
   expect(registration.statusCode, registration.body).toBe(201);
 
-  await page.goto('/auth/login');
-  await page.getByLabel('Correo').fill(email);
-  await page.getByLabel('Contraseña').fill(password);
-  await page.getByRole('button', { name: 'Entrar' }).click();
-  await page.getByRole('link', { name: 'Crear organización' }).click();
+  await activateE2eUserSession(page, registration, '/app/organizations');
   await page.getByLabel('Nombre de empresa').fill(`Adaptativa Demo ${suffix}`);
   await page.getByLabel('Sector').fill('Servicios administrativos');
   await page.getByRole('button', { name: 'Crear organización' }).click();
