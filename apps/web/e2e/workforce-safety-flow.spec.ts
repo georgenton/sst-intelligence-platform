@@ -177,9 +177,14 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByLabel('Acción', { exact: true }).fill(actionTitle);
     await page.getByLabel('Descripción', { exact: true }).fill('Aplicar control visual previo.');
     await page.locator('select[name="priority"]').selectOption('HIGH');
+    await page
+      .getByLabel('Responsable')
+      .selectOption({ label: 'Owner Incidentes E2E · Propietario' });
     await page.getByLabel('Fecha objetivo').fill('2026-08-31T12:00');
     await page.getByRole('button', { name: 'Crear acción' }).click();
     await expect(page.getByRole('heading', { name: actionTitle })).toBeVisible();
+    const actionCard = page.locator('.incident-action-card').filter({ hasText: actionTitle });
+    await expect(actionCard.getByText(/Owner Incidentes E2E/)).toBeVisible();
 
     await page.getByRole('link', { name: 'Inicio', exact: true }).click();
     await expect(page.locator('article').filter({ hasText: actionTitle })).toBeVisible();
@@ -189,7 +194,6 @@ test.describe.serial('workforce safety operations', () => {
       .fill('Se revisaron hechos y controles preventivos.');
     await page.getByRole('button', { name: 'Completar investigación' }).click();
     await expect(page.getByText('completada', { exact: false })).toBeVisible();
-    const actionCard = page.locator('.incident-action-card').filter({ hasText: actionTitle });
     await actionCard.getByRole('button', { name: 'Iniciar' }).click();
     await expect(actionCard.getByText('En curso', { exact: true })).toBeVisible();
     await actionCard.getByRole('button', { name: 'Enviar a verificación' }).click();
@@ -408,6 +412,10 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByRole('button', { name: 'Registrar asistencia' }).click();
     await expect(firstParticipantCard.locator('.status-badge')).toHaveText('Presente');
     await page.getByLabel(`Fecha de completitud de ${workerName}`).fill('2026-01-10T10:00');
+    await page
+      .getByLabel(`Evidencia o nota de completitud de ${workerName}`)
+      .fill('Completitud sintética documentada.');
+    await page.getByLabel(`Referencia interna de ${workerName} (opcional)`).fill(`REF-${suffix}`);
     await page.getByRole('button', { name: 'Registrar completitud' }).click();
     await expect(page.getByText(/vigencia:.*9 feb 2026/i)).toBeVisible();
     await page.getByRole('button', { name: 'Cerrar sesión completada' }).click();

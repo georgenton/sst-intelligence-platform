@@ -452,7 +452,6 @@ export function TrainingSessionWorkspace({ sessionId }: { sessionId: string }) {
     Record<string, NonNullable<Participant['attendance']>>
   >({});
   const [attendanceEvidence, setAttendanceEvidence] = useState<Record<string, string>>({});
-  const [completionDates, setCompletionDates] = useState<Record<string, string>>({});
   const session = useQuery({
     queryKey: queryKeys.organization.trainingSession(organizationId ?? 'inactive', sessionId),
     queryFn: ({ signal }) =>
@@ -642,44 +641,48 @@ export function TrainingSessionWorkspace({ sessionId }: { sessionId: string }) {
                           Registrar asistencia
                         </button>
                         {participant.attendance && participant.attendance !== 'ABSENT' ? (
-                          <>
+                          <form
+                            className="workforce-form workforce-compact-form"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              const form = new FormData(event.currentTarget);
+                              const completedAt = String(form.get('completedAt') ?? '');
+                              const completionNote = String(
+                                form.get('completionNote') ?? '',
+                              ).trim();
+                              const certificateReference = String(
+                                form.get('certificateReference') ?? '',
+                              ).trim();
+                              run(
+                                `/training/sessions/${sessionId}/participants/${participant.id}/complete`,
+                                {
+                                  expectedVersion: participant.version,
+                                  completedAt: new Date(completedAt).toISOString(),
+                                  ...(matchingRequirement
+                                    ? { requirementId: matchingRequirement.id }
+                                    : {}),
+                                  ...(completionNote ? { completionNote } : {}),
+                                  ...(certificateReference ? { certificateReference } : {}),
+                                },
+                              );
+                            }}
+                          >
                             <label className="field">
                               <span>{`Fecha de completitud de ${participant.worker.displayName}`}</span>
-                              <input
-                                type="datetime-local"
-                                value={completionDates[participant.id] ?? ''}
-                                onChange={(event) =>
-                                  setCompletionDates((current) => ({
-                                    ...current,
-                                    [participant.id]: event.target.value,
-                                  }))
-                                }
-                              />
+                              <input name="completedAt" required type="datetime-local" />
                             </label>
-                            <button
-                              className="button"
-                              disabled={!completionDates[participant.id] || operation.isPending}
-                              onClick={() =>
-                                run(
-                                  `/training/sessions/${sessionId}/participants/${participant.id}/complete`,
-                                  {
-                                    expectedVersion: participant.version,
-                                    completedAt: new Date(
-                                      completionDates[participant.id]!,
-                                    ).toISOString(),
-                                    ...(matchingRequirement
-                                      ? { requirementId: matchingRequirement.id }
-                                      : {}),
-                                    completionNote:
-                                      'Completitud registrada por el actor autenticado.',
-                                  },
-                                )
-                              }
-                              type="button"
-                            >
+                            <label className="field">
+                              <span>{`Evidencia o nota de completitud de ${participant.worker.displayName}`}</span>
+                              <textarea name="completionNote" rows={2} />
+                            </label>
+                            <label className="field">
+                              <span>{`Referencia interna de ${participant.worker.displayName} (opcional)`}</span>
+                              <input name="certificateReference" />
+                            </label>
+                            <button className="button" disabled={operation.isPending} type="submit">
                               Registrar completitud
                             </button>
-                          </>
+                          </form>
                         ) : null}
                       </div>
                     ) : null}
