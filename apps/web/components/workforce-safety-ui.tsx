@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form';
 import { queryKeys } from '@/lib/query-keys';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
+import { WorkerPpePanel } from './ppe-ui';
 import {
   ContextSummary,
   WorkspaceHeader,
@@ -425,9 +426,7 @@ export function WorkerWorkspace({ workerId }: { workerId: string }) {
               médico.
             </p>
           </WorkspaceSection>
-          <WorkspaceSection title="EPP" eyebrow="Protección personal">
-            <p>Requisitos, entregas, inspecciones y reemplazos conservarán su propia historia.</p>
-          </WorkspaceSection>
+          <WorkerPpePanel workerId={data.id} workerStatus={data.status} />
           <WorkspaceSection title="Capacitación" eyebrow="Competencia">
             <p>
               Requisitos, vigencias y renovaciones se mostrarán sin emitir una certificación legal.

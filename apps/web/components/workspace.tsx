@@ -53,19 +53,21 @@ export function WorkspaceInspector({
 }
 
 export function WorkspaceSection({
+  id,
   title,
   eyebrow,
   description,
   actions,
   children,
 }: PropsWithChildren<{
+  id?: string;
   title: string;
   eyebrow?: string;
   description?: string;
   actions?: ReactNode;
 }>) {
   return (
-    <section className="workspace-section">
+    <section className="workspace-section" id={id}>
       <header>
         <div>
           {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}

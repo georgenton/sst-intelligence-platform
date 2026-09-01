@@ -46,6 +46,11 @@ const statusLabels: Record<string, string> = {
   AUTHORIZED: 'Autorizado',
   ACTIVE: 'Activo',
   SUSPENDED: 'Suspendido',
+  REPLACEMENT_DUE: 'Reemplazo requerido',
+  REVIEW_REQUIRED: 'Revisión requerida',
+  REPORTED: 'Reportado',
+  UNDER_INVESTIGATION: 'En investigación',
+  ACTIONS_IN_PROGRESS: 'Acciones en curso',
 };
 
 const moduleLabels: Record<string, string> = {
@@ -54,6 +59,8 @@ const moduleLabels: Record<string, string> = {
   REGULATORY: 'Contexto normativo',
   OPERATIONAL_EXECUTION: 'Ejecución operativa',
   WORK_PERMITS: 'Permisos de trabajo',
+  INCIDENTS: 'Incidentes',
+  PPE: 'EPP',
 };
 
 function formatDue(item: QueueItem) {

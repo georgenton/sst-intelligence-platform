@@ -75,3 +75,44 @@ export function incidentClosureEligibility(input: {
   }
   return { allowed: true, reason: null };
 }
+
+export const PPE_ISSUE_STATUSES = [
+  'ISSUED',
+  'IN_SERVICE',
+  'REPLACEMENT_DUE',
+  'REPLACED',
+  'RETIRED',
+  'LOST_DAMAGED',
+] as const;
+export type PpeIssueStatus = (typeof PPE_ISSUE_STATUSES)[number];
+
+const ppeIssueTransitions: Record<PpeIssueStatus, readonly PpeIssueStatus[]> = {
+  ISSUED: ['IN_SERVICE', 'REPLACEMENT_DUE', 'RETIRED', 'LOST_DAMAGED'],
+  IN_SERVICE: ['REPLACEMENT_DUE', 'RETIRED', 'LOST_DAMAGED'],
+  REPLACEMENT_DUE: ['REPLACED', 'RETIRED', 'LOST_DAMAGED'],
+  REPLACED: [],
+  RETIRED: [],
+  LOST_DAMAGED: ['REPLACED', 'RETIRED'],
+};
+
+export function assertPpeIssueTransition(from: PpeIssueStatus, to: PpeIssueStatus) {
+  if (!ppeIssueTransitions[from].includes(to)) {
+    throw new Error(`INVALID_PPE_ISSUE_TRANSITION:${from}:${to}`);
+  }
+}
+
+export function isPpeReplacementDue(input: {
+  status: PpeIssueStatus;
+  expectedReplacementAt: Date | null;
+  now: Date;
+}) {
+  if (['REPLACED', 'RETIRED'].includes(input.status)) return false;
+  return (
+    input.status === 'REPLACEMENT_DUE' ||
+    Boolean(input.expectedReplacementAt && input.expectedReplacementAt <= input.now)
+  );
+}
+
+export function ppeConditionRequiresReview(condition: string) {
+  return condition === 'REVIEW_REQUIRED' || condition === 'UNSERVICEABLE';
+}

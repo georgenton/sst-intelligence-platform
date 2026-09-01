@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   assertIncidentActionTransition,
   assertIncidentTransition,
+  assertPpeIssueTransition,
   assertWorkerDateRange,
   canReceiveNewWorkerAssignment,
   incidentClosureEligibility,
+  isPpeReplacementDue,
+  ppeConditionRequiresReview,
 } from './workforce-safety.js';
 
 describe('worker registry rules', () => {
@@ -56,5 +59,34 @@ describe('incident management rules', () => {
         actionStatuses: ['COMPLETED', 'CANCELLED'],
       }).allowed,
     ).toBe(true);
+  });
+});
+
+describe('PPE lifecycle', () => {
+  it('keeps replacement as a new historical issue', () => {
+    expect(() => assertPpeIssueTransition('REPLACEMENT_DUE', 'REPLACED')).not.toThrow();
+    expect(() => assertPpeIssueTransition('REPLACED', 'IN_SERVICE')).toThrow(
+      'INVALID_PPE_ISSUE_TRANSITION',
+    );
+  });
+
+  it('derives replacement due without rewriting terminal history', () => {
+    const now = new Date('2026-09-01T00:00:00.000Z');
+    expect(
+      isPpeReplacementDue({
+        status: 'IN_SERVICE',
+        expectedReplacementAt: new Date('2026-08-31T00:00:00.000Z'),
+        now,
+      }),
+    ).toBe(true);
+    expect(
+      isPpeReplacementDue({
+        status: 'REPLACED',
+        expectedReplacementAt: new Date('2026-08-31T00:00:00.000Z'),
+        now,
+      }),
+    ).toBe(false);
+    expect(ppeConditionRequiresReview('SERVICEABLE')).toBe(false);
+    expect(ppeConditionRequiresReview('UNSERVICEABLE')).toBe(true);
   });
 });

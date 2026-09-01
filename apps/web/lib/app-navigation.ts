@@ -54,6 +54,14 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         requiredFeature: 'module.incidents',
       },
       {
+        id: 'ppe',
+        label: 'EPP',
+        href: '/app/ppe',
+        group: 'operation',
+        match: 'segment',
+        requiredFeature: 'module.ppe',
+      },
+      {
         id: 'sst-evaluation',
         label: 'Evaluación SST',
         href: '/app/evaluation',

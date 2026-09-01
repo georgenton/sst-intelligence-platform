@@ -76,6 +76,7 @@ export const WORK_QUEUE_MODULES = [
   'OPERATIONAL_EXECUTION',
   'WORK_PERMITS',
   'INCIDENTS',
+  'PPE',
 ] as const;
 
 export const WORK_QUEUE_ITEM_TYPES = [
@@ -90,6 +91,8 @@ export const WORK_QUEUE_ITEM_TYPES = [
   'WORK_PERMIT_DUE',
   'INCIDENT_INVESTIGATION',
   'INCIDENT_ACTION',
+  'PPE_REPLACEMENT_DUE',
+  'PPE_CONDITION_REVIEW',
 ] as const;
 
 export type WorkQueueModule = (typeof WORK_QUEUE_MODULES)[number];
@@ -109,7 +112,8 @@ export function workQueuePriorityRank(input: {
     input.type === 'TECHNICAL_REVIEW' ||
     input.type === 'REGULATORY_EXPERT_REVIEW' ||
     input.type === 'WORK_PERMIT_APPROVAL' ||
-    input.type === 'INCIDENT_INVESTIGATION'
+    input.type === 'INCIDENT_INVESTIGATION' ||
+    input.type === 'PPE_CONDITION_REVIEW'
   )
     return 3;
   if (input.status === 'BLOCKED' || input.type === 'WORK_PERMIT_SUSPENDED') return 4;

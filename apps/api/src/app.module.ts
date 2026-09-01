@@ -14,6 +14,7 @@ import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import { InspectionsModule } from './inspections/inspections.module';
 import { IncidentsModule } from './incidents/incidents.module';
+import { PpeModule } from './ppe/ppe.module';
 import { InspectionStandardsModule } from './inspection-standards/inspection-standards.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { OperationalExecutionModule } from './operational-execution/operational-execution.module';
@@ -63,6 +64,7 @@ import { WorkersModule } from './workers/workers.module';
     InspectionStandardsModule,
     InspectionsModule,
     IncidentsModule,
+    PpeModule,
     TechnicalRiskModule,
     UnifiedSstEvaluationModule,
     WorkQueueModule,

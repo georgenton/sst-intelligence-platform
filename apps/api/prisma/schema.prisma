@@ -74,6 +74,49 @@ enum IncidentEvidenceScope {
   ACTION
 }
 
+enum PpeCatalogStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PpeCategory {
+  HEAD
+  EYE_FACE
+  HEARING
+  RESPIRATORY
+  HAND_ARM
+  FOOT
+  BODY
+  FALL_PROTECTION
+  OTHER
+}
+
+enum PpeRequirementStatus {
+  REQUIRED
+  FULFILLED
+  CANCELLED
+}
+
+enum PpeIssueStatus {
+  ISSUED
+  IN_SERVICE
+  REPLACEMENT_DUE
+  REPLACED
+  RETIRED
+  LOST_DAMAGED
+}
+
+enum PpeAcknowledgementStatus {
+  PENDING
+  RECORDED
+}
+
+enum PpeCondition {
+  SERVICEABLE
+  REVIEW_REQUIRED
+  UNSERVICEABLE
+}
+
 enum OrganizationInvitationStatus {
   PENDING
   ACCEPTED
@@ -688,6 +731,11 @@ model User {
   incidentActionsCreated       IncidentAction[]                              @relation("IncidentActionCreator")
   incidentActionsVerified      IncidentAction[]                              @relation("IncidentActionVerifier")
   incidentEvidenceCreated      IncidentEvidence[]                            @relation("IncidentEvidenceCreator")
+  ppeCatalogItemsCreated       PpeCatalogItem[]                               @relation("PpeCatalogItemCreator")
+  ppeRequirementsAssigned      WorkerPpeRequirement[]                         @relation("PpeRequirementAssigner")
+  ppeIssuesIssued              PpeIssue[]                                     @relation("PpeIssueIssuer")
+  ppeAcknowledgementsRecorded  PpeIssue[]                                     @relation("PpeAcknowledgementRecorder")
+  ppeInspectionsRecorded       PpeInspection[]                                @relation("PpeInspectionRecorder")
 }
 
 model RefreshSession {
@@ -775,6 +823,10 @@ model Organization {
   incidentFactors            IncidentContributingFactor[]
   incidentActions            IncidentAction[]
   incidentEvidence           IncidentEvidence[]
+  ppeCatalogItems            PpeCatalogItem[]
+  ppeRequirements            WorkerPpeRequirement[]
+  ppeIssues                  PpeIssue[]
+  ppeInspections             PpeInspection[]
 }
 
 model WorkCenter {
@@ -796,6 +848,7 @@ model WorkCenter {
   workPermits          WorkPermit[]
   workers              Worker[]
   incidents            Incident[]
+  ppeRequirements      WorkerPpeRequirement[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -822,6 +875,8 @@ model Worker {
   linkedUser     User?        @relation("WorkerLinkedUser", fields: [linkedUserId], references: [id], onDelete: SetNull)
   createdBy      User         @relation("WorkerCreator", fields: [createdById], references: [id], onDelete: Restrict)
   incidentLinks  IncidentWorker[]
+  ppeRequirements WorkerPpeRequirement[]
+  ppeIssues       PpeIssue[]
 
   @@unique([organizationId, internalCode])
   @@unique([organizationId, linkedUserId])
@@ -965,6 +1020,115 @@ model IncidentEvidence {
 
   @@index([organizationId, incidentId, createdAt])
   @@index([organizationId, incidentActionId, createdAt])
+}
+
+model PpeCatalogItem {
+  id                             String           @id @default(uuid()) @db.Uuid
+  organizationId                 String           @db.Uuid
+  name                           String           @db.VarChar(200)
+  category                       PpeCategory
+  description                    String?          @db.VarChar(2000)
+  manufacturerModel              String?          @db.VarChar(200)
+  referenceStandard              String?          @db.VarChar(300)
+  defaultReplacementIntervalDays Int?
+  status                         PpeCatalogStatus @default(ACTIVE)
+  createdById                    String           @db.Uuid
+  version                        Int              @default(1)
+  createdAt                      DateTime         @default(now())
+  updatedAt                      DateTime         @updatedAt
+  organization                   Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy                      User             @relation("PpeCatalogItemCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  requirements                   WorkerPpeRequirement[]
+  issues                         PpeIssue[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, status, category])
+}
+
+model WorkerPpeRequirement {
+  id                 String               @id @default(uuid()) @db.Uuid
+  organizationId     String               @db.Uuid
+  workerId           String               @db.Uuid
+  ppeCatalogItemId   String               @db.Uuid
+  workCenterId       String?              @db.Uuid
+  linkedAssessmentId String?              @db.Uuid
+  linkedFindingId    String?              @db.Uuid
+  reason             String               @db.VarChar(2000)
+  status             PpeRequirementStatus @default(REQUIRED)
+  assignedById       String               @db.Uuid
+  assignedAt         DateTime             @default(now())
+  fulfilledAt        DateTime?
+  version            Int                  @default(1)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  organization       Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  worker             Worker               @relation(fields: [workerId], references: [id], onDelete: Restrict)
+  ppeCatalogItem     PpeCatalogItem       @relation(fields: [ppeCatalogItemId], references: [id], onDelete: Restrict)
+  workCenter         WorkCenter?          @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  linkedAssessment   TechnicalAssessment? @relation(fields: [linkedAssessmentId], references: [id], onDelete: Restrict)
+  linkedFinding      InspectionFinding?   @relation(fields: [linkedFindingId], references: [id], onDelete: Restrict)
+  assignedBy         User                 @relation("PpeRequirementAssigner", fields: [assignedById], references: [id], onDelete: Restrict)
+  issues             PpeIssue[]
+
+  @@index([organizationId, workerId, status])
+  @@index([organizationId, workCenterId, status])
+  @@index([organizationId, linkedAssessmentId])
+  @@index([organizationId, linkedFindingId])
+}
+
+model PpeIssue {
+  id                    String                   @id @default(uuid()) @db.Uuid
+  organizationId        String                   @db.Uuid
+  workerId              String                   @db.Uuid
+  ppeCatalogItemId      String                   @db.Uuid
+  requirementId         String?                  @db.Uuid
+  issuedAt              DateTime
+  issuedById            String                   @db.Uuid
+  quantity              Int                      @default(1)
+  assetReference        String?                  @db.VarChar(160)
+  expectedReplacementAt DateTime?
+  status                PpeIssueStatus           @default(ISSUED)
+  acknowledgementStatus PpeAcknowledgementStatus @default(PENDING)
+  acknowledgedAt        DateTime?
+  acknowledgedById      String?                  @db.Uuid
+  acknowledgementNote   String?                  @db.VarChar(2000)
+  evidenceNote          String?                  @db.VarChar(2000)
+  evidenceUrl           String?                  @db.VarChar(2000)
+  replacesIssueId       String?                  @unique @db.Uuid
+  version               Int                      @default(1)
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+  organization          Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  worker                Worker                   @relation(fields: [workerId], references: [id], onDelete: Restrict)
+  ppeCatalogItem        PpeCatalogItem           @relation(fields: [ppeCatalogItemId], references: [id], onDelete: Restrict)
+  requirement           WorkerPpeRequirement?    @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  issuedBy              User                     @relation("PpeIssueIssuer", fields: [issuedById], references: [id], onDelete: Restrict)
+  acknowledgedBy        User?                    @relation("PpeAcknowledgementRecorder", fields: [acknowledgedById], references: [id], onDelete: Restrict)
+  replacesIssue         PpeIssue?                @relation("PpeIssueReplacement", fields: [replacesIssueId], references: [id], onDelete: Restrict)
+  replacementIssue      PpeIssue?                @relation("PpeIssueReplacement")
+  inspections           PpeInspection[]
+
+  @@index([organizationId, workerId, status, expectedReplacementAt])
+  @@index([organizationId, status, expectedReplacementAt])
+  @@index([organizationId, requirementId])
+}
+
+model PpeInspection {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  issueId        String       @db.Uuid
+  inspectedAt    DateTime
+  condition      PpeCondition
+  note           String?      @db.VarChar(2000)
+  evidenceUrl    String?      @db.VarChar(2000)
+  recordedById   String       @db.Uuid
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  issue          PpeIssue     @relation(fields: [issueId], references: [id], onDelete: Restrict)
+  recordedBy     User         @relation("PpeInspectionRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, issueId, inspectedAt])
+  @@index([organizationId, condition, inspectedAt])
 }
 
 model WorkArea {
@@ -1209,6 +1373,7 @@ model InspectionFinding {
   regulatoryLinks         InspectionFindingRegulatoryLink[]
   criterionResult         InspectionCriterionResult?        @relation(fields: [criterionResultId], references: [id], onDelete: Restrict)
   incidents               Incident[]
+  ppeRequirements         WorkerPpeRequirement[]
 
   @@index([organizationId, inspectionId])
   @@index([organizationId, workCenterId, category, createdAt])
@@ -1653,6 +1818,7 @@ model TechnicalAssessment {
   riskValuation           TechnicalAssessmentRiskValuation?
   regulatoryLinks         TechnicalAssessmentRegulatoryLink[]
   incidents               Incident[]
+  ppeRequirements         WorkerPpeRequirement[]
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, workCenterId])

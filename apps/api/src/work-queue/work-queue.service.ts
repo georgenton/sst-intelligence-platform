@@ -4,7 +4,11 @@ import {
   type WorkQueueItemType,
   type WorkQueueModule,
 } from '@sst/contracts';
-import { INCIDENTS_FEATURE_KEY, WORK_PERMITS_FEATURE_KEY } from '../catalog/entitlement';
+import {
+  INCIDENTS_FEATURE_KEY,
+  PPE_FEATURE_KEY,
+  WORK_PERMITS_FEATURE_KEY,
+} from '../catalog/entitlement';
 import { EntitlementService } from '../catalog/entitlement.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { WorkQueueQueryDto } from './dto';
@@ -49,6 +53,7 @@ export class WorkQueueService {
     const effectiveEntitlements = await this.entitlements.effective(organizationId);
     const workPermitsEnabled = effectiveEntitlements.features[WORK_PERMITS_FEATURE_KEY] === true;
     const incidentsEnabled = effectiveEntitlements.features[INCIDENTS_FEATURE_KEY] === true;
+    const ppeEnabled = effectiveEntitlements.features[PPE_FEATURE_KEY] === true;
 
     const [
       actions,
@@ -59,6 +64,8 @@ export class WorkQueueService {
       permits,
       incidentInvestigations,
       incidentActions,
+      ppeReplacements,
+      ppeConditionReviews,
     ] = await Promise.all([
       moduleEnabled('INSPECTIONS')
         ? this.prisma.correctiveAction.findMany({
@@ -281,6 +288,69 @@ export class WorkQueueService {
             orderBy: { createdAt: 'desc' },
           })
         : [],
+      moduleEnabled('PPE') &&
+      ppeEnabled &&
+      !query.assignedToUserId &&
+      (!query.priority || query.priority === 'HIGH')
+        ? this.prisma.ppeIssue.findMany({
+            where: {
+              organizationId,
+              status: { notIn: ['REPLACED', 'RETIRED'] },
+              OR: [{ status: 'REPLACEMENT_DUE' }, { expectedReplacementAt: { lte: now } }],
+              ...(query.workCenterId ? { worker: { workCenterId: query.workCenterId } } : {}),
+              ...(Object.keys(dueFilter).length ? { expectedReplacementAt: dueFilter } : {}),
+            },
+            select: {
+              id: true,
+              status: true,
+              expectedReplacementAt: true,
+              createdAt: true,
+              worker: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  workCenter: { select: { id: true, name: true } },
+                },
+              },
+              ppeCatalogItem: { select: { name: true } },
+            },
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+          })
+        : [],
+      moduleEnabled('PPE') &&
+      ppeEnabled &&
+      !query.assignedToUserId &&
+      (!query.priority || query.priority === 'HIGH') &&
+      !Object.keys(dueFilter).length
+        ? this.prisma.ppeIssue.findMany({
+            where: {
+              organizationId,
+              status: { notIn: ['REPLACED', 'RETIRED'] },
+              inspections: { some: {} },
+              ...(query.workCenterId ? { worker: { workCenterId: query.workCenterId } } : {}),
+            },
+            select: {
+              id: true,
+              createdAt: true,
+              worker: {
+                select: {
+                  id: true,
+                  displayName: true,
+                  workCenter: { select: { id: true, name: true } },
+                },
+              },
+              ppeCatalogItem: { select: { name: true } },
+              inspections: {
+                select: { id: true, condition: true, note: true, createdAt: true },
+                orderBy: { inspectedAt: 'desc' },
+                take: 1,
+              },
+            },
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+          })
+        : [],
     ]);
 
     const items: QueueItem[] = [
@@ -480,6 +550,47 @@ export class WorkQueueService {
         riskContext: null,
         createdAt: action.createdAt,
       })),
+      ...ppeReplacements.map((issue) => ({
+        type: 'PPE_REPLACEMENT_DUE' as const,
+        sourceId: issue.id,
+        organizationId,
+        workCenter: issue.worker.workCenter,
+        title: `${issue.ppeCatalogItem.name} · ${issue.worker.displayName}`,
+        summary: 'El elemento de EPP requiere reemplazo y su entrega histórica se conservará.',
+        status: 'REPLACEMENT_DUE',
+        priority: 'HIGH' as const,
+        dueAt: issue.expectedReplacementAt,
+        overdue: Boolean(issue.expectedReplacementAt && issue.expectedReplacementAt < now),
+        assignee: null,
+        origin: 'Gestión de EPP',
+        module: 'PPE' as const,
+        deepLink: `/app/workers/${issue.worker.id}#epp-issue-${issue.id}`,
+        regulatoryContext: null,
+        riskContext: null,
+        createdAt: issue.createdAt,
+      })),
+      ...ppeConditionReviews
+        .filter((issue) => issue.inspections[0]?.condition === 'REVIEW_REQUIRED')
+        .map((issue) => ({
+          type: 'PPE_CONDITION_REVIEW' as const,
+          sourceId: issue.inspections[0]!.id,
+          organizationId,
+          workCenter: issue.worker.workCenter,
+          title: `${issue.ppeCatalogItem.name} · ${issue.worker.displayName}`,
+          summary:
+            issue.inspections[0]!.note ?? 'La condición registrada requiere revisión profesional.',
+          status: issue.inspections[0]!.condition,
+          priority: 'HIGH' as const,
+          dueAt: null,
+          overdue: false,
+          assignee: null,
+          origin: 'Inspección de EPP',
+          module: 'PPE' as const,
+          deepLink: `/app/workers/${issue.worker.id}#epp-issue-${issue.id}`,
+          regulatoryContext: null,
+          riskContext: null,
+          createdAt: issue.inspections[0]!.createdAt,
+        })),
     ];
 
     items.sort((left, right) => {
