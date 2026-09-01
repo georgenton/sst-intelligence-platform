@@ -57,9 +57,14 @@ export function OrganizationsView() {
           created.id,
           token,
         );
-        await queryClient.invalidateQueries({
-          queryKey: queryKeys.user.organizations(auth.user!.id),
-        });
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.user.organizations(auth.user!.id),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.organization.scope(created.id),
+          }),
+        ]);
         router.push('/app');
         return;
       }
