@@ -75,6 +75,10 @@ async function referenceSnapshot(prisma) {
     regulatoryInterpretationReviews,
     workPermitFeatureDefinitions,
     workPermitPlanFeatures,
+    inspectionStandardSources,
+    inspectionStandardVersions,
+    inspectionStandardSections,
+    inspectionStandardCriteria,
   ] = await Promise.all([
     prisma.methodologySource.findMany({ orderBy: { id: 'asc' } }),
     prisma.methodologySourceVersion.findMany({ orderBy: { id: 'asc' } }),
@@ -109,6 +113,10 @@ async function referenceSnapshot(prisma) {
       where: { feature: { key: 'module.work_permits' } },
       orderBy: { id: 'asc' },
     }),
+    prisma.inspectionStandardSource.findMany({ orderBy: { id: 'asc' } }),
+    prisma.inspectionStandardVersion.findMany({ orderBy: { id: 'asc' } }),
+    prisma.inspectionStandardSection.findMany({ orderBy: { id: 'asc' } }),
+    prisma.inspectionStandardCriterion.findMany({ orderBy: { id: 'asc' } }),
   ]);
   return {
     sources,
@@ -131,6 +139,10 @@ async function referenceSnapshot(prisma) {
     regulatoryInterpretationReviews,
     workPermitFeatureDefinitions,
     workPermitPlanFeatures,
+    inspectionStandardSources,
+    inspectionStandardVersions,
+    inspectionStandardSections,
+    inspectionStandardCriteria,
   };
 }
 
@@ -216,6 +228,20 @@ function assertExpectedReferences(snapshot) {
     [{ key: 'module.work_permits', description: 'Módulo de permisos', valueType: 'BOOLEAN' }],
   );
   assert.equal(snapshot.workPermitPlanFeatures.length, 0);
+  assert.equal(snapshot.inspectionStandardSources.length, 3);
+  assert.equal(snapshot.inspectionStandardVersions.length, 3);
+  assert.equal(snapshot.inspectionStandardSections.length, 3);
+  assert.equal(snapshot.inspectionStandardCriteria.length, 10);
+  assert.equal(
+    snapshot.inspectionStandardSources.every(
+      ({ organizationId, rightsType, sourceType, status }) =>
+        organizationId === null &&
+        rightsType === 'DEMO_SYNTHETIC' &&
+        sourceType === 'GLOBAL_REFERENCE' &&
+        status === 'ACTIVE',
+    ),
+    true,
+  );
 
   const currentVersions = snapshot.regulatorySources.map((source) => {
     const versionsForSource = snapshot.regulatorySourceVersions.filter(
@@ -550,6 +576,19 @@ try {
     });
     const output = runPackageScript('reference:sync', drift.url, false);
     assert.match(output, /RISK_METHOD_REFERENCE_DRIFT:METHOD:GTC45_2010:1\.0\.0/);
+    await drift.prisma.riskMethodVersion.update({
+      where: { id: '54000000-0000-4000-8000-000000000003' },
+      data: { displayName: 'GTC 45 — edición 2010' },
+    });
+    await drift.prisma.inspectionStandardCriterion.update({
+      where: { id: '57300000-0000-4000-8000-000000000001' },
+      data: { title: 'Mutated synthetic criterion' },
+    });
+    const inspectionOutput = runPackageScript('reference:sync', drift.url, false);
+    assert.match(
+      inspectionOutput,
+      /INSPECTION_STANDARD_REFERENCE_DRIFT:DEMO_ELECTRICAL_STANDARD_A:A-PANEL-CLOSURE/,
+    );
     evidence.driftProtection = true;
   } finally {
     await drift.prisma.$disconnect();

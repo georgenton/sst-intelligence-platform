@@ -99,6 +99,14 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         match: 'segment',
         requiredFeature: 'module.inspections',
       },
+      {
+        id: 'inspection-standards',
+        label: 'Estándares de inspección',
+        href: '/app/settings/inspection-standards',
+        group: 'assessments',
+        match: 'segment',
+        requiredFeature: 'module.inspections',
+      },
     ],
   },
   {

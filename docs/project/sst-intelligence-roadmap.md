@@ -40,13 +40,21 @@ for approved professional/legal content. The dedicated `module.work_permits` cap
 only for an active bounded demo in V1. No commercial plan assignment or pricing decision has been
 made; future packaging is **PENDING PRODUCT DECISION**.
 
-### D.1 — Organization Team & Invitations — candidate in external review
+### D.1 — Organization Team & Invitations — production closed
 
 Foundational B2B team management closes the operational separation-of-duties gap: Owner/Admin
 manual-link invitations, authenticated matching-email acceptance, conservative role management,
 non-destructive deactivation and audit. Work Permit requesters select a different active same-tenant
 Owner/Admin/Responsible SST approver. No email provider, owner transfer, new paid feature or pricing
 decision is introduced.
+
+### D.2 — Inspection Standards — implementation in review
+
+Organizations select an exact technical standard version per finite inspection domain. Criteria
+attach directly to that version and become the inspection checklist; a versioned organization
+policy resolves it automatically for new inspections. Historical inspections retain their original
+basis. V1 has no Protocol Engine, no arbitrary per-inspection override, no copyrighted real
+standard corpus and no new commercial capability.
 
 ### E — Incident management
 
@@ -109,7 +117,8 @@ Completed foundations include platform/auth/tenancy, intelligent inspections, Te
 Applicability and Adaptive Configuration foundations, regulatory source/provision/requirement
 foundations, Risk Methodology runtime and Unified Regulatory Evidence Runtime V1.
 
-Production implements Track C, the first bounded preview slice of Track D and Workspace UX V2. The
-current candidate implements Track D.1 without starting later operational domains. Track B was
+Production implements Track C, the first bounded preview slice of Track D and Workspace UX V2.
+Track D.1 is production closed. The current candidate implements Track D.2 without starting later
+operational domains. Track B was
 attempted and safely deferred because the ordered artifacts need verified human transcription before
 structuring. Track A remains pending. No later track is represented as active.

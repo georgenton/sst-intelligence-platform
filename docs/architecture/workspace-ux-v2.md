@@ -57,6 +57,15 @@ Both pilots now use the shared `WorkspaceHeader`/`WorkspaceInspector` compositio
 their existing routes and domain actions. Obligation Execution and Work Permits also consume the
 primitives, validating reuse without turning the workspace into a universal domain component.
 
+## Inspection Standards V1
+
+The inspection workspace keeps the active criterion and outcome as primary work. Its contextual
+inspector presents **Base técnica de inspección** with human standard name, edition, source and
+rights state. Risk Methodology appears in a distinct section, and Regulatory Foundation appears
+only when explicitly linked. Policy history belongs under secondary disclosure in Configuración
+SST. Internal enums, UUIDs, hashes and policy/version identifiers are restricted to deliberate
+technical details.
+
 ## Command Center V2
 
 The primary hierarchy is:

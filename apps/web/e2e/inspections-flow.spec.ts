@@ -43,6 +43,8 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await page.getByRole('link', { name: 'Inspecciones', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Inspecciones', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Nueva inspección' }).click();
+  await page.getByLabel('Dominio de inspección').selectOption('ELECTRICAL');
+  await expect(page.getByRole('heading', { name: 'Demo Electrical Standard A' })).toBeVisible();
   await page
     .getByLabel('Centro de trabajo')
     .selectOption({ label: 'Centro Guayaquil (demostración)' });

@@ -645,6 +645,157 @@ a.inspection-metric:hover {
   font-size: var(--text-caption);
 }
 
+.inspection-standard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--space-4);
+}
+
+.inspection-standard-domain-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+}
+
+.inspection-standard-domain-card h2,
+.inspection-standard-domain-card p {
+  margin: 0;
+}
+
+.inspection-standard-domain-card select {
+  width: 100%;
+}
+
+.inspection-standard-summary,
+.inspection-standard-details dl {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.inspection-standard-summary div,
+.inspection-standard-details dl div {
+  display: grid;
+  grid-template-columns: minmax(6rem, 0.45fr) 1fr;
+  gap: var(--space-3);
+}
+
+.inspection-standard-summary dt,
+.inspection-standard-details dt {
+  color: var(--text-tertiary);
+}
+
+.inspection-standard-summary dd,
+.inspection-standard-details dd {
+  margin: 0;
+  font-weight: 650;
+}
+
+.inspection-standard-details summary,
+.inspection-policy-history summary {
+  min-height: 2.75rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.inspection-standard-details__body {
+  display: grid;
+  gap: var(--space-4);
+  padding-block-start: var(--space-3);
+}
+
+.inspection-standard-details__body ol,
+.inspection-policy-history ol,
+.inspection-policy-history ul {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding-inline-start: 1.4rem;
+}
+
+.inspection-standard-details__body li p {
+  margin-block: var(--space-2);
+}
+
+.inspection-standard-empty {
+  padding: var(--space-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-control);
+  color: var(--text-tertiary);
+}
+
+.inspection-policy-history > details > ol {
+  padding-block-start: var(--space-4);
+}
+
+.inspection-policy-history > details > ol > li {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.inspection-standard-basis,
+.inspection-criterion-card,
+.inspection-criteria-list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.inspection-standard-basis h2,
+.inspection-standard-basis p,
+.inspection-criterion-card h3,
+.inspection-criterion-card p {
+  margin: 0;
+}
+
+.inspection-standard-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, 0.36fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.inspection-criterion-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.criterion-outcome {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.criterion-outcome--conforme {
+  border-color: var(--status-success-border);
+}
+
+.criterion-outcome--no_conforme {
+  border-color: var(--status-danger-border);
+}
+
+.criterion-outcome--no_aplica,
+.criterion-outcome--no_verificado {
+  color: var(--text-tertiary);
+}
+
+.inspection-criterion-evidence {
+  padding-inline-start: var(--space-3);
+  border-inline-start: 3px solid var(--border-strong);
+}
+
+@media (max-width: 840px) {
+  .inspection-standard-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .risk-method-options {
   display: grid;
   gap: var(--space-2);

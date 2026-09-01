@@ -15,12 +15,15 @@ import {
   isCorrectiveActionOverdue,
   recurrenceStatus,
   resolveFindingCategoriesFromSearch,
+  canUseCriterionOutcome,
+  inspectionCriterionResultInputSchema,
   type CorrectiveActionStatus,
   type FindingCategory,
 } from '@sst/contracts';
 import { AuditService, type AuditEvent } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RiskMethodologyService } from '../risk-methodology/risk-methodology.service';
+import { InspectionStandardsService } from '../inspection-standards/inspection-standards.service';
 import type {
   AlertQueryDto,
   CompleteSystemicReviewDto,
@@ -33,6 +36,7 @@ import type {
   UpdateActionDto,
   UpdateFindingDto,
   UpdateInspectionDto,
+  UpdateInspectionCriterionResultDto,
   VerifyFindingDto,
 } from './dto';
 
@@ -45,6 +49,7 @@ export class InspectionsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly riskMethods: RiskMethodologyService,
+    private readonly inspectionStandards: InspectionStandardsService,
   ) {}
 
   context(organizationId: string) {
@@ -124,6 +129,9 @@ export class InspectionsService {
       where: { id: organizationId },
       select: { status: true },
     });
+    const resolvedStandard = input.inspectionDomain
+      ? await this.inspectionStandards.resolveRequired(organizationId, input.inspectionDomain)
+      : null;
     const inspection = await this.prisma.inspection.create({
       data: {
         organizationId,
@@ -136,10 +144,29 @@ export class InspectionsService {
         isDemo: organization.status === 'DEMO',
         riskMethodVersionId: methodVersion.id,
         riskMethodSnapshot: this.riskMethods.snapshot(methodVersion),
+        inspectionDomain: input.inspectionDomain,
+        standardPolicyVersionId: resolvedStandard?.policy.id,
+        standardVersionId: resolvedStandard?.standardVersion.id,
+        standardSnapshot: resolvedStandard
+          ? this.inspectionStandards.snapshot(resolvedStandard.standardVersion)
+          : undefined,
+        criterionResults: resolvedStandard
+          ? {
+              create: resolvedStandard.standardVersion.criteria.map((criterion) => ({
+                organizationId,
+                criterionId: criterion.id,
+                actorUserId: userId,
+                outcome: 'NO_VERIFICADO',
+                evidenceReferences: [],
+              })),
+            }
+          : undefined,
       },
       include: {
         workCenter: { select: { id: true, name: true } },
         workArea: { select: { id: true, name: true } },
+        standardVersion: { include: { source: true } },
+        criterionResults: true,
       },
     });
     await this.record(
@@ -152,6 +179,8 @@ export class InspectionsService {
         workCenterId: inspection.workCenterId,
         isDemo: inspection.isDemo,
         riskMethodVersionId: methodVersion.id,
+        inspectionDomain: inspection.inspectionDomain,
+        standardVersionId: inspection.standardVersionId,
       },
       context,
     );
@@ -167,6 +196,27 @@ export class InspectionsService {
         inspector: { select: { id: true, displayName: true } },
         riskMethodVersion: {
           include: { methodDefinition: { select: { methodKey: true } } },
+        },
+        standardVersion: {
+          include: {
+            source: true,
+            sections: {
+              orderBy: { displayOrder: 'asc' },
+              include: { criteria: { orderBy: { displayOrder: 'asc' } } },
+            },
+          },
+        },
+        standardPolicyVersion: {
+          include: { createdBy: { select: { id: true, displayName: true } } },
+        },
+        criterionResults: {
+          where: { organizationId },
+          orderBy: { criterion: { displayOrder: 'asc' } },
+          include: {
+            criterion: { include: { section: true } },
+            actor: { select: { id: true, displayName: true } },
+            finding: { select: { id: true, title: true, status: true } },
+          },
         },
         findings: {
           where: { organizationId },
@@ -254,6 +304,76 @@ export class InspectionsService {
     return updated;
   }
 
+  async updateCriterionResult(
+    organizationId: string,
+    inspectionId: string,
+    criterionId: string,
+    userId: string,
+    rawInput: UpdateInspectionCriterionResultDto,
+    context: Context,
+  ) {
+    const input = inspectionCriterionResultInputSchema.safeParse(rawInput);
+    if (!input.success) {
+      throw new BadRequestException({
+        code: 'INVALID_INSPECTION_CRITERION_RESULT',
+        message: input.error.issues[0]?.message ?? 'El resultado del criterio no es válido.',
+      });
+    }
+    const result = await this.prisma.inspectionCriterionResult.findFirst({
+      where: { organizationId, inspectionId, criterionId, inspection: { organizationId } },
+      include: {
+        criterion: true,
+        inspection: { select: { status: true } },
+        finding: { select: { id: true } },
+      },
+    });
+    if (!result) throw new NotFoundException('Criterio de inspección no encontrado.');
+    if (result.inspection.status !== 'IN_PROGRESS') {
+      throw new BadRequestException({
+        code: 'INSPECTION_CRITERION_NOT_EDITABLE',
+        message: 'Inicia la inspección antes de registrar resultados de criterios.',
+      });
+    }
+    if (!canUseCriterionOutcome(input.data.outcome, result.criterion.notApplicableAllowed)) {
+      throw new BadRequestException({
+        code: 'INSPECTION_CRITERION_NOT_APPLICABLE_FORBIDDEN',
+        message: 'Este criterio requiere una verificación y no admite No aplica.',
+      });
+    }
+    if (result.finding && input.data.outcome !== 'NO_CONFORME') {
+      throw new BadRequestException({
+        code: 'INSPECTION_CRITERION_HAS_FINDING',
+        message:
+          'El criterio conserva el resultado No conforme porque ya tiene un hallazgo vinculado.',
+      });
+    }
+    const updated = await this.prisma.inspectionCriterionResult.update({
+      where: { id: result.id },
+      data: {
+        outcome: input.data.outcome,
+        note: input.data.note,
+        evidenceReferences: input.data.evidenceReferences,
+        actorUserId: userId,
+        observedAt: new Date(),
+      },
+      include: {
+        criterion: { include: { section: true } },
+        actor: { select: { id: true, displayName: true } },
+        finding: { select: { id: true, title: true, status: true } },
+      },
+    });
+    await this.record(
+      organizationId,
+      userId,
+      'INSPECTION_CRITERION_RECORDED',
+      'InspectionCriterionResult',
+      updated.id,
+      { inspectionId, criterionId, outcome: updated.outcome },
+      context,
+    );
+    return updated;
+  }
+
   async listFindings(organizationId: string, inspectionId: string, query: InspectionQueryDto) {
     await this.requireInspection(organizationId, inspectionId);
     const where: Prisma.InspectionFindingWhereInput = {
@@ -305,6 +425,24 @@ export class InspectionsService {
         message: 'Una inspección finalizada no admite nuevos hallazgos.',
       });
     const methodVersion = inspection.riskMethodVersion;
+    const criterionResult = input.criterionResultId
+      ? await this.prisma.inspectionCriterionResult.findFirst({
+          where: {
+            id: input.criterionResultId,
+            organizationId,
+            inspectionId,
+            outcome: 'NO_CONFORME',
+            finding: null,
+          },
+          select: { id: true },
+        })
+      : null;
+    if (input.criterionResultId && !criterionResult) {
+      throw new BadRequestException({
+        code: 'INSPECTION_CRITERION_FINDING_NOT_AVAILABLE',
+        message: 'El criterio debe estar No conforme y no tener un hallazgo vinculado.',
+      });
+    }
     const methodInput = input.methodInput ?? {
       likelihood: input.likelihood,
       consequence: input.consequence,
@@ -334,6 +472,7 @@ export class InspectionsService {
         initialRiskLevel: risk.semanticLevel,
         initialResultLabel: risk.resultLabel,
         createdById: userId,
+        criterionResultId: criterionResult?.id,
       },
     });
     const since = new Date(created.createdAt.getTime() - this.windowDays() * 86_400_000);

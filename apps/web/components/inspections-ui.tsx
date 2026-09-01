@@ -1,7 +1,7 @@
 'use client';
 
 import { ApiClientError } from '@sst/api-client';
-import type { FindingCategory } from '@sst/contracts';
+import type { FindingCategory, InspectionDomainKey } from '@sst/contracts';
 import { Card } from '@sst/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -23,6 +23,12 @@ import {
   type InspectionFilters,
 } from '@/lib/inspection-experience';
 import { queryKeys } from '@/lib/query-keys';
+import {
+  INSPECTION_CRITERION_OUTCOME_LABELS,
+  INSPECTION_DOMAINS,
+  INSPECTION_DOMAIN_LABELS,
+  type InspectionCriterionOutcome,
+} from '@/lib/inspection-standard-presentation';
 import {
   gtc45ConsequenceOptions,
   gtc45DeficiencyOptions,
@@ -57,6 +63,7 @@ import {
 import { useDashboardData } from './use-app-data';
 import { TechnicalDetails } from './technical-details';
 import { WorkspaceInspector } from './workspace';
+import type { InspectionStandardPolicy } from './inspection-standards-ui';
 
 type ContextData = {
   workCenters: Array<{
@@ -186,6 +193,52 @@ type Inspection = {
     disclaimer: string;
     methodDefinition: { methodKey: string };
   };
+  inspectionDomain?: InspectionDomainKey | null;
+  standardPolicyVersion?: {
+    version: number;
+    createdAt: string;
+    createdBy: { displayName: string };
+  } | null;
+  standardVersion?: {
+    id: string;
+    versionCode: string;
+    editionLabel: string;
+    status: string;
+    source: {
+      name: string;
+      publisher: string;
+      rightsType: string;
+      sourceType: string;
+    };
+    sections: Array<{
+      id: string;
+      title: string;
+      criteria: Array<{
+        id: string;
+        title: string;
+        guidance: string;
+        evidenceExpectation?: string | null;
+        notApplicableAllowed: boolean;
+      }>;
+    }>;
+  } | null;
+  criterionResults?: Array<{
+    id: string;
+    outcome: InspectionCriterionOutcome;
+    note?: string | null;
+    evidenceReferences: unknown;
+    updatedAt: string;
+    actor: { displayName: string };
+    finding?: { id: string; title: string; status: string } | null;
+    criterion: {
+      id: string;
+      title: string;
+      guidance: string;
+      evidenceExpectation?: string | null;
+      notApplicableAllowed: boolean;
+      section?: { id: string; title: string } | null;
+    };
+  }>;
 };
 
 type RiskCriterion = {
@@ -793,6 +846,7 @@ export function InspectionsDashboard({ filters = {} }: { filters?: InspectionsDa
 }
 
 type InspectionForm = {
+  inspectionDomain: InspectionDomainKey | '';
   workCenterId: string;
   workAreaId: string;
   title: string;
@@ -810,6 +864,7 @@ export function NewInspection() {
   const form = useForm<InspectionForm>({
     mode: 'onBlur',
     defaultValues: {
+      inspectionDomain: '',
       workCenterId: '',
       workAreaId: '',
       title: '',
@@ -819,6 +874,19 @@ export function NewInspection() {
     },
   });
   const centerId = form.watch('workCenterId');
+  const inspectionDomain = form.watch('inspectionDomain');
+  const standardPolicy = useQuery({
+    queryKey: queryKeys.organization.inspectionStandardPolicy(api.organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      api.request<InspectionStandardPolicy>('/inspection-standards/organization/policy', {
+        signal,
+      }),
+    enabled: Boolean(api.organizationId && api.moduleEnabled),
+    retry: shouldRetryGet,
+  });
+  const selectedBinding = standardPolicy.data?.current?.bindings.find(
+    (binding) => binding.inspectionDomain === inspectionDomain,
+  );
   const areas = context.data?.workCenters.find((center) => center.id === centerId)?.workAreas ?? [];
   useEffect(() => {
     if (!areas.some(({ id }) => id === form.getValues('workAreaId')))
@@ -859,10 +927,14 @@ export function NewInspection() {
             capability="crear una inspección"
             authorizedRoles={WRITE_ROLE_COPY}
           />
-        ) : context.isLoading || methods.isLoading ? (
+        ) : context.isLoading || methods.isLoading || standardPolicy.isLoading ? (
           <InspectionSkeleton label="Cargando centros y áreas" />
-        ) : context.isError || methods.isError ? (
-          <PageQueryError retry={() => void Promise.all([context.refetch(), methods.refetch()])} />
+        ) : context.isError || methods.isError || standardPolicy.isError ? (
+          <PageQueryError
+            retry={() =>
+              void Promise.all([context.refetch(), methods.refetch(), standardPolicy.refetch()])
+            }
+          />
         ) : context.data?.workCenters.length === 0 ? (
           <InspectionState
             kind="empty"
@@ -888,6 +960,54 @@ export function NewInspection() {
                 <h2>Ubicación y alcance</h2>
                 <p>Los centros y áreas pertenecen a la organización activa.</p>
               </div>
+              <div className="field">
+                <label htmlFor="inspection-domain">Dominio de inspección</label>
+                <select
+                  id="inspection-domain"
+                  aria-invalid={Boolean(form.formState.errors.inspectionDomain)}
+                  {...form.register('inspectionDomain', {
+                    required: 'Selecciona qué tipo de condiciones vas a inspeccionar.',
+                  })}
+                >
+                  <option value="">Selecciona un dominio</option>
+                  {INSPECTION_DOMAINS.map((domain) => (
+                    <option key={domain} value={domain}>
+                      {INSPECTION_DOMAIN_LABELS[domain]}
+                    </option>
+                  ))}
+                </select>
+                {form.formState.errors.inspectionDomain ? (
+                  <p className="field-error">{form.formState.errors.inspectionDomain.message}</p>
+                ) : null}
+              </div>
+              {inspectionDomain ? (
+                selectedBinding ? (
+                  <Card className="inspection-standard-basis" role="status">
+                    <p className="eyebrow">Base técnica de inspección</p>
+                    <h2>{selectedBinding.standardVersion.source.name}</h2>
+                    <p>
+                      {selectedBinding.standardVersion.editionLabel} · versión{' '}
+                      {selectedBinding.standardVersion.versionCode}
+                    </p>
+                    <small>Origen: Configuración SST de la organización.</small>
+                    <p className="inspection-invariant-note">
+                      Esta base define qué se verifica; no determina por sí sola una infracción
+                      legal ni la valoración del riesgo.
+                    </p>
+                  </Card>
+                ) : (
+                  <InspectionState
+                    kind="info"
+                    title={`Configura el estándar de inspección para ${INSPECTION_DOMAIN_LABELS[inspectionDomain]} antes de iniciar esta inspección.`}
+                    description="No se aplicará un estándar de demostración de forma automática."
+                    action={
+                      <Link className="button secondary" href="/app/settings/inspection-standards">
+                        Ir a Estándares de inspección
+                      </Link>
+                    }
+                  />
+                )
+              ) : null}
               <div className="inspection-form-grid">
                 <div className="field">
                   <label htmlFor="center">Centro de trabajo</label>
@@ -1001,7 +1121,10 @@ export function NewInspection() {
                 <Link className="button secondary" href="/app/inspections">
                   Cancelar
                 </Link>
-                <button className="button" disabled={mutation.isPending}>
+                <button
+                  className="button"
+                  disabled={mutation.isPending || !inspectionDomain || !selectedBinding}
+                >
                   {mutation.isPending ? 'Creando borrador…' : 'Crear inspección'}
                 </button>
               </div>
@@ -1100,6 +1223,158 @@ export function RiskMethodLibrary() {
         )}
       </div>
     </AccessGate>
+  );
+}
+
+type CriterionResult = NonNullable<Inspection['criterionResults']>[number];
+
+function evidenceReferencesText(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string').join('\n')
+    : '';
+}
+
+function CriterionResultCard({
+  api,
+  inspectionId,
+  result,
+  editable,
+}: {
+  api: ReturnType<typeof useInspectionApi>;
+  inspectionId: string;
+  result: CriterionResult;
+  editable: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [outcome, setOutcome] = useState<CriterionResult['outcome']>(result.outcome);
+  const [note, setNote] = useState(result.note ?? '');
+  const [evidence, setEvidence] = useState(() => evidenceReferencesText(result.evidenceReferences));
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.request(`/inspections/${inspectionId}/criteria/${result.criterion.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          outcome,
+          note: note.trim() || undefined,
+          evidenceReferences: evidence
+            .split('\n')
+            .map((item) => item.trim())
+            .filter(Boolean),
+        }),
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.inspection(api.organizationId!, inspectionId),
+      });
+    },
+  });
+  const noConformeWithoutNote = outcome === 'NO_CONFORME' && note.trim().length === 0;
+
+  return (
+    <Card className="inspection-criterion-card">
+      <div className="inspection-criterion-heading">
+        <div>
+          <p className="eyebrow">Criterio de inspección</p>
+          <h3>{result.criterion.title}</h3>
+        </div>
+        <span className={`criterion-outcome criterion-outcome--${result.outcome.toLowerCase()}`}>
+          {INSPECTION_CRITERION_OUTCOME_LABELS[result.outcome]}
+        </span>
+      </div>
+      <p>{result.criterion.guidance}</p>
+      {result.criterion.evidenceExpectation ? (
+        <p className="inspection-criterion-evidence">
+          <strong>Evidencia esperada:</strong> {result.criterion.evidenceExpectation}
+        </p>
+      ) : null}
+      <div className="inspection-form-grid">
+        <label className="field">
+          <span>Resultado observado</span>
+          <select
+            value={outcome}
+            disabled={!editable || mutation.isPending}
+            onChange={(event) => setOutcome(event.target.value as CriterionResult['outcome'])}
+          >
+            {Object.entries(INSPECTION_CRITERION_OUTCOME_LABELS).map(([value, label]) => (
+              <option
+                key={value}
+                value={value}
+                disabled={value === 'NO_APLICA' && !result.criterion.notApplicableAllowed}
+              >
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Observación {outcome === 'NO_CONFORME' ? '(obligatoria)' : '(opcional)'}</span>
+          <textarea
+            rows={3}
+            maxLength={2000}
+            value={note}
+            disabled={!editable || mutation.isPending}
+            aria-invalid={noConformeWithoutNote}
+            onChange={(event) => setNote(event.target.value)}
+          />
+          {noConformeWithoutNote ? (
+            <small className="field-error">
+              Describe la condición observada antes de guardar No conforme.
+            </small>
+          ) : null}
+        </label>
+      </div>
+      <label className="field">
+        <span>Referencias de evidencia (una por línea, opcional)</span>
+        <textarea
+          rows={2}
+          value={evidence}
+          disabled={!editable || mutation.isPending}
+          onChange={(event) => setEvidence(event.target.value)}
+          placeholder="Ej. Foto del tablero · registro interno 2026-08-31"
+        />
+      </label>
+      <p className="inspection-invariant-note">
+        “No conforme” describe la condición frente a este criterio técnico; no declara
+        automáticamente una infracción legal.
+      </p>
+      {mutation.isError ? (
+        <InlineRequestState>
+          No pudimos guardar el resultado. El contenido permanece en esta tarjeta.
+        </InlineRequestState>
+      ) : null}
+      <div className="inspection-dialog-actions">
+        {editable ? (
+          <button
+            className="button secondary"
+            type="button"
+            disabled={mutation.isPending || noConformeWithoutNote}
+            onClick={() => mutation.mutate()}
+          >
+            {mutation.isPending ? 'Guardando…' : 'Guardar resultado'}
+          </button>
+        ) : null}
+        {result.finding ? (
+          <Link
+            className="button secondary"
+            href={`/app/inspections/${inspectionId}/findings/${result.finding.id}`}
+          >
+            Ver hallazgo vinculado
+          </Link>
+        ) : result.outcome === 'NO_CONFORME' ? (
+          <Link
+            className="button"
+            href={`/app/inspections/${inspectionId}/findings/new?criterionResultId=${result.id}`}
+          >
+            Crear hallazgo
+          </Link>
+        ) : null}
+      </div>
+      {result.outcome !== 'NO_VERIFICADO' ? (
+        <small>
+          Último registro: {result.actor.displayName} · {formatDate(result.updatedAt)}
+        </small>
+      ) : null}
+    </Card>
   );
 }
 
@@ -1237,6 +1512,82 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
               No pudimos cambiar el estado. Revisa el estado actual y vuelve a intentarlo.
             </InlineRequestState>
           ) : null}
+          <div className="inspection-standard-workspace">
+            <section aria-labelledby="inspection-criteria-title">
+              <div className="inspection-section-heading">
+                <div>
+                  <p className="eyebrow">Lista de verificación</p>
+                  <h2 id="inspection-criteria-title">
+                    Criterios <span>{query.data.criterionResults?.length ?? 0}</span>
+                  </h2>
+                </div>
+              </div>
+              {query.data.standardVersion && query.data.criterionResults?.length ? (
+                <div className="inspection-criteria-list">
+                  {query.data.criterionResults.map((result) => (
+                    <CriterionResultCard
+                      key={result.id}
+                      api={api}
+                      inspectionId={query.data.id}
+                      result={result}
+                      editable={
+                        query.data.status === 'IN_PROGRESS' && canWriteInspections(api.role)
+                      }
+                    />
+                  ))}
+                </div>
+              ) : (
+                <InspectionState
+                  kind="info"
+                  title="Inspección anterior a Estándares de inspección V1"
+                  description="Este registro histórico sigue siendo válido y no se le asignó retrospectivamente un estándar de demostración."
+                />
+              )}
+            </section>
+            <WorkspaceInspector label="Base técnica y contexto">
+              {query.data.standardVersion && query.data.inspectionDomain ? (
+                <>
+                  <section>
+                    <p className="eyebrow">Base técnica de inspección</p>
+                    <h2>{query.data.standardVersion.source.name}</h2>
+                    <p>
+                      {query.data.standardVersion.editionLabel} · versión{' '}
+                      {query.data.standardVersion.versionCode}
+                    </p>
+                    <p>{INSPECTION_DOMAIN_LABELS[query.data.inspectionDomain]}</p>
+                    <small>
+                      Configuración SST · política versión{' '}
+                      {query.data.standardPolicyVersion?.version ?? 'registrada'}
+                    </small>
+                  </section>
+                  <section>
+                    <h3>Alcance de esta base</h3>
+                    <p>
+                      Define los criterios observados en el recorrido. No equivale por sí sola a una
+                      obligación legal ni a una certificación.
+                    </p>
+                  </section>
+                </>
+              ) : (
+                <p>Registro histórico sin estándar técnico asociado.</p>
+              )}
+              <section>
+                <p className="eyebrow">Metodología de valoración del riesgo</p>
+                <h3>{query.data.riskMethodVersion.displayName}</h3>
+                <p>
+                  Se aplica al crear y valorar un hallazgo; no modifica los criterios del estándar.
+                </p>
+                <Link href="/app/risk-methods">Consultar metodología</Link>
+              </section>
+              <section>
+                <p className="eyebrow">Fundamento normativo</p>
+                <p>
+                  Se muestra por separado en cada hallazgo cuando existe un vínculo regulatorio
+                  explícito. El estándar de inspección no se convierte automáticamente en ley.
+                </p>
+              </section>
+            </WorkspaceInspector>
+          </div>
           <section aria-labelledby="inspection-findings-title">
             <div className="inspection-section-heading">
               <div>
@@ -1402,7 +1753,13 @@ function selectedGtcConsequenceLabel(value: number | undefined) {
   return gtc45ConsequenceOptions.find((option) => option.value === value)?.label ?? 'Sin selección';
 }
 
-export function NewFinding({ inspectionId }: { inspectionId: string }) {
+export function NewFinding({
+  inspectionId,
+  criterionResultId,
+}: {
+  inspectionId: string;
+  criterionResultId?: string;
+}) {
   const api = useInspectionApi();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -1442,6 +1799,9 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
     },
   });
   const values = form.watch();
+  const linkedCriterion = inspection.data?.criterionResults?.find(
+    (result) => result.id === criterionResultId,
+  );
   const mutation = useMutation({
     mutationFn: (input: FindingForm) =>
       api.request<CreatedFinding>(`/inspections/${inspectionId}/findings`, {
@@ -1450,6 +1810,7 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
           title: input.title,
           description: input.description,
           category: input.category,
+          criterionResultId,
           methodInput: findingMethodInput(
             inspection.data?.riskMethodVersion.methodDefinition.methodKey ?? 'DEMO_5X5',
             input,
@@ -1674,6 +2035,12 @@ export function NewFinding({ inspectionId }: { inspectionId: string }) {
                     <span>Área</span>
                     <strong>{inspection.data.workArea?.name ?? 'Sin área específica'}</strong>
                   </div>
+                  {linkedCriterion ? (
+                    <div>
+                      <span>Origen del hallazgo</span>
+                      <strong>Criterio no conforme: {linkedCriterion.criterion.title}</strong>
+                    </div>
+                  ) : null}
                   <p className="inspection-invariant-note">
                     Este contexto proviene de la inspección y no se envía como una organización
                     arbitraria.

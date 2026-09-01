@@ -320,6 +320,33 @@ export class SolutionFinderService {
         },
       });
       if (moduleKeys.includes('INSPECTIONS_INTELLIGENCE')) {
+        const existingStandardPolicy =
+          await tx.organizationInspectionStandardPolicyVersion.findFirst({
+            where: { organizationId },
+            select: { id: true },
+          });
+        if (!existingStandardPolicy) {
+          await tx.organizationInspectionStandardPolicyVersion.create({
+            data: {
+              organizationId,
+              version: 1,
+              createdById: userId,
+              reason: 'Configuración inicial de demostración conceptual.',
+              bindings: {
+                create: [
+                  {
+                    inspectionDomain: 'ELECTRICAL',
+                    standardVersionId: '57100000-0000-4000-8000-000000000001',
+                  },
+                  {
+                    inspectionDomain: 'FIRE_PROTECTION',
+                    standardVersionId: '57100000-0000-4000-8000-000000000003',
+                  },
+                ],
+              },
+            },
+          });
+        }
         const risk = calculateDemoRisk(4, 4);
         const baseTime = startsAt.getTime();
         for (let index = 0; index < 3; index += 1) {
