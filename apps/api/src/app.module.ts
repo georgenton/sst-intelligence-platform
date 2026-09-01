@@ -30,6 +30,12 @@ import { WorkQueueModule } from './work-queue/work-queue.module';
 import { WorkPermitsModule } from './work-permits/work-permits.module';
 import { WorkersModule } from './workers/workers.module';
 
+const configuredThrottleLimit = Number(process.env.API_THROTTLE_LIMIT ?? '120');
+
+if (!Number.isInteger(configuredThrottleLimit) || configuredThrottleLimit < 1) {
+  throw new Error('API_THROTTLE_LIMIT must be a positive integer');
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -46,7 +52,7 @@ import { WorkersModule } from './workers/workers.module';
         return config;
       },
     }),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: configuredThrottleLimit }]),
     PrismaModule,
     AuditModule,
     AuthModule,
