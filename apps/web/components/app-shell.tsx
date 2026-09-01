@@ -31,11 +31,13 @@ type Organization = {
 };
 type OrganizationContextValue = {
   activeId: string | null;
+  currentRole: string | null;
   setActiveId(id: string, notice?: string): Promise<void>;
   organizations: Organization[];
   loading: boolean;
   transitioning: boolean;
 };
+type EffectiveEntitlements = { features: Record<string, boolean | number | string> };
 const OrganizationContext = createContext<OrganizationContextValue | null>(null);
 
 export function AppShell({ children }: PropsWithChildren) {
@@ -52,6 +54,12 @@ export function AppShell({ children }: PropsWithChildren) {
     queryKey: queryKeys.user.organizations(userId ?? 'unauthenticated'),
     queryFn: ({ signal }) => auth.request<Organization[]>('/organizations', { signal }),
     enabled: Boolean(userId && auth.accessToken),
+  });
+  const entitlements = useQuery({
+    queryKey: queryKeys.organization.entitlements(activeId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<EffectiveEntitlements>('/entitlements', { signal }, activeId!),
+    enabled: Boolean(activeId && transitionTarget === undefined),
   });
 
   useEffect(() => {
@@ -156,12 +164,13 @@ export function AppShell({ children }: PropsWithChildren) {
   const context = useMemo(
     () => ({
       activeId,
+      currentRole: current?.memberships[0]?.role ?? null,
       setActiveId,
       organizations: organizations.data ?? [],
       loading: organizations.isLoading || transitioning,
       transitioning,
     }),
-    [activeId, organizations.data, organizations.isLoading, transitioning],
+    [activeId, current?.memberships, organizations.data, organizations.isLoading, transitioning],
   );
   if (auth.loading || (!auth.user && !auth.loading))
     return (
@@ -175,7 +184,7 @@ export function AppShell({ children }: PropsWithChildren) {
         Saltar al contenido principal
       </a>
       <div className="app-layout">
-        <AppSidebar pathname={pathname} />
+        <AppSidebar pathname={pathname} features={entitlements.data?.features} />
         <div className="app-main">
           <AppTopbar
             activeId={activeId}

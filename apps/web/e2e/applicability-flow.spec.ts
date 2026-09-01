@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { registerE2eUser } from './support/register-e2e-user';
+import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 test('perfil versionado, evaluación explícita y trace de aplicabilidad', async ({ page }) => {
   test.setTimeout(90_000);
@@ -14,11 +14,7 @@ test('perfil versionado, evaluación explícita y trace de aplicabilidad', async
   });
   expect(registration.statusCode, registration.body).toBe(201);
 
-  await page.goto('/auth/login');
-  await page.getByLabel('Correo').fill(email);
-  await page.getByLabel('Contraseña').fill(password);
-  await page.getByRole('button', { name: 'Entrar' }).click();
-  await page.getByRole('link', { name: 'Crear organización' }).click();
+  await activateE2eUserSession(page, registration, '/app/organizations');
   await page.getByLabel('Nombre de empresa').fill(`Aplicabilidad Demo ${suffix}`);
   await page.getByLabel('Sector').fill('Tecnología');
   await page.getByRole('button', { name: 'Crear organización' }).click();

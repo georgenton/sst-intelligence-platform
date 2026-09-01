@@ -70,6 +70,11 @@ const BASELINE_PLAN_FEATURES = {
     'organization.max_work_centers': '10000',
   },
 } as const;
+const WORKFORCE_PREVIEW_FEATURE_KEYS = [
+  'module.incidents',
+  'module.ppe',
+  'module.training',
+] as const;
 
 describe('regulatory source foundation integration', () => {
   let app: INestApplication;
@@ -232,7 +237,11 @@ describe('regulatory source foundation integration', () => {
       orderBy: { key: 'asc' },
     });
     expect(featureKeys.map(({ key }) => key)).toEqual(
-      [...Object.keys(BASELINE_PLAN_FEATURES.FREE), 'module.work_permits'].sort(),
+      [
+        ...Object.keys(BASELINE_PLAN_FEATURES.FREE),
+        'module.work_permits',
+        ...WORKFORCE_PREVIEW_FEATURE_KEYS,
+      ].sort(),
     );
 
     const plans = await prisma.plan.findMany({

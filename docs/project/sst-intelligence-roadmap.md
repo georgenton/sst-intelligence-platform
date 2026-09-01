@@ -59,17 +59,17 @@ three synthetic demo standard versions, ten synthetic criteria, append-only orga
 tenant isolation, explicit no-fallback behavior and preserved legacy inspection semantics. Real
 standard selection and professional approval remain **PENDING ANITA**.
 
-### E — Incident management
+### E — Incident management — implementation authorized
 
 Operational incident lifecycle, investigation evidence and contributing factors without automatic
 root-cause claims.
 
-### F — PPE
+### F — PPE — implementation authorized
 
 Worker/position → risk → PPE → delivery → inspection → expiry/renewal → evidence. Inventory and
 stock follow later.
 
-### G — Training and competency
+### G — Training and competency — implementation authorized
 
 Role/activity → competency → training → attendance → assessment → evidence → expiry/renewal, linked
 to Requirements, risks, findings and actions.
@@ -121,6 +121,9 @@ Applicability and Adaptive Configuration foundations, regulatory source/provisio
 foundations, Risk Methodology runtime and Unified Regulatory Evidence Runtime V1.
 
 Production implements Track C, the first bounded preview slice of Track D and Workspace UX V2.
-Tracks D.1 and D.2 are production closed without starting later operational domains. Track B was
+Tracks D.1 and D.2 are production closed. Workforce Safety Operations V1 is implemented on its
+review branch for Worker Registry and Tracks E–G, including deterministic Worker 360 projections,
+and remains pending external review before production closure. It does not implement the full Track
+J intelligence layer. Track B was
 attempted and safely deferred because the ordered artifacts need verified human transcription before
 structuring. Track A remains pending. No later track is represented as active.

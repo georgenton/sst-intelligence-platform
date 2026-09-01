@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 async function provisionDemoSession(page: Page, suffix: number) {
   await page.goto('/diagnostico');
@@ -11,11 +12,24 @@ async function provisionDemoSession(page: Page, suffix: number) {
   }
   await expect(page.getByText('Paso 6 de 6')).toBeVisible();
   await page.getByRole('button', { name: 'Ver recomendación' }).click();
-  await page.getByRole('link', { name: 'Crear cuenta y continuar' }).click();
-  await page.getByLabel('Nombre').fill('Responsable Estándares E2E');
-  await page.getByLabel('Correo').fill(`inspection-standards-e2e-${suffix}@example.test`);
-  await page.getByLabel('Contraseña').fill('inspection-standards-e2e-password-123');
-  await page.getByRole('button', { name: 'Crear cuenta' }).click();
+  const registrationHref = await page
+    .getByRole('link', { name: 'Crear cuenta y continuar' })
+    .getAttribute('href');
+  const sessionId = registrationHref
+    ? new URL(registrationHref, 'http://e2e.local').searchParams.get('sessionId')
+    : null;
+  if (!sessionId) throw new Error('E2E_DIAGNOSTIC_SESSION_ID_MISSING');
+  const registration = await registerE2eUser({
+    displayName: 'Responsable Estándares E2E',
+    email: `inspection-standards-e2e-${suffix}@example.test`,
+    password: 'inspection-standards-e2e-password-123',
+  });
+  expect(registration.statusCode, registration.body).toBe(201);
+  await activateE2eUserSession(
+    page,
+    registration,
+    `/app/organizations?sessionId=${encodeURIComponent(sessionId)}`,
+  );
   await page.getByLabel('Nombre de empresa').fill(`Estándares SST ${suffix}`);
   await page.getByLabel('Sector').fill('Manufactura');
   await page.getByRole('button', { name: 'Crear y activar demo' }).click();

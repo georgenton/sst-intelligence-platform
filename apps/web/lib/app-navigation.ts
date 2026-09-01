@@ -6,7 +6,13 @@ export type AppNavigationItem = {
   href: string;
   group: AppNavigationGroupId;
   match: 'exact' | 'segment';
-  requiredFeature?: 'module.inspections' | 'module.technical_risk' | 'module.work_permits';
+  requiredFeature?:
+    | 'module.inspections'
+    | 'module.technical_risk'
+    | 'module.work_permits'
+    | 'module.incidents'
+    | 'module.ppe'
+    | 'module.training';
 };
 
 export type AppNavigationGroup = {
@@ -31,6 +37,37 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         href: '/app/work',
         group: 'operation',
         match: 'segment',
+      },
+      {
+        id: 'workers',
+        label: 'Personas / Trabajadores',
+        href: '/app/workers',
+        group: 'operation',
+        match: 'segment',
+      },
+      {
+        id: 'incidents',
+        label: 'Incidentes',
+        href: '/app/incidents',
+        group: 'operation',
+        match: 'segment',
+        requiredFeature: 'module.incidents',
+      },
+      {
+        id: 'ppe',
+        label: 'EPP',
+        href: '/app/ppe',
+        group: 'operation',
+        match: 'segment',
+        requiredFeature: 'module.ppe',
+      },
+      {
+        id: 'training',
+        label: 'Capacitación',
+        href: '/app/training',
+        group: 'operation',
+        match: 'segment',
+        requiredFeature: 'module.training',
       },
       {
         id: 'sst-evaluation',

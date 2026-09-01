@@ -1,6 +1,14 @@
 export type EntitlementValue = boolean | number | string;
 
 export const WORK_PERMITS_FEATURE_KEY = 'module.work_permits';
+export const INCIDENTS_FEATURE_KEY = 'module.incidents';
+export const PPE_FEATURE_KEY = 'module.ppe';
+export const TRAINING_FEATURE_KEY = 'module.training';
+export const WORKFORCE_PREVIEW_FEATURE_KEYS = [
+  INCIDENTS_FEATURE_KEY,
+  PPE_FEATURE_KEY,
+  TRAINING_FEATURE_KEY,
+] as const;
 
 export function parseEntitlement(value: string): EntitlementValue {
   if (value === 'true') return true;

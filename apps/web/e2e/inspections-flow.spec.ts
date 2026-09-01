@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { appearanceFocusStorageKey, appearanceSessionUserKey } from '../lib/appearance';
+import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 test('inspección, hallazgo, acción, verificación y recurrencia demo', async ({ page }) => {
   test.setTimeout(90_000);
@@ -30,11 +31,24 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await page.getByRole('button', { name: 'Guardar y continuar' }).click();
   await expect(page.getByText('Paso 6 de 6')).toBeVisible();
   await page.getByRole('button', { name: 'Ver recomendación' }).click();
-  await page.getByRole('link', { name: 'Crear cuenta y continuar' }).click();
-  await page.getByLabel('Nombre').fill('Técnico Inspecciones E2E');
-  await page.getByLabel('Correo').fill(`inspections-e2e-${suffix}@example.test`);
-  await page.getByLabel('Contraseña').fill('inspections-e2e-password-123');
-  await page.getByRole('button', { name: 'Crear cuenta' }).click();
+  const registrationHref = await page
+    .getByRole('link', { name: 'Crear cuenta y continuar' })
+    .getAttribute('href');
+  const sessionId = registrationHref
+    ? new URL(registrationHref, 'http://e2e.local').searchParams.get('sessionId')
+    : null;
+  if (!sessionId) throw new Error('E2E_DIAGNOSTIC_SESSION_ID_MISSING');
+  const registration = await registerE2eUser({
+    displayName: 'Técnico Inspecciones E2E',
+    email: `inspections-e2e-${suffix}@example.test`,
+    password: 'inspections-e2e-password-123',
+  });
+  expect(registration.statusCode, registration.body).toBe(201);
+  await activateE2eUserSession(
+    page,
+    registration,
+    `/app/organizations?sessionId=${encodeURIComponent(sessionId)}`,
+  );
   await page.getByLabel('Nombre de empresa').fill(organizationName);
   await page.getByLabel('Sector').fill('Manufactura');
   await page.getByRole('button', { name: 'Crear y activar demo' }).click();
