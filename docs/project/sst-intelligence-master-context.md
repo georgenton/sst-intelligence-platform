@@ -1,7 +1,7 @@
 # SST Intelligence — master project context
 
 Status: canonical continuity document. Baseline: production `main` at
-`b543d68b1b9b361ca264b87c03845eb34caec747` on 2026-08-31.
+`f8baf29103c2a9d76c1b1d08d75d124bf5212bea` on 2026-08-31.
 
 This document is the authoritative entry point for future engineering sessions. Detailed domain,
 architecture, security, deployment and source-review documents remain authoritative inside their
@@ -94,6 +94,14 @@ Guided inspections support findings, risk valuation, actions, evidence, completi
 residual risk, analytics, recurrence, alerts and systemic review. Verification basis is finite:
 `RECORDED_EVIDENCE`, `FIELD_OBSERVATION` or `OTHER_JUSTIFIED`. Recurrence groups by organization,
 work center, category and time window, and never asserts root cause automatically.
+
+Inspection Standards V1 is production closed. Six finite inspection domains resolve an exact,
+immutable technical standard version through append-only organization policy; the version's
+criteria execute directly as the checklist, and findings retain criterion/source provenance.
+Historical inspections preserve their original standard or explicit legacy no-standard state.
+There is no per-inspection arbitrary override, silent fallback or Protocol Engine. The production
+reference catalog contains only three synthetic demo sources/versions and ten original criteria;
+selection of real standards and professional approval remain pending Anita review.
 
 ### Risk methodology and Technical Risk
 
@@ -206,8 +214,9 @@ deactivation. Work Permit drafts select a current same-tenant eligible approver;
 assigned to that member in the shared Work Queue. It adds no email provider, team pricing key,
 commercial Work Permit assignment, incident, PPE, training or regulatory interpretation.
 
-The active implementation candidate is [Inspection Standards V1](../domain/inspection-standards-v1.md).
-It introduces direct, versioned binding from an inspection domain to an exact technical standard
-version through organization policy. It deliberately does not implement a Protocol Engine. The
-technical basis, risk method and regulatory foundation remain separate, and only synthetic demo
-standard content enters the global reference catalog before professional/content review.
+[Inspection Standards V1](../domain/inspection-standards-v1.md) is production closed. It provides
+direct, versioned binding from an inspection domain to an exact technical standard version through
+organization policy without implementing a Protocol Engine. The technical basis, risk method and
+regulatory foundation remain separate, and only synthetic demo standard content is present in the
+global reference catalog. Real-standard selection, rights validation and professional approval
+remain **PENDING ANITA**.

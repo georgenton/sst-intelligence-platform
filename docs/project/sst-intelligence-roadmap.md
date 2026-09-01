@@ -48,13 +48,16 @@ non-destructive deactivation and audit. Work Permit requesters select a differen
 Owner/Admin/Responsible SST approver. No email provider, owner transfer, new paid feature or pricing
 decision is introduced.
 
-### D.2 — Inspection Standards — implementation in review
+### D.2 — Inspection Standards — production closed
 
 Organizations select an exact technical standard version per finite inspection domain. Criteria
 attach directly to that version and become the inspection checklist; a versioned organization
 policy resolves it automatically for new inspections. Historical inspections retain their original
 basis. V1 has no Protocol Engine, no arbitrary per-inspection override, no copyrighted real
-standard corpus and no new commercial capability.
+standard corpus and no new commercial capability. Production closure covers six finite domains,
+three synthetic demo standard versions, ten synthetic criteria, append-only organization policy,
+tenant isolation, explicit no-fallback behavior and preserved legacy inspection semantics. Real
+standard selection and professional approval remain **PENDING ANITA**.
 
 ### E — Incident management
 
@@ -118,7 +121,6 @@ Applicability and Adaptive Configuration foundations, regulatory source/provisio
 foundations, Risk Methodology runtime and Unified Regulatory Evidence Runtime V1.
 
 Production implements Track C, the first bounded preview slice of Track D and Workspace UX V2.
-Track D.1 is production closed. The current candidate implements Track D.2 without starting later
-operational domains. Track B was
+Tracks D.1 and D.2 are production closed without starting later operational domains. Track B was
 attempted and safely deferred because the ordered artifacts need verified human transcription before
 structuring. Track A remains pending. No later track is represented as active.

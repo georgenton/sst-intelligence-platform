@@ -1,6 +1,7 @@
 # Revisión futura de estándares de inspección — Anita
 
-Estado: preparación para revisión; **ninguna aprobación registrada**.
+Estado: Inspection Standards V1 cerrado en producción con contenido sintético; revisión de
+estándares reales **PENDIENTE DE ANITA** y ninguna aprobación profesional registrada.
 
 ## Explicación breve
 
@@ -31,3 +32,7 @@ muestra cuando existe un vínculo regulatorio explícito y revisado por separado
 Anita deberá validar posteriormente el dominio, la idoneidad profesional de cada candidato, su
 edición, el nivel de detalle de los criterios, el lenguaje operativo y la disponibilidad legítima
 del contenido. Los estándares demo de ingeniería son sintéticos y no representan su recomendación.
+
+El cierre productivo de V1 valida únicamente el mecanismo técnico versionado, la ejecución del
+catálogo sintético y sus límites de seguridad. No completa ni sustituye ninguna decisión de esta
+tabla.

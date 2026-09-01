@@ -1,6 +1,7 @@
 # Inspection Standards V1
 
-Status: implementation candidate.
+Status: production closed on 2026-08-31. Real-standard professional review remains **PENDING
+ANITA**.
 
 ## Purpose
 
@@ -70,3 +71,15 @@ professional action, and the Finding retains trace to result, criterion and stan
 - Regulatory foundation is displayed separately and only when an explicit link exists.
 - No new commercial key, plan assignment or pricing decision is introduced.
 - No real standard selection or Anita approval is inferred.
+
+## Production closure
+
+Production closure verified six domains, three `DEMO_SYNTHETIC` sources/versions, ten synthetic
+criteria, append-only policy changes, automatic server-side resolution, A→B historical
+immutability, explicit no-fallback behavior, tenant-isolated A/B policies, criterion outcomes and
+explicit Finding provenance. Legacy inspections retain their nullable no-standard semantics and
+historical findings or risk results are not recalculated.
+
+This closure does not approve or license a real standard, validate every domain professionally,
+implement supplemental/adaptive multi-standard composition or introduce a Protocol Engine. Those
+decisions remain outside V1 and, where professional judgment is required, **PENDING ANITA**.
