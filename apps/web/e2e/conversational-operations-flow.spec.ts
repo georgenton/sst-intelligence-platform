@@ -80,7 +80,7 @@ test('opera una inspección con base multifuente, citas y confirmaciones explíc
   await expect(
     page.getByText(/No encontré elementos pendientes|Encontré .* elementos/),
   ).toBeVisible();
-  await expect(page.getByText('Proveedor: determinístico / sin IA externa')).toBeVisible();
+  await expect(page.getByText('Procesamiento local controlado · sin IA externa')).toBeVisible();
 
   const guided = page.getByRole('complementary', { name: 'Operación guiada' });
   await expect(guided.getByText(`Base eléctrica multifuente ${suffix}`)).toBeVisible();
@@ -114,7 +114,7 @@ test('opera una inspección con base multifuente, citas y confirmaciones explíc
 
   await guided.getByRole('button', { name: 'No conforme' }).click();
   await confirmLatestAction(page);
-  await expect(guided.getByText('NO CONFORME', { exact: true })).toBeVisible();
+  await expect(guided.locator('.status-badge').filter({ hasText: /^No conforme$/ })).toBeVisible();
 
   await guided
     .getByLabel('Referencia de evidencia')
@@ -152,7 +152,7 @@ test('opera una inspección con base multifuente, citas y confirmaciones explíc
   await page.getByRole('button', { name: '¿Qué tengo pendiente?' }).click();
   const queueItem = page.locator('.conversation-work-item').filter({ hasText: actionTitle });
   await expect(queueItem).toBeVisible();
-  await expect(queueItem.getByText('HIGH')).toBeVisible();
+  await expect(queueItem.getByText('Alta')).toBeVisible();
   await expect(queueItem.getByText('Owner Conversacional E2E')).toBeVisible();
   await queueItem.getByRole('button', { name: '¿Por qué está pendiente?' }).click();
   await expect(page.getByText(new RegExp(`${actionTitle}:`))).toBeVisible();

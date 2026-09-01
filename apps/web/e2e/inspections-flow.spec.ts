@@ -54,7 +54,9 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await page.getByRole('button', { name: 'Crear y activar demo' }).click();
   await expect(page.getByText(/Demostración conceptual activa/)).toBeVisible();
 
-  await page.getByRole('link', { name: 'Inspecciones', exact: true }).click();
+  const inspectionsResponse = await page.goto('/app/inspections');
+  expect(inspectionsResponse?.ok()).toBe(true);
+  await expect(page).toHaveURL(/\/app\/inspections$/);
   await expect(page.getByRole('heading', { name: 'Inspecciones', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Nueva inspección' }).click();
   await page.getByLabel('Dominio de inspección').selectOption('ELECTRICAL');
