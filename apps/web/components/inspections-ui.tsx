@@ -222,6 +222,36 @@ type Inspection = {
       }>;
     }>;
   } | null;
+  inspectionBasisVersion?: {
+    id: string;
+    version: number;
+    status: 'DRAFT' | 'ACTIVE' | 'RETIRED';
+    contentDigest: string;
+    definition: { id: string; name: string; inspectionDomain: InspectionDomainKey };
+    technicalSources: Array<{
+      id: string;
+      role: 'PRIMARY_TECHNICAL' | 'SUPPLEMENTAL_TECHNICAL' | 'INTERNAL_ORGANIZATION';
+      standardVersion: {
+        id: string;
+        versionCode: string;
+        editionLabel: string;
+        source: { name: string; originCountry?: string | null; referenceUrl?: string | null };
+      };
+    }>;
+    regulatoryUnits: Array<{
+      id: string;
+      regulatoryUnit: {
+        id: string;
+        identifier: string;
+        heading?: string | null;
+        locator: string;
+        sourceVersion: {
+          officialUrl?: string | null;
+          source: { canonicalTitle: string; countryCode: string };
+        };
+      };
+    }>;
+  } | null;
   criterionResults?: Array<{
     id: string;
     outcome: InspectionCriterionOutcome;
@@ -237,6 +267,12 @@ type Inspection = {
       evidenceExpectation?: string | null;
       notApplicableAllowed: boolean;
       section?: { id: string; title: string } | null;
+      sourceLocator?: string | null;
+      standardVersion?: {
+        versionCode: string;
+        editionLabel: string;
+        source: { name: string; originCountry?: string | null; referenceUrl?: string | null };
+      };
     };
   }>;
 };
@@ -855,6 +891,20 @@ type InspectionForm = {
   riskMethodVersionId: string;
 };
 
+type ActiveInspectionBasis = {
+  id: string;
+  version: number;
+  definition: { name: string };
+  technicalSources: Array<{
+    role: 'PRIMARY_TECHNICAL' | 'SUPPLEMENTAL_TECHNICAL' | 'INTERNAL_ORGANIZATION';
+    standardVersion: {
+      editionLabel: string;
+      source: { name: string; originCountry?: string | null };
+    };
+  }>;
+  regulatoryUnits: unknown[];
+};
+
 export function NewInspection() {
   const api = useInspectionApi();
   const router = useRouter();
@@ -887,6 +937,25 @@ export function NewInspection() {
   const selectedBinding = standardPolicy.data?.current?.bindings.find(
     (binding) => binding.inspectionDomain === inspectionDomain,
   );
+  const activeBasis = useQuery({
+    queryKey: queryKeys.organization.inspectionBasisActive(
+      api.organizationId ?? 'inactive',
+      inspectionDomain || 'none',
+    ),
+    queryFn: async ({ signal }) => {
+      try {
+        return await api.request<ActiveInspectionBasis>(
+          `/inspection-bases/active/${inspectionDomain}`,
+          { signal },
+        );
+      } catch (error) {
+        if (error instanceof ApiClientError && error.status === 404) return null;
+        throw error;
+      }
+    },
+    enabled: Boolean(api.organizationId && api.moduleEnabled && inspectionDomain),
+    retry: shouldRetryGet,
+  });
   const areas = context.data?.workCenters.find((center) => center.id === centerId)?.workAreas ?? [];
   useEffect(() => {
     if (!areas.some(({ id }) => id === form.getValues('workAreaId')))
@@ -927,12 +996,20 @@ export function NewInspection() {
             capability="crear una inspección"
             authorizedRoles={WRITE_ROLE_COPY}
           />
-        ) : context.isLoading || methods.isLoading || standardPolicy.isLoading ? (
+        ) : context.isLoading ||
+          methods.isLoading ||
+          standardPolicy.isLoading ||
+          activeBasis.isLoading ? (
           <InspectionSkeleton label="Cargando centros y áreas" />
-        ) : context.isError || methods.isError || standardPolicy.isError ? (
+        ) : context.isError || methods.isError || standardPolicy.isError || activeBasis.isError ? (
           <PageQueryError
             retry={() =>
-              void Promise.all([context.refetch(), methods.refetch(), standardPolicy.refetch()])
+              void Promise.all([
+                context.refetch(),
+                methods.refetch(),
+                standardPolicy.refetch(),
+                activeBasis.refetch(),
+              ])
             }
           />
         ) : context.data?.workCenters.length === 0 ? (
@@ -981,7 +1058,27 @@ export function NewInspection() {
                 ) : null}
               </div>
               {inspectionDomain ? (
-                selectedBinding ? (
+                activeBasis.data ? (
+                  <Card className="inspection-standard-basis" role="status">
+                    <p className="eyebrow">Base de inspección</p>
+                    <h2>{activeBasis.data.definition.name}</h2>
+                    <p>
+                      Versión {activeBasis.data.version} · Base técnica principal:{' '}
+                      {
+                        activeBasis.data.technicalSources.find(
+                          ({ role }) => role === 'PRIMARY_TECHNICAL',
+                        )?.standardVersion.source.name
+                      }
+                    </p>
+                    <small>
+                      {activeBasis.data.technicalSources.length} fuentes técnicas/internas ·{' '}
+                      {activeBasis.data.regulatoryUnits.length} unidades regulatorias
+                    </small>
+                    <p className="inspection-invariant-note">
+                      Esta composición no es una ley, metodología de riesgo ni protocolo.
+                    </p>
+                  </Card>
+                ) : selectedBinding ? (
                   <Card className="inspection-standard-basis" role="status">
                     <p className="eyebrow">Base técnica de inspección</p>
                     <h2>{selectedBinding.standardVersion.source.name}</h2>
@@ -1123,7 +1220,11 @@ export function NewInspection() {
                 </Link>
                 <button
                   className="button"
-                  disabled={mutation.isPending || !inspectionDomain || !selectedBinding}
+                  disabled={
+                    mutation.isPending ||
+                    !inspectionDomain ||
+                    (!activeBasis.data && !selectedBinding)
+                  }
                 >
                   {mutation.isPending ? 'Creando borrador…' : 'Crear inspección'}
                 </button>
@@ -1282,6 +1383,13 @@ function CriterionResultCard({
         </span>
       </div>
       <p>{result.criterion.guidance}</p>
+      {result.criterion.standardVersion ? (
+        <p className="muted">
+          Fuente: {result.criterion.standardVersion.source.name} ·{' '}
+          {result.criterion.standardVersion.editionLabel}
+          {result.criterion.sourceLocator ? ` · ${result.criterion.sourceLocator}` : ''}
+        </p>
+      ) : null}
       {result.criterion.evidenceExpectation ? (
         <p className="inspection-criterion-evidence">
           <strong>Evidencia esperada:</strong> {result.criterion.evidenceExpectation}
@@ -1545,7 +1653,61 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
               )}
             </section>
             <WorkspaceInspector label="Base técnica y contexto">
-              {query.data.standardVersion && query.data.inspectionDomain ? (
+              {query.data.inspectionBasisVersion && query.data.inspectionDomain ? (
+                <>
+                  <section>
+                    <p className="eyebrow">Base de inspección</p>
+                    <h2>{query.data.inspectionBasisVersion.definition.name}</h2>
+                    <p>
+                      Versión {query.data.inspectionBasisVersion.version} ·{' '}
+                      {INSPECTION_DOMAIN_LABELS[query.data.inspectionDomain]}
+                    </p>
+                    <small>Snapshot inmutable de la composición seleccionada.</small>
+                  </section>
+                  <section>
+                    <h3>Fuentes técnicas</h3>
+                    {query.data.inspectionBasisVersion.technicalSources.map((link) => (
+                      <p key={link.id}>
+                        <strong>
+                          {link.role === 'PRIMARY_TECHNICAL'
+                            ? 'Base técnica principal'
+                            : link.role === 'SUPPLEMENTAL_TECHNICAL'
+                              ? 'Referencia suplementaria'
+                              : 'Fuente interna'}
+                          :
+                        </strong>{' '}
+                        {link.standardVersion.source.name} · {link.standardVersion.editionLabel} ·{' '}
+                        {link.standardVersion.source.originCountry ?? 'Jurisdicción no indicada'}
+                      </p>
+                    ))}
+                  </section>
+                  <section>
+                    <h3>Fundamento normativo</h3>
+                    {query.data.inspectionBasisVersion.regulatoryUnits.length ? (
+                      query.data.inspectionBasisVersion.regulatoryUnits.map(
+                        ({ id, regulatoryUnit }) => (
+                          <p key={id}>
+                            {regulatoryUnit.sourceVersion.source.canonicalTitle} ·{' '}
+                            {regulatoryUnit.identifier} ·{' '}
+                            {regulatoryUnit.sourceVersion.source.countryCode}
+                          </p>
+                        ),
+                      )
+                    ) : (
+                      <p>
+                        Esta base no fuerza un vínculo legal cuando no existe una relación
+                        defendible.
+                      </p>
+                    )}
+                  </section>
+                  <section>
+                    <p>
+                      La Base de inspección no es una ley, una metodología de riesgo ni un
+                      protocolo.
+                    </p>
+                  </section>
+                </>
+              ) : query.data.standardVersion && query.data.inspectionDomain ? (
                 <>
                   <section>
                     <p className="eyebrow">Base técnica de inspección</p>

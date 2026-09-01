@@ -32,6 +32,13 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
     label: 'Operación',
     items: [
       {
+        id: 'conversational-operations',
+        label: 'Preguntar / Operar',
+        href: '/app/assistant',
+        group: 'operation',
+        match: 'segment',
+      },
+      {
         id: 'work-queue',
         label: 'Cola de trabajo',
         href: '/app/work',
@@ -132,6 +139,14 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         id: 'risk-methods',
         label: 'Metodologías',
         href: '/app/risk-methods',
+        group: 'assessments',
+        match: 'segment',
+        requiredFeature: 'module.inspections',
+      },
+      {
+        id: 'inspection-bases',
+        label: 'Bases de inspección',
+        href: '/app/settings/inspection-bases',
         group: 'assessments',
         match: 'segment',
         requiredFeature: 'module.inspections',
