@@ -1,6 +1,6 @@
 # Worker Registry V1
 
-Status: authorized implementation contract.
+Status: implemented on the V1 feature branch; external review required before merge.
 
 ## Aggregate
 
@@ -29,4 +29,6 @@ authorization state as worker identity.
 
 `Personas / Trabajadores` provides a responsive list and a Worker Workspace with Resumen,
 Incidentes, EPP and Capacitación. Primary UI uses human Spanish labels and never exposes raw enums,
-UUIDs or internal feature keys.
+UUIDs or internal feature keys. The workspace derives a current cross-domain summary from each
+source lifecycle and keeps exact links to Incident, EPP and Training records; it does not calculate
+a Worker safety score.

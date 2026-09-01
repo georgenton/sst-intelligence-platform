@@ -9,6 +9,7 @@ import { useForm } from 'react-hook-form';
 import { queryKeys } from '@/lib/query-keys';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
+import { WorkerIncidentsPanel } from './incidents-ui';
 import { WorkerPpePanel } from './ppe-ui';
 import { WorkerTrainingPanel } from './training-ui';
 import {
@@ -50,6 +51,19 @@ type WorkerForm = {
   startDate: string;
   notes: string;
 };
+type WorkerIncidentSummary = {
+  items: Array<{ status: string }>;
+  total: number;
+};
+type WorkerPpeSummary = {
+  issues: Array<{ status: string; replacementDue: boolean }>;
+};
+type WorkerTrainingSummary = {
+  requirements: Array<{ competencyStatus: string }>;
+};
+type EffectiveEntitlements = {
+  features: Record<string, boolean | number | string>;
+};
 
 const ADMIN_ROLES = new Set(['ORG_OWNER', 'ORG_ADMIN', 'SST_MANAGER']);
 
@@ -64,6 +78,103 @@ function WorkerStatus({ status }: { status: Worker['status'] }) {
     <span className="status-badge" data-status={status.toLowerCase()}>
       {status === 'ACTIVE' ? 'Activo' : 'Inactivo'}
     </span>
+  );
+}
+
+function WorkerOperationalSummary({
+  workerId,
+  features,
+}: {
+  workerId: string;
+  features: EffectiveEntitlements['features'];
+}) {
+  const auth = useAuth();
+  const organization = useOrganization();
+  const organizationId = organization.activeId;
+  const incidentsEnabled = features['module.incidents'] === true;
+  const ppeEnabled = features['module.ppe'] === true;
+  const trainingEnabled = features['module.training'] === true;
+  const incidentFilters = `workerId=${encodeURIComponent(workerId)}&pageSize=100`;
+  const incidents = useQuery({
+    queryKey: queryKeys.organization.incidents(organizationId ?? 'inactive', incidentFilters),
+    queryFn: ({ signal }) =>
+      auth.request<WorkerIncidentSummary>(
+        `/incidents?${incidentFilters}`,
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId && incidentsEnabled),
+  });
+  const ppe = useQuery({
+    queryKey: queryKeys.organization.workerPpe(organizationId ?? 'inactive', workerId),
+    queryFn: ({ signal }) =>
+      auth.request<WorkerPpeSummary>(`/ppe/workers/${workerId}`, { signal }, organizationId!),
+    enabled: Boolean(organizationId && ppeEnabled),
+  });
+  const training = useQuery({
+    queryKey: queryKeys.organization.workerTraining(organizationId ?? 'inactive', workerId),
+    queryFn: ({ signal }) =>
+      auth.request<WorkerTrainingSummary>(
+        `/training/workers/${workerId}`,
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId && trainingEnabled),
+  });
+  const isLoading =
+    (incidentsEnabled && incidents.isLoading) ||
+    (ppeEnabled && ppe.isLoading) ||
+    (trainingEnabled && training.isLoading);
+  const hasError = incidents.isError || ppe.isError || training.isError;
+  const activeInvestigations = (incidents.data?.items ?? []).filter(
+    (incident) => incident.status === 'UNDER_INVESTIGATION',
+  ).length;
+  const inService = (ppe.data?.issues ?? []).filter(
+    (issue) => issue.status === 'IN_SERVICE',
+  ).length;
+  const replacementDue = (ppe.data?.issues ?? []).filter((issue) => issue.replacementDue).length;
+  const currentTraining = (training.data?.requirements ?? []).filter(
+    (requirement) => requirement.competencyStatus === 'CURRENT',
+  ).length;
+  const trainingDueSoon = (training.data?.requirements ?? []).filter(
+    (requirement) => requirement.competencyStatus === 'DUE_SOON',
+  ).length;
+  const trainingExpired = (training.data?.requirements ?? []).filter(
+    (requirement) => requirement.competencyStatus === 'EXPIRED',
+  ).length;
+
+  return (
+    <WorkspaceSection
+      eyebrow="Estado relacionado"
+      title="Resumen operativo"
+      description="Conteos determinísticos de los registros actuales; no constituyen un puntaje de seguridad."
+    >
+      {isLoading ? <p role="status">Calculando resumen operativo…</p> : null}
+      {hasError ? (
+        <p role="alert">
+          Parte del resumen no está disponible; revisa cada sección para reintentar.
+        </p>
+      ) : null}
+      <ContextSummary>
+        {incidentsEnabled ? <span>{activeInvestigations} incidentes en investigación</span> : null}
+        {ppeEnabled ? <span>{inService} EPP en servicio</span> : null}
+        {ppeEnabled ? <span>{replacementDue} EPP con reemplazo requerido</span> : null}
+        {trainingEnabled ? <span>{currentTraining} capacitaciones vigentes</span> : null}
+        {trainingEnabled ? <span>{trainingDueSoon} capacitaciones próximas a vencer</span> : null}
+        {trainingEnabled ? <span>{trainingExpired} capacitaciones vencidas</span> : null}
+        {!incidentsEnabled && !ppeEnabled && !trainingEnabled ? (
+          <span>Los módulos operativos no están habilitados para esta organización</span>
+        ) : null}
+      </ContextSummary>
+    </WorkspaceSection>
+  );
+}
+
+function UnavailableWorkerModule({ title }: { title: string }) {
+  return (
+    <WorkspaceSection title={title} eyebrow="Módulo no habilitado">
+      <p>Este historial estará disponible cuando la organización tenga acceso al módulo.</p>
+    </WorkspaceSection>
   );
 }
 
@@ -325,6 +436,12 @@ export function WorkerWorkspace({ workerId }: { workerId: string }) {
       auth.request<Worker>(`/workers/${workerId}`, { signal }, organizationId!),
     enabled: Boolean(organizationId),
   });
+  const entitlements = useQuery({
+    queryKey: queryKeys.organization.entitlements(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<EffectiveEntitlements>('/entitlements', { signal }, organizationId!),
+    enabled: Boolean(organizationId),
+  });
   const deactivate = useMutation({
     mutationFn: (version: number) =>
       auth.request<Worker>(
@@ -358,6 +475,10 @@ export function WorkerWorkspace({ workerId }: { workerId: string }) {
     );
 
   const data = worker.data;
+  const features = entitlements.data?.features ?? {};
+  const incidentsEnabled = features['module.incidents'] === true;
+  const ppeEnabled = features['module.ppe'] === true;
+  const trainingEnabled = features['module.training'] === true;
   return (
     <WorkspaceShell className="workforce-shell">
       <WorkspaceHeader
@@ -392,6 +513,11 @@ export function WorkerWorkspace({ workerId }: { workerId: string }) {
         <span>{data.jobTitle ?? 'Sin cargo registrado'}</span>
         <span>{data.linkedUser ? 'Cuenta vinculada' : 'No requiere cuenta de acceso'}</span>
       </ContextSummary>
+      {entitlements.isLoading ? (
+        <p role="status">Cargando módulos operativos…</p>
+      ) : (
+        <WorkerOperationalSummary workerId={data.id} features={features} />
+      )}
       <div className="workspace-two-pane">
         <WorkspaceMain>
           <WorkspaceSection title="Resumen" eyebrow="Identidad operativa">
@@ -421,14 +547,29 @@ export function WorkerWorkspace({ workerId }: { workerId: string }) {
             </dl>
             {data.notes ? <p>{data.notes}</p> : null}
           </WorkspaceSection>
-          <WorkspaceSection title="Incidentes" eyebrow="Historia SST">
-            <p>
-              Los eventos vinculados aparecerán aquí sin convertir este espacio en un registro
-              médico.
-            </p>
-          </WorkspaceSection>
-          <WorkerPpePanel workerId={data.id} workerStatus={data.status} />
-          <WorkerTrainingPanel workerId={data.id} workerStatus={data.status} />
+          {entitlements.isLoading ? (
+            <WorkspaceSection title="Módulos operativos" eyebrow="Cargando">
+              <p role="status">Comprobando acceso a Incidentes, EPP y Capacitación…</p>
+            </WorkspaceSection>
+          ) : (
+            <>
+              {incidentsEnabled ? (
+                <WorkerIncidentsPanel workerId={data.id} />
+              ) : (
+                <UnavailableWorkerModule title="Incidentes" />
+              )}
+              {ppeEnabled ? (
+                <WorkerPpePanel workerId={data.id} workerStatus={data.status} />
+              ) : (
+                <UnavailableWorkerModule title="EPP" />
+              )}
+              {trainingEnabled ? (
+                <WorkerTrainingPanel workerId={data.id} workerStatus={data.status} />
+              ) : (
+                <UnavailableWorkerModule title="Capacitación" />
+              )}
+            </>
+          )}
         </WorkspaceMain>
         <WorkspaceInspector label="Contexto del trabajador">
           <section>

@@ -221,10 +221,12 @@ regulatory foundation remain separate, and only synthetic demo standard content 
 global reference catalog. Real-standard selection, rights validation and professional approval
 remain **PENDING ANITA**.
 
-[Workforce Safety Operations V1](../product/workforce-safety-operations-v1.md) is the current
-authorized implementation candidate. Its controlling ADR states that User, Membership and Worker
+[Workforce Safety Operations V1](../product/workforce-safety-operations-v1.md) is implemented on its
+feature branch and awaits external review before merge. Its controlling ADR states that User,
+Membership and Worker
 are different concepts: Workers are tenant-private operational persons, may have no login, never
 consume member-seat capacity and survive User unlink or Membership suspension. The program adds
-bounded Incident, EPP and Training/Competency lifecycles plus Worker 360 and shared Work Queue
-projections. It adds no HRIS/payroll, clinical data, automatic root cause, statutory reporting
+bounded Incident, EPP and Training/Competency lifecycles plus tenant-scoped Worker 360 and shared
+Work Queue/Command Center projections with exact source links. It adds no HRIS/payroll, clinical
+data, automatic root cause, statutory reporting
 decision, legal deadline, commercial plan assignment, AI decision or published regulatory Rule.

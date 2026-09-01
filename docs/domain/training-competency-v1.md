@@ -1,6 +1,6 @@
 # Training & Competency V1
 
-Status: authorized bounded operational workflow.
+Status: implemented on the V1 feature branch; external review required before merge.
 
 ## Scope
 
@@ -25,4 +25,6 @@ compliance.
   publishes or approves a Rule.
 
 Active requirements without completion, due-soon/expired completion and session follow-up project
-into the shared Work Queue only when an actionable basis exists.
+into the shared Work Queue only when an actionable basis exists. Exact deep links return to the
+Worker requirement/completion or source Training Session, while the Worker Workspace preserves all
+completion and renewal history.

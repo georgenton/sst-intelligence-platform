@@ -121,8 +121,9 @@ Applicability and Adaptive Configuration foundations, regulatory source/provisio
 foundations, Risk Methodology runtime and Unified Regulatory Evidence Runtime V1.
 
 Production implements Track C, the first bounded preview slice of Track D and Workspace UX V2.
-Tracks D.1 and D.2 are production closed. Workforce Safety Operations V1 is the authorized current
-candidate for Worker Registry and Tracks E–G, with deterministic Worker 360 projections but not the
-full Track J intelligence layer. Track B was
+Tracks D.1 and D.2 are production closed. Workforce Safety Operations V1 is implemented on its
+review branch for Worker Registry and Tracks E–G, including deterministic Worker 360 projections,
+and remains pending external review before production closure. It does not implement the full Track
+J intelligence layer. Track B was
 attempted and safely deferred because the ordered artifacts need verified human transcription before
 structuring. Track A remains pending. No later track is represented as active.

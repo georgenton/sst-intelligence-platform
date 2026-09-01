@@ -1,6 +1,6 @@
 # PPE / EPP V1
 
-Status: authorized bounded operational workflow.
+Status: implemented on the V1 feature branch; external review required before merge.
 
 ## Scope
 
@@ -23,6 +23,8 @@ traceability. V1 is not inventory, purchasing, warehouse, supplier or cost-accou
 Humanized categories and bounded statuses support issued/in-service, replacement due, replaced,
 retired and lost/damaged equipment. Condition checks are Good, Needs review or Unfit. Replacement
 due and condition review project into the shared Work Queue with exact Worker deep links.
+The Worker Workspace shows required, in-service, replacement-due and historical issues without
+changing their authoritative lifecycle.
 
 `referenceStandard` is organization metadata only. V1 contains no proprietary standard text and
 makes no certification or legal-requirement claim.

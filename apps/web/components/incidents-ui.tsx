@@ -157,6 +157,77 @@ function IncidentStatusBadge({ status }: { status: IncidentStatus }) {
   );
 }
 
+export function WorkerIncidentsPanel({ workerId }: { workerId: string }) {
+  const auth = useAuth();
+  const organization = useOrganization();
+  const organizationId = organization.activeId;
+  const filters = `workerId=${encodeURIComponent(workerId)}&pageSize=100`;
+  const incidents = useQuery({
+    queryKey: queryKeys.organization.incidents(organizationId ?? 'inactive', filters),
+    queryFn: ({ signal }) =>
+      auth.request<IncidentList>(`/incidents?${filters}`, { signal }, organizationId!),
+    enabled: Boolean(organizationId),
+  });
+  const activeInvestigations = (incidents.data?.items ?? []).filter(
+    (incident) => incident.status === 'UNDER_INVESTIGATION',
+  ).length;
+
+  return (
+    <WorkspaceSection title="Incidentes" eyebrow="Historia SST" id="incidents">
+      <p>
+        Eventos donde participa esta persona. La historia permanece disponible sin registrar
+        diagnósticos médicos ni atribuir causas automáticamente.
+      </p>
+      <ContextSummary>
+        <span>{incidents.data?.total ?? 0} eventos relacionados</span>
+        <span>{activeInvestigations} en investigación</span>
+      </ContextSummary>
+      {incidents.isLoading ? <p role="status">Cargando historia de incidentes…</p> : null}
+      {incidents.isError ? (
+        <Card role="alert">
+          <p>{errorMessage(incidents.error)}</p>
+          <button
+            className="button secondary"
+            onClick={() => void incidents.refetch()}
+            type="button"
+          >
+            Reintentar
+          </button>
+        </Card>
+      ) : null}
+      {!incidents.isLoading && incidents.data?.items.length === 0 ? (
+        <Card>
+          <h3>Sin incidentes vinculados</h3>
+          <p>No hay eventos registrados para esta persona.</p>
+        </Card>
+      ) : null}
+      <div className="worker-list">
+        {(incidents.data?.items ?? []).map((incident) => (
+          <article className="worker-row" key={incident.id}>
+            <div>
+              <div className="worker-row__title">
+                <h3>{incident.title}</h3>
+                <IncidentStatusBadge status={incident.status} />
+              </div>
+              <p>
+                {incident.eventType === 'NEAR_MISS' ? 'Casi incidente' : 'Incidente'} ·{' '}
+                {incident.workCenter.name}
+              </p>
+              <small>
+                {new Date(incident.occurredAt).toLocaleString('es-EC')} · {incident._count.actions}{' '}
+                acciones · {incident._count.contributingFactors} factores observados
+              </small>
+            </div>
+            <Link className="button secondary" href={`/app/incidents/${incident.id}`}>
+              Abrir flujo del incidente
+            </Link>
+          </article>
+        ))}
+      </div>
+    </WorkspaceSection>
+  );
+}
+
 export function IncidentRegistry() {
   const auth = useAuth();
   const organization = useOrganization();

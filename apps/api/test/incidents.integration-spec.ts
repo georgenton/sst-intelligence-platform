@@ -87,6 +87,14 @@ describe('incident management integration', () => {
         createdById: owner.userId,
       },
     });
+    const workerB = await prisma.worker.create({
+      data: {
+        organizationId: orgB,
+        displayName: 'Trabajador de otra organización',
+        workCenterId: centerB.id,
+        createdById: owner.userId,
+      },
+    });
 
     await api(viewer.token, orgA)
       .post('/incidents')
@@ -130,6 +138,19 @@ describe('incident management integration', () => {
       .post(`/incidents/${incidentId}/workers`)
       .send({ workerId: worker.id, involvement: 'Presenció el evento desde la zona segura.' })
       .expect(201);
+    const workerHistory = await api(owner.token, orgA)
+      .get(`/incidents?workerId=${worker.id}&pageSize=100`)
+      .expect(200);
+    expect(workerHistory.body).toMatchObject({ total: 1 });
+    expect(workerHistory.body.items[0]).toMatchObject({ id: incidentId });
+    await api(owner.token, orgB)
+      .get(`/incidents?workerId=${worker.id}&pageSize=100`)
+      .expect(200)
+      .expect(({ body }) => expect(body).toMatchObject({ total: 0, items: [] }));
+    await api(owner.token, orgA)
+      .get(`/incidents?workerId=${workerB.id}&pageSize=100`)
+      .expect(200)
+      .expect(({ body }) => expect(body).toMatchObject({ total: 0, items: [] }));
     const reported = await api(technician.token, orgA)
       .post(`/incidents/${incidentId}/transition`)
       .send({ status: 'REPORTED', expectedVersion: 1 })

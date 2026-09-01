@@ -27,6 +27,7 @@ export class IncidentQueryDto {
   @IsOptional() @IsEnum(IncidentStatus) status?: IncidentStatus;
   @IsOptional() @IsEnum(IncidentEventType) eventType?: IncidentEventType;
   @IsOptional() @IsUUID() workCenterId?: string;
+  @IsOptional() @IsUUID() workerId?: string;
   @IsOptional() @IsString() @Length(1, 120) search?: string;
 }
 

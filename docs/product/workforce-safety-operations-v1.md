@@ -1,6 +1,6 @@
 # Workforce Safety Operations Program V1
 
-Status: implementation authorized; external review required before merge.
+Status: implemented on the V1 feature branch; external review required before merge.
 
 ## Goal
 
@@ -16,6 +16,19 @@ only actionable source state.
 3. EPP catalog, requirements, issue, acknowledgement, condition and replacement.
 4. Training definitions, competency requirements, sessions, attendance, completion and renewal.
 5. Worker 360 summaries, shared Work Queue and Command Center integration.
+
+## Implemented operational surface
+
+The Worker Workspace now combines tenant-scoped incident history, EPP requirements/issues and
+training requirements/completions. Its summary reports deterministic counts such as investigations
+in progress, EPP in service or due for replacement, and training current/due/expired. It never
+combines those counts into a score or traffic-light classification. Inactive Workers retain history
+and cannot receive conservative new assignments; suspending or unlinking a User does not change the
+Worker.
+
+Incident investigations/actions, EPP replacement or condition review and actionable training state
+all project into the existing Work Queue and Command Center ordering contract. Every projection
+links to its exact authoritative source; no second priority or lifecycle engine was introduced.
 
 ## Commercial policy
 

@@ -131,6 +131,7 @@ export class IncidentsService {
       ...(query.status ? { status: query.status } : {}),
       ...(query.eventType ? { eventType: query.eventType } : {}),
       ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
+      ...(query.workerId ? { involvedWorkers: { some: { workerId: query.workerId } } } : {}),
       ...(search
         ? {
             OR: [

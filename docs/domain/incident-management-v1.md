@@ -1,6 +1,6 @@
 # Incident Management V1
 
-Status: authorized bounded operational workflow.
+Status: implemented on the V1 feature branch; external review required before merge.
 
 ## Scope
 
@@ -27,6 +27,8 @@ automatic root cause or implies blame.
 Incident Actions retain their own lifecycle, owner, due date, priority, evidence and verification.
 Pending investigation and open/overdue actions project into the existing Operational Work Queue and
 Command Center with canonical Incident deep links; the queue never mutates the source lifecycle.
+The Worker Workspace queries incidents through a tenant-scoped Worker filter and retains closed and
+inactive-Worker history.
 
 SUT/IESS filing, statutory deadlines and legal reportability are deferred reviewed regulatory
 workflows.

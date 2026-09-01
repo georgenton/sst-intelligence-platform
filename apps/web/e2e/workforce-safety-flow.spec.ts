@@ -96,7 +96,7 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByRole('button', { name: 'Desactivar trabajador' }).click();
     await expect(page.getByText('Trabajador desactivado; su historia permanece.')).toBeVisible();
     await expect(page.getByText('Inactivo', { exact: true })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Resumen' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Resumen', exact: true })).toBeVisible();
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/app');
     await expect(page.getByText('1 personas con acceso')).toBeVisible();
@@ -204,6 +204,19 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByRole('button', { name: 'Cerrar incidente' }).click();
     await expect(page.getByText('Cerrado', { exact: true })).toBeVisible();
     await expect(page.getByText(/Causa raíz detectada/i)).toHaveCount(0);
+
+    await page.getByRole('link', { name: 'Personas / Trabajadores', exact: true }).click();
+    await page
+      .locator('article')
+      .filter({ hasText: workerName })
+      .getByRole('link', { name: 'Abrir espacio de trabajo' })
+      .click();
+    const workerIncident = page.locator('article').filter({ hasText: incidentTitle });
+    await expect(workerIncident.getByText('Cerrado', { exact: true })).toBeVisible();
+    await expect(
+      workerIncident.getByRole('link', { name: 'Abrir flujo del incidente' }),
+    ).toHaveAttribute('href', /\/app\/incidents\/[0-9a-f-]+$/);
+    await expect(page.getByText('1 eventos relacionados')).toBeVisible();
 
     for (const width of [320, 640]) {
       await page.setViewportSize({ width, height: 844 });
