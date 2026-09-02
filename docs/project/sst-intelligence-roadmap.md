@@ -119,6 +119,11 @@ compliance or audit-certification claim. Broader reports and exports remain futu
 Tenant-safe multi-company view of organizations, alerts, overdue work, pending reviews and upcoming
 deadlines.
 
+V1 is implemented on its review branch as a computed read layer over current memberships. It adds
+factual organization cards, deterministic attention/work/signal/evidence summaries, bounded
+filters and context-safe canonical deep links. It adds no organization score, super-tenant,
+replication or commercial assignment.
+
 ### M — AI copilot
 
 Only after sufficient operational data exists. Allowed: search, summarization, drafting, semantic
@@ -128,6 +133,10 @@ medical diagnosis and rule publication.
 The provider-security preparation boundary is production closed, but no external provider has been
 selected or integrated. `DETERMINISTIC_LOCAL_V1` remains the production provider while the external
 product/privacy decision is pending.
+
+The provider-neutral V1 evaluation harness and portfolio read context are implemented on the same
+review branch. Provider selection remains a separate external product, privacy, legal, security
+and commercial decision; completing the harness does not authorize integration.
 
 ## Sequencing guardrails
 
@@ -153,3 +162,7 @@ have bounded production V1 slices, and Track J has its first deterministic opera
 foundation without worker scoring or predictive claims. Track B was
 attempted and safely deferred because the ordered artifacts need verified human transcription before
 structuring. Track A remains pending. No later track is represented as active.
+
+The current review candidate advances Track L and the provider-neutral portion of Track M without
+changing the production provider, regulatory publication counts, pilot review state, risk methods
+or historical records.

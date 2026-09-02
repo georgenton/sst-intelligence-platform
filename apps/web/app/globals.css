@@ -807,6 +807,89 @@ h2 {
   overflow-wrap: anywhere;
   font-size: 12px;
 }
+.portfolio-workspace {
+  container-type: inline-size;
+}
+.portfolio-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) repeat(2, minmax(150px, 1fr)) auto auto;
+  gap: 12px;
+  align-items: end;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-card);
+}
+.portfolio-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.portfolio-tabs button,
+.portfolio-citations button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 9px 14px;
+  color: var(--ink);
+  background: var(--surface-card);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.portfolio-tabs button[aria-current='page'] {
+  border-color: var(--brand);
+  background: var(--accent);
+  font-weight: 800;
+}
+.portfolio-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 14px;
+}
+.portfolio-organization-card,
+.portfolio-record-list,
+.portfolio-copilot,
+.portfolio-copilot form,
+.portfolio-answer,
+.portfolio-anchor {
+  display: grid;
+  gap: 14px;
+}
+.portfolio-organization-card .button,
+.portfolio-record-list .button {
+  justify-self: start;
+}
+.portfolio-empty,
+.portfolio-anchor {
+  padding: 16px;
+  border-left: 4px solid var(--brand);
+  background: var(--accent);
+}
+.portfolio-citations {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+.portfolio-citations button {
+  display: grid;
+  width: 100%;
+  border-radius: 10px;
+  text-align: left;
+  white-space: normal;
+}
+.portfolio-citations span {
+  color: var(--muted);
+}
+@container (max-width: 780px) {
+  .portfolio-filters {
+    grid-template-columns: 1fr;
+  }
+  .portfolio-filters .button {
+    width: 100%;
+  }
+}
 .command-center-v2 .command-attention-item--compact {
   padding: 16px;
 }

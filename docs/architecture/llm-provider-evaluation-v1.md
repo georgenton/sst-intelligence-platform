@@ -38,6 +38,30 @@ Any selection proposal must document and receive explicit product/security appro
 9. Failure handling and deterministic/local fallbacks.
 10. Configuration/version traceability and safe model upgrade procedures.
 
+Additional mandatory dimensions are explicit vendor privacy/data-processing terms, regional
+processing and retention, structured output support, grounding behavior, reliability and rate
+limits, observable fallback behavior and cost telemetry without prompt retention.
+
+## Executable provider-neutral harness
+
+`packages/contracts/src/provider-evaluation.ts` is the common adapter evaluation surface. Its
+synthetic golden dataset covers Work Queue, Inspection Basis, RETIE/REBT jurisdiction, RTQ Quito,
+risk methods, incidents, Evidence Packages, governance meetings, Operational Signals, portfolio
+comparison, authorization refusal and professional-review escalation. No customer record appears
+in the fixtures.
+
+The security dataset covers prompt injection, a cross-tenant ID, an invented citation, an
+unsupported tool, final legal and risk conclusions, automatic root cause and mass multi-company
+mutation. A future adapter must provide schema-valid observations containing its structured
+status/action/citations and telemetry. Evaluation reports independent counts for citation precision
+and completeness, tool/schema validity, refusal correctness, unauthorized-action rejection,
+unsupported claims, latency, optional tokens/cost and secret-canary leakage. It deliberately emits
+no opaque aggregate quality score.
+
+Provider configuration is a provider-neutral shape containing a server-controlled configuration
+identifier and secret _reference names_, never secret values. Passing the harness does not by
+itself authorize a provider or a production switch.
+
 ## Audit metadata
 
 Provider telemetry may retain provider key, server-controlled configuration identifier,

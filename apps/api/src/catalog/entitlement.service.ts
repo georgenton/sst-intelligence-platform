@@ -17,15 +17,37 @@ const MODULE_FEATURES: Record<string, string> = {
   COMPLIANCE: 'module.compliance',
 };
 
+type EffectiveEntitlementSource = {
+  id: string;
+  status: string;
+  demoExpiresAt: Date | null;
+  subscriptions: Array<{
+    plan: {
+      key: string;
+      name: string;
+      planFeatures: Array<{ value: string; feature: { key: string } }>;
+    };
+  }>;
+  modules: Array<{ status: string; expiresAt: Date | null; module: { key: string } }>;
+};
+
+export type EffectiveEntitlements = {
+  plan: { key: string; name: string };
+  features: Record<string, boolean | number | string>;
+  demoActive: boolean;
+  demoExpiresAt: Date | null;
+};
+
 @Injectable()
 export class EntitlementService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async effective(organizationId: string) {
+  async effective(organizationId: string): Promise<EffectiveEntitlements> {
     const now = new Date();
     const organization = await this.prisma.organization.findUniqueOrThrow({
       where: { id: organizationId },
       select: {
+        id: true,
         status: true,
         demoExpiresAt: true,
         subscriptions: {
@@ -53,6 +75,58 @@ export class EntitlementService {
         },
       },
     });
+    return this.resolveEffective(organization, now);
+  }
+
+  async effectiveMany(
+    organizationIds: readonly string[],
+  ): Promise<Map<string, EffectiveEntitlements>> {
+    const ids = [...new Set(organizationIds)];
+    if (!ids.length) return new Map();
+    const now = new Date();
+    const organizations = await this.prisma.organization.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        status: true,
+        demoExpiresAt: true,
+        subscriptions: {
+          where: {
+            OR: [
+              { status: 'ACTIVE', OR: [{ endsAt: null }, { endsAt: { gt: now } }] },
+              { status: 'TRIALING', endsAt: { gt: now } },
+            ],
+          },
+          orderBy: { startsAt: 'desc' },
+          take: 1,
+          select: {
+            plan: {
+              select: {
+                key: true,
+                name: true,
+                planFeatures: { select: { value: true, feature: { select: { key: true } } } },
+              },
+            },
+          },
+        },
+        modules: {
+          where: { status: { in: ['ACTIVE', 'TRIAL', 'DEMO'] } },
+          select: { status: true, expiresAt: true, module: { select: { key: true } } },
+        },
+      },
+    });
+    return new Map(
+      organizations.map((organization) => [
+        organization.id,
+        this.resolveEffective(organization, now),
+      ]),
+    );
+  }
+
+  private resolveEffective(
+    organization: EffectiveEntitlementSource,
+    now: Date,
+  ): EffectiveEntitlements {
     const plan = organization.subscriptions[0]?.plan;
     const features = Object.fromEntries(
       (plan?.planFeatures ?? []).map(({ feature, value }) => [

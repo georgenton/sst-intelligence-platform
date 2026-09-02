@@ -21,6 +21,10 @@ export const queryKeys = {
     all: [...privateRoot, 'user'] as const,
     scope: (userId: string) => [...privateRoot, 'user', userId] as const,
     organizations: (userId: string) => [...privateRoot, 'user', userId, 'organizations'] as const,
+    portfolio: (userId: string, filters = '') =>
+      [...privateRoot, 'user', userId, 'portfolio', filters] as const,
+    portfolioProviderStatus: (userId: string) =>
+      [...privateRoot, 'user', userId, 'portfolio', 'provider-status'] as const,
     invitationPreview: (userId: string) =>
       [...privateRoot, 'user', userId, 'organization-invitation'] as const,
   },

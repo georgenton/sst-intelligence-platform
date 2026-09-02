@@ -46,5 +46,6 @@ import {
       useExisting: DeterministicConversationalAssistantProvider,
     },
   ],
+  exports: [CONVERSATIONAL_ASSISTANT_PROVIDER],
 })
 export class ConversationalOperationsModule {}
