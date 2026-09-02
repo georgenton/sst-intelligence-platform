@@ -1,6 +1,6 @@
 # ADR — Conversational Operations as a bounded interface layer
 
-Status: accepted for V1 implementation review.
+Status: accepted and controlled deterministic V1 closed in production on 2026-09-02.
 
 ## Decision
 
@@ -49,3 +49,8 @@ authenticated request + current membership
 
 Production LLM/provider choice, external data-processing terms, retention policy, semantic search,
 cross-company assistant views and further write actions require separate product/security review.
+
+Production closure did not change these deferred decisions. The verified provider remains
+`DETERMINISTIC_LOCAL_V1`; canonical writes occurred only through existing domain services after an
+explicit confirmation, and the resulting corrective Action projected exactly once into the shared
+Work Queue.

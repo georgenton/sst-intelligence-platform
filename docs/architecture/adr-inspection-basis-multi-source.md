@@ -1,6 +1,6 @@
 # ADR — Multi-source Inspection Basis
 
-Status: accepted for implementation.
+Status: accepted and production closed on 2026-09-02.
 
 ## Decision
 
@@ -25,3 +25,7 @@ typed links. Inspections store the exact immutable basis version and snapshot.
 Configuration becomes a master-detail workspace and inspection explanations can cite each source
 separately. The additional joins are explicit and indexed in PostgreSQL; no new service, queue,
 cache or generic repository is required.
+
+The production closure confirmed active-Basis-first resolution with legacy policy fallback only
+when no active Basis exists. It also confirmed the partial unique-index invariant, immutable
+historical snapshots, separately rendered source roles and absence of inferred legal context.

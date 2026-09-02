@@ -59,7 +59,7 @@ three synthetic demo standard versions, ten synthetic criteria, append-only orga
 tenant isolation, explicit no-fallback behavior and preserved legacy inspection semantics. Real
 standard selection and professional approval remain **PENDING ANITA**.
 
-### D.3 — Inspection Basis V2 — implementation in review
+### D.3 — Inspection Basis V2 — production closed
 
 Compose one primary technical version, optional supplemental/internal versions and zero-to-many
 exact RegulatoryUnits for each organization and inspection domain. The immutable basis version is
@@ -67,7 +67,7 @@ snapshotted by new inspections; legacy direct-standard inspections remain valid.
 remain technical/reference context in their own jurisdiction and never become Ecuadorian law.
 This is not a Protocol Engine and introduces no pricing decision.
 
-### M.1 — Conversational Operations V1 — implementation in review
+### M.1 — Conversational Operations V1 — production closed
 
 Provide a tenant-private, context-aware conversation interface over existing domain APIs. The
 assistant uses a server-side allowlisted action registry, current membership authorization,
@@ -136,9 +136,10 @@ Applicability and Adaptive Configuration foundations, regulatory source/provisio
 foundations, Risk Methodology runtime and Unified Regulatory Evidence Runtime V1.
 
 Production implements Track C, the first bounded preview slice of Track D and Workspace UX V2.
-Tracks D.1 and D.2 are production closed. Workforce Safety Operations V1 is implemented on its
-review branch for Worker Registry and Tracks E–G, including deterministic Worker 360 projections,
-and remains pending external review before production closure. It does not implement the full Track
-J intelligence layer. Track B was
+Tracks D.1, D.2 and D.3 are production closed. Workforce Safety Operations V1 is production closed
+for Worker Registry and bounded Tracks E–G, including deterministic Worker 360 projections.
+Conversational Operations V1 is production closed with `DETERMINISTIC_LOCAL_V1`; it is not an
+external or generative AI integration. Neither program implements the full Track J intelligence
+layer. Track B was
 attempted and safely deferred because the ordered artifacts need verified human transcription before
 structuring. Track A remains pending. No later track is represented as active.

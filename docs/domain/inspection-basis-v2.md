@@ -1,6 +1,7 @@
 # Inspection Basis V2
 
-Status: implementation in review. Professional selection remains **PENDING ANITA**.
+Status: production closed on 2026-09-02. Professional source and criterion approval remains
+**PENDING ANITA**.
 
 ## Purpose and boundary
 
@@ -41,3 +42,16 @@ Existing V1 inspections keep their direct policy/version binding and are not rec
 backfilled. API membership and tenant checks are authoritative.
 
 No Protocol Engine, commercial plan assignment, pricing rule or professional approval is created.
+
+## Production closure evidence
+
+PR #34 merge `c90065822aee358a2716a1b2b6e7d93d7cbeb8a0` passed the first main Quality
+Gate attempt and automatic Railway/Vercel deployment. The production smoke activated
+`PRUEBA SISTEMA — BASE ELÉCTRICA MULTIFUENTE V2` with RETIE as primary, REBT as supplemental and
+zero legal-context units. The created inspection resolved that exact Basis, retained its immutable
+version and rendered the source roles separately. A pre-Basis inspection and a direct-standard
+inspection retained their original criteria, results and StandardVersion without backfill.
+
+The partial database unique index and serialized activation path remain authoritative for the
+one-active-Basis-per-organization/domain invariant. The integration suite proves concurrent
+activation, immutable history, tenant isolation and the Basis-then-legacy resolution rule.

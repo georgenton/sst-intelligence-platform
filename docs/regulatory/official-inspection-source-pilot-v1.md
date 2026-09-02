@@ -1,6 +1,7 @@
 # Official Inspection Source Pilot V1
 
-Status: engineering/reference pilot. Professional approval is **PENDING ANITA**.
+Status: engineering/reference pilot closed in production on 2026-09-02. Professional approval is
+**PENDING ANITA**.
 
 | Candidate                      | Jurisdiction                               | Domain                      | Classification                         | Content boundary                                                                         |
 | ------------------------------ | ------------------------------------------ | --------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------- |
@@ -53,3 +54,15 @@ into a legal requirement.
 | RTQ    | `RTQ4-PILOT-IDENTIFICATION`  | Identificación de áreas con materiales peligrosos        | Bomberos Quito · Normativa Técnica · RTQ 4               | Platform-authored |
 
 Counts: RETIE=2, REBT=2, RTQ=2, CLP=0.
+
+## Production closure evidence
+
+The PR #34 production smoke exposed RETIE, REBT and RTQ only through the
+`InspectionStandardSource` reference catalog with explicit jurisdiction and professional-review
+labels. CLP remained metadata-only and NFPA remained reference-only with no executable criteria or
+stored full text. None of these entries was inserted into the Ecuador regulatory corpus: its
+baseline remains 15 sources, 25 versions, 1112 units, 893 ARTICLE units, 5 candidate Requirements,
+5 candidate RuleDrafts and 0 real published rules.
+
+The smoke configured RETIE and REBT as technical sources without a legal-context unit. It did not
+claim Ecuadorian applicability, nationalize RTQ, certify compliance or record an Anita decision.

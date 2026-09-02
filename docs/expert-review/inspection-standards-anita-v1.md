@@ -1,7 +1,9 @@
 # Revisión futura de estándares de inspección — Anita
 
 Estado: Inspection Standards V1 cerrado en producción con contenido sintético; revisión de
-estándares reales **PENDIENTE DE ANITA** y ninguna aprobación profesional registrada.
+estándares reales **PENDIENTE DE ANITA** y ninguna aprobación profesional registrada. Inspection
+Basis V2 y el piloto de referencias oficiales quedaron técnicamente cerrados en producción el
+2026-09-02 sin cambiar ese límite profesional.
 
 ## Explicación breve
 
@@ -37,3 +39,8 @@ El piloto de ingeniería registra estos candidatos para que puedan evaluarse; no
 los haya seleccionado, recomendado o aprobado. El cierre productivo de V1 valida únicamente el
 mecanismo técnico versionado, la ejecución del catálogo sintético y sus límites de seguridad. No
 completa ni sustituye ninguna decisión de esta tabla.
+
+El smoke de cierre de PR #34 usó RETIE como referencia técnica principal y REBT como referencia
+técnica suplementaria, sin fundamento normativo inferido. Esa configuración sintética demuestra el
+mecanismo de composición y trazabilidad; no constituye preferencia, recomendación ni aprobación de
+Anita. Los seis criterios piloto siguen pendientes de su revisión profesional.

@@ -1,7 +1,8 @@
 # SST Intelligence — master project context
 
-Status: canonical continuity document. Implementation baseline: production `main` at
-`0cc4d560905ec0a4a7f093a52a30e842bd33cee5` on 2026-09-01.
+Status: canonical continuity document. Runtime implementation baseline: PR #34 merge
+`c90065822aee358a2716a1b2b6e7d93d7cbeb8a0`, verified in production on 2026-09-02. The subsequent
+closure-documentation commit does not change runtime behavior.
 
 This document is the authoritative entry point for future engineering sessions. Detailed domain,
 architecture, security, deployment and source-review documents remain authoritative inside their
@@ -104,13 +105,15 @@ synthetic baseline remains exactly three demo sources/versions and ten original 
 separate, visibly labeled reference pilot adds RETIE, REBT and RTQ candidates plus CLP/NFPA
 metadata-only boundaries; professional selection and approval remain pending Anita review.
 
-Inspection Basis V2 is the approved evolution path: an organization/domain may select an immutable
+Inspection Basis V2 is production closed: an organization/domain may select an immutable
 composition containing one primary technical version, supplemental/internal technical versions and
 zero-to-many exact regulatory units. `Inspection Standard != Inspection Basis != Regulation != Risk
 Method`. New basis-aware inspections retain the exact basis version; V1 direct-standard history is
-never destructively backfilled. Inspection Basis is not a Protocol Engine.
+never destructively backfilled. New inspections resolve the active Basis first and use the legacy
+organization policy only when no active Basis exists. Inspection Basis is not a Protocol Engine.
 
-Conversational Operations V1 is an interface over current services, never an alternate authority.
+Conversational Operations V1 is production closed as a controlled deterministic interface over
+current services, never an alternate authority.
 Allowlisted actions run with the current user, organization, role and entitlements; material writes
 require confirmation and idempotency. Conversation messages are not canonical audit records. A
 deterministic provider is sufficient until a production LLM/provider and privacy policy are
@@ -226,7 +229,7 @@ bounded active-demo preview. Its `FeatureDefinition` is deterministic global ref
 it has no `PlanFeature` assignment. Future commercial packaging remains **PENDING PRODUCT
 DECISION**.
 
-The current candidate adds [Organization Team & Invitations V1](../domain/organization-team-invitations-v1.md):
+Production includes [Organization Team & Invitations V1](../domain/organization-team-invitations-v1.md):
 Owner/Admin manual-link invitations with hash-only single-use tokens, authenticated email binding,
 transactional terminal outcomes, conservative non-owner role management and non-destructive member
 deactivation. Work Permit drafts select a current same-tenant eligible approver; pending approval is
@@ -240,12 +243,18 @@ regulatory foundation remain separate, and only synthetic demo standard content 
 global reference catalog. Real-standard selection, rights validation and professional approval
 remain **PENDING ANITA**.
 
-[Workforce Safety Operations V1](../product/workforce-safety-operations-v1.md) is implemented on its
-feature branch and awaits external review before merge. Its controlling ADR states that User,
-Membership and Worker
+[Workforce Safety Operations V1](../product/workforce-safety-operations-v1.md) is production closed.
+Its controlling ADR states that User, Membership and Worker
 are different concepts: Workers are tenant-private operational persons, may have no login, never
 consume member-seat capacity and survive User unlink or Membership suspension. The program adds
 bounded Incident, EPP and Training/Competency lifecycles plus tenant-scoped Worker 360 and shared
 Work Queue/Command Center projections with exact source links. It adds no HRIS/payroll, clinical
 data, automatic root cause, statutory reporting
 decision, legal deadline, commercial plan assignment, AI decision or published regulatory Rule.
+
+The PR #34 production closure also verifies Inspection Basis V2, the bounded official-source pilot
+and Conversational Operations V1. The production smoke used RETIE as primary technical source, REBT
+as supplemental technical source and no inferred legal context; all pilot criteria remain
+**PENDING ANITA**. The deterministic conversational provider operated canonical Inspection,
+Finding, Evidence and Action services with explicit confirmation, idempotency, current-membership
+authorization and exact stored citations. No external LLM or new commercial feature was added.

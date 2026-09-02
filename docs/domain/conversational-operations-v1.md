@@ -1,7 +1,8 @@
 # Conversational Operations V1
 
-Status: implementation in review. This capability is an interface over existing domain services;
-it is not a second business engine, legal adviser or audit authority.
+Status: controlled deterministic V1 closed in production on 2026-09-02. This capability is an
+interface over existing domain services; it is not a second business engine, legal adviser or audit
+authority.
 
 ## Domain boundary
 
@@ -66,3 +67,17 @@ are shown as failures; the assistant does not fabricate a fallback result.
 V1 follows existing tenant-data deletion semantics. A special long-term legal retention period has
 not been invented and remains a future privacy decision. The capability adds no FeatureDefinition,
 PlanFeature assignment, tier or pricing rule.
+
+## Production closure evidence
+
+PR #34 merge `c90065822aee358a2716a1b2b6e7d93d7cbeb8a0` passed first-attempt main CI and
+automatic production deployment. A synthetic production thread returned only authorized Work Queue
+items, explained stored citations, resolved an active multi-source Inspection Basis, created and
+started an Inspection, recorded a criterion result, linked an evidence reference, created one
+Finding using the canonical risk service and created one assigned corrective Action. Every material
+mutation first displayed an `AWAITING_CONFIRMATION` proposal; the resulting Action appeared once in
+the canonical Work Queue after reload.
+
+Switching the active organization hid the prior tenant's thread and domain records. Integration
+remains authoritative for cross-tenant denial and same-key replay races. Production continues to
+identify the provider as `DETERMINISTIC_LOCAL_V1` and requires no external AI secret.
