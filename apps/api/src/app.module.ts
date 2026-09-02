@@ -14,6 +14,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import { GovernanceModule } from './governance/governance.module';
+import { EvidencePackagesModule } from './evidence-packages/evidence-packages.module';
 import { InspectionsModule } from './inspections/inspections.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { PpeModule } from './ppe/ppe.module';
@@ -67,6 +68,7 @@ import { WorkersModule } from './workers/workers.module';
     SolutionFinderModule,
     DashboardModule,
     GovernanceModule,
+    EvidencePackagesModule,
     InspectionStandardsModule,
     InspectionBasisModule,
     InspectionsModule,

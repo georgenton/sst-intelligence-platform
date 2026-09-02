@@ -201,6 +201,13 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         match: 'segment',
       },
       {
+        id: 'evidence-packages',
+        label: 'Paquetes de evidencia',
+        href: '/app/evidence-packages',
+        group: 'management',
+        match: 'segment',
+      },
+      {
         id: 'modules',
         label: 'Módulos',
         href: '/app/modules',

@@ -779,6 +779,29 @@ enum GovernanceEvidenceType {
   EXTERNAL_LINK
 }
 
+enum EvidencePackageStatus {
+  DRAFT
+  FINALIZED
+  ARCHIVED
+}
+
+enum EvidencePackageItemType {
+  INSPECTION
+  FINDING
+  CORRECTIVE_ACTION
+  ACTION_EVIDENCE
+  TECHNICAL_ASSESSMENT
+  INCIDENT
+  PPE_ISSUE
+  TRAINING_COMPLETION
+  WORK_PERMIT
+  OBLIGATION_EXECUTION
+  GOVERNANCE_MEETING
+  GOVERNANCE_DECISION
+  REGULATORY_UNIT
+  INSPECTION_BASIS_VERSION
+}
+
 model User {
   id                           String                                        @id @default(uuid()) @db.Uuid
   email                        String                                        @unique
@@ -858,6 +881,8 @@ model User {
   governanceDecisionsCreated   GovernanceDecision[]                          @relation("GovernanceDecisionCreator")
   governanceActionsCreated     GovernanceAction[]                            @relation("GovernanceActionCreator")
   governanceEvidenceCreated    GovernanceEvidence[]                          @relation("GovernanceEvidenceCreator")
+  evidencePackagesCreated      EvidencePackage[]                             @relation("EvidencePackageCreator")
+  evidencePackagesGenerated    EvidencePackage[]                             @relation("EvidencePackageGenerator")
 }
 
 model RefreshSession {
@@ -969,6 +994,8 @@ model Organization {
   governanceActions             GovernanceAction[]
   governanceEvidence            GovernanceEvidence[]
   governanceMeetingParticipants GovernanceMeetingParticipant[]
+  evidencePackages              EvidencePackage[]
+  evidencePackageItems          EvidencePackageItem[]
 }
 
 model WorkCenter {
@@ -3546,6 +3573,50 @@ model GovernanceEvidence {
   @@index([organizationId, meetingId, createdAt])
   @@index([organizationId, decisionId, createdAt])
   @@index([organizationId, actionId, createdAt])
+}
+
+model EvidencePackage {
+  id             String                @id @default(uuid()) @db.Uuid
+  organizationId String                @db.Uuid
+  title          String                @db.VarChar(240)
+  scope          String                @db.VarChar(1000)
+  status         EvidencePackageStatus @default(DRAFT)
+  version        Int                   @default(1)
+  generatedAt    DateTime?
+  generatedById  String?               @db.Uuid
+  finalizedAt    DateTime?
+  archivedAt     DateTime?
+  manifest       Json?
+  manifestDigest String?               @db.VarChar(64)
+  createdById    String                @db.Uuid
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy      User                  @relation("EvidencePackageCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  generatedBy    User?                 @relation("EvidencePackageGenerator", fields: [generatedById], references: [id], onDelete: Restrict)
+  items          EvidencePackageItem[]
+
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, generatedAt])
+}
+
+model EvidencePackageItem {
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @db.Uuid
+  packageId      String                  @db.Uuid
+  type           EvidencePackageItemType
+  sourceId       String                  @db.Uuid
+  sourceVersion  String?                 @db.VarChar(100)
+  labelSnapshot  String                  @db.VarChar(500)
+  provenance     Json
+  contentDigest  String?                 @db.VarChar(64)
+  createdAt      DateTime                @default(now())
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  package        EvidencePackage         @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, type, sourceId])
+  @@index([organizationId, type, sourceId])
+  @@index([organizationId, packageId])
 }
 
 model ConversationThread {
