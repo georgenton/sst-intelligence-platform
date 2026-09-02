@@ -275,8 +275,20 @@ export class InspectionsService {
       },
     });
     if (!inspection) throw new NotFoundException('Inspección no encontrada.');
+    const sourceOrder = new Map(
+      (inspection.inspectionBasisVersion?.technicalSources ?? []).map(
+        ({ standardVersionId }, index) => [standardVersionId, index],
+      ),
+    );
     return {
       ...inspection,
+      criterionResults: [...inspection.criterionResults].sort(
+        (left, right) =>
+          (sourceOrder.get(left.criterion.standardVersionId) ?? 0) -
+            (sourceOrder.get(right.criterion.standardVersionId) ?? 0) ||
+          left.criterion.displayOrder - right.criterion.displayOrder ||
+          left.criterion.code.localeCompare(right.criterion.code),
+      ),
       findings: inspection.findings.map((finding) => ({
         ...finding,
         actions: finding.actions.map((action) => ({
