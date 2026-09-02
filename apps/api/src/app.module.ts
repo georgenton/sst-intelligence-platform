@@ -13,6 +13,7 @@ import { EntitlementsModule } from './catalog/entitlements.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
+import { GovernanceModule } from './governance/governance.module';
 import { InspectionsModule } from './inspections/inspections.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { PpeModule } from './ppe/ppe.module';
@@ -65,6 +66,7 @@ import { WorkersModule } from './workers/workers.module';
     RiskMethodologyModule,
     SolutionFinderModule,
     DashboardModule,
+    GovernanceModule,
     InspectionStandardsModule,
     InspectionBasisModule,
     InspectionsModule,

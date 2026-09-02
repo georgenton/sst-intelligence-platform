@@ -4,6 +4,7 @@ export * from './inspections.js';
 export * from './inspection-standards.js';
 export * from './inspection-basis.js';
 export * from './conversational-operations.js';
+export * from './governance.js';
 export * from './technical-risk.js';
 export * from './applicability.js';
 export * from './regulatory-source.js';

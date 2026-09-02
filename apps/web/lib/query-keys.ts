@@ -75,6 +75,10 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'training', 'sessions', filters] as const,
     trainingSession: (organizationId: string, sessionId: string) =>
       [...privateRoot, 'org', organizationId, 'training', 'session', sessionId] as const,
+    governanceBodies: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'governance', 'bodies'] as const,
+    governanceBody: (organizationId: string, bodyId: string) =>
+      [...privateRoot, 'org', organizationId, 'governance', 'body', bodyId] as const,
     workerTraining: (organizationId: string, workerId: string) =>
       [...privateRoot, 'org', organizationId, 'training', 'worker', workerId] as const,
     invitations: (organizationId: string) =>

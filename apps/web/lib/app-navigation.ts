@@ -77,6 +77,13 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         requiredFeature: 'module.training',
       },
       {
+        id: 'governance',
+        label: 'Gobernanza',
+        href: '/app/governance',
+        group: 'operation',
+        match: 'segment',
+      },
+      {
         id: 'sst-evaluation',
         label: 'Evaluación SST',
         href: '/app/evaluation',
