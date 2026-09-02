@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { randomUUID } from 'node:crypto';
 import request, { type Test as SuperTestRequest } from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -117,7 +118,7 @@ describe('evidence packages integration', () => {
       .post(`/evidence-packages/${packageId}/items`)
       .send({ type: 'GOVERNANCE_MEETING', sourceId: meetingB.id })
       .expect(400);
-    await ownerApi
+    const added = await ownerApi
       .post(`/evidence-packages/${packageId}/items`)
       .send({ type: 'GOVERNANCE_MEETING', sourceId: meetingA.id })
       .expect(201);
@@ -125,6 +126,17 @@ describe('evidence packages integration', () => {
       .post(`/evidence-packages/${packageId}/items`)
       .send({ type: 'GOVERNANCE_MEETING', sourceId: meetingA.id })
       .expect(409);
+
+    const draftRead = await ownerApi.get(`/evidence-packages/${packageId}`).expect(200);
+    expect(draftRead.body.items).toHaveLength(1);
+    expect(draftRead.body.items[0].sourceId).toBe(meetingA.id);
+    await prisma.governanceMeeting.update({
+      where: { id: meetingA.id },
+      data: {
+        status: 'SCHEDULED',
+        updatedAt: new Date('2026-09-10T14:30:00.000Z'),
+      },
+    });
 
     const finalized = await ownerApi.post(`/evidence-packages/${packageId}/finalize`).expect(201);
     expect(finalized.body).toMatchObject({
@@ -138,10 +150,18 @@ describe('evidence packages integration', () => {
             type: 'GOVERNANCE_MEETING',
             sourceId: meetingA.id,
             label: 'Reunión canónica A',
+            sourceVersion: '2026-09-10T14:30:00.000Z',
+            provenance: expect.objectContaining({ status: 'SCHEDULED' }),
           }),
         ],
       },
     });
+    expect(finalized.body.items[0]).toMatchObject({
+      sourceId: meetingA.id,
+      sourceVersion: '2026-09-10T14:30:00.000Z',
+      provenance: expect.objectContaining({ status: 'SCHEDULED' }),
+    });
+    expect(finalized.body.items[0].sourceVersion).not.toBe(added.body.sourceVersion);
     expect(finalized.body.manifestDigest).toMatch(/^[a-f0-9]{64}$/);
     await ownerApi
       .post(`/evidence-packages/${packageId}/items`)
@@ -156,7 +176,70 @@ describe('evidence packages integration', () => {
     await expect(prisma.evidencePackageItem.deleteMany({ where: { packageId } })).rejects.toThrow(
       'Finalized evidence package items are immutable',
     );
+    await expect(
+      prisma.evidencePackageItem.update({
+        where: { id: finalized.body.items[0].id as string },
+        data: {
+          sourceId: meetingB.id,
+          provenance: { status: 'HELD' },
+          contentDigest: '0'.repeat(64),
+        },
+      }),
+    ).rejects.toThrow('Finalized evidence package items are immutable');
+    await expect(
+      prisma.evidencePackageItem.create({
+        data: {
+          organizationId: orgA,
+          packageId,
+          type: 'REGULATORY_UNIT',
+          sourceId: randomUUID(),
+          sourceVersion: null,
+          labelSnapshot: 'Inserción prohibida',
+          provenance: {},
+          contentDigest: null,
+        },
+      }),
+    ).rejects.toThrow('Finalized evidence package items are immutable');
     await api(owner.token, orgB).get(`/evidence-packages/${packageId}`).expect(404);
+
+    const finalizedManifest = finalized.body.manifest as Record<string, unknown>;
+    await prisma.governanceMeeting.update({
+      where: { id: meetingA.id },
+      data: {
+        status: 'HELD',
+        heldAt: new Date('2026-09-10T15:00:00.000Z'),
+        updatedAt: new Date('2026-09-10T15:00:00.000Z'),
+      },
+    });
+    await prisma.governanceBody.update({
+      where: { id: bodyA.id },
+      data: { status: 'INACTIVE' },
+    });
+    const historical = await ownerApi.get(`/evidence-packages/${packageId}`).expect(200);
+    expect(historical.body.manifest).toEqual(finalizedManifest);
+    expect(historical.body.items[0].provenance.status).toBe('SCHEDULED');
+    expect(
+      await prisma.governanceMeeting.findUniqueOrThrow({ where: { id: meetingA.id } }),
+    ).toMatchObject({ status: 'HELD' });
+
+    const regenerated = await ownerApi
+      .post('/evidence-packages')
+      .send({
+        title: 'Seguimiento de gobernanza actualizado',
+        scope: 'Nueva captura posterior al cambio de la fuente.',
+      })
+      .expect(201);
+    await ownerApi
+      .post(`/evidence-packages/${regenerated.body.id as string}/items`)
+      .send({ type: 'GOVERNANCE_MEETING', sourceId: meetingA.id })
+      .expect(201);
+    const regeneratedFinal = await ownerApi
+      .post(`/evidence-packages/${regenerated.body.id as string}/finalize`)
+      .expect(201);
+    expect(regeneratedFinal.body.manifest.items[0].provenance.status).toBe('HELD');
+    expect(
+      (await ownerApi.get(`/evidence-packages/${packageId}`).expect(200)).body.manifest,
+    ).toEqual(finalizedManifest);
 
     const archived = await ownerApi.post(`/evidence-packages/${packageId}/archive`).expect(201);
     expect(archived.body).toMatchObject({
@@ -164,6 +247,18 @@ describe('evidence packages integration', () => {
       manifestDigest: finalized.body.manifestDigest,
       manifest: finalized.body.manifest,
     });
+    await expect(
+      prisma.evidencePackage.update({
+        where: { id: packageId },
+        data: { manifest: { altered: true } },
+      }),
+    ).rejects.toThrow('Finalized evidence package manifest is immutable');
+    await expect(
+      prisma.evidencePackageItem.update({
+        where: { id: finalized.body.items[0].id as string },
+        data: { labelSnapshot: 'Mutación archivada prohibida' },
+      }),
+    ).rejects.toThrow('Finalized evidence package items are immutable');
     expect(
       await prisma.auditLog.count({
         where: { organizationId: orgA, entityType: 'EvidencePackage' },

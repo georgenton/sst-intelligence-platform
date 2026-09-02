@@ -48,7 +48,7 @@ test('finaliza un paquete canónico y muestra su resumen documental', async ({ p
   await expect(page.getByText('Finalizado', { exact: true })).toBeVisible();
   const report = page.getByRole('region', { name: 'Representación imprimible del paquete' });
   await expect(report.getByRole('heading', { name: 'Paquete de evidencia' })).toBeVisible();
-  await expect(report.getByText('Estado registrado en la plataforma')).toBeVisible();
+  await expect(report.getByText('Estado capturado: DRAFT')).toBeVisible();
   await expect(report.getByText(/no declara empresa certificada/i)).toBeVisible();
   await expect(report.locator('code').first()).toHaveText(/^[a-f0-9]{64}$/);
   await expect(page.getByRole('button', { name: 'Imprimir resumen' })).toBeVisible();

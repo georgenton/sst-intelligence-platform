@@ -118,58 +118,102 @@ export class EvidencePackagesService {
   }
 
   async finalize(organizationId: string, packageId: string, userId: string, context: Context) {
-    const evidencePackage = await this.requireDraft(organizationId, packageId);
-    if (!evidencePackage.items.length) {
-      throw new BadRequestException('Agrega al menos una referencia antes de finalizar.');
+    let result: { manifestDigest: string; itemCount: number };
+    try {
+      result = await this.prisma.$transaction(
+        async (transaction) => {
+          const evidencePackage = await transaction.evidencePackage.findFirst({
+            where: { id: packageId, organizationId },
+            include: { items: true },
+          });
+          if (!evidencePackage) throw new NotFoundException('Paquete de evidencia no encontrado.');
+          if (evidencePackage.status !== 'DRAFT') {
+            throw new ConflictException(
+              'El paquete finalizado es inmutable; crea uno nuevo para regenerar.',
+            );
+          }
+          if (!evidencePackage.items.length) {
+            throw new BadRequestException('Agrega al menos una referencia antes de finalizar.');
+          }
+          assertEvidencePackageTransition(evidencePackage.status, 'FINALIZED');
+          const organization = await transaction.organization.findUniqueOrThrow({
+            where: { id: organizationId },
+            select: { id: true, name: true },
+          });
+          const generatedAt = new Date();
+          const capturedItems = await Promise.all(
+            evidencePackage.items.map(async (item) => {
+              const reference = await this.resolveCanonicalReference(
+                organizationId,
+                item.type,
+                item.sourceId,
+                transaction,
+              );
+              return transaction.evidencePackageItem.update({
+                where: { id: item.id },
+                data: {
+                  sourceVersion: reference.sourceVersion,
+                  labelSnapshot: reference.label,
+                  provenance: reference.provenance,
+                  contentDigest: reference.contentDigest,
+                },
+              });
+            }),
+          );
+          const manifest = {
+            schemaVersion: 'EVIDENCE_PACKAGE_MANIFEST_V1',
+            generatedAt: generatedAt.toISOString(),
+            generatedBy: userId,
+            organization,
+            package: {
+              id: evidencePackage.id,
+              title: evidencePackage.title,
+              scope: evidencePackage.scope,
+              version: evidencePackage.version,
+            },
+            items: orderEvidenceManifestItems(capturedItems).map((item) => ({
+              type: item.type,
+              sourceId: item.sourceId,
+              sourceVersion: item.sourceVersion,
+              label: item.labelSnapshot,
+              provenance: item.provenance,
+              contentDigest: item.contentDigest,
+            })),
+            representation:
+              'Instantánea histórica capturada al finalizar; las fuentes canónicas pueden tener un estado actual diferente.',
+            certificationClaimed: false,
+          } satisfies Prisma.InputJsonValue;
+          const manifestDigest = createHash('sha256')
+            .update(JSON.stringify(manifest))
+            .digest('hex');
+          const updated = await transaction.evidencePackage.updateMany({
+            where: { id: packageId, organizationId, status: 'DRAFT' },
+            data: {
+              status: 'FINALIZED',
+              generatedAt,
+              generatedById: userId,
+              finalizedAt: generatedAt,
+              manifest,
+              manifestDigest,
+            },
+          });
+          if (updated.count !== 1) throw new ConflictException('El paquete cambió en otra sesión.');
+          return { manifestDigest, itemCount: capturedItems.length };
+        },
+        { isolationLevel: 'Serializable' },
+      );
+    } catch (error) {
+      if (this.isSerializationConflict(error)) {
+        throw new ConflictException('El paquete cambió en otra sesión.');
+      }
+      throw error;
     }
-    assertEvidencePackageTransition(evidencePackage.status, 'FINALIZED');
-    const organization = await this.prisma.organization.findUniqueOrThrow({
-      where: { id: organizationId },
-      select: { id: true, name: true },
-    });
-    const generatedAt = new Date();
-    const manifest = {
-      schemaVersion: 'EVIDENCE_PACKAGE_MANIFEST_V1',
-      generatedAt: generatedAt.toISOString(),
-      generatedBy: userId,
-      organization,
-      package: {
-        id: evidencePackage.id,
-        title: evidencePackage.title,
-        scope: evidencePackage.scope,
-        version: evidencePackage.version,
-      },
-      items: orderEvidenceManifestItems(evidencePackage.items).map((item) => ({
-        type: item.type,
-        sourceId: item.sourceId,
-        sourceVersion: item.sourceVersion,
-        label: item.labelSnapshot,
-        provenance: item.provenance,
-        contentDigest: item.contentDigest,
-      })),
-      representation:
-        'Estado registrado en la plataforma; las fuentes canónicas son autoritativas.',
-      certificationClaimed: false,
-    } satisfies Prisma.InputJsonValue;
-    const manifestDigest = createHash('sha256').update(JSON.stringify(manifest)).digest('hex');
-    const updated = await this.prisma.evidencePackage.updateMany({
-      where: { id: packageId, organizationId, status: 'DRAFT' },
-      data: {
-        status: 'FINALIZED',
-        generatedAt,
-        generatedById: userId,
-        finalizedAt: generatedAt,
-        manifest,
-        manifestDigest,
-      },
-    });
-    if (updated.count !== 1) throw new ConflictException('El paquete cambió en otra sesión.');
     await this.record(
       organizationId,
       userId,
       'EVIDENCE_PACKAGE_FINALIZED',
       packageId,
-      { manifestDigest, itemCount: evidencePackage.items.length },
+      { manifestDigest: result.manifestDigest, itemCount: result.itemCount },
       context,
     );
     return this.get(organizationId, packageId);
@@ -205,10 +249,11 @@ export class EvidencePackagesService {
     organizationId: string,
     type: EvidencePackageItemType,
     sourceId: string,
+    database: Prisma.TransactionClient = this.prisma,
   ): Promise<CanonicalReference> {
     switch (type) {
       case 'INSPECTION': {
-        const value = await this.prisma.inspection.findFirst({
+        const value = await database.inspection.findFirst({
           where: { id: sourceId, organizationId },
           select: {
             id: true,
@@ -224,7 +269,7 @@ export class EvidencePackagesService {
         return this.reference(value.title, value.updatedAt.toISOString(), value, null);
       }
       case 'FINDING': {
-        const value = await this.prisma.inspectionFinding.findFirst({
+        const value = await database.inspectionFinding.findFirst({
           where: { id: sourceId, organizationId },
           select: { id: true, title: true, status: true, updatedAt: true, inspectionId: true },
         });
@@ -232,7 +277,7 @@ export class EvidencePackagesService {
         return this.reference(value.title, value.updatedAt.toISOString(), value, null);
       }
       case 'CORRECTIVE_ACTION': {
-        const value = await this.prisma.correctiveAction.findFirst({
+        const value = await database.correctiveAction.findFirst({
           where: { id: sourceId, organizationId },
           select: { id: true, title: true, status: true, updatedAt: true, findingId: true },
         });
@@ -240,7 +285,7 @@ export class EvidencePackagesService {
         return this.reference(value.title, value.updatedAt.toISOString(), value, null);
       }
       case 'ACTION_EVIDENCE': {
-        const value = await this.prisma.actionEvidence.findFirst({
+        const value = await database.actionEvidence.findFirst({
           where: { id: sourceId, organizationId },
           select: { id: true, type: true, createdAt: true, correctiveActionId: true },
         });
@@ -253,7 +298,7 @@ export class EvidencePackagesService {
         );
       }
       case 'TECHNICAL_ASSESSMENT': {
-        const value = await this.prisma.technicalAssessment.findFirst({
+        const value = await database.technicalAssessment.findFirst({
           where: { id: sourceId, organizationId },
           select: {
             id: true,
@@ -268,7 +313,7 @@ export class EvidencePackagesService {
         return this.reference(value.title, value.updatedAt.toISOString(), value, null);
       }
       case 'INCIDENT': {
-        const value = await this.prisma.incident.findFirst({
+        const value = await database.incident.findFirst({
           where: { id: sourceId, organizationId },
           select: { id: true, title: true, status: true, version: true, workCenterId: true },
         });
@@ -276,7 +321,7 @@ export class EvidencePackagesService {
         return this.reference(value.title, String(value.version), value, null);
       }
       case 'PPE_ISSUE': {
-        const value = await this.prisma.ppeIssue.findFirst({
+        const value = await database.ppeIssue.findFirst({
           where: { id: sourceId, organizationId },
           select: {
             id: true,
@@ -290,7 +335,7 @@ export class EvidencePackagesService {
         return this.reference(value.ppeCatalogItem.name, String(value.version), value, null);
       }
       case 'TRAINING_COMPLETION': {
-        const value = await this.prisma.workerTrainingCompletion.findFirst({
+        const value = await database.workerTrainingCompletion.findFirst({
           where: { id: sourceId, organizationId },
           select: {
             id: true,
@@ -308,7 +353,7 @@ export class EvidencePackagesService {
         );
       }
       case 'WORK_PERMIT': {
-        const value = await this.prisma.workPermit.findFirst({
+        const value = await database.workPermit.findFirst({
           where: { id: sourceId, organizationId },
           select: { id: true, activity: true, status: true, version: true, workCenterId: true },
         });
@@ -316,7 +361,7 @@ export class EvidencePackagesService {
         return this.reference(value.activity, String(value.version), value, null);
       }
       case 'OBLIGATION_EXECUTION': {
-        const value = await this.prisma.obligationExecution.findFirst({
+        const value = await database.obligationExecution.findFirst({
           where: { id: sourceId, organizationId },
           select: { id: true, title: true, status: true, version: true, originType: true },
         });
@@ -324,7 +369,7 @@ export class EvidencePackagesService {
         return this.reference(value.title, String(value.version), value, null);
       }
       case 'GOVERNANCE_MEETING': {
-        const value = await this.prisma.governanceMeeting.findFirst({
+        const value = await database.governanceMeeting.findFirst({
           where: { id: sourceId, organizationId },
           select: { id: true, title: true, status: true, updatedAt: true, bodyId: true },
         });
@@ -332,7 +377,7 @@ export class EvidencePackagesService {
         return this.reference(value.title, value.updatedAt.toISOString(), value, null);
       }
       case 'GOVERNANCE_DECISION': {
-        const value = await this.prisma.governanceDecision.findFirst({
+        const value = await database.governanceDecision.findFirst({
           where: { id: sourceId, organizationId },
           select: { id: true, summary: true, createdAt: true, meetingId: true },
         });
@@ -340,7 +385,7 @@ export class EvidencePackagesService {
         return this.reference(value.summary, value.createdAt.toISOString(), value, null);
       }
       case 'REGULATORY_UNIT': {
-        const value = await this.prisma.regulatoryUnit.findUnique({
+        const value = await database.regulatoryUnit.findUnique({
           where: { id: sourceId },
           select: {
             id: true,
@@ -360,7 +405,7 @@ export class EvidencePackagesService {
         );
       }
       case 'INSPECTION_BASIS_VERSION': {
-        const value = await this.prisma.inspectionBasisVersion.findFirst({
+        const value = await database.inspectionBasisVersion.findFirst({
           where: { id: sourceId, organizationId },
           select: {
             id: true,
@@ -399,6 +444,10 @@ export class EvidencePackagesService {
 
   private isUnique(error: unknown) {
     return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'P2002');
+  }
+
+  private isSerializationConflict(error: unknown) {
+    return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'P2034');
   }
 
   private record(

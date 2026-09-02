@@ -63,6 +63,17 @@ type GovernanceMeeting = {
   location?: string | null;
   notes?: string | null;
   chairMembership?: { id: string; user: { id: string; displayName: string } } | null;
+  participants: Array<{
+    id: string;
+    personKeySnapshot: string;
+    displayNameSnapshot: string;
+    roleLabelSnapshot?: string | null;
+    governanceMember: {
+      isActive: boolean;
+      worker?: { status: string } | null;
+      membership?: { status: string } | null;
+    };
+  }>;
   agendaItems: Array<{ id: string; title: string; notes?: string | null; sortOrder: number }>;
   decisions: GovernanceDecision[];
   evidence: Evidence[];
@@ -425,6 +436,27 @@ export function GovernanceWorkspace() {
                   </p>
                   {meeting.agendaItems.length ? (
                     <p>Agenda: {meeting.agendaItems.map(({ title }) => title).join(' · ')}</p>
+                  ) : null}
+                  {meeting.participants.length ? (
+                    <div className="record-inset">
+                      <strong>Participantes registrados</strong>
+                      <ul>
+                        {meeting.participants.map((participant) => {
+                          const currentStatus =
+                            participant.governanceMember.worker?.status ??
+                            participant.governanceMember.membership?.status;
+                          const currentlyActive =
+                            participant.governanceMember.isActive && currentStatus === 'ACTIVE';
+                          return (
+                            <li key={participant.id}>
+                              {participant.displayNameSnapshot} ·{' '}
+                              {participant.roleLabelSnapshot ?? 'Participante'} ·{' '}
+                              {currentlyActive ? 'Actualmente activo' : 'Actualmente inactivo'}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
                   ) : null}
                   {canWrite && meeting.status === 'DRAFT' ? (
                     <Button

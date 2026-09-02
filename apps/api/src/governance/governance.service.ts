@@ -187,6 +187,8 @@ export class GovernanceService {
         'El trabajador y la cuenta seleccionada no representan la misma identidad vinculada.',
       );
     }
+    const linkedUserId = worker?.linkedUserId ?? membership?.userId;
+    const personKey = linkedUserId ? `USER:${linkedUserId}` : `WORKER:${worker!.id}`;
     try {
       const member = await this.prisma.governanceMember.create({
         data: {
@@ -194,6 +196,7 @@ export class GovernanceService {
           bodyId,
           workerId: worker?.id,
           membershipId: membership?.id,
+          personKey,
           roleLabel: input.roleLabel?.trim(),
         },
         include: {
@@ -242,7 +245,13 @@ export class GovernanceService {
       participantIds.length
         ? this.prisma.governanceMember.findMany({
             where: { organizationId, bodyId, id: { in: participantIds }, isActive: true },
-            select: { id: true },
+            select: {
+              id: true,
+              personKey: true,
+              roleLabel: true,
+              worker: { select: { displayName: true } },
+              membership: { select: { user: { select: { displayName: true } } } },
+            },
           })
         : [],
       this.requireMembershipIds(
@@ -254,6 +263,9 @@ export class GovernanceService {
     ]);
     if (participants.length !== participantIds.length)
       throw new BadRequestException('Un participante no pertenece a este espacio.');
+    if (new Set(participants.map(({ personKey }) => personKey)).size !== participants.length) {
+      throw new BadRequestException('No repitas a la misma persona en la reunión.');
+    }
     const allowedMembershipIds = new Set(actorMemberships.map(({ id }) => id));
     if (input.chairMembershipId && !allowedMembershipIds.has(input.chairMembershipId))
       throw new BadRequestException(
@@ -262,6 +274,20 @@ export class GovernanceService {
     if (input.secretaryMembershipId && !allowedMembershipIds.has(input.secretaryMembershipId))
       throw new BadRequestException('La secretaría requiere una cuenta activa de la organización.');
 
+    const participantsById = new Map(
+      participants.map((participant) => [participant.id, participant]),
+    );
+    const participantSnapshots = participantIds.map((governanceMemberId) => {
+      const participant = participantsById.get(governanceMemberId)!;
+      return {
+        organizationId,
+        governanceMemberId,
+        personKeySnapshot: participant.personKey,
+        displayNameSnapshot:
+          participant.worker?.displayName ?? participant.membership!.user.displayName,
+        roleLabelSnapshot: participant.roleLabel,
+      };
+    });
     const meeting = await this.prisma.governanceMeeting.create({
       data: {
         organizationId,
@@ -275,10 +301,7 @@ export class GovernanceService {
         chairMembershipId: input.chairMembershipId,
         secretaryMembershipId: input.secretaryMembershipId,
         participants: {
-          create: participantIds.map((governanceMemberId) => ({
-            organizationId,
-            governanceMemberId,
-          })),
+          create: participantSnapshots,
         },
         agendaItems: {
           create: input.agendaItems.map((item) => ({

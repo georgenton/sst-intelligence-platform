@@ -86,6 +86,8 @@ describe('operational intelligence integration', () => {
     });
     const createdAt = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
     const dueAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    const findingIds: string[] = [];
+    const correctiveActionIds: string[] = [];
     for (const [index, category] of [
       'Orden y limpieza',
       'orden  y limpieza',
@@ -108,7 +110,8 @@ describe('operational intelligence integration', () => {
           createdAt,
         },
       });
-      await prisma.correctiveAction.create({
+      findingIds.push(finding.id);
+      const correctiveAction = await prisma.correctiveAction.create({
         data: {
           organizationId: orgA,
           findingId: finding.id,
@@ -120,6 +123,7 @@ describe('operational intelligence integration', () => {
           createdAt,
         },
       });
+      correctiveActionIds.push(correctiveAction.id);
     }
     const ownerApi = api(owner.token, orgA);
 
@@ -170,6 +174,17 @@ describe('operational intelligence integration', () => {
       );
     expect(secondIdentity).toEqual(firstIdentity);
 
+    const concurrent = await Promise.all([
+      ownerApi.post('/operational-intelligence/signals/evaluate').expect(201),
+      ownerApi.post('/operational-intelligence/signals/evaluate').expect(201),
+    ]);
+    expect(concurrent.map(({ body }) => body.count)).toEqual([2, 2]);
+    expect(
+      await prisma.operationalSignal.count({
+        where: { organizationId: orgA, status: 'ACTIVE' },
+      }),
+    ).toBe(2);
+
     const signals = await ownerApi.get('/operational-intelligence/signals').expect(200);
     const repeated = signals.body.find(
       (signal: { type: string }) => signal.type === 'REPEATED_FINDING',
@@ -186,25 +201,76 @@ describe('operational intelligence integration', () => {
         }),
       ]),
     );
+    expect(new Set(queue.body.items.map((item: { sourceId: string }) => item.sourceId)).size).toBe(
+      queue.body.items.length,
+    );
 
+    const additionalAction = await prisma.correctiveAction.create({
+      data: {
+        organizationId: orgA,
+        findingId: findingIds[0]!,
+        title: 'Acción vencida adicional',
+        status: 'OPEN',
+        priority: 'MEDIUM',
+        dueAt,
+        createdById: owner.userId,
+        createdAt,
+      },
+    });
+    correctiveActionIds.push(additionalAction.id);
+    await ownerApi.post('/operational-intelligence/signals/evaluate').expect(201);
+    const updatedOverdue = await prisma.operationalSignal.findFirstOrThrow({
+      where: { organizationId: orgA, type: 'OVERDUE_ACTION_CLUSTER' },
+    });
+    expect(updatedOverdue.id).toBe(
+      first.body.items.find((item: { type: string }) => item.type === 'OVERDUE_ACTION_CLUSTER').id,
+    );
+    expect(updatedOverdue.observedCount).toBe(4);
+    expect(updatedOverdue.sourceRecords).toHaveLength(4);
+
+    await prisma.correctiveAction.updateMany({
+      where: { id: { in: correctiveActionIds.slice(0, 2) } },
+      data: { status: 'COMPLETED', completedAt: new Date() },
+    });
+    await ownerApi.post('/operational-intelligence/signals/evaluate').expect(201);
+    const closedOverdue = await prisma.operationalSignal.findUniqueOrThrow({
+      where: { id: updatedOverdue.id },
+    });
+    expect(closedOverdue).toMatchObject({ status: 'CLOSED', observedCount: 4 });
+    expect(closedOverdue.sourceRecords).toHaveLength(4);
+    const queueAfterConditionCleared = await ownerApi
+      .get('/work-queue?module=INTELLIGENCE&pageSize=100')
+      .expect(200);
+    expect(
+      queueAfterConditionCleared.body.items.some(
+        (item: { sourceId: string }) => item.sourceId === updatedOverdue.id,
+      ),
+    ).toBe(false);
+
+    const currentRepeated = await prisma.operationalSignal.findUniqueOrThrow({
+      where: { id: repeated.id as string },
+    });
     await api(viewer.token, orgA)
       .post(`/operational-intelligence/signals/${repeated.id as string}/review`)
-      .send({ expectedVersion: repeated.version })
+      .send({ expectedVersion: currentRepeated.version })
       .expect(403);
     await ownerApi
       .post(`/operational-intelligence/signals/${repeated.id as string}/review`)
-      .send({ expectedVersion: repeated.version, note: 'Revisión profesional registrada.' })
+      .send({
+        expectedVersion: currentRepeated.version,
+        note: 'Revisión profesional registrada.',
+      })
       .expect(201);
     const queueAfterReview = await ownerApi
       .get('/work-queue?module=INTELLIGENCE&pageSize=100')
       .expect(200);
-    expect(queueAfterReview.body.items).toHaveLength(1);
+    expect(queueAfterReview.body.items).toHaveLength(0);
 
     const overview = await ownerApi
       .get(`/operational-intelligence/work-centers/${center.id}/overview`)
       .expect(200);
     expect(overview.body).toMatchObject({
-      factualCounts: { inspections: 1, actions: 3 },
+      factualCounts: { inspections: 1, actions: 4 },
     });
     expect(overview.body.interpretation).toContain('no representan predicción');
     const facts = await ownerApi

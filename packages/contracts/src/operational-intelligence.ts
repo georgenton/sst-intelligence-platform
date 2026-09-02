@@ -1,6 +1,8 @@
 export const OPERATIONAL_SIGNAL_WINDOW_DAYS = 90;
 export const OPERATIONAL_SIGNAL_MINIMUM_COUNT = 3;
 export const OPERATIONAL_SIGNAL_RULE_VERSION = '1.0.0';
+export const REPEATED_FINDING_RULE_KEY = 'REPEATED_FINDING_90D_V1';
+export const OVERDUE_ACTION_CLUSTER_RULE_KEY = 'OVERDUE_ACTION_CLUSTER_90D_V1';
 
 export type OperationalSignalCandidate = {
   type: 'REPEATED_FINDING' | 'OVERDUE_ACTION_CLUSTER';
@@ -54,12 +56,12 @@ export function deriveRepeatedFindingSignals(
       const category = normalizeSignalCategory(ordered[0]!.category);
       return {
         type: 'REPEATED_FINDING',
-        fingerprintInput: `REPEATED_FINDING:${key}`,
+        fingerprintInput: `${REPEATED_FINDING_RULE_KEY}:${OPERATIONAL_SIGNAL_RULE_VERSION}:${key}`,
         workCenterId: ordered[0]!.workCenterId,
         title: `Patrón recurrente: ${category}`,
         explanation: `${ordered.length} hallazgos de la misma categoría normalizada fueron registrados en este centro de trabajo durante la ventana operativa de ${OPERATIONAL_SIGNAL_WINDOW_DAYS} días. Requiere revisión profesional; no identifica causa raíz.`,
         attention: 'REVIEW',
-        ruleKey: 'REPEATED_FINDING_90D_V1',
+        ruleKey: REPEATED_FINDING_RULE_KEY,
         ruleVersion: OPERATIONAL_SIGNAL_RULE_VERSION,
         threshold: OPERATIONAL_SIGNAL_MINIMUM_COUNT,
         observedCount: ordered.length,
@@ -103,12 +105,12 @@ export function deriveOverdueActionClusterSignals(
       const ordered = [...values].sort((left, right) => left.id.localeCompare(right.id));
       return {
         type: 'OVERDUE_ACTION_CLUSTER',
-        fingerprintInput: `OVERDUE_ACTION_CLUSTER:${key}`,
+        fingerprintInput: `${OVERDUE_ACTION_CLUSTER_RULE_KEY}:${OPERATIONAL_SIGNAL_RULE_VERSION}:${key}`,
         workCenterId: ordered[0]!.workCenterId,
         title: 'Concentración de acciones vencidas',
         explanation: `${ordered.length} acciones continúan abiertas después de su fecha objetivo en este centro de trabajo durante la ventana operativa de ${OPERATIONAL_SIGNAL_WINDOW_DAYS} días. Es una señal operativa que requiere revisión.`,
         attention: 'REVIEW',
-        ruleKey: 'OVERDUE_ACTION_CLUSTER_90D_V1',
+        ruleKey: OVERDUE_ACTION_CLUSTER_RULE_KEY,
         ruleVersion: OPERATIONAL_SIGNAL_RULE_VERSION,
         threshold: OPERATIONAL_SIGNAL_MINIMUM_COUNT,
         observedCount: ordered.length,

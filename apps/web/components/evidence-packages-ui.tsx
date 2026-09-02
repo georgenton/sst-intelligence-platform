@@ -101,6 +101,10 @@ function errorMessage(error: unknown) {
   return 'No pudimos completar la operación.';
 }
 
+function capturedState(provenance: Record<string, unknown>) {
+  return typeof provenance.status === 'string' ? provenance.status : null;
+}
+
 export function EvidencePackagesWorkspace() {
   const auth = useAuth();
   const organization = useOrganization();
@@ -173,7 +177,7 @@ export function EvidencePackagesWorkspace() {
         description="Agrupa referencias canónicas en un resumen documental trazable, sin certificar cumplimiento ni reemplazar los registros fuente."
         context={
           <ContextSummary>
-            <span>Estado registrado en la plataforma.</span>
+            <span>El manifiesto final conserva el estado capturado al finalizar.</span>
             <span>Las fuentes canónicas permanecen autoritativas.</span>
           </ContextSummary>
         }
@@ -278,6 +282,9 @@ export function EvidencePackagesWorkspace() {
                   </div>
                   <p>Fuente: {item.sourceId}</p>
                   <p>Versión o corte: {item.sourceVersion ?? 'Identidad canónica'}</p>
+                  {capturedState(item.provenance) ? (
+                    <p>Estado capturado: {capturedState(item.provenance)}</p>
+                  ) : null}
                   {item.contentDigest ? (
                     <p>
                       Digest de contenido: <code>{item.contentDigest}</code>
@@ -335,6 +342,12 @@ export function EvidencePackagesWorkspace() {
                       <strong>{typeLabels[item.type]}</strong> · {item.label}
                       <br />
                       <small>{item.sourceId}</small>
+                      {capturedState(item.provenance) ? (
+                        <>
+                          <br />
+                          <small>Estado capturado: {capturedState(item.provenance)}</small>
+                        </>
+                      ) : null}
                     </li>
                   ))}
                 </ol>

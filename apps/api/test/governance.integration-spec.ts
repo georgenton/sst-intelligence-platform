@@ -74,6 +74,15 @@ describe('governance integration', () => {
         createdById: owner.userId,
       },
     });
+    const linkedWorker = await prisma.worker.create({
+      data: {
+        organizationId: orgA,
+        displayName: 'Trabajadora con cuenta vinculada',
+        status: 'ACTIVE',
+        linkedUserId: viewer.userId,
+        createdById: owner.userId,
+      },
+    });
     const centerB = await prisma.workCenter.findFirstOrThrow({ where: { organizationId: orgB } });
     await prisma.membership.create({
       data: { organizationId: orgB, userId: outsider.userId, role: 'ORG_ADMIN', status: 'ACTIVE' },
@@ -107,10 +116,26 @@ describe('governance integration', () => {
       .post(`/governance/bodies/${bodyId}/members`)
       .send({ workerId: worker.id, membershipId: viewerMembership.id })
       .expect(400);
+    await ownerApi
+      .post(`/governance/bodies/${bodyId}/members`)
+      .send({ workerId: linkedWorker.id, roleLabel: 'Representación vinculada' })
+      .expect(201);
+    await ownerApi
+      .post(`/governance/bodies/${bodyId}/members`)
+      .send({ membershipId: viewerMembership.id, roleLabel: 'Duplicado por cuenta' })
+      .expect(409);
     const actorMember = await ownerApi
       .post(`/governance/bodies/${bodyId}/members`)
       .send({ membershipId: ownerMembership.id, roleLabel: 'Presidencia' })
       .expect(201);
+    await ownerApi
+      .patch(`/workers/${worker.id}`)
+      .send({ expectedVersion: 1, linkedUserId: owner.userId })
+      .expect(409);
+    expect(await prisma.worker.findUniqueOrThrow({ where: { id: worker.id } })).toMatchObject({
+      linkedUserId: null,
+      version: 1,
+    });
 
     const meeting = await ownerApi
       .post(`/governance/bodies/${bodyId}/meetings`)
@@ -124,6 +149,20 @@ describe('governance integration', () => {
       })
       .expect(201);
     expect(meeting.body.status).toBe('DRAFT');
+    expect(meeting.body.participants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          personKeySnapshot: `WORKER:${worker.id}`,
+          displayNameSnapshot: 'Trabajadora sin cuenta',
+          roleLabelSnapshot: 'Representación operativa',
+        }),
+        expect.objectContaining({
+          personKeySnapshot: `USER:${owner.userId}`,
+          displayNameSnapshot: 'Governance Owner',
+          roleLabelSnapshot: 'Presidencia',
+        }),
+      ]),
+    );
     await ownerApi
       .post(`/governance/meetings/${meeting.body.id as string}/decisions`)
       .send({ summary: 'No se puede decidir antes de realizar la reunión.' })
@@ -185,7 +224,58 @@ describe('governance integration', () => {
         }),
       ]),
     );
+    const repeatedProjection = await ownerApi
+      .get('/work-queue?module=GOVERNANCE&pageSize=100')
+      .expect(200);
+    expect(
+      repeatedProjection.body.items.filter(
+        (item: { sourceId: string }) => item.sourceId === action.body.id,
+      ),
+    ).toHaveLength(1);
+
+    await prisma.worker.update({
+      where: { id: worker.id },
+      data: { displayName: 'Nombre actual modificado', status: 'INACTIVE' },
+    });
+    const historicalBody = await ownerApi.get(`/governance/bodies/${bodyId}`).expect(200);
+    const historicalParticipant = historicalBody.body.meetings[0].participants.find(
+      (participant: { personKeySnapshot: string }) =>
+        participant.personKeySnapshot === `WORKER:${worker.id}`,
+    );
+    expect(historicalParticipant).toMatchObject({
+      displayNameSnapshot: 'Trabajadora sin cuenta',
+      roleLabelSnapshot: 'Representación operativa',
+      governanceMember: {
+        worker: { displayName: 'Nombre actual modificado', status: 'INACTIVE' },
+      },
+    });
+
+    await ownerApi
+      .patch(`/governance/actions/${action.body.id as string}/status`)
+      .send({ status: 'COMPLETED', expectedVersion: action.body.version })
+      .expect(200);
+    const queueAfterCompletion = await ownerApi
+      .get('/work-queue?module=GOVERNANCE&pageSize=100')
+      .expect(200);
+    expect(
+      queueAfterCompletion.body.items.some(
+        (item: { sourceId: string }) => item.sourceId === action.body.id,
+      ),
+    ).toBe(false);
+    expect(
+      await prisma.governanceDecision.findUnique({ where: { id: decision.body.id as string } }),
+    ).toMatchObject({ summary: 'Priorizar un seguimiento operativo interno.' });
     await api(owner.token, orgB).get(`/governance/bodies/${bodyId}`).expect(404);
+    const actorAudit = await prisma.auditLog.findMany({
+      where: {
+        organizationId: orgA,
+        entityId: meeting.body.id as string,
+        action: { in: ['GOVERNANCE_MEETING_CREATED', 'GOVERNANCE_MEETING_TRANSITIONED'] },
+      },
+      select: { actorUserId: true },
+    });
+    expect(actorAudit).toHaveLength(3);
+    expect(actorAudit.every(({ actorUserId }) => actorUserId === owner.userId)).toBe(true);
     expect(
       await prisma.auditLog.count({
         where: {

@@ -4,7 +4,10 @@ import {
   deriveRepeatedFindingSignals,
   normalizeSignalCategory,
   OPERATIONAL_SIGNAL_MINIMUM_COUNT,
+  OPERATIONAL_SIGNAL_RULE_VERSION,
   OPERATIONAL_SIGNAL_WINDOW_DAYS,
+  OVERDUE_ACTION_CLUSTER_RULE_KEY,
+  REPEATED_FINDING_RULE_KEY,
 } from './operational-intelligence';
 
 const now = new Date('2026-09-01T12:00:00.000Z');
@@ -34,6 +37,9 @@ describe('operational intelligence contracts', () => {
       threshold: 3,
       attention: 'REVIEW',
     });
+    expect(forward[0]!.fingerprintInput).toContain(
+      `${REPEATED_FINDING_RULE_KEY}:${OPERATIONAL_SIGNAL_RULE_VERSION}`,
+    );
     expect(forward[0]!.explanation).toContain('no identifica causa raíz');
   });
 
@@ -51,6 +57,9 @@ describe('operational intelligence contracts', () => {
     const result = deriveOverdueActionClusterSignals(actions, now);
     expect(result).toHaveLength(1);
     expect(result[0]!.sourceRecords.map(({ id }) => id)).toEqual(['1', '2', '3']);
+    expect(result[0]!.fingerprintInput).toContain(
+      `${OVERDUE_ACTION_CLUSTER_RULE_KEY}:${OPERATIONAL_SIGNAL_RULE_VERSION}`,
+    );
     expect(result[0]!.explanation).toContain('señal operativa');
   });
 });

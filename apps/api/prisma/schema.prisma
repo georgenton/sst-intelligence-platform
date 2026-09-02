@@ -3442,6 +3442,7 @@ model GovernanceMember {
   bodyId         String                         @db.Uuid
   workerId       String?                        @db.Uuid
   membershipId   String?                        @db.Uuid
+  personKey      String                         @db.VarChar(80)
   roleLabel      String?                        @db.VarChar(160)
   isActive       Boolean                        @default(true)
   createdAt      DateTime                       @default(now())
@@ -3453,6 +3454,7 @@ model GovernanceMember {
 
   @@unique([bodyId, workerId])
   @@unique([bodyId, membershipId])
+  @@unique([bodyId, personKey])
   @@index([organizationId, bodyId, isActive])
   @@index([organizationId, workerId])
   @@index([organizationId, membershipId])
@@ -3490,17 +3492,21 @@ model GovernanceMeeting {
 }
 
 model GovernanceMeetingParticipant {
-  id                 String            @id @default(uuid()) @db.Uuid
-  organizationId     String            @db.Uuid
-  meetingId          String            @db.Uuid
-  governanceMemberId String            @db.Uuid
-  attended           Boolean           @default(false)
-  createdAt          DateTime          @default(now())
-  organization       Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  meeting            GovernanceMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  governanceMember   GovernanceMember  @relation(fields: [governanceMemberId], references: [id], onDelete: Restrict)
+  id                      String            @id @default(uuid()) @db.Uuid
+  organizationId          String            @db.Uuid
+  meetingId               String            @db.Uuid
+  governanceMemberId      String            @db.Uuid
+  personKeySnapshot       String            @db.VarChar(80)
+  displayNameSnapshot     String            @db.VarChar(200)
+  roleLabelSnapshot       String?           @db.VarChar(160)
+  attended                Boolean           @default(false)
+  createdAt               DateTime          @default(now())
+  organization            Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  meeting                 GovernanceMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  governanceMember        GovernanceMember  @relation(fields: [governanceMemberId], references: [id], onDelete: Restrict)
 
   @@unique([meetingId, governanceMemberId])
+  @@unique([meetingId, personKeySnapshot])
   @@index([organizationId, meetingId])
 }
 
