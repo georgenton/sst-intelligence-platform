@@ -25,7 +25,16 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
   {
     id: 'home',
     label: 'Inicio',
-    items: [{ id: 'home', label: 'Inicio', href: '/app', group: 'home', match: 'exact' }],
+    items: [
+      { id: 'home', label: 'Inicio', href: '/app', group: 'home', match: 'exact' },
+      {
+        id: 'consultant-portfolio',
+        label: 'Portafolio',
+        href: '/app/portfolio',
+        group: 'home',
+        match: 'segment',
+      },
+    ],
   },
   {
     id: 'operation',

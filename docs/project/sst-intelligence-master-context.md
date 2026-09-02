@@ -283,3 +283,15 @@ LLM Provider Preparation is also closed as an architectural boundary, not as an 
 launch. Production remains `DETERMINISTIC_LOCAL_V1`; provider selection is
 `PENDING_EXTERNAL_PRODUCT_DECISION`, no external secret is required, unknown citations/actions are
 rejected, and AI cannot decide final risk, legal compliance or automatic root cause.
+
+The current feature program implements [Consultant Portfolio V1](../domain/consultant-portfolio-v1.md)
+as a tenant-safe read aggregation over current active memberships. Roles and entitlements are
+resolved independently for every organization, and each canonical link establishes the matching
+organization context before navigation. It creates neither a super-tenant nor copied customer
+records, safety scores, commercial assignments or new persistence.
+
+[AI Copilot V1 productization](../domain/ai-copilot-v1.md) adds the distinct
+`PORTFOLIO_READ_ONLY` context, finite read actions, source-aware citations, explicit “I don't know”
+results and mandatory single-organization write anchoring. Production still uses
+`DETERMINISTIC_LOCAL_V1`. The provider-neutral synthetic evaluation harness is complete, while
+external provider selection, privacy terms, pricing and secrets remain pending external decisions.

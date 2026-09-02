@@ -4,6 +4,8 @@ export * from './inspections.js';
 export * from './inspection-standards.js';
 export * from './inspection-basis.js';
 export * from './conversational-operations.js';
+export * from './consultant-portfolio.js';
+export * from './provider-evaluation.js';
 export * from './governance.js';
 export * from './evidence-package.js';
 export * from './operational-intelligence.js';

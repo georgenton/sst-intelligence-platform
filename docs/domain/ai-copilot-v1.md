@@ -1,0 +1,44 @@
+# AI Copilot V1 productization
+
+Status: provider-neutral contracts and deterministic portfolio workflow implemented; external
+provider decision pending.
+
+## Product capabilities
+
+The supported capability vocabulary is `SEARCH`, `EXPLAIN`, `SUMMARIZE`,
+`COMPARE_FACTUAL_STATE`, `DRAFT` and `SUGGEST_NEXT_QUESTION`. These describe bounded product
+operations, not autonomous authority.
+
+The prohibited authority vocabulary is `FINAL_RISK_DECISION`, `LEGAL_COMPLIANCE_DECISION`,
+`AUTOMATIC_ROOT_CAUSE`, `WORKER_SAFETY_SCORE` and `AUTONOMOUS_MATERIAL_MUTATION`. Domain engines,
+current authorization and professional review remain authoritative.
+
+## Portfolio read context
+
+Portfolio interaction uses the distinct `PORTFOLIO_READ_ONLY` context. Its finite actions are:
+
+- `get_portfolio_summary`;
+- `get_portfolio_attention`;
+- `get_portfolio_overdue_work`;
+- `get_portfolio_signals`;
+- `get_portfolio_evidence_state`;
+- `get_organization_summary`;
+- `search_portfolio`.
+
+Every request rebuilds the current authorized organization set and intersects requested scope with
+it. Every organization-specific factual response has server-created citations with organization,
+source identity and deep link; citations are rejected if their organization is outside that set.
+
+## Explicit boundaries
+
+The response contract can say `INSUFFICIENT_CONTEXT`, `SOURCE_NOT_AVAILABLE`, `NOT_AUTHORIZED` or
+`PROFESSIONAL_REVIEW_REQUIRED`. A request to create one action produces only a required
+organization anchor. The UI changes to that context before continuing in the existing canonical
+Conversational Operations surface. Multi-organization material mutation is rejected.
+
+`DraftResult` is explicitly non-canonical, unpersisted and review-required. Summarization accepts
+authorized factual context and returns supporting citation IDs plus coverage/uncertainty metadata.
+Search is provider-neutral, bounded and deterministic; no vector database is part of V1.
+
+The current backend provider remains `DETERMINISTIC_LOCAL_V1` and reports controlled local
+processing with no external processing.
