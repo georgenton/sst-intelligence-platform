@@ -27,7 +27,7 @@ export default defineConfig({
     })),
     {
       command: 'pnpm exec next dev --webpack --port 3100',
-      url: 'http://127.0.0.1:3100',
+      url: 'http://127.0.0.1:3100/app/inspections',
       env: { ...process.env, API_ORIGIN: 'http://127.0.0.1:3101' },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
