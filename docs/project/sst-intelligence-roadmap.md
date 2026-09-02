@@ -59,6 +59,21 @@ three synthetic demo standard versions, ten synthetic criteria, append-only orga
 tenant isolation, explicit no-fallback behavior and preserved legacy inspection semantics. Real
 standard selection and professional approval remain **PENDING ANITA**.
 
+### D.3 — Inspection Basis V2 — implementation in review
+
+Compose one primary technical version, optional supplemental/internal versions and zero-to-many
+exact RegulatoryUnits for each organization and inspection domain. The immutable basis version is
+snapshotted by new inspections; legacy direct-standard inspections remain valid. Foreign sources
+remain technical/reference context in their own jurisdiction and never become Ecuadorian law.
+This is not a Protocol Engine and introduces no pricing decision.
+
+### M.1 — Conversational Operations V1 — implementation in review
+
+Provide a tenant-private, context-aware conversation interface over existing domain APIs. The
+assistant uses a server-side allowlisted action registry, current membership authorization,
+explicit mutation confirmation, idempotency and structured citations. The deterministic demo
+provider validates architecture without selecting a production LLM vendor.
+
 ### E — Incident management — implementation authorized
 
 Operational incident lifecycle, investigation evidence and contributing factors without automatic

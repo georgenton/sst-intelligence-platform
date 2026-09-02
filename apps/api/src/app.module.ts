@@ -8,6 +8,7 @@ import { ApplicabilityModule } from './applicability/applicability.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { ConversationalOperationsModule } from './conversational-operations/conversational-operations.module';
 import { EntitlementsModule } from './catalog/entitlements.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthController } from './health.controller';
@@ -16,6 +17,7 @@ import { InspectionsModule } from './inspections/inspections.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { PpeModule } from './ppe/ppe.module';
 import { InspectionStandardsModule } from './inspection-standards/inspection-standards.module';
+import { InspectionBasisModule } from './inspection-basis/inspection-basis.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { OperationalExecutionModule } from './operational-execution/operational-execution.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -54,6 +56,7 @@ import { WorkersModule } from './workers/workers.module';
     OrganizationsModule,
     OperationalExecutionModule,
     CatalogModule,
+    ConversationalOperationsModule,
     AiModule,
     AdaptiveConfigurationModule,
     ApplicabilityModule,
@@ -63,6 +66,7 @@ import { WorkersModule } from './workers/workers.module';
     SolutionFinderModule,
     DashboardModule,
     InspectionStandardsModule,
+    InspectionBasisModule,
     InspectionsModule,
     IncidentsModule,
     PpeModule,

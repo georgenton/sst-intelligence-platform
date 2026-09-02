@@ -228,19 +228,91 @@ function assertExpectedReferences(snapshot) {
     [{ key: 'module.work_permits', description: 'Módulo de permisos', valueType: 'BOOLEAN' }],
   );
   assert.equal(snapshot.workPermitPlanFeatures.length, 0);
-  assert.equal(snapshot.inspectionStandardSources.length, 3);
-  assert.equal(snapshot.inspectionStandardVersions.length, 3);
-  assert.equal(snapshot.inspectionStandardSections.length, 3);
-  assert.equal(snapshot.inspectionStandardCriteria.length, 10);
+  assert.equal(snapshot.inspectionStandardSources.length, 8);
+  assert.equal(snapshot.inspectionStandardVersions.length, 9);
+  assert.equal(snapshot.inspectionStandardSections.length, 9);
+  assert.equal(snapshot.inspectionStandardCriteria.length, 16);
+  assert.equal(
+    snapshot.inspectionStandardSources.filter(({ rightsType }) => rightsType === 'DEMO_SYNTHETIC')
+      .length,
+    3,
+  );
+  assert.equal(
+    snapshot.inspectionStandardVersions.filter(
+      ({ metadata }) => metadata && typeof metadata === 'object' && metadata.synthetic === true,
+    ).length,
+    3,
+  );
+  assert.equal(
+    snapshot.inspectionStandardCriteria.filter(({ standardVersionId }) =>
+      snapshot.inspectionStandardVersions.some(
+        ({ id, metadata }) =>
+          id === standardVersionId &&
+          metadata &&
+          typeof metadata === 'object' &&
+          metadata.synthetic === true,
+      ),
+    ).length,
+    10,
+  );
   assert.equal(
     snapshot.inspectionStandardSources.every(
       ({ organizationId, rightsType, sourceType, status }) =>
         organizationId === null &&
-        rightsType === 'DEMO_SYNTHETIC' &&
+        ['DEMO_SYNTHETIC', 'PUBLIC_OFFICIAL', 'REFERENCE_ONLY'].includes(rightsType) &&
         sourceType === 'GLOBAL_REFERENCE' &&
         status === 'ACTIVE',
     ),
     true,
+  );
+  const officialPilots = snapshot.inspectionStandardSources.filter(
+    ({ rightsType }) => rightsType === 'PUBLIC_OFFICIAL',
+  );
+  assert.deepEqual(officialPilots.map(({ code }) => code).sort(), [
+    'PILOT_CLP_EU_1272_2008',
+    'PILOT_REBT_ES_2002',
+    'PILOT_RETIE_CO_2026',
+    'PILOT_RTQ_EC_UIO_2026',
+  ]);
+  assert.equal(
+    officialPilots.every(({ referenceUrl }) => referenceUrl?.startsWith('https://')),
+    true,
+  );
+  const officialVersions = snapshot.inspectionStandardVersions.filter(({ sourceId }) =>
+    officialPilots.some(({ id }) => id === sourceId),
+  );
+  assert.equal(officialVersions.length, 5);
+  assert.equal(
+    officialVersions.filter(
+      ({ metadata }) =>
+        metadata && typeof metadata === 'object' && metadata.professionalReview === 'PENDING_ANITA',
+    ).length,
+    5,
+  );
+  assert.equal(
+    officialVersions.find(({ versionCode }) => versionCode === 'CELEX-32008R1272-METADATA-1')
+      ?.status,
+    'DRAFT',
+  );
+  assert.equal(
+    snapshot.inspectionStandardCriteria.filter(({ standardVersionId }) =>
+      officialVersions.some(({ id }) => id === standardVersionId),
+    ).length,
+    6,
+  );
+  const nfpaReference = snapshot.inspectionStandardSources.find(
+    ({ code }) => code === 'REFERENCE_NFPA_70E_2024',
+  );
+  assert.equal(nfpaReference?.rightsType, 'REFERENCE_ONLY');
+  const nfpaVersion = snapshot.inspectionStandardVersions.find(
+    ({ sourceId }) => sourceId === nfpaReference?.id,
+  );
+  assert.equal(nfpaVersion?.status, 'DRAFT');
+  assert.equal(
+    snapshot.inspectionStandardCriteria.filter(
+      ({ standardVersionId }) => standardVersionId === nfpaVersion?.id,
+    ).length,
+    0,
   );
 
   const currentVersions = snapshot.regulatorySources.map((source) => {

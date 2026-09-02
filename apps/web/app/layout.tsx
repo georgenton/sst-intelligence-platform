@@ -10,6 +10,7 @@ import '@/styles/inspections-experience.css';
 import '@/styles/technical-risk-experience.css';
 import '@/styles/applicability-experience.css';
 import '@/styles/workforce-safety.css';
+import '@/styles/conversational-operations.css';
 import { Providers } from './providers';
 import { appearanceBootstrapScript } from '@/lib/appearance';
 

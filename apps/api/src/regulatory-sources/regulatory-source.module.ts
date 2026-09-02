@@ -7,5 +7,6 @@ import { RegulatorySourceService } from './regulatory-source.service';
 @Module({
   controllers: [RegulatorySourceController, RegulatoryContentController],
   providers: [RegulatorySourceService, OrganizationGuard],
+  exports: [RegulatorySourceService],
 })
 export class RegulatorySourceModule {}

@@ -20,19 +20,20 @@ muestra cuando existe un vínculo regulatorio explícito y revisado por separado
 
 ## Lista para revisión profesional futura
 
-| Dominio                     | Estándares candidatos | Comentarios profesionales | Estado de derechos | Decisión    |
-| --------------------------- | --------------------- | ------------------------- | ------------------ | ----------- |
-| Instalaciones eléctricas    | Pendiente             | Pendiente de Anita        | Pendiente          | No decidida |
-| Protección contra incendios | Pendiente             | Pendiente de Anita        | Pendiente          | No decidida |
-| Maquinaria                  | Pendiente             | Pendiente de Anita        | Pendiente          | No decidida |
-| Sustancias químicas         | Pendiente             | Pendiente de Anita        | Pendiente          | No decidida |
-| Emergencias                 | Pendiente             | Pendiente de Anita        | Pendiente          | No decidida |
-| Infraestructura             | Pendiente             | Pendiente de Anita        | Pendiente          | No decidida |
+| Dominio                     | Candidatos de ingeniería para revisar                         | Jurisdicción / límite                           | Estado de derechos                                                                                 | Decisión profesional |
+| --------------------------- | ------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------- |
+| Instalaciones eléctricas    | RETIE (Colombia), REBT (España), NFPA 70E (referencia futura) | Referencias extranjeras; no son ley ecuatoriana | RETIE/REBT: fuente pública oficial y criterios originales acotados. NFPA: solo metadata, sin texto | Pendiente de Anita   |
+| Protección contra incendios | RTQ 1                                                         | Solo Distrito Metropolitano de Quito            | Fuente pública oficial y criterio original acotado                                                 | Pendiente de Anita   |
+| Maquinaria                  | Pendiente                                                     | Pendiente                                       | Pendiente                                                                                          | No decidida          |
+| Sustancias químicas         | RTQ 4, CLP (metadata)                                         | RTQ: solo Quito. CLP: referencia extranjera UE  | RTQ: fuente pública oficial y criterio original acotado. CLP: metadata únicamente                  | Pendiente de Anita   |
+| Emergencias                 | Pendiente                                                     | Pendiente                                       | Pendiente                                                                                          | No decidida          |
+| Infraestructura             | Pendiente                                                     | Pendiente                                       | Pendiente                                                                                          | No decidida          |
 
 Anita deberá validar posteriormente el dominio, la idoneidad profesional de cada candidato, su
 edición, el nivel de detalle de los criterios, el lenguaje operativo y la disponibilidad legítima
 del contenido. Los estándares demo de ingeniería son sintéticos y no representan su recomendación.
 
-El cierre productivo de V1 valida únicamente el mecanismo técnico versionado, la ejecución del
-catálogo sintético y sus límites de seguridad. No completa ni sustituye ninguna decisión de esta
-tabla.
+El piloto de ingeniería registra estos candidatos para que puedan evaluarse; no afirma que Anita
+los haya seleccionado, recomendado o aprobado. El cierre productivo de V1 valida únicamente el
+mecanismo técnico versionado, la ejecución del catálogo sintético y sus límites de seguridad. No
+completa ni sustituye ninguna decisión de esta tabla.

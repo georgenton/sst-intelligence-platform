@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { humanRoleLabel } from '@/lib/human-lexicon';
 import { queryKeys } from '@/lib/query-keys';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
@@ -102,6 +103,12 @@ type IncidentAnalytics = {
 };
 type WorkCenter = { id: string; name: string; isActive: boolean };
 type WorkerList = { items: Worker[]; total: number };
+type OrganizationMember = {
+  id: string;
+  role: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  user: { id: string; displayName: string; email: string };
+};
 type IncidentForm = {
   workCenterId: string;
   occurredAt: string;
@@ -115,6 +122,7 @@ type ActionForm = {
   title: string;
   description: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  ownerUserId: string;
   dueAt: string;
 };
 type Operation = { path: string; body: Record<string, unknown> };
@@ -449,7 +457,13 @@ export function IncidentWorkspace({ incidentId }: { incidentId: string }) {
     defaultValues: { category: 'TASK', description: '', rationale: '' },
   });
   const actionForm = useForm<ActionForm>({
-    defaultValues: { title: '', description: '', priority: 'MEDIUM', dueAt: '' },
+    defaultValues: {
+      title: '',
+      description: '',
+      priority: 'MEDIUM',
+      ownerUserId: auth.user?.id ?? '',
+      dueAt: '',
+    },
   });
   const incident = useQuery({
     queryKey: queryKeys.organization.incident(organizationId ?? 'inactive', incidentId),
@@ -464,6 +478,16 @@ export function IncidentWorkspace({ incidentId }: { incidentId: string }) {
     ),
     queryFn: ({ signal }) =>
       auth.request<WorkerList>('/workers?status=ACTIVE&pageSize=100', { signal }, organizationId!),
+    enabled: Boolean(organizationId && canWrite),
+  });
+  const members = useQuery({
+    queryKey: queryKeys.organization.members(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<OrganizationMember[]>(
+        `/organizations/${organizationId}/members`,
+        { signal },
+        organizationId!,
+      ),
     enabled: Boolean(organizationId && canWrite),
   });
   const operation = useMutation({
@@ -868,12 +892,20 @@ export function IncidentWorkspace({ incidentId }: { incidentId: string }) {
                     `/incidents/${incidentId}/actions`,
                     {
                       ...values,
+                      ownerUserId: values.ownerUserId,
                       ...(values.description ? {} : { description: undefined }),
                       ...(values.dueAt
                         ? { dueAt: new Date(values.dueAt).toISOString() }
                         : { dueAt: undefined }),
                     },
-                    () => actionForm.reset(),
+                    () =>
+                      actionForm.reset({
+                        title: '',
+                        description: '',
+                        priority: 'MEDIUM',
+                        ownerUserId: auth.user?.id ?? '',
+                        dueAt: '',
+                      }),
                   ),
                 )}
               >
@@ -893,6 +925,20 @@ export function IncidentWorkspace({ incidentId }: { incidentId: string }) {
                     <option value="HIGH">Alta</option>
                     <option value="URGENT">Urgente</option>
                   </select>
+                </label>
+                <label className="field">
+                  <span>Responsable</span>
+                  <select {...actionForm.register('ownerUserId', { required: true })}>
+                    <option value="">Selecciona una persona responsable</option>
+                    {(members.data ?? [])
+                      .filter((member) => member.status === 'ACTIVE')
+                      .map((member) => (
+                        <option key={member.id} value={member.user.id}>
+                          {member.user.displayName} · {humanRoleLabel(member.role)}
+                        </option>
+                      ))}
+                  </select>
+                  <small>Solo se muestran miembros activos de la organización.</small>
                 </label>
                 <label className="field">
                   <span>Fecha objetivo</span>

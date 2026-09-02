@@ -1,7 +1,7 @@
 # SST Intelligence — master project context
 
-Status: canonical continuity document. Baseline: production `main` at
-`f8baf29103c2a9d76c1b1d08d75d124bf5212bea` on 2026-08-31.
+Status: canonical continuity document. Implementation baseline: production `main` at
+`0cc4d560905ec0a4a7f093a52a30e842bd33cee5` on 2026-09-01.
 
 This document is the authoritative entry point for future engineering sessions. Detailed domain,
 architecture, security, deployment and source-review documents remain authoritative inside their
@@ -100,8 +100,27 @@ immutable technical standard version through append-only organization policy; th
 criteria execute directly as the checklist, and findings retain criterion/source provenance.
 Historical inspections preserve their original standard or explicit legacy no-standard state.
 There is no per-inspection arbitrary override, silent fallback or Protocol Engine. The production
-reference catalog contains only three synthetic demo sources/versions and ten original criteria;
-selection of real standards and professional approval remain pending Anita review.
+synthetic baseline remains exactly three demo sources/versions and ten original criteria. A
+separate, visibly labeled reference pilot adds RETIE, REBT and RTQ candidates plus CLP/NFPA
+metadata-only boundaries; professional selection and approval remain pending Anita review.
+
+Inspection Basis V2 is the approved evolution path: an organization/domain may select an immutable
+composition containing one primary technical version, supplemental/internal technical versions and
+zero-to-many exact regulatory units. `Inspection Standard != Inspection Basis != Regulation != Risk
+Method`. New basis-aware inspections retain the exact basis version; V1 direct-standard history is
+never destructively backfilled. Inspection Basis is not a Protocol Engine.
+
+Conversational Operations V1 is an interface over current services, never an alternate authority.
+Allowlisted actions run with the current user, organization, role and entitlements; material writes
+require confirmation and idempotency. Conversation messages are not canonical audit records. A
+deterministic provider is sufficient until a production LLM/provider and privacy policy are
+explicitly approved.
+
+The V1 interaction model is documented in
+[Conversational Operations V1](../domain/conversational-operations-v1.md). Its registry invokes
+existing services and has no direct domain-table persistence. All material writes are proposed,
+confirmed and idempotent; citations are exact stored references. The implementation adds no
+commercial feature key or external AI secret.
 
 ### Risk methodology and Technical Risk
 

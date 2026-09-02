@@ -29,6 +29,10 @@ export const queryKeys = {
     scope: (organizationId: string) => [...privateRoot, 'org', organizationId] as const,
     dashboard: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'dashboard'] as const,
+    conversationThreads: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'conversations'] as const,
+    conversationThread: (organizationId: string, threadId: string) =>
+      [...privateRoot, 'org', organizationId, 'conversations', threadId] as const,
     workQueueRoot: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'work-queue'] as const,
     workQueue: (organizationId: string, filters = '') =>
@@ -87,6 +91,19 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'inspection-standards', 'catalog'] as const,
     inspectionStandardPolicy: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'inspection-standards', 'policy'] as const,
+    inspectionBases: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'inspection-bases'] as const,
+    inspectionBasisActive: (organizationId: string, domain: string) =>
+      [...privateRoot, 'org', organizationId, 'inspection-bases', 'active', domain] as const,
+    inspectionBasisRegulatoryUnits: (organizationId: string, search: string) =>
+      [
+        ...privateRoot,
+        'org',
+        organizationId,
+        'inspection-bases',
+        'regulatory-units',
+        search,
+      ] as const,
     inspections: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'inspections', 'list'] as const,
     inspectionList: (organizationId: string, filters: string) =>

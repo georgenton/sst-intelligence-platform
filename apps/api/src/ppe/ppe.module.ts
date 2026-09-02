@@ -9,5 +9,6 @@ import { PpeService } from './ppe.service';
   imports: [PrismaModule, AuditModule, CatalogModule],
   controllers: [PpeController],
   providers: [PpeService],
+  exports: [PpeService],
 })
 export class PpeModule {}

@@ -115,7 +115,7 @@ describe('inspection standards integration', () => {
       .get('/inspection-standards/catalog')
       .expect(200)
       .expect(({ body }) => {
-        expect(body).toHaveLength(3);
+        expect(body).toHaveLength(7);
         expect(body).toEqual(
           expect.arrayContaining([
             expect.objectContaining({
@@ -129,6 +129,20 @@ describe('inspection standards integration', () => {
             }),
             expect.objectContaining({ id: electricalStandardBId }),
             expect.objectContaining({ id: fireStandardAId }),
+            expect.objectContaining({
+              versionCode: 'RES-40284-2026-PILOT-1',
+              inspectionDomain: 'ELECTRICAL',
+              source: expect.objectContaining({
+                rightsType: 'PUBLIC_OFFICIAL',
+                originCountry: 'Colombia (CO)',
+              }),
+            }),
+            expect.objectContaining({
+              versionCode: 'RTQ1-2026-PILOT-1',
+              source: expect.objectContaining({
+                originCountry: 'Distrito Metropolitano de Quito (EC-UIO)',
+              }),
+            }),
           ]),
         );
       });
