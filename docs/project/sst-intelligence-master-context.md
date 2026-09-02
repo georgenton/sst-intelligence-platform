@@ -1,7 +1,7 @@
 # SST Intelligence — master project context
 
-Status: canonical continuity document. Runtime implementation baseline: PR #34 merge
-`c90065822aee358a2716a1b2b6e7d93d7cbeb8a0`, verified in production on 2026-09-02. The subsequent
+Status: canonical continuity document. Runtime implementation baseline: PR #35 merge
+`c1f0eb18f133c325d373708e02d823e27717567f`, verified in production on 2026-09-02. The subsequent
 closure-documentation commit does not change runtime behavior.
 
 This document is the authoritative entry point for future engineering sessions. Detailed domain,
@@ -258,3 +258,28 @@ as supplemental technical source and no inferred legal context; all pilot criter
 **PENDING ANITA**. The deterministic conversational provider operated canonical Inspection,
 Finding, Evidence and Action services with explicit confirmation, idempotency, current-membership
 authorization and exact stored citations. No external LLM or new commercial feature was added.
+
+[Governance, Evidence and Intelligence Foundation V1](../architecture/governance-evidence-intelligence-foundation-v1.md)
+is production closed by PR #35. Governance keeps body-scoped person identity and meeting-time
+display/role snapshots separate from current Worker or Membership activity. Decisions remain
+distinct from GovernanceActions; only open actions project to the shared Work Queue, with no
+duplicate stored queue aggregate or inferred committee obligation.
+
+Evidence Packages V1 freezes a revalidated historical manifest rather than the current mutable
+source. Generation records actor, time, scope, deterministic ordering and a SHA-256 manifest digest;
+`certificationClaimed` is always false. Regeneration creates a new package and never rewrites the
+older snapshot. Production proved one package retaining a meeting's `DRAFT` state while a second
+package captured the later `HELD` state.
+
+The bounded Cross-Module Intelligence foundation uses versioned operational defaults, not legal
+rules: `REPEATED_FINDING_90D_V1@1.0.0` requires at least three same-category findings in one Work
+Center within a rolling 90-day window, and `OVERDUE_ACTION_CLUSTER_90D_V1@1.0.0` requires at least
+three open overdue actions in one Work Center, created within the rolling 90-day window and overdue
+at evaluation time. Signals are idempotent derived state, preserve historical provenance when
+closed and leave the Work Queue when no longer actionable. Work Center views are factual and Worker
+views expose neither a safety score nor a Safe/Unsafe classification.
+
+LLM Provider Preparation is also closed as an architectural boundary, not as an external AI
+launch. Production remains `DETERMINISTIC_LOCAL_V1`; provider selection is
+`PENDING_EXTERNAL_PRODUCT_DECISION`, no external secret is required, unknown citations/actions are
+rejected, and AI cannot decide final risk, legal compliance or automatic root cause.

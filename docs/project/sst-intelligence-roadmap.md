@@ -89,25 +89,30 @@ stock follow later.
 Role/activity → competency → training → attendance → assessment → evidence → expiry/renewal, linked
 to Requirements, risks, findings and actions.
 
-### H — SST governance
+### H — SST governance — bounded V1 production closed
 
-Committees, meetings, members, minutes, decisions, actions, follow-up and evidence.
+Organization-scoped bodies, participants, meetings, minutes, decisions, actions, follow-up and
+evidence are operational. Person snapshots preserve historical identity while current activity is
+shown separately. V1 infers no mandatory committee, composition, frequency or legal deadline.
 
 ### I — Psychosocial
 
 Retained on the roadmap but deferred until methodology, licensing, privacy, sensitive-data handling
 and professional interpretation are explicit.
 
-### J — Cross-module intelligence
+### J — Cross-module intelligence — bounded deterministic foundation production closed
 
-Deterministically surface recurrence across centers, overdue work tied to hazards, incident/training/
-risk patterns, repeated control failures, evidence gaps and escalation. Semantic/AI assistance comes
-later and never becomes the authority.
+The first production slice deterministically surfaces same-center repeated findings and clusters of
+open overdue actions through versioned 3-record/90-day platform defaults. Signals are explainable,
+idempotent, lifecycle-aware and project into Work Queue only while actionable. Broader
+incident/training/risk patterns, evidence gaps and semantic assistance remain later work and never
+become the authority.
 
-### K — Reports and evidence packages
+### K — Reports and evidence packages — Evidence Packages V1 production closed
 
-Operational reports, trace exports, professional summaries and audit evidence packages. No
-automatic compliance certificate.
+Immutable versioned manifests now capture canonical references, generation metadata, deterministic
+ordering and SHA-256 digests. Regeneration creates a new package; the product makes no automatic
+compliance or audit-certification claim. Broader reports and exports remain future slices.
 
 ### L — Consultant portfolio
 
@@ -119,6 +124,10 @@ deadlines.
 Only after sufficient operational data exists. Allowed: search, summarization, drafting, semantic
 grouping, suggestions and report preparation. Forbidden: scoring, legal decisions, root cause,
 medical diagnosis and rule publication.
+
+The provider-security preparation boundary is production closed, but no external provider has been
+selected or integrated. `DETERMINISTIC_LOCAL_V1` remains the production provider while the external
+product/privacy decision is pending.
 
 ## Sequencing guardrails
 
@@ -138,8 +147,9 @@ foundations, Risk Methodology runtime and Unified Regulatory Evidence Runtime V1
 Production implements Track C, the first bounded preview slice of Track D and Workspace UX V2.
 Tracks D.1, D.2 and D.3 are production closed. Workforce Safety Operations V1 is production closed
 for Worker Registry and bounded Tracks E–G, including deterministic Worker 360 projections.
-Conversational Operations V1 is production closed with `DETERMINISTIC_LOCAL_V1`; it is not an
-external or generative AI integration. Neither program implements the full Track J intelligence
-layer. Track B was
+Conversational Operations V1 and the PR #35 provider-security preparation are production closed
+with `DETERMINISTIC_LOCAL_V1`; neither is an external or generative AI integration. Tracks H and K
+have bounded production V1 slices, and Track J has its first deterministic operational-signal
+foundation without worker scoring or predictive claims. Track B was
 attempted and safely deferred because the ordered artifacts need verified human transcription before
 structuring. Track A remains pending. No later track is represented as active.
