@@ -34,6 +34,9 @@ authenticated request + current membership
 - Evidence data is not duplicated; only a canonical destination reference is retained.
 - The deterministic provider is the V1 default. No external LLM dependency, secret or vendor choice
   is required.
+- A future generative provider receives a privacy-minimized envelope, server-supplied citation IDs
+  and the finite Action Registry. Unknown citations, capabilities and actions are rejected before
+  domain execution; provider telemetry excludes prompt content and unnecessary personal data.
 
 ## Rejected alternatives
 
@@ -54,3 +57,6 @@ Production closure did not change these deferred decisions. The verified provide
 `DETERMINISTIC_LOCAL_V1`; canonical writes occurred only through existing domain services after an
 explicit confirmation, and the resulting corrective Action projected exactly once into the shared
 Work Queue.
+
+The provider evaluation gate and unresolved vendor decision are documented in
+`docs/architecture/llm-provider-evaluation-v1.md`.

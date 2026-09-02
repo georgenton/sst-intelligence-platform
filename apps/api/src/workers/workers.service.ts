@@ -113,6 +113,10 @@ export class WorkersService {
     this.assertVersion(current.version, input.expectedVersion);
     const workCenterId = Object.hasOwn(input, 'workCenterId') ? input.workCenterId : undefined;
     const linkedUserId = Object.hasOwn(input, 'linkedUserId') ? input.linkedUserId : undefined;
+    const nextLinkedUserId = Object.hasOwn(input, 'linkedUserId')
+      ? (input.linkedUserId ?? null)
+      : current.linkedUserId;
+    const linkedUserChanged = nextLinkedUserId !== current.linkedUserId;
     await this.requireTenantReferences(
       organizationId,
       workCenterId ?? undefined,
@@ -130,26 +134,61 @@ export class WorkersService {
       : current.endDate;
     this.assertDates(startDate, endDate);
     try {
-      const result = await this.prisma.worker.updateMany({
-        where: { id, organizationId, version: input.expectedVersion },
-        data: {
-          ...(Object.hasOwn(input, 'displayName')
-            ? { displayName: input.displayName?.trim() }
-            : {}),
-          ...(Object.hasOwn(input, 'internalCode')
-            ? { internalCode: input.internalCode?.trim() ?? null }
-            : {}),
-          ...(Object.hasOwn(input, 'workCenterId') ? { workCenterId: input.workCenterId } : {}),
-          ...(Object.hasOwn(input, 'jobTitle') ? { jobTitle: input.jobTitle?.trim() ?? null } : {}),
-          ...(Object.hasOwn(input, 'linkedUserId') ? { linkedUserId: input.linkedUserId } : {}),
-          ...(Object.hasOwn(input, 'startDate') ? { startDate } : {}),
-          ...(Object.hasOwn(input, 'endDate') ? { endDate } : {}),
-          ...(Object.hasOwn(input, 'notes') ? { notes: input.notes?.trim() ?? null } : {}),
-          version: { increment: 1 },
+      await this.prisma.$transaction(
+        async (transaction) => {
+          const governanceMembers = linkedUserChanged
+            ? await transaction.governanceMember.findMany({
+                where: { organizationId, workerId: id },
+                select: {
+                  id: true,
+                  membership: { select: { userId: true } },
+                },
+              })
+            : [];
+          for (const member of governanceMembers) {
+            if (
+              nextLinkedUserId &&
+              member.membership &&
+              member.membership.userId !== nextLinkedUserId
+            ) {
+              throw new ConflictException(
+                'La cuenta vinculada no coincide con la identidad histórica de gobernanza.',
+              );
+            }
+          }
+          const result = await transaction.worker.updateMany({
+            where: { id, organizationId, version: input.expectedVersion },
+            data: {
+              ...(Object.hasOwn(input, 'displayName')
+                ? { displayName: input.displayName?.trim() }
+                : {}),
+              ...(Object.hasOwn(input, 'internalCode')
+                ? { internalCode: input.internalCode?.trim() ?? null }
+                : {}),
+              ...(Object.hasOwn(input, 'workCenterId') ? { workCenterId: input.workCenterId } : {}),
+              ...(Object.hasOwn(input, 'jobTitle')
+                ? { jobTitle: input.jobTitle?.trim() ?? null }
+                : {}),
+              ...(Object.hasOwn(input, 'linkedUserId') ? { linkedUserId: input.linkedUserId } : {}),
+              ...(Object.hasOwn(input, 'startDate') ? { startDate } : {}),
+              ...(Object.hasOwn(input, 'endDate') ? { endDate } : {}),
+              ...(Object.hasOwn(input, 'notes') ? { notes: input.notes?.trim() ?? null } : {}),
+              version: { increment: 1 },
+            },
+          });
+          this.assertSingleWriter(result.count);
+          for (const member of governanceMembers) {
+            const identityUserId = nextLinkedUserId ?? member.membership?.userId;
+            await transaction.governanceMember.update({
+              where: { id: member.id },
+              data: { personKey: identityUserId ? `USER:${identityUserId}` : `WORKER:${id}` },
+            });
+          }
         },
-      });
-      this.assertSingleWriter(result.count);
+        { isolationLevel: 'Serializable' },
+      );
     } catch (error) {
+      if (this.errorCode(error) === 'P2034') this.assertSingleWriter(0);
       this.translateUniqueConflict(error);
     }
     await this.audit.record({
@@ -197,7 +236,14 @@ export class WorkersService {
   private async requireCurrent(organizationId: string, id: string) {
     const worker = await this.prisma.worker.findFirst({
       where: { id, organizationId },
-      select: { id: true, status: true, version: true, startDate: true, endDate: true },
+      select: {
+        id: true,
+        status: true,
+        version: true,
+        linkedUserId: true,
+        startDate: true,
+        endDate: true,
+      },
     });
     if (!worker) throw new NotFoundException('Trabajador no encontrado.');
     return worker;
@@ -251,12 +297,17 @@ export class WorkersService {
   }
 
   private translateUniqueConflict(error: unknown): never {
-    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
+    if (this.errorCode(error) === 'P2002') {
       throw new ConflictException({
         code: 'WORKER_UNIQUE_CONFLICT',
-        message: 'El código interno o la cuenta vinculada ya pertenece a otro trabajador.',
+        message:
+          'El código interno, la cuenta vinculada o la identidad de gobernanza ya está en uso.',
       });
     }
     throw error;
+  }
+
+  private errorCode(error: unknown) {
+    return error && typeof error === 'object' && 'code' in error ? error.code : undefined;
   }
 }

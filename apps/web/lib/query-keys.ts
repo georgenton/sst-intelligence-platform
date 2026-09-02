@@ -33,6 +33,8 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'conversations'] as const,
     conversationThread: (organizationId: string, threadId: string) =>
       [...privateRoot, 'org', organizationId, 'conversations', threadId] as const,
+    conversationProviderStatus: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'conversations', 'provider-status'] as const,
     workQueueRoot: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'work-queue'] as const,
     workQueue: (organizationId: string, filters = '') =>
@@ -75,6 +77,34 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'training', 'sessions', filters] as const,
     trainingSession: (organizationId: string, sessionId: string) =>
       [...privateRoot, 'org', organizationId, 'training', 'session', sessionId] as const,
+    governanceBodies: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'governance', 'bodies'] as const,
+    governanceBody: (organizationId: string, bodyId: string) =>
+      [...privateRoot, 'org', organizationId, 'governance', 'body', bodyId] as const,
+    evidencePackages: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'evidence-packages', 'list'] as const,
+    evidencePackage: (organizationId: string, packageId: string) =>
+      [...privateRoot, 'org', organizationId, 'evidence-packages', packageId] as const,
+    operationalSignals: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'operational-intelligence', 'signals'] as const,
+    workCenterIntelligence: (organizationId: string, workCenterId: string) =>
+      [
+        ...privateRoot,
+        'org',
+        organizationId,
+        'operational-intelligence',
+        'work-center',
+        workCenterId,
+      ] as const,
+    workerIntelligenceFacts: (organizationId: string, workerId: string) =>
+      [
+        ...privateRoot,
+        'org',
+        organizationId,
+        'operational-intelligence',
+        'worker',
+        workerId,
+      ] as const,
     workerTraining: (organizationId: string, workerId: string) =>
       [...privateRoot, 'org', organizationId, 'training', 'worker', workerId] as const,
     invitations: (organizationId: string) =>

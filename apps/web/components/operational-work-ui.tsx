@@ -112,6 +112,8 @@ const moduleLabels: Record<string, string> = {
   INCIDENTS: 'Incidentes',
   PPE: 'EPP',
   TRAINING: 'Capacitación',
+  GOVERNANCE: 'Gobernanza',
+  INTELLIGENCE: 'Inteligencia operativa',
 };
 
 function errorMessage(error: unknown) {

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuditModule } from '../audit/audit.module';
 import { IncidentsModule } from '../incidents/incidents.module';
 import { InspectionBasisModule } from '../inspection-basis/inspection-basis.module';
 import { InspectionsModule } from '../inspections/inspections.module';
@@ -14,6 +15,10 @@ import { ConversationalActionRegistryService } from './conversational-action-reg
 import { ConversationalOperationsController } from './conversational-operations.controller';
 import { ConversationalOperationsService } from './conversational-operations.service';
 import { DeterministicConversationalAssistantProvider } from './deterministic-conversational-assistant.provider';
+import {
+  GenerativeProviderContextBuilder,
+  GenerativeProviderResponseGuard,
+} from './generative-provider-boundaries';
 
 @Module({
   imports: [
@@ -27,12 +32,15 @@ import { DeterministicConversationalAssistantProvider } from './deterministic-co
     WorkPermitsModule,
     OperationalExecutionModule,
     WorkQueueModule,
+    AuditModule,
   ],
   controllers: [ConversationalOperationsController],
   providers: [
     ConversationalOperationsService,
     ConversationalActionRegistryService,
     DeterministicConversationalAssistantProvider,
+    GenerativeProviderContextBuilder,
+    GenerativeProviderResponseGuard,
     {
       provide: CONVERSATIONAL_ASSISTANT_PROVIDER,
       useExisting: DeterministicConversationalAssistantProvider,

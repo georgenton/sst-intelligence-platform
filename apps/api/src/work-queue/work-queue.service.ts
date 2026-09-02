@@ -72,6 +72,8 @@ export class WorkQueueService {
       trainingRequirements,
       trainingCompletions,
       trainingSessions,
+      governanceActions,
+      operationalSignals,
     ] = await Promise.all([
       moduleEnabled('INSPECTIONS')
         ? this.prisma.correctiveAction.findMany({
@@ -462,6 +464,73 @@ export class WorkQueueService {
             orderBy: { scheduledEnd: 'asc' },
           })
         : [],
+      moduleEnabled('GOVERNANCE')
+        ? this.prisma.governanceAction.findMany({
+            where: {
+              organizationId,
+              status: { notIn: ['COMPLETED', 'CANCELLED'] },
+              ...(query.priority ? { priority: query.priority } : {}),
+              ...(query.assignedToUserId
+                ? { assignedToMembership: { userId: query.assignedToUserId } }
+                : {}),
+              ...(query.workCenterId
+                ? { decision: { meeting: { body: { workCenterId: query.workCenterId } } } }
+                : {}),
+              ...(Object.keys(dueFilter).length ? { dueAt: dueFilter } : {}),
+            },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              status: true,
+              priority: true,
+              dueAt: true,
+              createdAt: true,
+              assignedToMembership: {
+                select: { user: { select: { id: true, displayName: true } } },
+              },
+              decision: {
+                select: {
+                  meeting: {
+                    select: {
+                      id: true,
+                      title: true,
+                      body: {
+                        select: {
+                          name: true,
+                          workCenter: { select: { id: true, name: true } },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+          })
+        : [],
+      moduleEnabled('INTELLIGENCE') &&
+      !query.assignedToUserId &&
+      (!query.priority || query.priority === 'HIGH') &&
+      !Object.keys(dueFilter).length
+        ? this.prisma.operationalSignal.findMany({
+            where: { organizationId, status: 'ACTIVE', attention: 'REVIEW' },
+            select: {
+              id: true,
+              title: true,
+              explanation: true,
+              status: true,
+              type: true,
+              observedCount: true,
+              ruleKey: true,
+              lastDetectedAt: true,
+              workCenter: { select: { id: true, name: true } },
+            },
+            take: limit,
+            orderBy: { lastDetectedAt: 'desc' },
+          })
+        : [],
     ]);
 
     const latestTrainingCompletions = trainingCompletions
@@ -826,6 +895,44 @@ export class WorkQueueService {
         regulatoryContext: null,
         riskContext: null,
         createdAt: session.createdAt,
+      })),
+      ...governanceActions.map((action) => ({
+        type: 'GOVERNANCE_ACTION' as const,
+        sourceId: action.id,
+        organizationId,
+        workCenter: action.decision.meeting.body.workCenter,
+        title: action.title,
+        summary: action.description ?? 'Compromiso pendiente de una decisión registrada.',
+        status: action.status,
+        priority: action.priority,
+        dueAt: action.dueAt,
+        overdue: Boolean(action.dueAt && action.dueAt < now),
+        assignee: action.assignedToMembership?.user ?? null,
+        origin: `Gobernanza · ${action.decision.meeting.body.name}`,
+        module: 'GOVERNANCE' as const,
+        deepLink: `/app/governance?meeting=${action.decision.meeting.id}&action=${action.id}`,
+        regulatoryContext: null,
+        riskContext: null,
+        createdAt: action.createdAt,
+      })),
+      ...operationalSignals.map((signal) => ({
+        type: 'OPERATIONAL_SIGNAL' as const,
+        sourceId: signal.id,
+        organizationId,
+        workCenter: signal.workCenter,
+        title: signal.title,
+        summary: signal.explanation,
+        status: signal.status,
+        priority: 'HIGH' as const,
+        dueAt: null,
+        overdue: false,
+        assignee: null,
+        origin: `Señal operativa · ${signal.ruleKey}`,
+        module: 'INTELLIGENCE' as const,
+        deepLink: `/app/intelligence?signal=${signal.id}`,
+        regulatoryContext: null,
+        riskContext: null,
+        createdAt: signal.lastDetectedAt,
       })),
     ];
 

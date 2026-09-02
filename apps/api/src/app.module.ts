@@ -13,6 +13,8 @@ import { EntitlementsModule } from './catalog/entitlements.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
+import { GovernanceModule } from './governance/governance.module';
+import { EvidencePackagesModule } from './evidence-packages/evidence-packages.module';
 import { InspectionsModule } from './inspections/inspections.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { PpeModule } from './ppe/ppe.module';
@@ -20,6 +22,7 @@ import { InspectionStandardsModule } from './inspection-standards/inspection-sta
 import { InspectionBasisModule } from './inspection-basis/inspection-basis.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { OperationalExecutionModule } from './operational-execution/operational-execution.module';
+import { OperationalIntelligenceModule } from './operational-intelligence/operational-intelligence.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RegulatorySourceModule } from './regulatory-sources/regulatory-source.module';
 import { RegulatoryRiskLinkModule } from './regulatory-risk-links/regulatory-risk-link.module';
@@ -55,6 +58,7 @@ import { WorkersModule } from './workers/workers.module';
     EntitlementsModule,
     OrganizationsModule,
     OperationalExecutionModule,
+    OperationalIntelligenceModule,
     CatalogModule,
     ConversationalOperationsModule,
     AiModule,
@@ -65,6 +69,8 @@ import { WorkersModule } from './workers/workers.module';
     RiskMethodologyModule,
     SolutionFinderModule,
     DashboardModule,
+    GovernanceModule,
+    EvidencePackagesModule,
     InspectionStandardsModule,
     InspectionBasisModule,
     InspectionsModule,

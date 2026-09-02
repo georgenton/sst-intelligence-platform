@@ -15,6 +15,7 @@ import {
   isConversationalWriteAction,
   type ConversationContextType,
 } from '@sst/contracts';
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CONVERSATIONAL_ASSISTANT_PROVIDER,
@@ -24,6 +25,10 @@ import {
   ConversationalActionRegistryService,
   type ConversationalActionResult,
 } from './conversational-action-registry.service';
+import {
+  GenerativeProviderContextBuilder,
+  GenerativeProviderResponseGuard,
+} from './generative-provider-boundaries';
 import type {
   CreateConversationThreadDto,
   RunConversationActionDto,
@@ -50,6 +55,9 @@ export class ConversationalOperationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly registry: ConversationalActionRegistryService,
+    private readonly auditLog: AuditService,
+    private readonly providerContext: GenerativeProviderContextBuilder,
+    private readonly providerGuard: GenerativeProviderResponseGuard,
     @Inject(CONVERSATIONAL_ASSISTANT_PROVIDER)
     private readonly provider: ConversationalAssistantProvider,
   ) {}
@@ -95,7 +103,22 @@ export class ConversationalOperationsService {
       include: threadInclude,
     });
     if (!thread) throw new NotFoundException('Conversación no encontrada.');
-    return { ...thread, provider: this.provider.providerKey };
+    return {
+      ...thread,
+      provider: this.provider.descriptor.providerKey,
+      providerState: this.status(),
+    };
+  }
+
+  status() {
+    return {
+      ...this.provider.descriptor,
+      label:
+        this.provider.descriptor.mode === 'DETERMINISTIC_LOCAL'
+          ? 'Procesamiento local controlado · sin IA externa'
+          : 'Proveedor generativo configurado por el servidor',
+      providerSelection: 'PENDING_EXTERNAL_PRODUCT_DECISION',
+    };
   }
 
   async sendMessage(
@@ -118,20 +141,55 @@ export class ConversationalOperationsService {
       },
     });
     await this.touch(threadId);
-    const providerResponse = await this.provider.respond({
-      content: parsed.data.content,
+    const providerInput = this.providerContext.build({
+      userIntent: parsed.data.content,
       context: {
         type: (thread.contextType as ConversationContextType | null) ?? null,
         id: thread.contextId,
       },
+      actionKeys: this.registry.keys(),
     });
-    if (providerResponse.suggestedReadAction) {
+    let providerResponse;
+    try {
+      providerResponse = this.providerGuard.validate(
+        await this.provider.respond(providerInput),
+        providerInput,
+        this.provider,
+      );
+      await this.recordProviderAudit(
+        organization.id,
+        userId,
+        threadId,
+        'SUCCEEDED',
+        {
+          capability: providerResponse.capability,
+          requestedAction: providerResponse.requestedAction?.actionKey ?? null,
+          citationValidation: 'PASS',
+          citationCount: providerResponse.citationIds.length,
+        },
+        audit,
+      );
+    } catch (error) {
+      await this.recordProviderAudit(
+        organization.id,
+        userId,
+        threadId,
+        'REJECTED',
+        {
+          requestedAction: null,
+          citationValidation: 'REJECTED_OR_NOT_REACHED',
+        },
+        audit,
+      );
+      throw error;
+    }
+    if (providerResponse.requestedAction) {
       const action = await this.runAction(
         organization,
         userId,
         threadId,
         {
-          ...providerResponse.suggestedReadAction,
+          ...providerResponse.requestedAction,
           idempotencyKey: `message:${userMessage.id}`,
         },
         audit,
@@ -145,9 +203,24 @@ export class ConversationalOperationsService {
         role: 'ASSISTANT',
         content: providerResponse.reply,
         structuredData: {
-          provider: this.provider.providerKey,
+          provider: this.provider.descriptor.providerKey,
+          providerConfig: this.provider.descriptor.configIdentifier,
+          capability: providerResponse.capability,
           boundary: 'NO_EXTERNAL_PROVIDER_NO_ARBITRARY_TOOL_INVOCATION',
         },
+        citations: providerResponse.citationIds.length
+          ? {
+              create: providerResponse.citationIds.map((citationId) => {
+                const citation = providerInput.citations.find(({ id }) => id === citationId)!;
+                return {
+                  organizationId: organization.id,
+                  type: citation.type,
+                  referenceId: citation.id,
+                  label: citation.label,
+                };
+              }),
+            }
+          : undefined,
       },
     });
     await this.touch(threadId);
@@ -443,6 +516,31 @@ export class ConversationalOperationsService {
     return this.prisma.conversationThread.update({
       where: { id: threadId },
       data: { updatedAt: new Date() },
+    });
+  }
+
+  private recordProviderAudit(
+    organizationId: string,
+    userId: string,
+    threadId: string,
+    status: 'SUCCEEDED' | 'REJECTED',
+    details: Record<string, unknown>,
+    audit: AuditContext,
+  ) {
+    return this.auditLog.record({
+      organizationId,
+      actorUserId: userId,
+      action: 'CONVERSATIONAL_PROVIDER_REQUEST',
+      entityType: 'ConversationThread',
+      entityId: threadId,
+      metadata: this.json({
+        providerKey: this.provider.descriptor.providerKey,
+        configIdentifier: this.provider.descriptor.configIdentifier,
+        externalProcessing: this.provider.descriptor.externalProcessing,
+        status,
+        ...details,
+      }),
+      ...audit,
     });
   }
 

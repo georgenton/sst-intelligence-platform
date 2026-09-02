@@ -77,6 +77,13 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         requiredFeature: 'module.training',
       },
       {
+        id: 'governance',
+        label: 'Gobernanza',
+        href: '/app/governance',
+        group: 'operation',
+        match: 'segment',
+      },
+      {
         id: 'sst-evaluation',
         label: 'Evaluación SST',
         href: '/app/evaluation',
@@ -166,6 +173,13 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
     label: 'Análisis',
     items: [
       {
+        id: 'operational-intelligence',
+        label: 'Señales operativas',
+        href: '/app/intelligence',
+        group: 'analysis',
+        match: 'segment',
+      },
+      {
         id: 'inspection-analytics',
         label: 'Tendencias y recurrencias',
         href: '/app/inspections/analytics',
@@ -190,6 +204,13 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         id: 'members',
         label: 'Equipo',
         href: '/app/settings/members',
+        group: 'management',
+        match: 'segment',
+      },
+      {
+        id: 'evidence-packages',
+        label: 'Paquetes de evidencia',
+        href: '/app/evidence-packages',
         group: 'management',
         match: 'segment',
       },
