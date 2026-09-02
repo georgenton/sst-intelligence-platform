@@ -802,6 +802,22 @@ enum EvidencePackageItemType {
   INSPECTION_BASIS_VERSION
 }
 
+enum OperationalSignalType {
+  REPEATED_FINDING
+  OVERDUE_ACTION_CLUSTER
+}
+
+enum OperationalSignalStatus {
+  ACTIVE
+  REVIEWED
+  CLOSED
+}
+
+enum OperationalSignalAttention {
+  REVIEW
+  PRIORITY_REVIEW
+}
+
 model User {
   id                           String                                        @id @default(uuid()) @db.Uuid
   email                        String                                        @unique
@@ -883,6 +899,7 @@ model User {
   governanceEvidenceCreated    GovernanceEvidence[]                          @relation("GovernanceEvidenceCreator")
   evidencePackagesCreated      EvidencePackage[]                             @relation("EvidencePackageCreator")
   evidencePackagesGenerated    EvidencePackage[]                             @relation("EvidencePackageGenerator")
+  operationalSignalsReviewed   OperationalSignal[]                           @relation("OperationalSignalReviewer")
 }
 
 model RefreshSession {
@@ -996,6 +1013,7 @@ model Organization {
   governanceMeetingParticipants GovernanceMeetingParticipant[]
   evidencePackages              EvidencePackage[]
   evidencePackageItems          EvidencePackageItem[]
+  operationalSignals            OperationalSignal[]
 }
 
 model WorkCenter {
@@ -1020,6 +1038,7 @@ model WorkCenter {
   ppeRequirements      WorkerPpeRequirement[]
   trainingSessions     TrainingSession[]
   governanceBodies     GovernanceBody[]
+  operationalSignals   OperationalSignal[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -3617,6 +3636,41 @@ model EvidencePackageItem {
   @@unique([packageId, type, sourceId])
   @@index([organizationId, type, sourceId])
   @@index([organizationId, packageId])
+}
+
+model OperationalSignal {
+  id              String                     @id @default(uuid()) @db.Uuid
+  organizationId  String                     @db.Uuid
+  workCenterId    String                     @db.Uuid
+  type            OperationalSignalType
+  fingerprint     String                     @db.VarChar(64)
+  title           String                     @db.VarChar(240)
+  explanation     String                     @db.VarChar(1000)
+  attention       OperationalSignalAttention @default(REVIEW)
+  status          OperationalSignalStatus    @default(ACTIVE)
+  ruleKey         String                     @db.VarChar(100)
+  ruleVersion     String                     @db.VarChar(32)
+  threshold       Int
+  observedCount   Int
+  windowStart     DateTime
+  windowEnd       DateTime
+  sourceRecords   Json
+  sourceDigest    String                     @db.VarChar(64)
+  firstDetectedAt DateTime                   @default(now())
+  lastDetectedAt  DateTime                   @default(now())
+  reviewedById    String?                    @db.Uuid
+  reviewedAt      DateTime?
+  reviewNote      String?                    @db.VarChar(2000)
+  version         Int                        @default(1)
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  organization    Organization               @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  workCenter      WorkCenter                 @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  reviewedBy      User?                      @relation("OperationalSignalReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, type, fingerprint])
+  @@index([organizationId, status, attention, lastDetectedAt])
+  @@index([organizationId, workCenterId, status])
 }
 
 model ConversationThread {

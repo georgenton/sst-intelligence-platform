@@ -173,6 +173,13 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
     label: 'Análisis',
     items: [
       {
+        id: 'operational-intelligence',
+        label: 'Señales operativas',
+        href: '/app/intelligence',
+        group: 'analysis',
+        match: 'segment',
+      },
+      {
         id: 'inspection-analytics',
         label: 'Tendencias y recurrencias',
         href: '/app/inspections/analytics',

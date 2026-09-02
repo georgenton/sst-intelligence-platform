@@ -73,6 +73,7 @@ export class WorkQueueService {
       trainingCompletions,
       trainingSessions,
       governanceActions,
+      operationalSignals,
     ] = await Promise.all([
       moduleEnabled('INSPECTIONS')
         ? this.prisma.correctiveAction.findMany({
@@ -509,6 +510,27 @@ export class WorkQueueService {
             orderBy: { createdAt: 'desc' },
           })
         : [],
+      moduleEnabled('INTELLIGENCE') &&
+      !query.assignedToUserId &&
+      (!query.priority || query.priority === 'HIGH') &&
+      !Object.keys(dueFilter).length
+        ? this.prisma.operationalSignal.findMany({
+            where: { organizationId, status: 'ACTIVE', attention: 'REVIEW' },
+            select: {
+              id: true,
+              title: true,
+              explanation: true,
+              status: true,
+              type: true,
+              observedCount: true,
+              ruleKey: true,
+              lastDetectedAt: true,
+              workCenter: { select: { id: true, name: true } },
+            },
+            take: limit,
+            orderBy: { lastDetectedAt: 'desc' },
+          })
+        : [],
     ]);
 
     const latestTrainingCompletions = trainingCompletions
@@ -892,6 +914,25 @@ export class WorkQueueService {
         regulatoryContext: null,
         riskContext: null,
         createdAt: action.createdAt,
+      })),
+      ...operationalSignals.map((signal) => ({
+        type: 'OPERATIONAL_SIGNAL' as const,
+        sourceId: signal.id,
+        organizationId,
+        workCenter: signal.workCenter,
+        title: signal.title,
+        summary: signal.explanation,
+        status: signal.status,
+        priority: 'HIGH' as const,
+        dueAt: null,
+        overdue: false,
+        assignee: null,
+        origin: `Señal operativa · ${signal.ruleKey}`,
+        module: 'INTELLIGENCE' as const,
+        deepLink: `/app/intelligence?signal=${signal.id}`,
+        regulatoryContext: null,
+        riskContext: null,
+        createdAt: signal.lastDetectedAt,
       })),
     ];
 
