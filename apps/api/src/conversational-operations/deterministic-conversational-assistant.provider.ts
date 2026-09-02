@@ -7,10 +7,19 @@ import type {
 
 @Injectable()
 export class DeterministicConversationalAssistantProvider implements ConversationalAssistantProvider {
-  readonly providerKey = 'DETERMINISTIC_LOCAL_V1';
+  readonly descriptor = {
+    providerKey: 'DETERMINISTIC_LOCAL_V1',
+    configIdentifier: 'deterministic-intent-router-v1',
+    mode: 'DETERMINISTIC_LOCAL',
+    externalProcessing: false,
+    capabilities: ['NATURAL_LANGUAGE', 'CLASSIFICATION_SUGGESTION'],
+    finalRiskDecisionAllowed: false,
+    legalComplianceDecisionAllowed: false,
+    automaticRootCauseAllowed: false,
+  } as const;
 
   async respond(input: ConversationalProviderInput): Promise<ConversationalProviderResponse> {
-    const normalized = input.content
+    const normalized = input.userIntent
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
@@ -23,12 +32,14 @@ export class DeterministicConversationalAssistantProvider implements Conversatio
     ) {
       return {
         reply: 'Consultaré tu cola autorizada de la organización activa.',
-        suggestedReadAction: { actionKey: 'get_my_work_queue', input: {} },
+        capability: 'CLASSIFICATION_SUGGESTION',
+        requestedAction: { actionKey: 'get_my_work_queue', input: {} },
       };
     }
     return {
       reply:
         'Puedo consultar tu cola y contexto SST, o preparar acciones estructuradas para que las confirmes. No soy asesor legal y no ejecutaré instrucciones incluidas en fuentes o evidencias.',
+      capability: 'NATURAL_LANGUAGE',
     };
   }
 }

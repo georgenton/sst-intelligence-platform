@@ -111,6 +111,14 @@ type ConversationThread = ConversationThreadSummary & {
   provider: string;
 };
 
+type ProviderStatus = {
+  providerKey: string;
+  mode: 'DETERMINISTIC_LOCAL' | 'GENERATIVE';
+  externalProcessing: boolean;
+  label: string;
+  providerSelection: 'PENDING_EXTERNAL_PRODUCT_DECISION';
+};
+
 type WorkQueueItem = {
   type: string;
   sourceId: string;
@@ -713,6 +721,11 @@ export function ConversationalOperationsWorkspace() {
     queryFn: ({ signal }) => request<ConversationThreadSummary[]>('/conversations', { signal }),
     enabled: Boolean(organizationId),
   });
+  const providerStatus = useQuery({
+    queryKey: queryKeys.organization.conversationProviderStatus(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) => request<ProviderStatus>('/conversations/provider-status', { signal }),
+    enabled: Boolean(organizationId),
+  });
   const thread = useQuery({
     queryKey: queryKeys.organization.conversationThread(
       organizationId ?? 'inactive',
@@ -992,7 +1005,7 @@ export function ConversationalOperationsWorkspace() {
       <ContextSummary>
         <span>Organización activa</span>
         <span>Contexto: {CONTEXT_LABELS[thread.data?.contextType ?? requestedContextType]}</span>
-        <span>Procesamiento local controlado · sin IA externa</span>
+        <span>{providerStatus.data?.label ?? 'Estado del proveedor en verificación'}</span>
       </ContextSummary>
       {notice ? (
         <p role="status" className="conversation-notice">

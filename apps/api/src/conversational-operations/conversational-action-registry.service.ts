@@ -120,6 +120,8 @@ const queueInput = z.object({
       'INCIDENTS',
       'PPE',
       'TRAINING',
+      'GOVERNANCE',
+      'INTELLIGENCE',
     ])
     .optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),

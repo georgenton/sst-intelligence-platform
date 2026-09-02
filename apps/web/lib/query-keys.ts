@@ -33,6 +33,8 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'conversations'] as const,
     conversationThread: (organizationId: string, threadId: string) =>
       [...privateRoot, 'org', organizationId, 'conversations', threadId] as const,
+    conversationProviderStatus: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'conversations', 'provider-status'] as const,
     workQueueRoot: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'work-queue'] as const,
     workQueue: (organizationId: string, filters = '') =>

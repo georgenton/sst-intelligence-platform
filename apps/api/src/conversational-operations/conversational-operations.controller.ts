@@ -43,6 +43,11 @@ export class ConversationalOperationsController {
     return this.conversations.list(organization.id, user.id);
   }
 
+  @Get('provider-status')
+  providerStatus() {
+    return this.conversations.status();
+  }
+
   @Post()
   create(
     @OrganizationContext() organization: OrganizationActor,
