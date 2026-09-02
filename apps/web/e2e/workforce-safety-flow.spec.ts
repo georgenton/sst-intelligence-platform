@@ -80,9 +80,18 @@ test.describe.serial('workforce safety operations', () => {
     ).toBeVisible();
     const workerRow = page.locator('article').filter({ hasText: workerName });
     await expect(workerRow).toContainText('Activo');
-    await workerRow.getByRole('link', { name: 'Abrir espacio de trabajo' }).click();
-    await expect(page.getByRole('heading', { name: workerName })).toBeVisible();
-    await expect(page.getByText('No requiere cuenta de acceso')).toBeVisible();
+    const workerWorkspaceLink = workerRow.getByRole('link', {
+      name: 'Abrir espacio de trabajo',
+    });
+    await expect(workerWorkspaceLink).toHaveAttribute('href', /\/app\/workers\/[0-9a-f-]+$/);
+    await Promise.all([
+      page.waitForURL(/\/app\/workers\/[0-9a-f-]+$/),
+      workerWorkspaceLink.click(),
+    ]);
+    await expect(
+      page.getByRole('heading', { level: 1, name: workerName, exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText('No requiere cuenta de acceso', { exact: true })).toBeVisible();
 
     for (const width of [320, 640]) {
       await page.setViewportSize({ width, height: 844 });
