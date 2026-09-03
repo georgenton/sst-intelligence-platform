@@ -36,6 +36,9 @@ import { WorkQueueModule } from './work-queue/work-queue.module';
 import { WorkPermitsModule } from './work-permits/work-permits.module';
 import { WorkersModule } from './workers/workers.module';
 
+const bypassRateLimitsForE2e =
+  process.env.NODE_ENV === 'test' && process.env.E2E_DISABLE_RATE_LIMITING === 'true';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -52,7 +55,10 @@ import { WorkersModule } from './workers/workers.module';
         return config;
       },
     }),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 120 }],
+      skipIf: () => bypassRateLimitsForE2e,
+    }),
     PrismaModule,
     AuditModule,
     AuthModule,

@@ -1,5 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const apiE2eEnv = {
+  ...process.env,
+  E2E_DISABLE_RATE_LIMITING: 'true',
+  NODE_ENV: 'test',
+};
+
 export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
@@ -14,21 +20,27 @@ export default defineConfig({
     {
       command: 'pnpm --dir ../api dev',
       url: 'http://127.0.0.1:3101/api/v1/health',
-      env: { ...process.env, PORT: '3101' },
+      env: { ...apiE2eEnv, PORT: '3101' },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
     ...[3102, 3103, 3104].map((port) => ({
       command: 'pnpm --dir ../api dev',
       url: `http://127.0.0.1:${port}/api/v1/health`,
-      env: { ...process.env, PORT: String(port) },
+      env: { ...apiE2eEnv, PORT: String(port) },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     })),
     {
-      command: 'pnpm exec next dev --webpack --port 3100',
-      url: 'http://127.0.0.1:3100/app/inspections',
-      env: { ...process.env, API_ORIGIN: 'http://127.0.0.1:3101' },
+      command: 'pnpm run start:e2e',
+      url: 'http://127.0.0.1:3100/',
+      env: {
+        ...process.env,
+        API_ORIGIN: 'http://127.0.0.1:3101',
+        HOSTNAME: '127.0.0.1',
+        NODE_ENV: 'production',
+        PORT: '3100',
+      },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
