@@ -1,6 +1,9 @@
 # Consultant Portfolio V1
 
-Status: implemented on the feature branch; pending external review.
+Status: **PRODUCTION CLOSED** through PR36/37/38 on 2026-09-03. Runtime merge:
+`c5bc3a2cc38db10e39e4e66117f7d18e296dd509`. See
+[production authorization evidence](../architecture/consultant-portfolio-authorization.md#production-verification--pr363738)
+and [release/E2E gate](../testing/e2e-runtime.md#cierre-productivo-pr363738--2026-09-03).
 
 ## Purpose and language
 

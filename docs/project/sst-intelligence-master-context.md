@@ -1,7 +1,7 @@
 # SST Intelligence — master project context
 
-Status: canonical continuity document. Runtime implementation baseline: PR #35 merge
-`c1f0eb18f133c325d373708e02d823e27717567f`, verified in production on 2026-09-02. The subsequent
+Status: canonical continuity document. Runtime implementation baseline: PR #38 merge
+`c5bc3a2cc38db10e39e4e66117f7d18e296dd509`, verified in production on 2026-09-03. The subsequent
 closure-documentation commit does not change runtime behavior.
 
 This document is the authoritative entry point for future engineering sessions. Detailed domain,
@@ -75,6 +75,11 @@ rules where appropriate. Tenant data must never leak into global editorial artif
 - Pure contracts and deterministic business rules in `packages/contracts`.
 - PostgreSQL + Prisma on Railway; backend on Railway; frontend on Vercel.
 - Playwright policy: one worker, zero retries.
+- E2E uses the production Next standalone artifact and built API, with fresh processes per test
+  file, no route-specific warmup list and no authentication/throttling bypass.
+- The current rate limiter keeps buckets in-memory per application process: default 120/60,000 ms,
+  register/login 5/60,000 ms and refresh 30/60,000 ms. Distributed storage is deferred until
+  horizontal scaling requires it; the current backend runs one replica.
 - No microservices, queues, Redis, GraphQL, CQRS, vector database or speculative infrastructure.
 
 ## Current production capability baseline
@@ -284,7 +289,7 @@ launch. Production remains `DETERMINISTIC_LOCAL_V1`; provider selection is
 `PENDING_EXTERNAL_PRODUCT_DECISION`, no external secret is required, unknown citations/actions are
 rejected, and AI cannot decide final risk, legal compliance or automatic root cause.
 
-The current feature program implements [Consultant Portfolio V1](../domain/consultant-portfolio-v1.md)
+The production-closed program implements [Consultant Portfolio V1](../domain/consultant-portfolio-v1.md)
 as a tenant-safe read aggregation over current active memberships. Roles and entitlements are
 resolved independently for every organization, and each canonical link establishes the matching
 organization context before navigation. It creates neither a super-tenant nor copied customer
@@ -295,3 +300,29 @@ records, safety scores, commercial assignments or new persistence.
 results and mandatory single-organization write anchoring. Production still uses
 `DETERMINISTIC_LOCAL_V1`. The provider-neutral synthetic evaluation harness is complete, while
 external provider selection, privacy terms, pricing and secrets remain pending external decisions.
+
+## PR36/37/38 final production closure
+
+Consultant Portfolio V1, AI Copilot Productization and the Provider Evaluation Harness are **DONE**.
+PR38's main Quality Gate 33779146371 passed in attempt 1 without rerun: integration 27 suites /
+65 tests, full E2E 18/18, workers=1, retries=0, retried=0, plus build, reference and Docker gates.
+The [runtime evidence](../testing/e2e-runtime.md#cierre-productivo-pr363738--2026-09-03) records the
+exact merge, automatic Railway/Vercel releases and bounded synthetic production smoke.
+
+Production proved current per-organization roles and entitlements, no arbitrary organization
+scope, live membership revocation, write-time denial after revocation, authenticated hard reload
+with safe context fallback, canonical Portfolio links, Assistant anchoring and Workforce navigation.
+Release logs contained no unexpected application/5xx errors or sensitive payloads.
+
+Regulatory parity remains 15 sources, 25 versions, 1112 units/893 articles, 5 real candidate
+Requirements, 5 real candidate RuleDrafts and zero real published Rules. The other 12 RuleDrafts
+are demo references, not additional regulatory interpretations. RETIE/REBT/RTQ/CLP pilot criterion
+counts remain 2/2/2/0, and the three risk methods and historical records are unchanged. No new
+PlanFeature assignment or pricing decision was made.
+
+The harness preserves 12 synthetic golden cases, 8 security cases and the validated adapter
+contract. `READY_FOR_PROVIDER_SELECTION=YES` means readiness for a separate explicit external
+product/privacy/security decision, not selection or integration. Current provider remains
+`DETERMINISTIC_LOCAL_V1`, external AI processing is disabled and no external secret is required.
+AI still cannot decide final risk, legal compliance or root cause, or produce worker/organization
+safety scores.

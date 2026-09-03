@@ -114,12 +114,12 @@ Immutable versioned manifests now capture canonical references, generation metad
 ordering and SHA-256 digests. Regeneration creates a new package; the product makes no automatic
 compliance or audit-certification claim. Broader reports and exports remain future slices.
 
-### L — Consultant portfolio
+### L — Consultant portfolio — V1 production closed
 
 Tenant-safe multi-company view of organizations, alerts, overdue work, pending reviews and upcoming
 deadlines.
 
-V1 is implemented on its review branch as a computed read layer over current memberships. It adds
+V1 is production closed through PR36/37/38 as a computed read layer over current memberships. It adds
 factual organization cards, deterministic attention/work/signal/evidence summaries, bounded
 filters and context-safe canonical deep links. It adds no organization score, super-tenant,
 replication or commercial assignment.
@@ -134,8 +134,9 @@ The provider-security preparation boundary is production closed, but no external
 selected or integrated. `DETERMINISTIC_LOCAL_V1` remains the production provider while the external
 product/privacy decision is pending.
 
-The provider-neutral V1 evaluation harness and portfolio read context are implemented on the same
-review branch. Provider selection remains a separate external product, privacy, legal, security
+AI Copilot Productization V1 and the provider-neutral V1 evaluation harness are production closed
+through PR36/37/38. The harness preserves 12 golden and 8 security cases with a validated adapter
+contract. Provider selection remains a separate external product, privacy, legal, security
 and commercial decision; completing the harness does not authorize integration.
 
 ## Sequencing guardrails
@@ -163,6 +164,17 @@ foundation without worker scoring or predictive claims. Track B was
 attempted and safely deferred because the ordered artifacts need verified human transcription before
 structuring. Track A remains pending. No later track is represented as active.
 
-The current review candidate advances Track L and the provider-neutral portion of Track M without
-changing the production provider, regulatory publication counts, pilot review state, risk methods
-or historical records.
+Track L V1, the provider-neutral productization portion of Track M and the Provider Evaluation
+Harness are **DONE**. PR36/37/38 final production closure is **DONE**, verified on PR38 merge
+`c5bc3a2cc38db10e39e4e66117f7d18e296dd509` on 2026-09-03: first-attempt main CI,
+27 integration suites/65 tests, 18/18 standalone E2E with no retries, automatic aligned
+Railway/Vercel deployments, safe revocation/reload/write-denial smoke and unchanged reference data.
+See [runtime evidence](../testing/e2e-runtime.md#cierre-productivo-pr363738--2026-09-03).
+
+The next gate is **READY_FOR_PROVIDER_SELECTION=YES**, not permission to select or integrate a
+provider. The production provider, regulatory publication counts, pilot review state, risk methods
+and historical records remain unchanged. No new pricing or PlanFeature assignment is authorized.
+
+E2E runs the built standalone artifact, without route-specific warmup lists or auth/throttling
+bypass. Production rate-limit buckets remain in-memory per process; distributed storage is
+deferred until horizontal scaling requires it, not part of the next provider decision.

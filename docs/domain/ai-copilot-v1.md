@@ -1,7 +1,9 @@
 # AI Copilot V1 productization
 
-Status: provider-neutral contracts and deterministic portfolio workflow implemented; external
-provider decision pending.
+Status: provider-neutral productization and deterministic portfolio workflow **PRODUCTION CLOSED**
+through PR36/37/38 on 2026-09-03. External provider decision remains pending. See the
+[release evidence](../testing/e2e-runtime.md#cierre-productivo-pr363738--2026-09-03) and
+[provider evaluation boundary](../architecture/llm-provider-evaluation-v1.md).
 
 ## Product capabilities
 

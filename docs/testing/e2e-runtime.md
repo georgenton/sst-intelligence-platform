@@ -95,3 +95,35 @@ denegados. Se preservan rol vigente por organización, entitlements, citas y nav
 sync repetido, imagen Docker y las 18 E2E contra standalone deben pasar. No se añaden migraciones,
 políticas comerciales ni cambios productivos salvo eliminar el bypass del candidato anterior.
 `next-env.d.ts` debe quedar idéntico a main. No rerun de CI: un fallo del nuevo HEAD detiene el gate.
+
+## Cierre productivo PR36/37/38 — 2026-09-03
+
+PR38 integró el HEAD auditado `bdf70b815a897cb40d9a6a58507009add256b3cd` mediante merge commit
+`c5bc3a2cc38db10e39e4e66117f7d18e296dd509`. El Quality Gate de main
+[33779146371](https://github.com/georgenton/sst-intelligence-platform/actions/runs/33779146371)
+pasó en el intento 1, sin rerun: 27 suites / 65 pruebas de integración y 18/18 E2E,
+15 lotes, workers=1, retries=0, retried=0. También pasaron build, reference sync e imagen Docker.
+El HEAD del PR había pasado el run 33775422634, igualmente en el primer intento.
+
+La evidencia utiliza el artefacto Next standalone de producción, no Next dev. No existe una lista
+de calentamiento por ruta ni bypass de autenticación o throttling. La regresión 429 usa el
+AppModule y el limitador reales. Los buckets actuales permanecen en memoria por proceso, adecuados
+a la topología actual de una réplica; el almacenamiento distribuido se difiere hasta que el
+escalado horizontal lo requiera. No se introdujo Redis ni se cambiaron límites productivos.
+
+Railway y Vercel desplegaron automáticamente ese merge SHA. Railway ejecutó `prisma migrate deploy`
+→ `reference:sync` → Nest, con 29 migraciones, cero pendientes y health HTTP 200/status=ok; no se
+ejecutó el seed general. Vercel quedó READY, source=git, target=production, ref=main y sin aliasError.
+
+El smoke sintético productivo verificó roles vigentes por organización, entitlements distintos
+(A demo / B FREE), Portfolio y citas, Work Queue/señales/evidencia, navegación a Inspections/Work/
+Technical Risk, Portfolio → Assistant y Worker workspace. La misma sesión perdió acceso a A tras
+suspensión: el siguiente Portfolio excluyó A, el acceso directo y una confirmación preparada
+devolvieron 403; el hard reload restauró sesión con solo B visible y activa. No hubo errores JS,
+5xx ni fallos inesperados de red. Las primeras comprobaciones del smoke temporal necesitaron
+activar la demo por el flujo normal y distinguir dos citas válidas; no se reparó código productivo
+ni se relanzó CI. Solo se crearon fixtures etiquetados como sintéticos, sin datos de clientes.
+
+Este cierre documental no cambia el runtime. El commit documental posterior debe conservar un
+nuevo Quality Gate exitoso en intento 1 y despliegues automáticos alineados con su SHA antes de
+entregar main limpio y sincronizado. No habilita selección ni integración de un proveedor externo.

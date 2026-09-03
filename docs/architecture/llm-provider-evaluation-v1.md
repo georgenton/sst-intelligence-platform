@@ -1,6 +1,7 @@
 # LLM Provider Evaluation V1
 
-Status: **PENDING EXTERNAL PRODUCT DECISION**.
+Status: provider-neutral evaluation harness **PRODUCTION CLOSED** through PR36/37/38;
+provider selection **PENDING EXTERNAL PRODUCT DECISION**.
 
 This document defines the evaluation gate for a possible future generative assistant provider. It
 does not select, configure or activate OpenAI, Anthropic, Google or another vendor. Production
@@ -70,6 +71,12 @@ count. It must not retain secrets, full prompts, evidence binaries or unnecessar
 
 ## Decision record
 
+- Harness closure: 2026-09-03, PR38 merge `c5bc3a2cc38db10e39e4e66117f7d18e296dd509`.
+- Preserved dataset: 12 synthetic golden cases and 8 security cases; adapter contract tests PASS.
+- Production verified local provider identity, authorized citations and single-organization
+  Assistant anchoring; no external processing or secret was required.
+- `READY_FOR_PROVIDER_SELECTION=YES` is readiness for an external approval gate, not vendor
+  selection, configuration, integration or activation.
 - External provider selected: **NO**
 - External provider integrated: **NO**
 - External secret required: **NO**
