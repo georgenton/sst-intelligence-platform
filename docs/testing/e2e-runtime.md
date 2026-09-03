@@ -1,0 +1,97 @@
+# Runtime E2E de producción y aislamiento del limitador
+
+## Ejecución
+
+Ejecutar `pnpm build` antes de `pnpm test:e2e`, con PostgreSQL aislado, migraciones y seed
+aplicados. Web ejecuta `.next/standalone/apps/web/server.js` con `.next/static` y `public`
+(si existe). API ejecuta `dist/main.js`, sin compiladores/watchers. `NODE_ENV=test` permite
+cookies HTTP locales; no cambia reglas de throttling, guardias, roles ni autenticación.
+
+`run-e2e-batches.mjs` obtiene el inventario real mediante `playwright test --list` y ejecuta
+un archivo por lote, ordenado por nombre. Cada invocación arranca/cierra los servidores;
+`reuseExistingServer=false` impide reutilizar presupuestos o procesos ajenos. Se conservan los
+servidores de registro 3102–3104 existentes, ahora también frescos por lote. La aplicación
+navegada usa la API 3101, con los límites originales. No hay headers IP falsificados.
+
+Inventario actual: 15 lotes / 18 pruebas:
+
+1. `adaptive-configuration-flow.spec.ts` (1)
+2. `app-shell-command-center.spec.ts` (1)
+3. `appearance-foundations.spec.ts` (1)
+4. `applicability-flow.spec.ts` (1)
+5. `consultant-portfolio-flow.spec.ts` (1)
+6. `conversational-operations-flow.spec.ts` (1)
+7. `evidence-package-flow.spec.ts` (1)
+8. `governance-flow.spec.ts` (1)
+9. `inspection-standards-flow.spec.ts` (1)
+10. `inspections-flow.spec.ts` (1)
+11. `operational-execution-flow.spec.ts` (1)
+12. `operational-intelligence-flow.spec.ts` (1)
+13. `risk-methodology-flow.spec.ts` (1)
+14. `technical-risk-flow.spec.ts` (1)
+15. `workforce-safety-flow.spec.ts` (4)
+
+Cada prueba descubierta debe aparecer exactamente una vez en los reportes JSON, sin skips,
+fallos esperados, repeticiones ni retries. Workers=1; retries=0; se detiene al primer fallo.
+No hay warmup por ruta, mocks de API ni Next dev. Los reportes quedan ignorados en
+`apps/web/test-results/batches/`. Para diagnóstico focal: `pnpm test:e2e consultant-portfolio-flow.spec.ts`.
+
+## Identidad y límites reales
+
+Fuentes: `apps/api/src/app.module.ts`, `apps/api/src/auth/auth.controller.ts` y
+`@nestjs/throttler` 6.5.0 (`throttler.guard.js`, `throttler.service.js`). No hay tracker,
+generador de clave, storage ni trust-proxy personalizados.
+
+- Tracker: `req.ip`, no usuario ni tenant.
+- Clave: SHA256 de `${controllerClass}-${handlerName}-${throttlerName}-${req.ip}`.
+- Throttler: `default`.
+- Límite general: 120 por handler/IP; register=5, login=5, refresh=30.
+- TTL: 60.000 ms. Cada hit tiene expiración en memoria; exceder el límite bloquea por
+  60.000 ms (blockDuration usa TTL por defecto). `Retry-After` se expresa en segundos.
+- Storage: `ThrottlerStorageService`, un Map por instancia de aplicación/proceso. Reiniciar
+  legítimamente el proceso crea estado nuevo, sin tocar la política de producción.
+
+Los navegadores E2E llegan al mismo servidor BFF/API local: cambiar de usuario no cambia IP.
+La suite sin particionar acumulaba refreshes de tests independientes en el bucket de
+`AuthController.refresh`. El aislamiento por archivo elimina esa dependencia entre pruebas,
+no elimina el límite dentro de cada flujo.
+
+La integración de plataforma prueba con AppModule real: cinco logins válidos permitidos,
+sexto=429 con Retry-After, cierre de la instancia, segunda instancia con las mismas
+credenciales/IP y política, cinco permitidos y sexto=429 otra vez. No override de providers,
+reloj, storage ni guardias. Se conserva la regresión anterior de login inválido/429.
+
+## Portfolio: contrato de navegación y evidencia forense
+
+Clasificación primaria de la carrera reproducida: `TEST_EXPECTATION_ORDER`.
+
+El test anterior hacía `goto('/app/portfolio')`, comprobaba geometría y operaba por API antes
+de `reload()`. El evento load/URL no prueba sesión, memberships, contexto o query listos.
+En reproducciones locales normales y con CPU/red limitadas pasó. Una barrera forense en la
+entrega de la respuesta **real** del refresh previo reprodujo el mismo timeout de
+«Organizaciones»: refresh previo=201, documento reload=200, siguiente refresh=401,
+Portfolio/organizations no iniciados y pantalla final de login. No hubo 429 ni fallo estático.
+Interrumpir la entrega de una cookie rotada puede dejar la cookie anterior; la API rechaza
+su reutilización según la política existente. La barrera temporal no forma parte del código final.
+
+El run histórico de GitHub 33711005207 no publicó su trace como artifact: esta reproducción
+demuestra la carrera en el orden del test, no acredita retrospectivamente sus respuestas HTTP.
+
+La reparación establece primero el Portfolio autenticado completo. En cada navegación/reload
+se esperan respuestas **originadas después del documento nuevo**, no consultas pendientes del
+documento anterior: refresh=201 con usuario correcto, organizations=200 con set exacto,
+Portfolio=200 con set exacto y entitlements=200 del contexto esperado. Después se exige contexto
+exacto, `aria-busy=false`, título y botón «Organizaciones» visibles. No cambia timeout ni selector
+semántico. Se imprime diagnóstico seguro de estados, URL sin query/fragment, errores y requests
+fallidos; nunca bodies, tokens ni cookies.
+
+Se comprueba B seleccionada → reload → B exacta; y A seleccionada → suspensión → reload →
+solo B en memberships/Portfolio/contexto, A ausente, acceso directo y confirmación de escritura
+denegados. Se preservan rol vigente por organización, entitlements, citas y navegación canónica.
+
+## Gate
+
+`pnpm check`, integración completa (27 suites; 65 pruebas tras agregar el límite real), reference
+sync repetido, imagen Docker y las 18 E2E contra standalone deben pasar. No se añaden migraciones,
+políticas comerciales ni cambios productivos salvo eliminar el bypass del candidato anterior.
+`next-env.d.ts` debe quedar idéntico a main. No rerun de CI: un fallo del nuevo HEAD detiene el gate.

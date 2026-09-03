@@ -59,7 +59,9 @@ reportes ignorados por Git en `.artifacts/applicability-scenarios/`. Puede selec
 `--input`. Casos expertos pseudonimizados permanecen fuera del repositorio.
 
 `pnpm check` ejecuta lint, tipos, unitarias, el laboratorio de escenarios y build. Integración necesita PostgreSQL y E2E necesita
-además Chromium (`pnpm --filter @sst/web exec playwright install chromium`).
+además Chromium (`pnpm --filter @sst/web exec playwright install chromium`) y un `pnpm build`
+previo. E2E usa Next standalone y lotes seriales con procesos API nuevos y throttling real;
+ver [contrato del runtime E2E](docs/testing/e2e-runtime.md).
 
 ## Organización
 

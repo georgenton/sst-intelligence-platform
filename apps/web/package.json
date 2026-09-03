@@ -6,11 +6,12 @@
     "dev": "next dev --webpack --port 3000",
     "build": "next build --webpack",
     "start": "next start --port 3000",
+    "start:e2e": "node scripts/start-e2e-server.mjs",
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "test": "node --test",
-    "test:e2e": "playwright test"
+    "test:e2e": "node scripts/run-e2e-batches.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "5.7.1",
