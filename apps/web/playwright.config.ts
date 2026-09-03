@@ -2,7 +2,6 @@ import { defineConfig, devices } from '@playwright/test';
 
 const apiE2eEnv = {
   ...process.env,
-  E2E_DISABLE_RATE_LIMITING: 'true',
   NODE_ENV: 'test',
 };
 
@@ -11,6 +10,7 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
+  forbidOnly: true,
   workers: 1,
   retries: 0,
   reporter: process.env.CI ? 'github' : 'list',
@@ -18,17 +18,17 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [
     {
-      command: 'pnpm --dir ../api dev',
+      command: 'pnpm --dir ../api start',
       url: 'http://127.0.0.1:3101/api/v1/health',
       env: { ...apiE2eEnv, PORT: '3101' },
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 120_000,
     },
     ...[3102, 3103, 3104].map((port) => ({
-      command: 'pnpm --dir ../api dev',
+      command: 'pnpm --dir ../api start',
       url: `http://127.0.0.1:${port}/api/v1/health`,
       env: { ...apiE2eEnv, PORT: String(port) },
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 120_000,
     })),
     {
@@ -41,7 +41,7 @@ export default defineConfig({
         NODE_ENV: 'production',
         PORT: '3100',
       },
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 120_000,
     },
   ],

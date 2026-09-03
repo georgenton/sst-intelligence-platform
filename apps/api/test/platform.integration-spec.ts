@@ -61,6 +61,49 @@ describe('critical platform integration', () => {
     await app.close();
   });
 
+  it('enforces the real login bucket and allows requests in a fresh application instance', async () => {
+    const credentials = {
+      email: `rate-limit-${suffix}@example.test`,
+      displayName: 'Rate Limit Regression',
+      password: 'rate-limit-regression-password-123',
+    };
+    // Each instance constructs the real AppModule, global guard and in-memory storage.
+    // No provider overrides, synthetic IPs, clock changes or storage resets.
+    for (const instance of [1, 2]) {
+      const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
+      const isolatedApp = module.createNestApplication();
+      isolatedApp.setGlobalPrefix('api/v1');
+      isolatedApp.use(cookieParser());
+      await isolatedApp.init();
+      try {
+        if (instance === 1) {
+          await request(isolatedApp.getHttpServer())
+            .post('/api/v1/auth/register')
+            .send(credentials)
+            .expect(201);
+        }
+        for (let hit = 1; hit <= 5; hit += 1) {
+          await request(isolatedApp.getHttpServer())
+            .post('/api/v1/auth/login')
+            .send(credentials)
+            .expect(201)
+            .expect('X-RateLimit-Limit', '5')
+            .expect('X-RateLimit-Remaining', String(5 - hit));
+        }
+        await request(isolatedApp.getHttpServer())
+          .post('/api/v1/auth/login')
+          .send(credentials)
+          .expect(429)
+          .expect(({ headers }) => {
+            expect(Number(headers['retry-after'])).toBeGreaterThan(0);
+            expect(Number(headers['retry-after'])).toBeLessThanOrEqual(60);
+          });
+      } finally {
+        await isolatedApp.close();
+      }
+    }
+  });
+
   it('recovers an expired access token with the real rotating refresh family', async () => {
     const email = `auth-liveness-${suffix}@example.test`;
     const registration = await request(app.getHttpServer())

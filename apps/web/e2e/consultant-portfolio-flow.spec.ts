@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createE2eOrganization, parseRegistration } from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
+import { navigateToReadyPortfolio } from './support/portfolio-readiness';
 
 async function applyPortfolioSearch(page: Page, search: string) {
   const portfolioResponse = page.waitForResponse(
@@ -176,6 +177,18 @@ test('portafolio aísla tenants y entitlements, explica fuentes y ancla la escri
     await expect(page.getByText('Procesamiento local controlado · sin IA externa')).toBeVisible();
   });
 
+  await test.step('active organization B survives hard reload exactly', async () => {
+    await page.getByLabel('Organización activa').selectOption(orgB.organization.id);
+    await expect(page.getByLabel('Organización activa')).toHaveValue(orgB.organization.id);
+    await expect(page.locator('#main-content')).toHaveAttribute('aria-busy', 'false');
+    await navigateToReadyPortfolio(page, () => page.reload(), {
+      userId: consultant.user.id,
+      activeId: orgB.organization.id,
+      organizationIds: [orgA.organization.id, orgB.organization.id],
+      phase: 'active-B-hard-reload',
+    });
+  });
+
   await test.step('live per-organization role change', async () => {
     const consultantHeaders = {
       authorization: `Bearer ${consultant.accessToken}`,
@@ -261,7 +274,7 @@ test('portafolio aísla tenants y entitlements, explica fuentes y ancla la escri
   await test.step('deep-link context switch', async () => {
     await page.locator('.portfolio-citations button').first().click();
     await expect(page).toHaveURL(/\/app\/intelligence\?signal=/);
-    await expect(page.getByLabel('Organización activa')).toContainText(orgA.organization.name);
+    await expect(page.getByLabel('Organización activa')).toHaveValue(orgA.organization.id);
     await page.goBack();
     await expect(page).toHaveURL(/\/app\/portfolio$/);
     await expect(page.getByRole('heading', { name: 'Portafolio operativo' })).toBeVisible();
@@ -277,11 +290,18 @@ test('portafolio aísla tenants y entitlements, explica fuentes y ancla la escri
     await expect(page.getByText(/La acción no se ha creado/)).toBeVisible();
     await page.getByRole('button', { name: 'Establecer contexto y continuar' }).click();
     await expect(page).toHaveURL('/app/assistant');
-    await expect(page.getByLabel('Organización activa')).toContainText(orgA.organization.name);
+    await expect(page.getByLabel('Organización activa')).toHaveValue(orgA.organization.id);
   });
 
   await test.step('responsive portfolio', async () => {
-    await page.goto('/app/portfolio');
+    // A document's load event is not auth/OrganizationContext/query readiness.
+    // Establish the real session before the later revocation + reload scenario.
+    await navigateToReadyPortfolio(page, () => page.goto('/app/portfolio'), {
+      userId: consultant.user.id,
+      activeId: orgA.organization.id,
+      organizationIds: [orgA.organization.id, orgB.organization.id],
+      phase: 'before-revocation',
+    });
     for (const width of [320, 640]) {
       await page.setViewportSize({ width, height: 900 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
@@ -331,6 +351,7 @@ test('portafolio aísla tenants y entitlements, explica fuentes y ancla la escri
       true,
     );
 
+    await expect(page.getByLabel('Organización activa')).toHaveValue(orgA.organization.id);
     const deactivation = await request.post(
       `http://127.0.0.1:3101/api/v1/organizations/${orgA.organization.id}/members/${consultantMembership!.id}/deactivate`,
       { headers: orgA.headers },
@@ -357,14 +378,18 @@ test('portafolio aísla tenants y entitlements, explica fuentes y ancla la escri
     );
     expect(deniedConfirmation.status()).toBe(403);
 
-    await page.reload();
-    await expect(page).toHaveURL(/\/app\/portfolio$/);
+    await navigateToReadyPortfolio(page, () => page.reload(), {
+      userId: consultant.user.id,
+      activeId: orgB.organization.id,
+      organizationIds: [orgB.organization.id],
+      phase: 'revoked-A-hard-reload',
+    });
     await page.getByRole('button', { name: 'Organizaciones' }).click();
     await expect(page.getByText(orgA.organization.name)).toHaveCount(0);
     await expect(
       page.locator('.portfolio-organization-card').filter({ hasText: orgB.organization.name }),
     ).toBeVisible();
-    await expect(page.getByLabel('Organización activa')).toContainText(orgB.organization.name);
+    await expect(page.getByLabel('Organización activa')).toHaveValue(orgB.organization.id);
   });
 
   expect(owner.user.id).not.toBe(consultant.user.id);
