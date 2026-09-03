@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -235,10 +236,87 @@ describe('consultant portfolio integration', () => {
       organizationAnchor: { required: true, organizationId: orgA, deepLink: '/app/assistant' },
     });
 
-    await prisma.membership.update({
+    const consultantMembership = await prisma.membership.findUniqueOrThrow({
       where: { userId_organizationId: { userId: consultant.userId, organizationId: orgA } },
-      data: { status: 'SUSPENDED' },
     });
+    const organizationRequest = (token: string, method: 'get' | 'post' | 'patch', path: string) => {
+      const client = request(app.getHttpServer());
+      const operation =
+        method === 'get'
+          ? client.get(`/api/v1${path}`)
+          : method === 'patch'
+            ? client.patch(`/api/v1${path}`)
+            : client.post(`/api/v1${path}`);
+      return operation.set('Authorization', `Bearer ${token}`).set('x-organization-id', orgA);
+    };
+
+    await organizationRequest(
+      owner.token,
+      'patch',
+      `/organizations/${orgA}/members/${consultantMembership.id}/role`,
+    )
+      .send({ role: 'ORG_ADMIN' })
+      .expect(200);
+    await portfolio(consultant.token)
+      .get(`/organizations/${orgA}`)
+      .expect(200)
+      .expect(({ body }) => expect(body.organizations[0].currentRole).toBe('ORG_ADMIN'));
+    await organizationRequest(consultant.token, 'patch', `/organizations/${orgA}`)
+      .send({ sector: 'Rol vigente verificado' })
+      .expect(200);
+
+    await organizationRequest(
+      owner.token,
+      'patch',
+      `/organizations/${orgA}/members/${consultantMembership.id}/role`,
+    )
+      .send({ role: 'CONSULTANT' })
+      .expect(200);
+    await portfolio(consultant.token)
+      .get(`/organizations/${orgA}`)
+      .expect(200)
+      .expect(({ body }) => expect(body.organizations[0].currentRole).toBe('CONSULTANT'));
+    await organizationRequest(consultant.token, 'patch', `/organizations/${orgA}`)
+      .send({ sector: 'No debe cambiar después de degradación' })
+      .expect(403)
+      .expect(({ body }) => expect(body.code).toBe('ROLE_REQUIRED'));
+
+    const thread = await organizationRequest(consultant.token, 'post', '/conversations')
+      .send({ title: 'Revocación de portafolio', contextType: 'GLOBAL' })
+      .expect(201);
+    const proposal = await organizationRequest(
+      consultant.token,
+      'post',
+      `/conversations/${thread.body.id as string}/actions`,
+    )
+      .send({
+        actionKey: 'create_inspection',
+        idempotencyKey: `portfolio-revocation-${suffix}`,
+        input: {
+          workCenterId: centerA.id,
+          riskMethodVersionId: randomUUID(),
+          inspectionDomain: 'ELECTRICAL',
+          title: `No ejecutar después de revocación ${suffix}`,
+        },
+      })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.status).toBe('AWAITING_CONFIRMATION');
+        expect(body.confirmationState).toBe('PENDING');
+      });
+
+    await organizationRequest(
+      owner.token,
+      'post',
+      `/organizations/${orgA}/members/${consultantMembership.id}/deactivate`,
+    ).expect(201);
+    await organizationRequest(
+      consultant.token,
+      'post',
+      `/conversations/action-runs/${proposal.body.id as string}/confirm`,
+    )
+      .send({})
+      .expect(403);
     const afterSuspension = await portfolio(consultant.token).get().expect(200);
     expect(afterSuspension.body.summary.authorizedOrganizations).toBe(1);
     expect(afterSuspension.body.organizations[0]).toMatchObject({

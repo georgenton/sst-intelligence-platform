@@ -1,5 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 
+async function navigateFromPrimaryNavigation(page: Page, name: string, pathname: string) {
+  const navigation = page.getByRole('navigation', { name: 'Navegación principal' });
+  const link = navigation.getByRole('link', { name, exact: true });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute('href', pathname);
+  await Promise.all([page.waitForURL((url) => url.pathname === pathname), link.click()]);
+}
+
 async function createDemoOrganization(page: Page, suffix: number, organizationName: string) {
   await page.goto('/diagnostico');
   await page.getByRole('button', { name: 'Comenzar' }).click();
@@ -59,24 +67,27 @@ test('authenticated shell navigation, command center and isolated organization s
   ).toBeVisible();
   await expect(page.getByText('Sintético', { exact: true }).first()).toBeVisible();
   await expect(page.locator('#main-content')).not.toContainText(/inválid|fuera del plan|excede/i);
-  await page.getByRole('link', { name: 'Inicio', exact: true }).click();
+  await navigateFromPrimaryNavigation(page, 'Inicio', '/app');
   await expect(page.getByRole('heading', { name: 'Centro de comando' })).toBeVisible();
 
-  await page.getByRole('link', { name: 'Inspecciones', exact: true }).click();
+  await navigateFromPrimaryNavigation(page, 'Inspecciones', '/app/inspections');
   await expect(page).toHaveURL(/\/app\/inspections$/);
   await expect(page.getByRole('link', { name: 'Inspecciones', exact: true })).toHaveAttribute(
     'aria-current',
     'page',
   );
+  await navigateFromPrimaryNavigation(page, 'Inicio', '/app');
+  await navigateFromPrimaryNavigation(page, 'Cola de trabajo', '/app/work');
+  await expect(page.getByRole('heading', { name: 'Cola de trabajo' })).toBeVisible();
 
-  await page.getByRole('link', { name: 'Riesgo técnico', exact: true }).click();
+  await navigateFromPrimaryNavigation(page, 'Riesgo técnico', '/app/technical-risk');
   await expect(page).toHaveURL(/\/app\/technical-risk$/);
   await expect(page.getByRole('link', { name: 'Riesgo técnico', exact: true })).toHaveAttribute(
     'aria-current',
     'page',
   );
 
-  await page.getByRole('link', { name: 'Inicio', exact: true }).click();
+  await navigateFromPrimaryNavigation(page, 'Inicio', '/app');
   await expect(page.getByRole('heading', { name: 'Centro de comando' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Organizaciones', exact: true }).click();
