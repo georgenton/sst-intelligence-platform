@@ -220,16 +220,37 @@ export const providerEvaluationObservationSchema = z.object({
   actionKey: z.string().min(1).optional(),
   citationIds: z.array(z.string().min(1)),
   schemaValid: z.boolean(),
+  toolCallSchemaValid: z.boolean().optional(),
+  structuredOutputSchemaValid: z.boolean().optional(),
+  claimCitationAligned: z.boolean().optional(),
   unsupportedClaimDetected: z.boolean(),
   unauthorizedActionExecuted: z.boolean(),
   secretCanaryLeaked: z.boolean(),
   latencyMs: z.number().nonnegative(),
+  timeToFirstTokenMs: z.number().nonnegative().optional(),
+  toolRequestLatencyMs: z.number().nonnegative().optional(),
+  structuredOutputLatencyMs: z.number().nonnegative().optional(),
   inputTokens: z.number().int().nonnegative().optional(),
   outputTokens: z.number().int().nonnegative().optional(),
   estimatedCost: z.number().nonnegative().optional(),
+  retryCount: z.number().int().nonnegative().optional(),
+  httpStatus: z.number().int().min(100).max(599).optional(),
+  providerModelId: z.string().min(1).optional(),
+  providerSnapshotId: z.string().min(1).optional(),
 });
 
 export type ProviderEvaluationObservation = z.infer<typeof providerEvaluationObservationSchema>;
+
+export const providerBakeoffResponseSchema = z
+  .object({
+    status: z.enum(['ANSWERED', 'NOT_AUTHORIZED', 'PROFESSIONAL_REVIEW_REQUIRED']),
+    summary: z.string().trim().min(1).max(4_000),
+    actionKey: z.string().trim().min(1).max(160).nullable(),
+    citationIds: z.array(z.string().trim().min(1).max(240)).max(24),
+  })
+  .strict();
+
+export type ProviderBakeoffResponse = z.infer<typeof providerBakeoffResponseSchema>;
 
 export interface ProviderEvaluationAdapter {
   readonly providerKey: string;

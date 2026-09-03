@@ -22,6 +22,8 @@
     "regulatory:review-corpus": "pnpm --filter @sst/regulatory-pilot-validator review-corpus",
     "regulatory:verify-official-source": "pnpm --filter @sst/regulatory-pilot-validator verify-source --",
     "regulatory:import-pilot": "dotenv -- pnpm --filter @sst/api regulatory:import-pilot",
+    "llm:bakeoff:dry-run": "dotenv -- pnpm --filter @sst/llm-bakeoff dry-run",
+    "llm:bakeoff:execute": "dotenv -- pnpm --filter @sst/llm-bakeoff execute",
     "test:integration": "dotenv -- pnpm --filter @sst/api test:integration",
     "test:e2e": "dotenv -- pnpm --filter @sst/web test:e2e",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm validate:sst-scenarios && pnpm validate:adaptive-sst && pnpm validate:regulatory-pilot && pnpm regulatory:review-corpus && pnpm build",

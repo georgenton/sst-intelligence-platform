@@ -1,0 +1,25 @@
+{
+  "name": "@sst/llm-bakeoff",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src --max-warnings=0",
+    "lint:fix": "eslint src --fix",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "dry-run": "pnpm build && node dist/cli.js",
+    "execute": "pnpm build && node dist/cli.js --execute"
+  },
+  "dependencies": {
+    "@sst/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@sst/typescript-config": "workspace:*",
+    "@types/node": "24.10.13",
+    "vitest": "4.1.0"
+  }
+}
