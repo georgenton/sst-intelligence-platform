@@ -4,12 +4,15 @@ import { AccessTokenGuard } from '../auth/access-token.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { ApiRequest, AuthenticatedUser } from '../common/request-context';
 import { requestMetadata } from '../common/request-context';
-import { OrganizationContext } from '../organizations/organization-context.decorator';
+import { OrganizationContext, Roles } from '../organizations/organization-context.decorator';
 import { OrganizationGuard } from '../organizations/organization.guard';
+import { RolesGuard } from '../organizations/roles.guard';
 import { ConversationalActionRegistryService } from './conversational-action-registry.service';
 import { ConversationalOperationsService } from './conversational-operations.service';
 import {
   CreateConversationThreadDto,
+  ConversationFeedbackDto,
+  ConversationProviderControlDto,
   RunConversationActionDto,
   SendConversationMessageDto,
 } from './dto';
@@ -44,8 +47,45 @@ export class ConversationalOperationsController {
   }
 
   @Get('provider-status')
-  providerStatus() {
-    return this.conversations.status();
+  providerStatus(
+    @OrganizationContext() organization: OrganizationActor,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.conversations.status(organization.id, user.id);
+  }
+
+  @Post('provider-control')
+  @Roles('ORG_OWNER', 'ORG_ADMIN')
+  @UseGuards(RolesGuard)
+  providerControl(
+    @OrganizationContext() organization: OrganizationActor,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: ConversationProviderControlDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.conversations.setProviderControl(
+      organization.id,
+      user.id,
+      body,
+      requestMetadata(request),
+    );
+  }
+
+  @Post('messages/:messageId/feedback')
+  feedback(
+    @OrganizationContext() organization: OrganizationActor,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('messageId') messageId: string,
+    @Body() body: ConversationFeedbackDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.conversations.feedback(
+      organization.id,
+      user.id,
+      messageId,
+      body,
+      requestMetadata(request),
+    );
   }
 
   @Post()

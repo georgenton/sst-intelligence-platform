@@ -2,6 +2,18 @@
   container-type: inline-size;
 }
 
+.conversation-staging-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border-inline-start: 5px solid var(--warning);
+}
+
+.conversation-staging-banner p {
+  margin: var(--space-1) 0 0;
+}
+
 .conversation-layout {
   display: grid;
   min-width: 0;
@@ -201,13 +213,34 @@
 }
 
 .conversation-citations,
-.conversation-attachments {
+.conversation-attachments,
+.conversation-feedback {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-3);
   font-size: var(--text-caption);
+}
+
+.conversation-feedback select {
+  min-height: 34px;
+  padding-inline: var(--space-2);
+  border: 1px solid var(--border-interactive);
+  border-radius: var(--radius-control);
+  color: var(--text-primary);
+  background: var(--surface-card);
+}
+
+.conversation-feedback .button {
+  min-height: 34px;
+  padding-block: 5px;
+}
+
+.conversation-review-note {
+  display: block;
+  margin-top: var(--space-2);
+  color: var(--text-secondary);
 }
 
 .conversation-citation,
@@ -435,6 +468,11 @@ a.conversation-citation:hover {
   }
 
   .conversation-card-heading {
+    flex-direction: column;
+  }
+
+  .conversation-staging-banner {
+    align-items: stretch;
     flex-direction: column;
   }
 }

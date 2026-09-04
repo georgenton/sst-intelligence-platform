@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   HttpException,
   Inject,
   Injectable,
@@ -10,16 +11,23 @@ import { Prisma } from '@prisma/client';
 import {
   adaptiveContentHash,
   conversationActionRequestSchema,
+  conversationFeedbackInputSchema,
   conversationMessageInputSchema,
+  conversationProviderControlInputSchema,
   conversationThreadInputSchema,
   isConversationalWriteAction,
   type ConversationContextType,
+  type ConversationProviderUseCase,
 } from '@sst/contracts';
 import { AuditService } from '../audit/audit.service';
+import { EntitlementService } from '../catalog/entitlement.service';
+import { INSPECTION_WRITE_ROLES } from '../inspections/inspection-policy';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CONVERSATIONAL_ASSISTANT_PROVIDER,
   type ConversationalAssistantProvider,
+  type ConversationalProviderInput,
+  type ConversationalProviderResponse,
 } from './conversational-assistant.provider';
 import {
   ConversationalActionRegistryService,
@@ -29,7 +37,10 @@ import {
   GenerativeProviderContextBuilder,
   GenerativeProviderResponseGuard,
 } from './generative-provider-boundaries';
+import { ConversationalProviderControlService } from './conversational-provider-control.service';
 import type {
+  ConversationFeedbackDto,
+  ConversationProviderControlDto,
   CreateConversationThreadDto,
   RunConversationActionDto,
   SendConversationMessageDto,
@@ -56,6 +67,8 @@ export class ConversationalOperationsService {
     private readonly prisma: PrismaService,
     private readonly registry: ConversationalActionRegistryService,
     private readonly auditLog: AuditService,
+    private readonly entitlements: EntitlementService,
+    private readonly providerControl: ConversationalProviderControlService,
     private readonly providerContext: GenerativeProviderContextBuilder,
     private readonly providerGuard: GenerativeProviderResponseGuard,
     @Inject(CONVERSATIONAL_ASSISTANT_PROVIDER)
@@ -103,21 +116,30 @@ export class ConversationalOperationsService {
       include: threadInclude,
     });
     if (!thread) throw new NotFoundException('Conversación no encontrada.');
+    const providerState = await this.status(organizationId, userId);
     return {
       ...thread,
-      provider: this.provider.descriptor.providerKey,
-      providerState: this.status(),
+      provider: providerState.providerKey,
+      providerState,
     };
   }
 
-  status() {
+  async status(organizationId: string, userId: string) {
+    if (this.provider.status) return this.provider.status({ organizationId, userId });
     return {
       ...this.provider.descriptor,
       label:
         this.provider.descriptor.mode === 'DETERMINISTIC_LOCAL'
           ? 'Procesamiento local controlado · sin IA externa'
           : 'Proveedor generativo configurado por el servidor',
-      providerSelection: 'PENDING_EXTERNAL_PRODUCT_DECISION',
+      providerSelection: 'DETERMINISTIC_ENVIRONMENT_POLICY' as const,
+      configuredProvider: 'DETERMINISTIC_LOCAL_V1' as const,
+      requestedModel: null,
+      externalEligible: false,
+      externalEnabled: false,
+      killSwitchAvailable: false,
+      reviewRequired: true,
+      dataScope: 'LOW_ONLY' as const,
     };
   }
 
@@ -141,13 +163,35 @@ export class ConversationalOperationsService {
       },
     });
     await this.touch(threadId);
+    const authorization = await this.requireCurrentProviderAuthorization(organization.id, userId);
+    const citations = await this.authorizedCitations(organization.id, userId, threadId);
+    const tools = await this.providerTools(
+      organization.id,
+      authorization.role,
+      thread,
+      parsed.data.providerUseCase,
+      parsed.data.providerActionContext,
+      authorization.activeEntitlementKeys,
+    );
+    const externalRequest = this.externalRequest(
+      parsed.data.providerUseCase,
+      thread.contextType as ConversationContextType | null,
+    );
     const providerInput = this.providerContext.build({
       userIntent: parsed.data.content,
+      requestContext: {
+        organizationId: organization.id,
+        userId,
+        currentRole: authorization.role,
+        activeEntitlementKeys: authorization.activeEntitlementKeys,
+      },
       context: {
         type: (thread.contextType as ConversationContextType | null) ?? null,
         id: thread.contextId,
       },
-      actionKeys: this.registry.keys(),
+      citations,
+      tools,
+      externalRequest,
     });
     let providerResponse;
     try {
@@ -164,8 +208,9 @@ export class ConversationalOperationsService {
         {
           capability: providerResponse.capability,
           requestedAction: providerResponse.requestedAction?.actionKey ?? null,
-          citationValidation: 'PASS',
+          citationValidation: providerResponse.execution?.citationValidation ?? 'PASS',
           citationCount: providerResponse.citationIds.length,
+          ...this.safeProviderExecution(providerResponse),
         },
         audit,
       );
@@ -184,8 +229,14 @@ export class ConversationalOperationsService {
       throw error;
     }
     if (providerResponse.requestedAction) {
+      const assistantMessage = await this.createProviderMessage(
+        organization.id,
+        threadId,
+        providerResponse,
+        providerInput,
+      );
       const action = await this.runAction(
-        organization,
+        { id: organization.id, role: authorization.role },
         userId,
         threadId,
         {
@@ -194,26 +245,234 @@ export class ConversationalOperationsService {
         },
         audit,
       );
-      return { userMessage, providerReply: providerResponse.reply, action };
+      return { userMessage, assistantMessage, action };
     }
-    const assistantMessage = await this.prisma.conversationMessage.create({
+    const assistantMessage = await this.createProviderMessage(
+      organization.id,
+      threadId,
+      providerResponse,
+      providerInput,
+    );
+    await this.touch(threadId);
+    return { userMessage, assistantMessage };
+  }
+
+  async feedback(
+    organizationId: string,
+    userId: string,
+    messageId: string,
+    rawInput: ConversationFeedbackDto,
+    request: AuditContext,
+  ) {
+    const parsed = conversationFeedbackInputSchema.safeParse(rawInput);
+    if (!parsed.success) throw this.invalid(parsed.error.issues[0]?.message);
+    const message = await this.prisma.conversationMessage.findFirst({
+      where: {
+        id: messageId,
+        organizationId,
+        role: 'ASSISTANT',
+        thread: { userId },
+      },
+      select: { structuredData: true },
+    });
+    const structured = this.record(message?.structuredData);
+    if (!message || structured?.externalProcessing !== true) {
+      throw new BadRequestException({
+        code: 'STAGING_FEEDBACK_NOT_AVAILABLE',
+        message: 'El feedback está disponible solo para respuestas generativas del piloto.',
+      });
+    }
+    await this.auditLog.record({
+      organizationId,
+      actorUserId: userId,
+      action: 'CONVERSATIONAL_STAGING_FEEDBACK',
+      entityType: 'ConversationMessage',
+      entityId: messageId,
+      metadata: this.json({
+        useful: parsed.data.useful,
+        reason: parsed.data.reason ?? null,
+        provider: structured.provider,
+        providerConfig: structured.providerConfig,
+      }),
+      ...request,
+    });
+    return { recorded: true };
+  }
+
+  async setProviderControl(
+    organizationId: string,
+    userId: string,
+    rawInput: ConversationProviderControlDto,
+    request: AuditContext,
+  ) {
+    const parsed = conversationProviderControlInputSchema.safeParse(rawInput);
+    if (!parsed.success) throw this.invalid(parsed.error.issues[0]?.message);
+    return this.providerControl.setExternalEnabled(
+      organizationId,
+      userId,
+      parsed.data.externalEnabled,
+      request,
+    );
+  }
+
+  private async requireCurrentProviderAuthorization(organizationId: string, userId: string) {
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        organizationId,
+        userId,
+        status: 'ACTIVE',
+        organization: { status: { in: ['ACTIVE', 'DEMO'] } },
+      },
+      select: { role: true },
+    });
+    if (!membership) throw new ForbiddenException('No tienes acceso a esta organización.');
+    const entitlements = await this.entitlements.effective(organizationId);
+    return {
+      role: membership.role,
+      activeEntitlementKeys: Object.entries(entitlements.features)
+        .filter(([, value]) => value === true)
+        .map(([key]) => key)
+        .sort(),
+    };
+  }
+
+  private async authorizedCitations(organizationId: string, userId: string, threadId: string) {
+    const rows = await this.prisma.conversationCitation.findMany({
+      where: {
+        organizationId,
+        message: { threadId, thread: { userId } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 24,
+      select: { referenceId: true, type: true, label: true },
+    });
+    const seen = new Set<string>();
+    return rows
+      .filter(({ referenceId }) => {
+        if (seen.has(referenceId)) return false;
+        seen.add(referenceId);
+        return true;
+      })
+      .map(({ referenceId, ...citation }) => ({ id: referenceId, ...citation }));
+  }
+
+  private async providerTools(
+    organizationId: string,
+    role: string,
+    thread: { contextType: string | null; contextId: string | null },
+    useCase: ConversationProviderUseCase | undefined,
+    actionContext:
+      { actionKey: 'create_action'; inspectionId: string; findingId: string } | undefined,
+    activeEntitlementKeys: readonly string[],
+  ): Promise<ConversationalProviderInput['actionRegistry']['tools']> {
+    if (!useCase) {
+      return [{ actionKey: 'get_my_work_queue', input: {} }];
+    }
+    if (useCase === 'WORK_QUEUE_EXPLANATION') {
+      return [{ actionKey: 'get_my_work_queue', input: {} }];
+    }
+    if (useCase === 'CURRENT_CONTEXT_EXPLANATION' && thread.contextId) {
+      if (thread.contextType === 'WORK_ITEM') {
+        return [{ actionKey: 'explain_work_item', input: { sourceId: thread.contextId } }];
+      }
+      if (
+        thread.contextType === 'INSPECTION' &&
+        activeEntitlementKeys.includes('module.inspections')
+      ) {
+        return [{ actionKey: 'get_inspection_context', input: { inspectionId: thread.contextId } }];
+      }
+      if (thread.contextType === 'OBLIGATION') {
+        return [{ actionKey: 'get_obligation_context', input: { obligationId: thread.contextId } }];
+      }
+    }
+    if (useCase === 'ACTION_PROPOSAL' && actionContext) {
+      if (
+        !activeEntitlementKeys.includes('module.inspections') ||
+        !(INSPECTION_WRITE_ROLES as readonly string[]).includes(role)
+      ) {
+        return [];
+      }
+      const finding = await this.prisma.inspectionFinding.findFirst({
+        where: {
+          id: actionContext.findingId,
+          organizationId,
+          inspectionId: actionContext.inspectionId,
+        },
+        select: { id: true },
+      });
+      if (!finding)
+        throw new NotFoundException('Hallazgo no encontrado en la organización activa.');
+      return [
+        {
+          actionKey: 'create_action',
+          input: {
+            inspectionId: actionContext.inspectionId,
+            findingId: actionContext.findingId,
+            title: 'Revisar y tratar la condición identificada',
+            priority: 'MEDIUM',
+          },
+        },
+      ];
+    }
+    return [];
+  }
+
+  private externalRequest(
+    useCase: ConversationProviderUseCase | undefined,
+    contextType: ConversationContextType | null,
+  ) {
+    if (!useCase) return undefined;
+    if (
+      contextType &&
+      ['WORKER', 'INCIDENT', 'PPE', 'TRAINING', 'WORK_PERMIT'].includes(contextType)
+    ) {
+      return undefined;
+    }
+    const canonicalPrompts: Record<ConversationProviderUseCase, string> = {
+      WORK_QUEUE_EXPLANATION:
+        'Consulta la cola autorizada y prepara una explicación operacional breve.',
+      CURRENT_CONTEXT_EXPLANATION:
+        'Consulta el registro anclado por el servidor y explica únicamente su estado factual.',
+      CITATION_SUMMARY:
+        'Resume las fuentes opacas disponibles sin agregar hechos, autoridad ni aplicabilidad.',
+      OPERATIONAL_DRAFT:
+        'Prepara un borrador operativo breve, no canónico y sujeto a revisión humana.',
+      ACTION_PROPOSAL:
+        'Prepara la acción exacta anclada por el servidor; no la ejecutes ni alteres sus datos.',
+    };
+    return { useCase, canonicalPrompt: canonicalPrompts[useCase] };
+  }
+
+  private createProviderMessage(
+    organizationId: string,
+    threadId: string,
+    response: ConversationalProviderResponse,
+    input: ConversationalProviderInput,
+  ) {
+    const execution = response.execution;
+    const citationIds = response.citationIds ?? [];
+    return this.prisma.conversationMessage.create({
       data: {
-        organizationId: organization.id,
+        organizationId,
         threadId,
         role: 'ASSISTANT',
-        content: providerResponse.reply,
-        structuredData: {
-          provider: this.provider.descriptor.providerKey,
-          providerConfig: this.provider.descriptor.configIdentifier,
-          capability: providerResponse.capability,
-          boundary: 'NO_EXTERNAL_PROVIDER_NO_ARBITRARY_TOOL_INVOCATION',
-        },
-        citations: providerResponse.citationIds.length
+        content: response.reply,
+        structuredData: this.json({
+          provider: execution?.providerKey ?? this.provider.descriptor.providerKey,
+          providerConfig: execution?.configIdentifier ?? this.provider.descriptor.configIdentifier,
+          externalProcessing: execution?.externalProcessing ?? false,
+          fallbackUsed: execution?.fallbackUsed ?? false,
+          capability: response.capability,
+          outcome: response.outcome ?? 'ANSWERED',
+          reviewRequired: true,
+          boundary: 'SERVER_AUTHORIZED_CONTEXT_AND_CONFIRMATION_REQUIRED',
+        }),
+        citations: citationIds.length
           ? {
-              create: providerResponse.citationIds.map((citationId) => {
-                const citation = providerInput.citations.find(({ id }) => id === citationId)!;
+              create: citationIds.map((citationId) => {
+                const citation = input.citations.find(({ id }) => id === citationId)!;
                 return {
-                  organizationId: organization.id,
+                  organizationId,
                   type: citation.type,
                   referenceId: citation.id,
                   label: citation.label,
@@ -222,9 +481,37 @@ export class ConversationalOperationsService {
             }
           : undefined,
       },
+      include: {
+        citations: { orderBy: { createdAt: 'asc' } },
+        attachments: { orderBy: { createdAt: 'asc' } },
+      },
     });
-    await this.touch(threadId);
-    return { userMessage, assistantMessage };
+  }
+
+  private safeProviderExecution(response: ConversationalProviderResponse) {
+    const execution = response.execution;
+    if (!execution) return {};
+    return {
+      providerKey: execution.providerKey,
+      configIdentifier: execution.configIdentifier,
+      externalProcessing: execution.externalProcessing,
+      requestedModel: execution.requestedModel,
+      returnedModel: execution.returnedModel,
+      requestPolicyVersion: execution.requestPolicyVersion,
+      latencyMs: execution.latencyMs,
+      inputTokens: execution.inputTokens,
+      outputTokens: execution.outputTokens,
+      estimatedCostUsd: execution.estimatedCostUsd,
+      toolRequests: execution.toolRequests,
+      errorClass: execution.errorClass,
+      fallbackUsed: execution.fallbackUsed,
+    };
+  }
+
+  private record(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
   }
 
   async runAction(

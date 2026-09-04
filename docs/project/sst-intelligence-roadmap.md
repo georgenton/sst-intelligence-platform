@@ -130,14 +130,14 @@ Only after sufficient operational data exists. Allowed: search, summarization, d
 grouping, suggestions and report preparation. Forbidden: scoring, legal decisions, root cause,
 medical diagnosis and rule publication.
 
-The provider-security preparation boundary is production closed, but no external provider has been
-selected or integrated. `DETERMINISTIC_LOCAL_V1` remains the production provider while the external
-product/privacy decision is pending.
+The provider-security preparation boundary is production closed. OpenAI/`gpt-5.6-terra` is selected
+only for a controlled LOW-data staging cohort behind the existing provider boundary.
+`DETERMINISTIC_LOCAL_V1` remains the production provider; DPA, retention, Ecuador transfer,
+subprocessor and account-security gates remain pending before any production expansion.
 
 AI Copilot Productization V1 and the provider-neutral V1 evaluation harness are production closed
 through PR36/37/38. The harness preserves 12 golden and 8 security cases with a validated adapter
-contract. Provider selection remains a separate external product, privacy, legal, security
-and commercial decision; completing the harness does not authorize integration.
+contract. It authorized this narrow staging candidate, not production or HIGH-data use.
 
 ## Sequencing guardrails
 

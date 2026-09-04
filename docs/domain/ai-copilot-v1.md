@@ -1,9 +1,11 @@
 # AI Copilot V1 productization
 
 Status: provider-neutral productization and deterministic portfolio workflow **PRODUCTION CLOSED**
-through PR36/37/38 on 2026-09-03. External provider decision remains pending. See the
+through PR36/37/38 on 2026-09-03. OpenAI/`gpt-5.6-terra` is now selected only for the controlled
+LOW-data staging integration candidate; production remains deterministic. See the
 [release evidence](../testing/e2e-runtime.md#cierre-productivo-pr363738--2026-09-03) and
-[provider evaluation boundary](../architecture/llm-provider-evaluation-v1.md).
+[provider evaluation boundary](../architecture/llm-provider-evaluation-v1.md), plus the
+[controlled staging boundary](../architecture/openai-controlled-staging-v1.md).
 
 ## Product capabilities
 
@@ -42,5 +44,6 @@ Conversational Operations surface. Multi-organization material mutation is rejec
 authorized factual context and returns supporting citation IDs plus coverage/uncertainty metadata.
 Search is provider-neutral, bounded and deterministic; no vector database is part of V1.
 
-The current backend provider remains `DETERMINISTIC_LOCAL_V1` and reports controlled local
-processing with no external processing.
+The portfolio response engine remains deterministic in production. The shared provider token can
+route only explicitly selected, minimized requests from the controlled staging cohort to OpenAI;
+the current authorized organization set remains server-created and cannot be expanded by a model.

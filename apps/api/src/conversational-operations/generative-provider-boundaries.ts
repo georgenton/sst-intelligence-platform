@@ -3,7 +3,9 @@ import type {
   ConversationActionKey,
   ConversationCitationType,
   ConversationContextType,
+  ConversationProviderUseCase,
 } from '@sst/contracts';
+import { adaptiveContentHash } from '@sst/contracts';
 import type {
   ConversationalAssistantProvider,
   ConversationalProviderInput,
@@ -14,24 +16,50 @@ import type {
 export class GenerativeProviderContextBuilder {
   build(input: {
     userIntent: string;
+    requestContext: ConversationalProviderInput['requestContext'];
     context: { type: ConversationContextType | null; id: string | null };
     citations?: Array<{ id: string; type: ConversationCitationType; label: string }>;
-    actionKeys: readonly ConversationActionKey[];
+    externalRequest?: {
+      useCase: ConversationProviderUseCase;
+      canonicalPrompt: string;
+    };
+    tools?: ReadonlyArray<{
+      actionKey: ConversationActionKey;
+      input: Readonly<Record<string, unknown>>;
+    }>;
   }): ConversationalProviderInput {
     const citations = input.citations ?? [];
+    const tools = input.tools ?? [];
     if (new Set(citations.map(({ id }) => id)).size !== citations.length) {
       throw new BadRequestException('El contexto contiene identificadores de cita duplicados.');
     }
+    if (new Set(tools.map(({ actionKey }) => actionKey)).size !== tools.length) {
+      throw new BadRequestException('El contexto contiene herramientas duplicadas.');
+    }
     return {
       userIntent: input.userIntent,
+      requestContext: input.requestContext,
       authorizedContext: {
         scope: 'ACTIVE_ORGANIZATION',
         contextType: input.context.type,
         contextReferenceAvailable: Boolean(input.context.id),
         dataMinimization: 'REQUIRED_FIELDS_ONLY',
       },
+      externalRequest: input.externalRequest
+        ? {
+            ...input.externalRequest,
+            sensitivity: 'LOW',
+            explicitUserSelection: true,
+          }
+        : null,
       citations,
-      actionRegistry: { actions: [...input.actionKeys] },
+      actionRegistry: {
+        actions: tools.map(({ actionKey }) => actionKey),
+        tools: tools.map(({ actionKey, input: toolInput }) => ({
+          actionKey,
+          input: { ...toolInput },
+        })),
+      },
       securityBoundary: {
         userContentUntrusted: true,
         sourceContentUntrusted: true,
@@ -65,6 +93,19 @@ export class GenerativeProviderResponseGuard {
       throw new BadRequestException(
         'El proveedor solicitó una acción fuera del registro autorizado.',
       );
+    }
+    if (response.requestedAction) {
+      const tool = input.actionRegistry.tools.find(
+        ({ actionKey }) => actionKey === response.requestedAction?.actionKey,
+      );
+      if (
+        !tool ||
+        adaptiveContentHash(tool.input) !== adaptiveContentHash(response.requestedAction.input)
+      ) {
+        throw new BadRequestException(
+          'El proveedor alteró el contexto estructurado de una acción autorizada.',
+        );
+      }
     }
     return { ...response, citationIds };
   }

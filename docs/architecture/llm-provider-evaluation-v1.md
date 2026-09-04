@@ -1,7 +1,8 @@
 # External LLM Provider Selection V1
 
-Status: **GEMINI 3.8 DOCUMENTARY REFRESH AND PROVIDER-NEUTRAL RUNNER COMPLETE; LIVE BAKE-OFF
-BLOCKED BY CREDENTIAL GATE**.
+Status: **HISTORICAL EVALUATION COMPLETE; OPENAI/`gpt-5.6-terra` SELECTED FOR CONTROLLED LOW-DATA
+STAGING ONLY**. Production remains `DETERMINISTIC_LOCAL_V1`; see
+[OpenAI Controlled Staging Integration V1](openai-controlled-staging-v1.md).
 
 Research date: 2026-09-03. Baseline: `de2bb061ab8347a3c2aa396f456c8e59c8b179e5`
 on `main`, synchronized with `origin/main` and clean before this documentation update.

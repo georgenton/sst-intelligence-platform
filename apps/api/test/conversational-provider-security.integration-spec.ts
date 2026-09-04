@@ -54,8 +54,10 @@ describe('conversational provider security integration', () => {
       finalRiskDecisionAllowed: false,
       legalComplianceDecisionAllowed: false,
       automaticRootCauseAllowed: false,
-      providerSelection: 'PENDING_EXTERNAL_PRODUCT_DECISION',
+      providerSelection: 'DETERMINISTIC_ENVIRONMENT_POLICY',
       label: 'Procesamiento local controlado · sin IA externa',
+      externalEnabled: false,
+      dataScope: 'LOW_ONLY',
     });
     const thread = await request(app.getHttpServer())
       .post('/api/v1/conversations')

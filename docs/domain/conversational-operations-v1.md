@@ -52,11 +52,11 @@ human label. It is not a second evidence repository.
 
 ## Provider and untrusted-content boundary
 
-V1 uses `DETERMINISTIC_LOCAL_V1`. It recognizes a very small exact read intent and requires
-structured UI actions for everything else. It needs no external secret, sends no worker PII or
-evidence binary to a vendor and never treats source/evidence text as instructions. Production
-natural-language provider selection, external processing terms and privacy review are **PENDING
-PRODUCT/INFRA DECISION**.
+Production uses `DETERMINISTIC_LOCAL_V1`. A separately configured controlled staging cohort may use
+OpenAI/`gpt-5.6-terra` only through the existing provider token and the server-side LOW-data
+minimizer. Free text, worker PII, sensitive contexts, local source labels and evidence binaries are
+not transferred. See
+[OpenAI Controlled Staging Integration V1](../architecture/openai-controlled-staging-v1.md).
 
 Prompt or source content cannot select an arbitrary action, override membership, switch tenant,
 skip confirmation or change deterministic risk results. Domain errors and authorization failures
@@ -80,4 +80,5 @@ the canonical Work Queue after reload.
 
 Switching the active organization hid the prior tenant's thread and domain records. Integration
 remains authoritative for cross-tenant denial and same-key replay races. Production continues to
-identify the provider as `DETERMINISTIC_LOCAL_V1` and requires no external AI secret.
+identify the provider as `DETERMINISTIC_LOCAL_V1` and requires no external AI secret. The staging
+candidate does not change that production closure.
