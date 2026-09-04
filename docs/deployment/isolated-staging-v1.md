@@ -7,6 +7,7 @@ Status: provisioned foundation, external provider credential pending. Baseline:
 
 ```text
 Vercel project: sst-intelligence-staging
+  -> https://sst-intelligence-staging.vercel.app
   -> API_ORIGIN=https://sst-api-staging-staging.up.railway.app
   -> Railway environment: staging
      -> service: sst-api-staging
@@ -38,9 +39,11 @@ exists remotely. The previous PR40 Preview is not staging and is not part of thi
 
 ## Release initialization and synthetic bootstrap
 
-Every API release runs the canonical `production:release` command: `prisma migrate deploy` followed
-by `reference:sync`. It never runs `prisma db seed`. After the first healthy API release, run the
-compiled, staging-only command twice:
+The canonical API release initializer is `production:release`: `prisma migrate deploy` followed by
+`reference:sync`. The tracked `railway.toml` declares that command as `preDeployCommand`; the initial
+staging release was also initialized explicitly inside `sst-api-staging` and its output confirmed all
+29 migrations plus a successful reference sync. It never runs `prisma db seed`. After the first
+healthy API release, run the compiled, staging-only command twice:
 
 ```text
 pnpm --filter @sst/api staging:bootstrap
