@@ -23,9 +23,18 @@ describe('generative provider boundaries', () => {
   const guard = new GenerativeProviderResponseGuard();
   const context = builder.build({
     userIntent: 'Resume el registro autorizado.',
+    requestContext: {
+      organizationId: 'organization-a',
+      userId: 'user-a',
+      currentRole: 'SST_MANAGER',
+      activeEntitlementKeys: ['module.inspections'],
+    },
     context: { type: 'INCIDENT', id: 'private-canonical-id' },
     citations: [{ id: 'citation-1', type: 'WORK_ITEM', label: 'Trabajo autorizado' }],
-    actionKeys: ['get_my_work_queue', 'create_action'],
+    tools: [
+      { actionKey: 'get_my_work_queue', input: {} },
+      { actionKey: 'create_action', input: { title: 'Acción autorizada' } },
+    ],
   });
 
   it('builds minimized context and marks all supplied content as untrusted', () => {
@@ -71,13 +80,28 @@ describe('generative provider boundaries', () => {
   });
 
   it('allows only supplied citations and finite actions', () => {
-    expect(
+    expect(() =>
       guard.validate(
         {
           reply: 'Borrador sujeto a confirmación.',
           capability: 'DRAFTING',
           citationIds: ['citation-1', 'citation-1'],
           requestedAction: { actionKey: 'create_action', input: {} },
+        },
+        context,
+        provider,
+      ),
+    ).toThrow('alteró el contexto estructurado');
+    expect(
+      guard.validate(
+        {
+          reply: 'Borrador sujeto a confirmación.',
+          capability: 'DRAFTING',
+          citationIds: ['citation-1', 'citation-1'],
+          requestedAction: {
+            actionKey: 'create_action',
+            input: { title: 'Acción autorizada' },
+          },
         },
         context,
         provider,

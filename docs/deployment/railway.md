@@ -8,8 +8,12 @@ contexto raíz del monorepo y `apps/api/Dockerfile`; no uses `docker-compose.yml
 ## Variables
 
 Define `DATABASE_URL` desde el servicio PostgreSQL, `PORT` (Railway puede asignarlo),
-`JWT_ACCESS_SECRET`, `WEB_ORIGIN` con el dominio Vercel, `APP_NAME`, `COOKIE_SECURE=true`, tiempos de
-token y configuración AI opcional. No definas OpenAI si `AI_ENABLED=false`.
+`JWT_ACCESS_SECRET`, `WEB_ORIGIN` con el dominio Vercel, `APP_NAME`, `COOKIE_SECURE=true` y tiempos de
+token. Producción debe declarar `SST_DEPLOYMENT_ENVIRONMENT=production`,
+`CONVERSATIONAL_AI_PROVIDER=DETERMINISTIC_LOCAL_V1`,
+`CONVERSATIONAL_AI_EXTERNAL_ENABLED=false` y `AI_ENABLED=false`; no configures una clave OpenAI en
+producción. La cohorte OpenAI se configura únicamente en un servicio staging separado según
+[OpenAI Controlled Staging Integration V1](../architecture/openai-controlled-staging-v1.md).
 
 ## Operación
 

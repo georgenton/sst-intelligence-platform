@@ -15,6 +15,7 @@ validation reports remain in `.artifacts/` and are not source documentation.
 - [Critical Work Permits V1](domain/critical-work-permits-v1.md)
 - [Density and preferences future](product/density-and-user-preferences-future.md)
 - [Documentary attempt V1](regulatory/operational-execution-documentary-attempt-v1.md)
+- [OpenAI Controlled Staging Integration V1](architecture/openai-controlled-staging-v1.md)
 
 ## Adaptive SST
 

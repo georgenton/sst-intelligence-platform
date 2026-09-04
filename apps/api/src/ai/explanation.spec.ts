@@ -46,6 +46,7 @@ describe('ExplanationService', () => {
   it('falls back without mutating the deterministic recommendation', async () => {
     process.env.AI_ENABLED = 'true';
     process.env.AI_PROVIDER = 'openai';
+    process.env.SST_DEPLOYMENT_ENVIRONMENT = 'staging';
     process.env.OPENAI_API_KEY = 'test-key-not-a-secret';
     process.env.OPENAI_MODEL = 'test-model';
     const recommendation = calculateRecommendation(answers);

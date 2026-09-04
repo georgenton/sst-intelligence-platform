@@ -57,6 +57,21 @@ type ConversationActionKey =
   | 'create_action'
   | 'assign_action';
 
+type ProviderUseCase =
+  | 'WORK_QUEUE_EXPLANATION'
+  | 'CURRENT_CONTEXT_EXPLANATION'
+  | 'CITATION_SUMMARY'
+  | 'OPERATIONAL_DRAFT'
+  | 'ACTION_PROPOSAL';
+
+type FeedbackReason =
+  | 'INCORRECT'
+  | 'UNCLEAR'
+  | 'MISSING_CONTEXT'
+  | 'CITATION_ISSUE'
+  | 'TOO_VERBOSE'
+  | 'ACTION_SUGGESTION_ISSUE';
+
 type Citation = {
   id: string;
   type: string;
@@ -78,7 +93,14 @@ type ConversationMessage = {
   role: 'USER' | 'ASSISTANT' | 'SYSTEM_EVENT';
   content: string;
   createdAt: string;
-  structuredData?: { result?: unknown; actionKey?: string } | null;
+  structuredData?: {
+    result?: unknown;
+    actionKey?: string;
+    provider?: string;
+    externalProcessing?: boolean;
+    fallbackUsed?: boolean;
+    reviewRequired?: boolean;
+  } | null;
   citations: Citation[];
   attachments: AttachmentReference[];
 };
@@ -116,7 +138,18 @@ type ProviderStatus = {
   mode: 'DETERMINISTIC_LOCAL' | 'GENERATIVE';
   externalProcessing: boolean;
   label: string;
-  providerSelection: 'PENDING_EXTERNAL_PRODUCT_DECISION';
+  providerSelection:
+    | 'DETERMINISTIC_ENVIRONMENT_POLICY'
+    | 'DETERMINISTIC_COHORT_POLICY'
+    | 'DETERMINISTIC_KILL_SWITCH'
+    | 'CONTROLLED_STAGING_COHORT';
+  configuredProvider: 'OPENAI' | 'DETERMINISTIC_LOCAL_V1';
+  requestedModel: string | null;
+  externalEligible: boolean;
+  externalEnabled: boolean;
+  killSwitchAvailable: boolean;
+  reviewRequired: boolean;
+  dataScope: 'LOW_ONLY';
 };
 
 type WorkQueueItem = {
@@ -253,6 +286,8 @@ const WRITE_ROLES = new Set([
   'SST_TECHNICIAN',
   'CONSULTANT',
 ]);
+
+const PROVIDER_CONTROL_ROLES = new Set(['ORG_OWNER', 'ORG_ADMIN']);
 
 const CONTEXT_LABELS: Record<ConversationContextType, string> = {
   GLOBAL: 'Organización activa',
@@ -503,6 +538,60 @@ function Citations({ citations }: { citations: Citation[] }) {
   );
 }
 
+const FEEDBACK_REASON_LABELS: Record<FeedbackReason, string> = {
+  INCORRECT: 'Incorrecta',
+  UNCLEAR: 'Poco clara',
+  MISSING_CONTEXT: 'Falta contexto',
+  CITATION_ISSUE: 'Problema de citas',
+  TOO_VERBOSE: 'Demasiado extensa',
+  ACTION_SUGGESTION_ISSUE: 'Problema en la acción sugerida',
+};
+
+function StagingFeedback({
+  messageId,
+  busy,
+  onSubmit,
+}: {
+  messageId: string;
+  busy: boolean;
+  onSubmit(input: { messageId: string; useful: boolean; reason?: FeedbackReason }): void;
+}) {
+  const [reason, setReason] = useState<FeedbackReason>('INCORRECT');
+  return (
+    <div className="conversation-feedback" aria-label="Evaluar respuesta de IA de prueba">
+      <span>¿Esta respuesta fue útil?</span>
+      <Button
+        className="secondary"
+        type="button"
+        disabled={busy}
+        onClick={() => onSubmit({ messageId, useful: true })}
+      >
+        Sí
+      </Button>
+      <select
+        aria-label="Motivo si la respuesta no fue útil"
+        value={reason}
+        disabled={busy}
+        onChange={(event) => setReason(event.target.value as FeedbackReason)}
+      >
+        {Object.entries(FEEDBACK_REASON_LABELS).map(([value, label]) => (
+          <option value={value} key={value}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <Button
+        className="secondary"
+        type="button"
+        disabled={busy}
+        onClick={() => onSubmit({ messageId, useful: false, reason })}
+      >
+        No
+      </Button>
+    </div>
+  );
+}
+
 function ConfirmationCard({
   run,
   busy,
@@ -702,6 +791,7 @@ export function ConversationalOperationsWorkspace() {
   const queryClient = useQueryClient();
   const organizationId = organization.activeId;
   const canWrite = WRITE_ROLES.has(organization.currentRole ?? '');
+  const canControlProvider = PROVIDER_CONTROL_ROLES.has(organization.currentRole ?? '');
   const requestedContextType =
     (searchParams.get('contextType') as ConversationContextType) ?? 'GLOBAL';
   const requestedContextId = searchParams.get('contextId');
@@ -821,15 +911,51 @@ export function ConversationalOperationsWorkspace() {
   }
 
   const sendMessage = useMutation({
-    mutationFn: async (content: string) => {
+    mutationFn: async (input: {
+      content: string;
+      providerUseCase?: ProviderUseCase;
+      providerActionContext?: {
+        actionKey: 'create_action';
+        inspectionId: string;
+        findingId: string;
+      };
+    }) => {
       const threadId = await ensureThread();
       await request(`/conversations/${threadId}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ content }),
+        body: JSON.stringify(input),
       });
       return threadId;
     },
     onSuccess: refreshConversation,
+  });
+
+  const feedback = useMutation({
+    mutationFn: (input: { messageId: string; useful: boolean; reason?: FeedbackReason }) =>
+      request(`/conversations/messages/${input.messageId}/feedback`, {
+        method: 'POST',
+        body: JSON.stringify({ useful: input.useful, reason: input.reason }),
+      }),
+    onSuccess: () =>
+      setNotice('Gracias. El feedback categorizado quedó registrado sin texto libre.'),
+  });
+
+  const providerControl = useMutation({
+    mutationFn: (externalEnabled: boolean) =>
+      request('/conversations/provider-control', {
+        method: 'POST',
+        body: JSON.stringify({ externalEnabled }),
+      }),
+    onSuccess: async (_, externalEnabled) => {
+      setNotice(
+        externalEnabled
+          ? 'La IA generativa de prueba quedó habilitada para esta organización.'
+          : 'La organización volvió al procesamiento local controlado.',
+      );
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.conversationProviderStatus(organizationId!),
+      });
+    },
   });
 
   const runAction = useMutation({
@@ -870,9 +996,20 @@ export function ConversationalOperationsWorkspace() {
   });
 
   const busy =
-    createThread.isPending || sendMessage.isPending || runAction.isPending || decide.isPending;
+    createThread.isPending ||
+    sendMessage.isPending ||
+    runAction.isPending ||
+    decide.isPending ||
+    feedback.isPending ||
+    providerControl.isPending;
   const mutationError =
-    createThread.error ?? sendMessage.error ?? runAction.error ?? decide.error ?? null;
+    createThread.error ??
+    sendMessage.error ??
+    runAction.error ??
+    decide.error ??
+    feedback.error ??
+    providerControl.error ??
+    null;
   const currentCriterion = inspection.data?.criterionResults[criterionIndex];
   const relatedFinding = currentCriterion?.finding
     ? inspection.data?.findings.find(({ id }) => id === currentCriterion.finding?.id)
@@ -883,7 +1020,7 @@ export function ConversationalOperationsWorkspace() {
     const form = event.currentTarget;
     const content = String(new FormData(form).get('content') ?? '').trim();
     if (!content) return;
-    sendMessage.mutate(content, { onSuccess: () => form.reset() });
+    sendMessage.mutate({ content }, { onSuccess: () => form.reset() });
   }
 
   function proposeInspection(event: FormEvent<HTMLFormElement>) {
@@ -1007,6 +1144,32 @@ export function ConversationalOperationsWorkspace() {
         <span>Contexto: {CONTEXT_LABELS[thread.data?.contextType ?? requestedContextType]}</span>
         <span>{providerStatus.data?.label ?? 'Estado del proveedor en verificación'}</span>
       </ContextSummary>
+      {providerStatus.data?.configuredProvider === 'OPENAI' &&
+      providerStatus.data.killSwitchAvailable ? (
+        <Card className="conversation-staging-banner">
+          <div>
+            <span className="conversation-kicker">IA generativa en entorno de prueba</span>
+            <p>
+              Solo las consultas guiadas marcadas como IA de prueba usan contexto LOW minimizado.
+              Revisa siempre la respuesta antes de actuar.
+            </p>
+          </div>
+          {canControlProvider ? (
+            <Button
+              type="button"
+              className="secondary"
+              disabled={providerControl.isPending}
+              onClick={() =>
+                providerControl.mutate(!(providerStatus.data?.externalEnabled ?? false))
+              }
+            >
+              {providerStatus.data.externalEnabled
+                ? 'Volver a procesamiento local'
+                : 'Habilitar IA de prueba'}
+            </Button>
+          ) : null}
+        </Card>
+      ) : null}
       {notice ? (
         <p role="status" className="conversation-notice">
           {notice}
@@ -1056,10 +1219,55 @@ export function ConversationalOperationsWorkspace() {
               className="secondary"
               type="button"
               disabled={busy}
-              onClick={() => sendMessage.mutate('¿Qué tengo pendiente?')}
+              onClick={() => sendMessage.mutate({ content: '¿Qué tengo pendiente?' })}
             >
               ¿Qué tengo pendiente?
             </Button>
+            {providerStatus.data?.externalEnabled ? (
+              <>
+                <Button
+                  className="secondary"
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    sendMessage.mutate({
+                      content: 'Explica mi cola autorizada con IA de prueba.',
+                      providerUseCase: 'WORK_QUEUE_EXPLANATION',
+                    })
+                  }
+                >
+                  Explicar cola con IA de prueba
+                </Button>
+                <Button
+                  className="secondary"
+                  type="button"
+                  disabled={
+                    busy || !thread.data?.messages.some((message) => message.citations.length > 0)
+                  }
+                  onClick={() =>
+                    sendMessage.mutate({
+                      content: 'Resume las fuentes visibles con IA de prueba.',
+                      providerUseCase: 'CITATION_SUMMARY',
+                    })
+                  }
+                >
+                  Resumir fuentes visibles
+                </Button>
+                <Button
+                  className="secondary"
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    sendMessage.mutate({
+                      content: 'Prepara un borrador operativo con IA de prueba.',
+                      providerUseCase: 'OPERATIONAL_DRAFT',
+                    })
+                  }
+                >
+                  Preparar borrador
+                </Button>
+              </>
+            ) : null}
             {thread.data?.contextType &&
             thread.data.contextId &&
             READ_CONTEXT_ACTIONS[thread.data.contextType] ? (
@@ -1114,6 +1322,18 @@ export function ConversationalOperationsWorkspace() {
                   }
                 />
                 <Citations citations={message.citations} />
+                {message.structuredData?.externalProcessing ? (
+                  <>
+                    <small className="conversation-review-note">
+                      Respuesta generada en staging; requiere revisión humana.
+                    </small>
+                    <StagingFeedback
+                      messageId={message.id}
+                      busy={feedback.isPending}
+                      onSubmit={(input) => feedback.mutate(input)}
+                    />
+                  </>
+                ) : null}
                 {message.attachments.length ? (
                   <div className="conversation-attachments">
                     {message.attachments.map((attachment) => (
@@ -1160,7 +1380,9 @@ export function ConversationalOperationsWorkspace() {
               </Button>
             </div>
             <small>
-              El texto no puede cambiar permisos, organización ni ejecutar herramientas arbitrarias.
+              El mensaje libre usa procesamiento local. Solo los controles “IA de prueba” envían una
+              solicitud LOW minimizada; ningún texto libre, permiso o identificador de usuario se
+              transfiere.
             </small>
           </form>
         </main>
@@ -1445,6 +1667,26 @@ export function ConversationalOperationsWorkspace() {
                                 'registrado'}
                             </p>
                           </Card>
+                          {providerStatus.data?.externalEnabled ? (
+                            <Button
+                              className="secondary"
+                              type="button"
+                              disabled={busy}
+                              onClick={() =>
+                                sendMessage.mutate({
+                                  content: 'Prepara una propuesta operativa con IA de prueba.',
+                                  providerUseCase: 'ACTION_PROPOSAL',
+                                  providerActionContext: {
+                                    actionKey: 'create_action',
+                                    inspectionId: inspection.data!.id,
+                                    findingId: relatedFinding.id,
+                                  },
+                                })
+                              }
+                            >
+                              Sugerir acción genérica con IA de prueba
+                            </Button>
+                          ) : null}
                           <form className="conversation-form" onSubmit={proposeCorrectiveAction}>
                             <h3>Crear y asignar acción</h3>
                             <label>

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { externalAiAllowedInCurrentEnvironment } from '../conversational-operations/openai-staging-policy';
 import { AI_PROMPT_VERSION, AI_USE_CASE, type ExplainInput } from './ai.types';
 import { OpenAiProvider } from './openai.provider';
 import { TemplateAiProvider } from './template-ai.provider';
@@ -19,6 +20,7 @@ export class ExplanationService {
     const startedAt = Date.now();
     const inputHash = createHash('sha256').update(JSON.stringify(input)).digest('hex');
     const useOpenAi =
+      externalAiAllowedInCurrentEnvironment() &&
       process.env.AI_ENABLED === 'true' &&
       process.env.AI_PROVIDER === 'openai' &&
       Boolean(process.env.OPENAI_API_KEY) &&
