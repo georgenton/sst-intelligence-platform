@@ -21,6 +21,7 @@ import { queryKeys } from '@/lib/query-keys';
 import { AppSidebar } from './app-sidebar';
 import { AppTopbar } from './app-topbar';
 import { useAuth } from './auth-provider';
+import type { FrontendEnvironmentIdentity } from '@/lib/environment-identity';
 
 type Organization = {
   id: string;
@@ -40,7 +41,10 @@ type OrganizationContextValue = {
 type EffectiveEntitlements = { features: Record<string, boolean | number | string> };
 const OrganizationContext = createContext<OrganizationContextValue | null>(null);
 
-export function AppShell({ children }: PropsWithChildren) {
+export function AppShell({
+  children,
+  environmentIdentity,
+}: PropsWithChildren<{ environmentIdentity: FrontendEnvironmentIdentity | null }>) {
   const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -195,6 +199,19 @@ export function AppShell({ children }: PropsWithChildren) {
             onOrganizationChange={(id) => void setActiveId(id)}
             onLogout={() => void auth.logout().then(() => router.push('/'))}
           />
+          {environmentIdentity && (
+            <div className="demo-banner staging-environment-banner" role="status">
+              <span>
+                <strong>Entorno de prueba</strong> ·{' '}
+                {environmentIdentity.provider === 'OPENAI'
+                  ? 'IA generativa en entorno de prueba'
+                  : 'Procesamiento local de respaldo'}
+              </span>
+              <span>
+                staging · {environmentIdentity.gitSha.slice(0, 12)} · {environmentIdentity.provider}
+              </span>
+            </div>
+          )}
           {demoActive && !transitioning && (
             <div className="demo-banner" role="status">
               <span>

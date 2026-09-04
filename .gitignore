@@ -5,6 +5,7 @@ coverage/
 .turbo/
 .env
 .env.local
+.vercel/
 !.env.example
 playwright-report/
 test-results/

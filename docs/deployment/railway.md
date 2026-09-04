@@ -33,3 +33,7 @@ los duplica ni los modifica.
 
 Local usa Compose y puerto 5448; demo/producción usan PostgreSQL administrado, TLS, secretos del
 entorno, cookies Secure y orígenes explícitos.
+
+El ambiente aislado para el piloto controlado está documentado en
+[Isolated Staging Environment V1](./isolated-staging-v1.md). Staging usa servicios, base de datos,
+secretos y frontend propios; no se crea duplicando producción.

@@ -204,6 +204,14 @@
   text-underline-offset: 3px;
 }
 
+.staging-environment-banner {
+  background: var(--surface-subtle);
+  border-bottom-color: var(--line-strong);
+  color: var(--text-primary);
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-size: var(--text-xs);
+}
+
 .app-content {
   width: min(var(--layout-max), 100%);
   margin-inline: auto;
