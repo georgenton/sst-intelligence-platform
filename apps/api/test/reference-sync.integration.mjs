@@ -79,6 +79,11 @@ async function referenceSnapshot(prisma) {
     inspectionStandardVersions,
     inspectionStandardSections,
     inspectionStandardCriteria,
+    inspectionResourceTaxonomies,
+    inspectionResourceTaxonomyVersions,
+    inspectionResources,
+    inspectionResourceMappingVersions,
+    inspectionResourceMappings,
   ] = await Promise.all([
     prisma.methodologySource.findMany({ orderBy: { id: 'asc' } }),
     prisma.methodologySourceVersion.findMany({ orderBy: { id: 'asc' } }),
@@ -117,6 +122,13 @@ async function referenceSnapshot(prisma) {
     prisma.inspectionStandardVersion.findMany({ orderBy: { id: 'asc' } }),
     prisma.inspectionStandardSection.findMany({ orderBy: { id: 'asc' } }),
     prisma.inspectionStandardCriterion.findMany({ orderBy: { id: 'asc' } }),
+    prisma.inspectionResourceTaxonomy.findMany({ orderBy: { id: 'asc' } }),
+    prisma.inspectionResourceTaxonomyVersion.findMany({ orderBy: { id: 'asc' } }),
+    prisma.inspectionResource.findMany({ orderBy: { id: 'asc' } }),
+    prisma.inspectionResourceCriterionMappingVersion.findMany({ orderBy: { id: 'asc' } }),
+    prisma.inspectionResourceCriterionMapping.findMany({
+      orderBy: [{ mappingVersionId: 'asc' }, { resourceId: 'asc' }, { displayOrder: 'asc' }],
+    }),
   ]);
   return {
     sources,
@@ -143,6 +155,11 @@ async function referenceSnapshot(prisma) {
     inspectionStandardVersions,
     inspectionStandardSections,
     inspectionStandardCriteria,
+    inspectionResourceTaxonomies,
+    inspectionResourceTaxonomyVersions,
+    inspectionResources,
+    inspectionResourceMappingVersions,
+    inspectionResourceMappings,
   };
 }
 
@@ -166,6 +183,10 @@ async function operationalCounts(prisma) {
     actions,
     obligations,
     permits,
+    operationalPlans,
+    operationalPlanItems,
+    inspectionDraftProposals,
+    privateInspectionResourceTaxonomies,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.membership.count(),
@@ -176,6 +197,10 @@ async function operationalCounts(prisma) {
     prisma.correctiveAction.count(),
     prisma.obligationExecution.count(),
     prisma.workPermit.count(),
+    prisma.operationalPlan.count(),
+    prisma.operationalPlanItem.count(),
+    prisma.inspectionDraftProposal.count(),
+    prisma.inspectionResourceTaxonomy.count({ where: { organizationId: { not: null } } }),
   ]);
   return {
     users,
@@ -187,6 +212,10 @@ async function operationalCounts(prisma) {
     actions,
     obligations,
     permits,
+    operationalPlans,
+    operationalPlanItems,
+    inspectionDraftProposals,
+    privateInspectionResourceTaxonomies,
   };
 }
 
@@ -232,6 +261,20 @@ function assertExpectedReferences(snapshot) {
   assert.equal(snapshot.inspectionStandardVersions.length, 9);
   assert.equal(snapshot.inspectionStandardSections.length, 9);
   assert.equal(snapshot.inspectionStandardCriteria.length, 16);
+  assert.equal(snapshot.inspectionResourceTaxonomies.length, 1);
+  assert.equal(snapshot.inspectionResourceTaxonomyVersions.length, 1);
+  assert.equal(snapshot.inspectionResources.length, 21);
+  assert.equal(snapshot.inspectionResourceMappingVersions.length, 4);
+  assert.equal(snapshot.inspectionResourceMappings.length, 231);
+  assert.equal(snapshot.inspectionResourceTaxonomies[0].organizationId, null);
+  assert.equal(snapshot.inspectionResourceTaxonomies[0].code, 'DEMO_ELECTRICAL_RESOURCE_SCOPE_V1');
+  assert.deepEqual(
+    snapshot.inspectionResources.reduce(
+      (counts, resource) => ({ ...counts, [resource.level]: (counts[resource.level] ?? 0) + 1 }),
+      {},
+    ),
+    { INDUSTRIAL_SERVICE: 7, MAJOR: 7, MINOR: 7 },
+  );
   assert.equal(
     snapshot.inspectionStandardSources.filter(({ rightsType }) => rightsType === 'DEMO_SYNTHETIC')
       .length,
@@ -572,6 +615,10 @@ try {
       actions: 0,
       obligations: 0,
       permits: 0,
+      operationalPlans: 0,
+      operationalPlanItems: 0,
+      inspectionDraftProposals: 0,
+      privateInspectionResourceTaxonomies: 0,
     });
     evidence.freshDatabaseWithoutGeneralSeed = true;
 

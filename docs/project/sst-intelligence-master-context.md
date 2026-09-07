@@ -9,6 +9,23 @@ architecture, security, deployment and source-review documents remain authoritat
 bounded areas. The [master roadmap](sst-intelligence-roadmap.md) is the sole cross-product priority
 roadmap.
 
+## Current development candidate — Post-Anita convergence V1
+
+The branch `feat/post-anita-product-convergence-v1` adds a bounded Plan Operativo V0, synthetic
+electrical Resource Scope V0, human-readable GTC45 rendering and a controlled inspection editorial
+drafting spike. These changes are not yet production baseline and claim no Anita approval. The
+controlling decisions are in
+[ADR Post-Anita convergence V1](../architecture/adr-post-anita-convergence-v1.md).
+
+Plan Operativo is a versioned source of planned work and is not Work Queue. Resource Scope is a
+separate, versioned layer before exact criterion mapping and does not replace Basis or Standards.
+Its V0 scoped flow blocks a multi-technical-source Basis rather than silently dropping supplemental
+criteria; the explicit unscoped flow preserves the existing multi-source behavior.
+AI may create a validated tenant-private editorial proposal in controlled staging, but cannot
+publish runtime truth. The provider receives only bounded, complete, verified official unit text
+and public synthetic resource metadata; it receives no tenant operational data. Production
+external AI remains disabled.
+
 ## Product direction
 
 SST Intelligence is becoming an **SST Operating System + Professional Intelligence Layer** for

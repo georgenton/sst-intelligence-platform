@@ -82,6 +82,7 @@ async function verifyInspectionStandardsAccessibility(page: Page) {
 async function createElectricalInspection(page: Page, title: string) {
   await page.goto('/app/inspections/new');
   await page.getByLabel('Dominio de inspección').selectOption('ELECTRICAL');
+  await page.getByLabel('Recurso a inspeccionar').selectOption({ label: 'Tomacorriente' });
   await page
     .getByLabel('Centro de trabajo')
     .selectOption({ label: 'Centro Guayaquil (demostración)' });

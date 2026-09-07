@@ -20,10 +20,12 @@ import { InspectionsModule } from './inspections/inspections.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { PpeModule } from './ppe/ppe.module';
 import { InspectionStandardsModule } from './inspection-standards/inspection-standards.module';
+import { InspectionResourcesModule } from './inspection-resources/inspection-resources.module';
 import { InspectionBasisModule } from './inspection-basis/inspection-basis.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { OperationalExecutionModule } from './operational-execution/operational-execution.module';
 import { OperationalIntelligenceModule } from './operational-intelligence/operational-intelligence.module';
+import { OperationalPlansModule } from './operational-plans/operational-plans.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RegulatorySourceModule } from './regulatory-sources/regulatory-source.module';
 import { RegulatoryRiskLinkModule } from './regulatory-risk-links/regulatory-risk-link.module';
@@ -100,6 +102,7 @@ import { WorkersModule } from './workers/workers.module';
     OrganizationsModule,
     OperationalExecutionModule,
     OperationalIntelligenceModule,
+    OperationalPlansModule,
     CatalogModule,
     ConsultantPortfolioModule,
     ConversationalOperationsModule,
@@ -114,6 +117,7 @@ import { WorkersModule } from './workers/workers.module';
     GovernanceModule,
     EvidencePackagesModule,
     InspectionStandardsModule,
+    InspectionResourcesModule,
     InspectionBasisModule,
     InspectionsModule,
     IncidentsModule,

@@ -67,6 +67,18 @@ snapshotted by new inspections; legacy direct-standard inspections remain valid.
 remain technical/reference context in their own jurisdiction and never become Ecuadorian law.
 This is not a Protocol Engine and introduces no pricing decision.
 
+### D.4 — Plan Operativo Macro V0 — implementation candidate
+
+Versioned organization plan with manual structured and deterministic known-signal draft paths.
+Only actionable active-plan items project into Work Queue with canonical links. Pending external
+audit; not yet production baseline.
+
+### D.5 — Inspection Resource Scope V0 — implementation candidate
+
+Synthetic electrical taxonomy and immutable resource-to-existing-criterion mappings add the
+concrete inspected object between domain and basis. Historical inspections remain untouched.
+Professional taxonomy/mapping approval remains pending Anita.
+
 ### M.1 — Conversational Operations V1 — production closed
 
 Provide a tenant-private, context-aware conversation interface over existing domain APIs. The
@@ -134,6 +146,10 @@ The provider-security preparation boundary is production closed. OpenAI/`gpt-5.6
 only for a controlled LOW-data staging cohort behind the existing provider boundary.
 `DETERMINISTIC_LOCAL_V1` remains the production provider; DPA, retention, Ecuador transfer,
 subprocessor and account-security gates remain pending before any production expansion.
+
+The Post-Anita drafting spike is a staging-only editorial experiment: bounded stored public-source
+retrieval, strict structured proposal, server validation and expert review state. Approval cannot
+publish a Rule, Standard or runtime mapping. Production external AI remains prohibited.
 
 AI Copilot Productization V1 and the provider-neutral V1 evaluation harness are production closed
 through PR36/37/38. The harness preserves 12 golden and 8 security cases with a validated adapter

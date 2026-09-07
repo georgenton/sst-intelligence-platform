@@ -74,6 +74,7 @@ export class WorkQueueService {
       trainingSessions,
       governanceActions,
       operationalSignals,
+      planItems,
     ] = await Promise.all([
       moduleEnabled('INSPECTIONS')
         ? this.prisma.correctiveAction.findMany({
@@ -531,6 +532,35 @@ export class WorkQueueService {
             orderBy: { lastDetectedAt: 'desc' },
           })
         : [],
+      moduleEnabled('PLAN')
+        ? this.prisma.operationalPlanItem.findMany({
+            where: {
+              organizationId,
+              planVersion: { status: 'ACTIVE' },
+              execution: { status: { notIn: ['COMPLETED', 'CANCELED'] } },
+              OR: [{ priority: { in: ['HIGH', 'URGENT'] } }, { dueAt: { lte: dueSoonBoundary } }],
+              ...(query.priority ? { priority: query.priority } : {}),
+              ...(query.assignedToUserId ? { responsibleUserId: query.assignedToUserId } : {}),
+              ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
+              ...(Object.keys(dueFilter).length ? { dueAt: dueFilter } : {}),
+            },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              priority: true,
+              dueAt: true,
+              createdAt: true,
+              provenanceType: true,
+              planVersion: { select: { planId: true, name: true } },
+              execution: { select: { status: true } },
+              workCenter: { select: { id: true, name: true } },
+              responsible: { select: { id: true, displayName: true } },
+            },
+            take: limit,
+            orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { id: 'asc' }],
+          })
+        : [],
     ]);
 
     const latestTrainingCompletions = trainingCompletions
@@ -933,6 +963,25 @@ export class WorkQueueService {
         regulatoryContext: null,
         riskContext: null,
         createdAt: signal.lastDetectedAt,
+      })),
+      ...planItems.map((item) => ({
+        type: 'OPERATIONAL_PLAN_ITEM' as const,
+        sourceId: item.id,
+        organizationId,
+        workCenter: item.workCenter,
+        title: item.title,
+        summary: item.description ?? `Actividad del plan ${item.planVersion.name}.`,
+        status: item.execution?.status ?? 'PLANNED',
+        priority: item.priority,
+        dueAt: item.dueAt,
+        overdue: Boolean(item.dueAt && item.dueAt < now),
+        assignee: item.responsible,
+        origin: `Plan operativo · ${item.provenanceType}`,
+        module: 'PLAN' as const,
+        deepLink: `/app/plans/${item.planVersion.planId}#item-${item.id}`,
+        regulatoryContext: null,
+        riskContext: null,
+        createdAt: item.createdAt,
       })),
     ];
 

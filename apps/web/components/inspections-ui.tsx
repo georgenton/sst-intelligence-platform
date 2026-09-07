@@ -42,7 +42,7 @@ import {
   humanRiskLevelLabel,
   humanRoleLabel,
 } from '@/lib/human-lexicon';
-import { presentInspectionRiskMethod } from '@/lib/risk-method-presentation';
+import { presentGtc45Result, presentInspectionRiskMethod } from '@/lib/risk-method-presentation';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
 import {
@@ -251,6 +251,11 @@ type Inspection = {
         };
       };
     }>;
+  } | null;
+  resourceScopeSnapshot?: {
+    taxonomy: { name: string; version: number; contentDigest: string };
+    resource: { id: string; code: string; name: string; level: string };
+    mapping: { id: string; version: number; contentDigest: string; criterionIds: string[] };
   } | null;
   criterionResults?: Array<{
     id: string;
@@ -486,6 +491,49 @@ function riskExplanation(result?: Record<string, unknown> | null): string | null
   if (!explanation || typeof explanation !== 'object') return null;
   const summary = (explanation as Record<string, unknown>).summary;
   return typeof summary === 'string' ? summary : null;
+}
+
+function Gtc45HumanResult({ result }: { result?: Record<string, unknown> | null }) {
+  const presentation = result ? presentGtc45Result(result) : null;
+  if (!presentation) return null;
+  return (
+    <Card className="inspection-summary-card">
+      <p className="eyebrow">Lectura humana GTC 45</p>
+      <h3>{presentation.intervention}</h3>
+      <dl className="inspection-action-meta">
+        <div>
+          <dt>Deficiencia</dt>
+          <dd>{presentation.deficiency}</dd>
+        </div>
+        <div>
+          <dt>Exposición</dt>
+          <dd>{presentation.exposure}</dd>
+        </div>
+        <div>
+          <dt>Probabilidad</dt>
+          <dd>{presentation.probability}</dd>
+        </div>
+        <div>
+          <dt>Consecuencia</dt>
+          <dd>{presentation.consequence}</dd>
+        </div>
+        <div>
+          <dt>Riesgo</dt>
+          <dd>{presentation.risk}</dd>
+        </div>
+        <div>
+          <dt>Intervención</dt>
+          <dd>{presentation.intervention}</dd>
+        </div>
+      </dl>
+      <p>{presentation.interpretation}</p>
+      <small>Provenance de metodología: {presentation.methodology}</small>
+      <p className="inspection-invariant-note">
+        Método candidato pendiente de revisión profesional. Esta lectura conserva los valores y la
+        fórmula registrados.
+      </p>
+    </Card>
+  );
 }
 
 function labelRecurrence(value: string): string {
@@ -883,6 +931,7 @@ export function InspectionsDashboard({ filters = {} }: { filters?: InspectionsDa
 
 type InspectionForm = {
   inspectionDomain: InspectionDomainKey | '';
+  resourceId: string;
   workCenterId: string;
   workAreaId: string;
   title: string;
@@ -898,6 +947,7 @@ type ActiveInspectionBasis = {
   technicalSources: Array<{
     role: 'PRIMARY_TECHNICAL' | 'SUPPLEMENTAL_TECHNICAL' | 'INTERNAL_ORGANIZATION';
     standardVersion: {
+      id: string;
       editionLabel: string;
       source: { name: string; originCountry?: string | null };
     };
@@ -915,6 +965,7 @@ export function NewInspection() {
     mode: 'onBlur',
     defaultValues: {
       inspectionDomain: '',
+      resourceId: '',
       workCenterId: '',
       workAreaId: '',
       title: '',
@@ -956,11 +1007,39 @@ export function NewInspection() {
     enabled: Boolean(api.organizationId && api.moduleEnabled && inspectionDomain),
     retry: shouldRetryGet,
   });
+  const selectedStandardVersionId =
+    activeBasis.data?.technicalSources.find(({ role }) => role === 'PRIMARY_TECHNICAL')
+      ?.standardVersion.id ?? selectedBinding?.standardVersion.id;
+  const resourceCatalog = useQuery({
+    queryKey: queryKeys.organization.inspectionResources(
+      api.organizationId ?? 'inactive',
+      inspectionDomain || 'none',
+      selectedStandardVersionId ?? 'none',
+    ),
+    queryFn: ({ signal }) =>
+      api.request<{
+        id: string;
+        version: number;
+        taxonomy: { name: string };
+        resources: Array<{ id: string; name: string; level: string }>;
+        mappingVersions: Array<{ id: string; version: number }>;
+      } | null>(
+        `/inspection-resources?domain=${inspectionDomain}&standardVersionId=${selectedStandardVersionId}`,
+        { signal },
+      ),
+    enabled: Boolean(
+      api.organizationId && api.moduleEnabled && inspectionDomain && selectedStandardVersionId,
+    ),
+    retry: shouldRetryGet,
+  });
   const areas = context.data?.workCenters.find((center) => center.id === centerId)?.workAreas ?? [];
   useEffect(() => {
     if (!areas.some(({ id }) => id === form.getValues('workAreaId')))
       form.setValue('workAreaId', '');
   }, [areas, form]);
+  useEffect(() => {
+    form.setValue('resourceId', '');
+  }, [form, inspectionDomain, selectedStandardVersionId]);
   const mutation = useMutation({
     mutationFn: (values: InspectionForm) =>
       api.request<Inspection>('/inspections', {
@@ -970,6 +1049,7 @@ export function NewInspection() {
           workAreaId: values.workAreaId || undefined,
           scheduledFor: values.scheduledFor || undefined,
           description: values.description || undefined,
+          resourceId: values.resourceId || undefined,
         }),
       }),
     onSuccess: async (created) => {
@@ -999,9 +1079,14 @@ export function NewInspection() {
         ) : context.isLoading ||
           methods.isLoading ||
           standardPolicy.isLoading ||
-          activeBasis.isLoading ? (
+          activeBasis.isLoading ||
+          resourceCatalog.isLoading ? (
           <InspectionSkeleton label="Cargando centros y áreas" />
-        ) : context.isError || methods.isError || standardPolicy.isError || activeBasis.isError ? (
+        ) : context.isError ||
+          methods.isError ||
+          standardPolicy.isError ||
+          activeBasis.isError ||
+          resourceCatalog.isError ? (
           <PageQueryError
             retry={() =>
               void Promise.all([
@@ -1009,6 +1094,7 @@ export function NewInspection() {
                 methods.refetch(),
                 standardPolicy.refetch(),
                 activeBasis.refetch(),
+                resourceCatalog.refetch(),
               ])
             }
           />
@@ -1100,6 +1186,60 @@ export function NewInspection() {
                     action={
                       <Link className="button secondary" href="/app/settings/inspection-standards">
                         Ir a Estándares de inspección
+                      </Link>
+                    }
+                  />
+                )
+              ) : null}
+              {resourceCatalog.data ? (
+                resourceCatalog.data.mappingVersions.length ? (
+                  <div className="field">
+                    <label htmlFor="inspection-resource">Recurso a inspeccionar</label>
+                    <select
+                      id="inspection-resource"
+                      aria-invalid={Boolean(form.formState.errors.resourceId)}
+                      {...form.register('resourceId', {
+                        required: 'Selecciona el recurso exacto que vas a inspeccionar.',
+                      })}
+                    >
+                      <option value="">Selecciona un recurso</option>
+                      {(['MINOR', 'MAJOR', 'INDUSTRIAL_SERVICE'] as const).map((level) => (
+                        <optgroup
+                          key={level}
+                          label={
+                            level === 'MINOR'
+                              ? 'Recurso menor'
+                              : level === 'MAJOR'
+                                ? 'Instalación mayor'
+                                : 'Servicio industrial'
+                          }
+                        >
+                          {resourceCatalog.data?.resources
+                            .filter((resource) => resource.level === level)
+                            .map((resource) => (
+                              <option key={resource.id} value={resource.id}>
+                                {resource.name}
+                              </option>
+                            ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                    {form.formState.errors.resourceId ? (
+                      <p className="field-error">{form.formState.errors.resourceId.message}</p>
+                    ) : null}
+                    <small>
+                      Taxonomía v{resourceCatalog.data.version}. Los criterios se resolverán desde
+                      el mapping exacto y quedarán congelados en la inspección.
+                    </small>
+                  </div>
+                ) : (
+                  <InspectionState
+                    kind="info"
+                    title="Falta el mapping del recurso para esta base"
+                    description="No se aplicará un conjunto genérico ni una selección silenciosa."
+                    action={
+                      <Link className="button secondary" href="/app/settings/inspection-resources">
+                        Revisar Alcance de recursos
                       </Link>
                     }
                   />
@@ -1223,7 +1363,11 @@ export function NewInspection() {
                   disabled={
                     mutation.isPending ||
                     !inspectionDomain ||
-                    (!activeBasis.data && !selectedBinding)
+                    (!activeBasis.data && !selectedBinding) ||
+                    Boolean(resourceCatalog.data && !form.watch('resourceId')) ||
+                    Boolean(
+                      resourceCatalog.data && resourceCatalog.data.mappingVersions.length === 0,
+                    )
                   }
                 >
                   {mutation.isPending ? 'Creando borrador…' : 'Crear inspección'}
@@ -1620,6 +1764,32 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
               No pudimos cambiar el estado. Revisa el estado actual y vuelve a intentarlo.
             </InlineRequestState>
           ) : null}
+          {query.data.resourceScopeSnapshot ? (
+            <Card className="inspection-summary-card">
+              <p className="eyebrow">Alcance exacto</p>
+              <h2>{query.data.resourceScopeSnapshot.resource.name}</h2>
+              <p>
+                {query.data.resourceScopeSnapshot.resource.level === 'MINOR'
+                  ? 'Recurso menor'
+                  : query.data.resourceScopeSnapshot.resource.level === 'MAJOR'
+                    ? 'Instalación mayor'
+                    : 'Servicio industrial'}{' '}
+                · taxonomía v{query.data.resourceScopeSnapshot.taxonomy.version} · mapping v
+                {query.data.resourceScopeSnapshot.mapping.version}
+              </p>
+              <TechnicalDetails summary="Ver identidad versionada del alcance">
+                <code>{query.data.resourceScopeSnapshot.taxonomy.contentDigest}</code>
+                <br />
+                <code>{query.data.resourceScopeSnapshot.mapping.contentDigest}</code>
+              </TechnicalDetails>
+            </Card>
+          ) : (
+            <InspectionState
+              kind="info"
+              title="Inspección histórica sin alcance de recurso"
+              description="Este registro conserva su semántica original y no fue completado de forma retroactiva."
+            />
+          )}
           <div className="inspection-standard-workspace">
             <section aria-labelledby="inspection-criteria-title">
               <div className="inspection-section-heading">
@@ -2997,6 +3167,12 @@ export function FindingDetail({
                     )}
                   </Card>
                 </div>
+                {finding.data.riskMethodKey === 'GTC45_2010' ? (
+                  <div className="stack-sm">
+                    <Gtc45HumanResult result={finding.data.initialMethodResult} />
+                    <Gtc45HumanResult result={finding.data.residualMethodResult} />
+                  </div>
+                ) : null}
               </section>
 
               {finding.data.recurrenceStatus !== 'NONE' ? (

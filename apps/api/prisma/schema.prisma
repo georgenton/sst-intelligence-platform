@@ -314,6 +314,65 @@ enum InspectionBasisTechnicalRole {
   INTERNAL_ORGANIZATION
 }
 
+enum OperationalPlanStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
+enum OperationalPlanOrigin {
+  MANUAL
+  DETERMINISTIC_DRAFT
+}
+
+enum OperationalPlanItemPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum OperationalPlanItemStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+enum OperationalPlanItemProvenanceType {
+  MANUAL
+  APPLICABILITY_DECISION
+  UNIFIED_SST_EVALUATION
+  FINDING
+  CORRECTIVE_ACTION
+  OBLIGATION_EXECUTION
+}
+
+enum InspectionResourceTaxonomyStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
+enum InspectionResourceLevel {
+  MINOR
+  MAJOR
+  INDUSTRIAL_SERVICE
+}
+
+enum InspectionResourceMappingStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
+enum InspectionDraftProposalStatus {
+  AI_PROPOSED
+  PENDING_EXPERT_REVIEW
+  APPROVED
+  REJECTED
+}
+
 enum FindingStatus {
   OPEN
   ACTION_IN_PROGRESS
@@ -900,6 +959,13 @@ model User {
   evidencePackagesCreated      EvidencePackage[]                             @relation("EvidencePackageCreator")
   evidencePackagesGenerated    EvidencePackage[]                             @relation("EvidencePackageGenerator")
   operationalSignalsReviewed   OperationalSignal[]                           @relation("OperationalSignalReviewer")
+  operationalPlansCreated      OperationalPlan[]                             @relation("OperationalPlanCreator")
+  operationalPlanVersionsMade  OperationalPlanVersion[]                      @relation("OperationalPlanVersionCreator")
+  operationalPlanOwners        OperationalPlanVersion[]                      @relation("OperationalPlanResponsible")
+  operationalPlanItemOwners    OperationalPlanItem[]                         @relation("OperationalPlanItemResponsible")
+  operationalPlanChanges       OperationalPlanItemExecution[]                @relation("OperationalPlanExecutionActor")
+  inspectionDraftProposals     InspectionDraftProposal[]                     @relation("InspectionDraftProposalCreator")
+  inspectionDraftReviews       InspectionDraftProposal[]                     @relation("InspectionDraftProposalReviewer")
 }
 
 model RefreshSession {
@@ -1014,6 +1080,13 @@ model Organization {
   evidencePackages              EvidencePackage[]
   evidencePackageItems          EvidencePackageItem[]
   operationalSignals            OperationalSignal[]
+  operationalPlans              OperationalPlan[]
+  operationalPlanVersions       OperationalPlanVersion[]
+  operationalPlanItems          OperationalPlanItem[]
+  operationalPlanExecutions     OperationalPlanItemExecution[]
+  inspectionResourceTaxonomies  InspectionResourceTaxonomy[]
+  inspectionResourceMappings    InspectionResourceCriterionMappingVersion[]
+  inspectionDraftProposals      InspectionDraftProposal[]
 }
 
 model WorkCenter {
@@ -1039,6 +1112,7 @@ model WorkCenter {
   trainingSessions     TrainingSession[]
   governanceBodies     GovernanceBody[]
   operationalSignals   OperationalSignal[]
+  operationalPlanItems OperationalPlanItem[]
 
   @@unique([organizationId, name])
   @@index([organizationId])
@@ -1515,6 +1589,7 @@ model InspectionStandardVersion {
   policyBindings      OrganizationInspectionStandardPolicyBinding[]
   inspections         Inspection[]
   basisTechnicalLinks InspectionBasisTechnicalSourceLink[]
+  resourceMappings    InspectionResourceCriterionMappingVersion[]
 
   @@unique([sourceId, versionCode])
   @@index([status, createdAt])
@@ -1553,6 +1628,7 @@ model InspectionStandardCriterion {
   section              InspectionStandardSection?               @relation(fields: [sectionId], references: [id], onDelete: Restrict)
   results              InspectionCriterionResult[]
   basisRegulatoryLinks InspectionBasisCriterionRegulatoryLink[]
+  resourceMappings     InspectionResourceCriterionMapping[]
 
   @@unique([standardVersionId, code])
   @@index([standardVersionId, displayOrder])
@@ -1673,40 +1749,246 @@ model InspectionBasisCriterionRegulatoryLink {
   @@index([regulatoryUnitId])
 }
 
+model OperationalPlan {
+  id             String                   @id @default(uuid()) @db.Uuid
+  organizationId String                   @db.Uuid
+  createdById    String                   @db.Uuid
+  createdAt      DateTime                 @default(now())
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy      User                     @relation("OperationalPlanCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  versions       OperationalPlanVersion[]
+
+  @@index([organizationId, createdAt])
+}
+
+model OperationalPlanVersion {
+  id                String                @id @default(uuid()) @db.Uuid
+  planId            String                @db.Uuid
+  organizationId    String                @db.Uuid
+  version           Int
+  status            OperationalPlanStatus @default(DRAFT)
+  origin            OperationalPlanOrigin
+  name              String                @db.VarChar(200)
+  description       String?               @db.VarChar(2000)
+  periodStart       DateTime              @db.Date
+  periodEnd         DateTime              @db.Date
+  responsibleUserId String?               @db.Uuid
+  provenance        Json                  @default("{}")
+  contentDigest     String                @db.VarChar(71)
+  createdById       String                @db.Uuid
+  createdAt         DateTime              @default(now())
+  activatedAt       DateTime?
+  retiredAt         DateTime?
+  plan              OperationalPlan       @relation(fields: [planId], references: [id], onDelete: Restrict)
+  organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  responsible       User?                 @relation("OperationalPlanResponsible", fields: [responsibleUserId], references: [id], onDelete: Restrict)
+  createdBy         User                  @relation("OperationalPlanVersionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  items             OperationalPlanItem[]
+
+  @@unique([planId, version])
+  @@index([organizationId, status, createdAt])
+  @@index([contentDigest])
+}
+
+model OperationalPlanItem {
+  id                  String                            @id @default(uuid()) @db.Uuid
+  organizationId      String                            @db.Uuid
+  planVersionId       String                            @db.Uuid
+  title               String                            @db.VarChar(240)
+  description         String?                           @db.VarChar(2000)
+  startsAt            DateTime?                         @db.Date
+  dueAt               DateTime?                         @db.Date
+  frequency           String?                           @db.VarChar(120)
+  priority            OperationalPlanItemPriority       @default(MEDIUM)
+  workCenterId        String?                           @db.Uuid
+  responsibleUserId   String?                           @db.Uuid
+  evidenceReferences  Json                              @default("[]")
+  provenanceType      OperationalPlanItemProvenanceType
+  provenanceReference String?                           @db.VarChar(240)
+  provenanceSnapshot  Json                              @default("{}")
+  displayOrder        Int
+  createdAt           DateTime                          @default(now())
+  organization        Organization                      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  planVersion         OperationalPlanVersion            @relation(fields: [planVersionId], references: [id], onDelete: Restrict)
+  workCenter          WorkCenter?                       @relation(fields: [workCenterId], references: [id], onDelete: Restrict)
+  responsible         User?                             @relation("OperationalPlanItemResponsible", fields: [responsibleUserId], references: [id], onDelete: Restrict)
+  execution           OperationalPlanItemExecution?
+
+  @@unique([planVersionId, displayOrder])
+  @@index([organizationId, dueAt, priority])
+  @@index([workCenterId])
+}
+
+model OperationalPlanItemExecution {
+  id             String                    @id @default(uuid()) @db.Uuid
+  organizationId String                    @db.Uuid
+  planItemId     String                    @unique @db.Uuid
+  status         OperationalPlanItemStatus @default(PLANNED)
+  version        Int                       @default(1)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  actorUserId    String                    @db.Uuid
+  updatedAt      DateTime                  @updatedAt
+  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  planItem       OperationalPlanItem       @relation(fields: [planItemId], references: [id], onDelete: Restrict)
+  actor          User                      @relation("OperationalPlanExecutionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, updatedAt])
+}
+
+model InspectionResourceTaxonomy {
+  id               String                              @id @default(uuid()) @db.Uuid
+  organizationId   String?                             @db.Uuid
+  code             String                              @unique @db.VarChar(160)
+  inspectionDomain InspectionDomain
+  name             String                              @db.VarChar(200)
+  createdAt        DateTime                            @default(now())
+  organization     Organization?                       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  versions         InspectionResourceTaxonomyVersion[]
+
+  @@index([organizationId, inspectionDomain])
+}
+
+model InspectionResourceTaxonomyVersion {
+  id              String                                      @id @default(uuid()) @db.Uuid
+  taxonomyId      String                                      @db.Uuid
+  version         Int
+  status          InspectionResourceTaxonomyStatus            @default(DRAFT)
+  contentDigest   String                                      @db.VarChar(71)
+  createdAt       DateTime                                    @default(now())
+  activatedAt     DateTime?
+  retiredAt       DateTime?
+  taxonomy        InspectionResourceTaxonomy                  @relation(fields: [taxonomyId], references: [id], onDelete: Restrict)
+  resources       InspectionResource[]
+  mappingVersions InspectionResourceCriterionMappingVersion[]
+  inspections     Inspection[]
+
+  @@unique([taxonomyId, version])
+  @@index([status, createdAt])
+  @@index([contentDigest])
+}
+
+model InspectionResource {
+  id                String                               @id @default(uuid()) @db.Uuid
+  taxonomyVersionId String                               @db.Uuid
+  parentId          String?                              @db.Uuid
+  code              String                               @db.VarChar(160)
+  name              String                               @db.VarChar(200)
+  level             InspectionResourceLevel
+  displayOrder      Int
+  taxonomyVersion   InspectionResourceTaxonomyVersion    @relation(fields: [taxonomyVersionId], references: [id], onDelete: Restrict)
+  parent            InspectionResource?                  @relation("InspectionResourceTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children          InspectionResource[]                 @relation("InspectionResourceTree")
+  mappings          InspectionResourceCriterionMapping[]
+  proposals         InspectionDraftProposal[]
+
+  @@unique([taxonomyVersionId, code])
+  @@unique([taxonomyVersionId, displayOrder])
+  @@index([parentId])
+}
+
+model InspectionResourceCriterionMappingVersion {
+  id                String                               @id @default(uuid()) @db.Uuid
+  organizationId    String?                              @db.Uuid
+  taxonomyVersionId String                               @db.Uuid
+  standardVersionId String                               @db.Uuid
+  version           Int
+  status            InspectionResourceMappingStatus      @default(DRAFT)
+  contentDigest     String                               @db.VarChar(71)
+  createdAt         DateTime                             @default(now())
+  activatedAt       DateTime?
+  retiredAt         DateTime?
+  organization      Organization?                        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  taxonomyVersion   InspectionResourceTaxonomyVersion    @relation(fields: [taxonomyVersionId], references: [id], onDelete: Restrict)
+  standardVersion   InspectionStandardVersion            @relation(fields: [standardVersionId], references: [id], onDelete: Restrict)
+  mappings          InspectionResourceCriterionMapping[]
+  inspections       Inspection[]
+
+  @@unique([taxonomyVersionId, standardVersionId, version])
+  @@index([organizationId, status])
+  @@index([standardVersionId, status])
+}
+
+model InspectionResourceCriterionMapping {
+  id               String                                    @id @default(uuid()) @db.Uuid
+  mappingVersionId String                                    @db.Uuid
+  resourceId       String                                    @db.Uuid
+  criterionId      String                                    @db.Uuid
+  displayOrder     Int
+  mappingVersion   InspectionResourceCriterionMappingVersion @relation(fields: [mappingVersionId], references: [id], onDelete: Restrict)
+  resource         InspectionResource                        @relation(fields: [resourceId], references: [id], onDelete: Restrict)
+  criterion        InspectionStandardCriterion               @relation(fields: [criterionId], references: [id], onDelete: Restrict)
+
+  @@unique([mappingVersionId, resourceId, criterionId])
+  @@index([resourceId, displayOrder])
+  @@index([criterionId])
+}
+
+model InspectionDraftProposal {
+  id                 String                        @id @default(uuid()) @db.Uuid
+  organizationId     String                        @db.Uuid
+  resourceId         String                        @db.Uuid
+  status             InspectionDraftProposalStatus @default(AI_PROPOSED)
+  provider           String                        @db.VarChar(80)
+  model              String                        @db.VarChar(120)
+  jurisdictionCode   String                        @db.Char(2)
+  sourceUnitIds      Json
+  proposedCriteria   Json
+  validationSnapshot Json
+  createdById        String                        @db.Uuid
+  reviewedById       String?                       @db.Uuid
+  reviewComment      String?                       @db.VarChar(2000)
+  createdAt          DateTime                      @default(now())
+  submittedAt        DateTime?
+  reviewedAt         DateTime?
+  organization       Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  resource           InspectionResource            @relation(fields: [resourceId], references: [id], onDelete: Restrict)
+  createdBy          User                          @relation("InspectionDraftProposalCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  reviewedBy         User?                         @relation("InspectionDraftProposalReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, createdAt])
+  @@index([resourceId, createdAt])
+}
+
 model Inspection {
-  id                       String                                       @id @default(uuid()) @db.Uuid
-  organizationId           String                                       @db.Uuid
-  workCenterId             String                                       @db.Uuid
-  workAreaId               String?                                      @db.Uuid
-  title                    String
-  description              String?
-  inspectorUserId          String                                       @db.Uuid
-  status                   InspectionStatus                             @default(DRAFT)
-  startedAt                DateTime?
-  completedAt              DateTime?
-  scheduledFor             DateTime?
-  isDemo                   Boolean                                      @default(false)
-  createdAt                DateTime                                     @default(now())
-  updatedAt                DateTime                                     @updatedAt
-  organization             Organization                                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  workCenter               WorkCenter                                   @relation(fields: [workCenterId], references: [id])
-  workArea                 WorkArea?                                    @relation(fields: [workAreaId], references: [id])
-  inspector                User                                         @relation("InspectionInspector", fields: [inspectorUserId], references: [id])
-  riskMethodVersionId      String                                       @default(dbgenerated("'54000000-0000-4000-8000-000000000001'::uuid")) @db.Uuid
-  riskMethodSnapshot       Json                                         @default("{}")
-  inspectionDomain         InspectionDomain?
-  standardPolicyVersionId  String?                                      @db.Uuid
-  standardVersionId        String?                                      @db.Uuid
-  standardSnapshot         Json?
-  inspectionBasisVersionId String?                                      @db.Uuid
-  inspectionBasisSnapshot  Json?
-  findings                 InspectionFinding[]
-  criterionResults         InspectionCriterionResult[]
-  riskMethodVersion        RiskMethodVersion                            @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
-  standardPolicyVersion    OrganizationInspectionStandardPolicyVersion? @relation(fields: [standardPolicyVersionId], references: [id], onDelete: Restrict)
-  standardVersion          InspectionStandardVersion?                   @relation(fields: [standardVersionId], references: [id], onDelete: Restrict)
-  inspectionBasisVersion   InspectionBasisVersion?                      @relation(fields: [inspectionBasisVersionId], references: [id], onDelete: Restrict)
-  incidents                Incident[]
+  id                        String                                       @id @default(uuid()) @db.Uuid
+  organizationId            String                                       @db.Uuid
+  workCenterId              String                                       @db.Uuid
+  workAreaId                String?                                      @db.Uuid
+  title                     String
+  description               String?
+  inspectorUserId           String                                       @db.Uuid
+  status                    InspectionStatus                             @default(DRAFT)
+  startedAt                 DateTime?
+  completedAt               DateTime?
+  scheduledFor              DateTime?
+  isDemo                    Boolean                                      @default(false)
+  createdAt                 DateTime                                     @default(now())
+  updatedAt                 DateTime                                     @updatedAt
+  organization              Organization                                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workCenter                WorkCenter                                   @relation(fields: [workCenterId], references: [id])
+  workArea                  WorkArea?                                    @relation(fields: [workAreaId], references: [id])
+  inspector                 User                                         @relation("InspectionInspector", fields: [inspectorUserId], references: [id])
+  riskMethodVersionId       String                                       @default(dbgenerated("'54000000-0000-4000-8000-000000000001'::uuid")) @db.Uuid
+  riskMethodSnapshot        Json                                         @default("{}")
+  inspectionDomain          InspectionDomain?
+  standardPolicyVersionId   String?                                      @db.Uuid
+  standardVersionId         String?                                      @db.Uuid
+  standardSnapshot          Json?
+  inspectionBasisVersionId  String?                                      @db.Uuid
+  inspectionBasisSnapshot   Json?
+  resourceTaxonomyVersionId String?                                      @db.Uuid
+  resourceMappingVersionId  String?                                      @db.Uuid
+  resourceScopeSnapshot     Json?
+  findings                  InspectionFinding[]
+  criterionResults          InspectionCriterionResult[]
+  riskMethodVersion         RiskMethodVersion                            @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
+  standardPolicyVersion     OrganizationInspectionStandardPolicyVersion? @relation(fields: [standardPolicyVersionId], references: [id], onDelete: Restrict)
+  standardVersion           InspectionStandardVersion?                   @relation(fields: [standardVersionId], references: [id], onDelete: Restrict)
+  inspectionBasisVersion    InspectionBasisVersion?                      @relation(fields: [inspectionBasisVersionId], references: [id], onDelete: Restrict)
+  resourceTaxonomyVersion   InspectionResourceTaxonomyVersion?           @relation(fields: [resourceTaxonomyVersionId], references: [id], onDelete: Restrict)
+  resourceMappingVersion    InspectionResourceCriterionMappingVersion?   @relation(fields: [resourceMappingVersionId], references: [id], onDelete: Restrict)
+  incidents                 Incident[]
 
   @@index([organizationId, status, createdAt])
   @@index([organizationId, workCenterId])
@@ -1716,6 +1998,8 @@ model Inspection {
   @@index([standardPolicyVersionId])
   @@index([standardVersionId])
   @@index([inspectionBasisVersionId])
+  @@index([resourceTaxonomyVersionId])
+  @@index([resourceMappingVersionId])
 }
 
 model InspectionCriterionResult {
@@ -3492,18 +3776,18 @@ model GovernanceMeeting {
 }
 
 model GovernanceMeetingParticipant {
-  id                      String            @id @default(uuid()) @db.Uuid
-  organizationId          String            @db.Uuid
-  meetingId               String            @db.Uuid
-  governanceMemberId      String            @db.Uuid
-  personKeySnapshot       String            @db.VarChar(80)
-  displayNameSnapshot     String            @db.VarChar(200)
-  roleLabelSnapshot       String?           @db.VarChar(160)
-  attended                Boolean           @default(false)
-  createdAt               DateTime          @default(now())
-  organization            Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  meeting                 GovernanceMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
-  governanceMember        GovernanceMember  @relation(fields: [governanceMemberId], references: [id], onDelete: Restrict)
+  id                  String            @id @default(uuid()) @db.Uuid
+  organizationId      String            @db.Uuid
+  meetingId           String            @db.Uuid
+  governanceMemberId  String            @db.Uuid
+  personKeySnapshot   String            @db.VarChar(80)
+  displayNameSnapshot String            @db.VarChar(200)
+  roleLabelSnapshot   String?           @db.VarChar(160)
+  attended            Boolean           @default(false)
+  createdAt           DateTime          @default(now())
+  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  meeting             GovernanceMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  governanceMember    GovernanceMember  @relation(fields: [governanceMemberId], references: [id], onDelete: Restrict)
 
   @@unique([meetingId, governanceMemberId])
   @@unique([meetingId, personKeySnapshot])

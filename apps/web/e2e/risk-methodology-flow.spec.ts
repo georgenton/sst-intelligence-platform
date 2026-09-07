@@ -39,6 +39,7 @@ async function provisionDemoSession(page: Page, suffix: number) {
 async function createAndStartInspection(page: Page, title: string, methodName: RegExp) {
   await page.goto('/app/inspections/new');
   await page.getByLabel('Dominio de inspección').selectOption('ELECTRICAL');
+  await page.getByLabel('Recurso a inspeccionar').selectOption({ label: 'Tomacorriente' });
   await page
     .getByLabel('Centro de trabajo')
     .selectOption({ label: 'Centro Guayaquil (demostración)' });
@@ -49,6 +50,8 @@ async function createAndStartInspection(page: Page, title: string, methodName: R
     page.waitForURL(/\/app\/inspections\/[0-9a-f-]+$/),
     page.getByRole('button', { name: 'Crear inspección' }).click(),
   ]);
+  await expect(page.getByRole('heading', { name: 'Tomacorriente' })).toBeVisible();
+  await expect(page.getByText(/taxonomía v1 · mapping v1/)).toBeVisible();
   await page.getByRole('button', { name: 'Iniciar inspección' }).click();
   await expect(page.getByText('En progreso').first()).toBeVisible();
   await page.getByRole('link', { name: 'Registrar hallazgo' }).click();
@@ -164,6 +167,16 @@ test('multi-method runtime, exact residual binding and read-only library', async
   });
   await expect(page.getByText('Nivel de intervención I').first()).toBeVisible();
   await expect(page.getByText(/Metodología utilizada: GTC 45/)).toBeVisible();
+  await Promise.all([
+    page.waitForURL(/\/app\/inspections\/[0-9a-f-]+\/findings\/[0-9a-f-]+$/),
+    page.getByRole('button', { name: 'Crear acción correctiva' }).click(),
+  ]);
+  await expect(page.getByText('Lectura humana GTC 45')).toBeVisible();
+  await expect(page.getByText('Alto · ND 6')).toBeVisible();
+  await expect(page.getByText('Continua · NE 4')).toBeVisible();
+  await expect(page.getByText('Muy alto · NP 24')).toBeVisible();
+  await expect(page.getByText('Mortal o catastrófica · NC 100')).toBeVisible();
+  await expect(page.getByText('NR 2400', { exact: true })).toBeVisible();
 
   await createAndStartInspection(
     page,
