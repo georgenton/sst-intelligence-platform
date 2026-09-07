@@ -67,13 +67,14 @@ snapshotted by new inspections; legacy direct-standard inspections remain valid.
 remain technical/reference context in their own jurisdiction and never become Ecuadorian law.
 This is not a Protocol Engine and introduces no pricing decision.
 
-### D.4 — Plan Operativo Macro V0 — implementation candidate
+### D.4 — Plan Operativo Macro V0 — production closed
 
 Versioned organization plan with manual structured and deterministic known-signal draft paths.
 Only actionable active-plan items project into Work Queue with canonical links. Pending external
-audit; not yet production baseline.
+professional review of the broader product model does not change the bounded production baseline.
+Plan Operativo remains distinct from Work Queue.
 
-### D.5 — Inspection Resource Scope V0 — implementation candidate
+### D.5 — Inspection Resource Scope V0 — production closed with synthetic reference data
 
 Synthetic electrical taxonomy and immutable resource-to-existing-criterion mappings add the
 concrete inspected object between domain and basis. Historical inspections remain untouched.
@@ -194,3 +195,17 @@ and historical records remain unchanged. No new pricing or PlanFeature assignmen
 E2E runs the built standalone artifact, without route-specific warmup lists or auth/throttling
 bypass. Production rate-limit buckets remain in-memory per process; distributed storage is
 deferred until horizontal scaling requires it, not part of the next provider decision.
+
+Post-Anita Product Convergence V1 is production closed through PR #42 merge
+`1bfb08132789b305bdac7013deaed1d43914699f` on 2026-09-07. Its first main gate passed 29/29
+integration suites, 68/68 integration tests and 18/18 E2E with workers=1 and retries=0; automatic
+Railway and Vercel production deployments matched the merge SHA. Regulatory parity remains
+15 sources, 25 versions, 1112 units/893 articles, 5 candidate Requirements, 5 candidate RuleDrafts
+and zero real published RuleVersions. Historical inspections, GTC45 calculation, risk-method
+versions, pricing and PlanFeature assignments are unchanged.
+
+The bounded Plan Operativo V0, synthetic electrical Resource Scope V0, human-readable GTC45
+presentation and controlled editorial proposal flow are available. The taxonomy/mappings still
+await Anita review, scoped multi-source resource mapping remains deferred, proposal approval does
+not publish runtime truth, and production external AI remains disabled with zero requests.
+Workforce Safety Product Refinement V2 is explicitly deferred and has not started.

@@ -1,7 +1,7 @@
 # SST Intelligence — master project context
 
-Status: canonical continuity document. Runtime implementation baseline: PR #38 merge
-`c5bc3a2cc38db10e39e4e66117f7d18e296dd509`, verified in production on 2026-09-03. The subsequent
+Status: canonical continuity document. Runtime implementation baseline: PR #42 merge
+`1bfb08132789b305bdac7013deaed1d43914699f`, verified in production on 2026-09-07. The subsequent
 closure-documentation commit does not change runtime behavior.
 
 This document is the authoritative entry point for future engineering sessions. Detailed domain,
@@ -9,11 +9,11 @@ architecture, security, deployment and source-review documents remain authoritat
 bounded areas. The [master roadmap](sst-intelligence-roadmap.md) is the sole cross-product priority
 roadmap.
 
-## Current development candidate — Post-Anita convergence V1
+## Production baseline — Post-Anita convergence V1
 
-The branch `feat/post-anita-product-convergence-v1` adds a bounded Plan Operativo V0, synthetic
+PR #42 adds a bounded Plan Operativo V0, synthetic
 electrical Resource Scope V0, human-readable GTC45 rendering and a controlled inspection editorial
-drafting spike. These changes are not yet production baseline and claim no Anita approval. The
+drafting spike. These changes are production baseline and claim no Anita approval. The
 controlling decisions are in
 [ADR Post-Anita convergence V1](../architecture/adr-post-anita-convergence-v1.md).
 
@@ -25,6 +25,32 @@ AI may create a validated tenant-private editorial proposal in controlled stagin
 publish runtime truth. The provider receives only bounded, complete, verified official unit text
 and public synthetic resource metadata; it receives no tenant operational data. Production
 external AI remains disabled.
+
+## PR42 Post-Anita Product Convergence V1 production closure
+
+PR #42 merged the externally audited HEAD `a788e219bf5dcc06d80e181bd0d06d9048528d71`
+through merge commit `1bfb08132789b305bdac7013deaed1d43914699f` on 2026-09-07. The first
+automatic Quality Gate of that runtime SHA passed without rerun: 29 integration suites / 68 tests,
+18/18 E2E, workers=1, retries=0, plus migrations, reference seed/sync, lint, typecheck, unit,
+validators, build and runtime-image verification. Railway production and Vercel production were
+automatically deployed from that exact merge SHA; staging remained on its isolated project,
+environment and database.
+
+Production parity is 15 RegulatorySources, 25 SourceVersions, 1112 RegulatoryUnits including 893
+ARTICLE units, 5 candidate Requirements, 5 candidate RuleDrafts and 0 real published RuleVersions.
+No historical inspection or risk result was recalculated or backfilled. Existing RiskMethodVersion
+identities remain intact; GTC45 calculation is unchanged; Plan Operativo remains distinct from Work
+Queue; the legacy unscoped multi-source inspection path remains available; and approval of an
+InspectionDraftProposal still cannot publish a runtime mapping. No pricing rule, commercial feature
+key or PlanFeature assignment was added.
+
+Production route-availability smoke returned no 5xx for Plan Operativo, Work Queue, Inspections,
+Resource Scope, risk-method/GTC45 presentation and legacy inspection-basis paths. Authenticated
+behavior is covered by the isolated 18/18 main E2E gate; the production smoke created no customer
+or synthetic tenant data. The electrical taxonomy and mappings remain synthetic and pending Anita
+review, multi-source scoped mapping remains deferred, and editorial AI remains staging-only.
+Production uses `DETERMINISTIC_LOCAL_V1`, has no OpenAI key and recorded zero external-AI requests.
+Workforce Safety Product Refinement V2 has not started.
 
 ## Product direction
 

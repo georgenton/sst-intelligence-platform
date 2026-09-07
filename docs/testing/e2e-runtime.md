@@ -127,3 +127,35 @@ ni se relanzó CI. Solo se crearon fixtures etiquetados como sintéticos, sin da
 Este cierre documental no cambia el runtime. El commit documental posterior debe conservar un
 nuevo Quality Gate exitoso en intento 1 y despliegues automáticos alineados con su SHA antes de
 entregar main limpio y sincronizado. No habilita selección ni integración de un proveedor externo.
+
+## Cierre productivo PR42 — 2026-09-07
+
+PR42 integró el HEAD auditado `a788e219bf5dcc06d80e181bd0d06d9048528d71` mediante merge commit
+`1bfb08132789b305bdac7013deaed1d43914699f` a las `2026-09-07T21:55:33Z`. El Quality Gate de main
+[34164860832](https://github.com/georgenton/sst-intelligence-platform/actions/runs/34164860832)
+pasó en el intento 1, sin rerun: 29 suites / 68 pruebas de integración y 18/18 E2E,
+15 lotes, workers=1, retries=0, retried=0. También pasaron migraciones, seed/reference sync, lint,
+typecheck, unitarias, validadores regulatorios, build e imagen de runtime.
+
+Railway desplegó automáticamente el servicio API de producción con estado `SUCCESS`, branch
+`main` y commit SHA exacto del merge; health respondió HTTP 200. Vercel desplegó automáticamente
+el proyecto demo con estado `READY`, target `production`, ref `main` y el mismo SHA. El proyecto
+staging mantuvo su deployment productivo aislado en `codex/isolated-staging-environment-v1` y no se
+promovió ni copió su base de datos.
+
+El smoke productivo fue de solo lectura y no creó datos: frontend y rutas de Plan Operativo,
+Work Queue, Inspections, Resource Scope, Risk Methods/GTC45 e Inspection Basis respondieron 200;
+health API respondió 200 y los endpoints protegidos sin credenciales respondieron 401, nunca 5xx.
+La funcionalidad autenticada y los caminos legacy se validaron en el gate aislado 18/18 del SHA
+exacto. No se usó información de clientes.
+
+La base productiva conserva 15 RegulatorySources, 25 SourceVersions, 1112 RegulatoryUnits, 893
+ARTICLE, 5 candidate Requirements, 5 candidate RuleDrafts y 0 real published RuleVersions. No hubo
+recalculation/backfill histórico, cambio de fórmula GTC45, cambio de RiskMethodVersion, publicación
+de runtime mapping desde propuestas, pricing ni nuevas asignaciones PlanFeature. Plan Operativo y
+Work Queue siguen siendo conceptos separados; el camino legacy multi-source sin scope permanece.
+
+La taxonomía y sus mappings eléctricos son sintéticos y siguen pendientes de Anita; el mapping
+scoped multi-source continúa diferido. El flujo editorial con IA sigue limitado a staging.
+Producción conserva `DETERMINISTIC_LOCAL_V1`, `OPENAI_API_KEY` ausente y cero solicitudes externas.
+Este cierre no atribuye aprobación a Anita ni inicia Workforce Safety Product Refinement V2.
