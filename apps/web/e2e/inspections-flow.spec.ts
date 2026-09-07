@@ -54,12 +54,36 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await page.getByRole('button', { name: 'Crear y activar demo' }).click();
   await expect(page.getByText(/Demostración conceptual activa/)).toBeVisible();
 
+  await page.goto('/app/plans');
+  await expect(page.getByRole('heading', { name: 'Planifica el trabajo SST' })).toBeVisible();
+  const generatedPlan = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === '/api/v1/operational-plans/generate-draft',
+  );
+  await page.getByRole('button', { name: 'Ayúdame a crear uno' }).click();
+  expect((await generatedPlan).ok()).toBe(true);
+  await expect(page.getByRole('link', { name: 'Plan operativo sugerido' })).toBeVisible();
+  const planActivation = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/api\/v1\/operational-plans\/[0-9a-f-]+\/versions\/[0-9a-f-]+\/activate$/.test(
+        new URL(response.url()).pathname,
+      ),
+  );
+  await page.getByRole('button', { name: 'Activar plan' }).click();
+  expect((await planActivation).ok()).toBe(true);
+  await expect(page.getByText(/Activo · versión 1/)).toBeVisible();
+  await page.getByRole('link', { name: 'Plan operativo sugerido' }).click();
+  await expect(page.getByText(/Procedencia: FINDING/).first()).toBeVisible();
+
   const inspectionsResponse = await page.goto('/app/inspections');
   expect(inspectionsResponse?.ok()).toBe(true);
   await expect(page).toHaveURL(/\/app\/inspections$/);
   await expect(page.getByRole('heading', { name: 'Inspecciones', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Nueva inspección' }).click();
   await page.getByLabel('Dominio de inspección').selectOption('ELECTRICAL');
+  await page.getByLabel('Recurso a inspeccionar').selectOption({ label: 'Tomacorriente' });
   await expect(page.getByRole('heading', { name: 'Demo Electrical Standard A' })).toBeVisible();
   await page
     .getByLabel('Centro de trabajo')

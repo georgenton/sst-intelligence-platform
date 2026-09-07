@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   inspectionRiskMethodRenderer,
+  presentGtc45Result,
   presentInspectionRiskMethod,
 } from '../lib/risk-method-presentation.ts';
 
@@ -16,6 +17,34 @@ test('adapts the historical inspection method without changing its calculation',
   });
   assert.equal(inspectionRiskMethodRenderer('DEMO_5X5'), 'demo-five-by-five');
   assert.equal(inspectionRiskMethodRenderer('FUTURE_METHOD'), undefined);
+});
+
+test('presents GTC45 values and human labels without recalculating them', () => {
+  const result = presentGtc45Result({
+    methodKey: 'GTC45_2010',
+    methodVersion: '1.0.0',
+    deficiencyValue: 6,
+    probabilityValue: 18,
+    probabilityBand: 'HIGH',
+    consequenceValue: 25,
+    riskValue: 450,
+    riskLevel: 'II',
+    trace: {
+      deficiency: { selection: 'HIGH', numericValue: 6 },
+      probability: { exposureValue: 3, value: 18 },
+      risk: { consequenceValue: 25, value: 450 },
+    },
+  });
+  assert.deepEqual(result, {
+    methodology: 'GTC45_2010 · v1.0.0',
+    deficiency: 'Alto · ND 6',
+    exposure: 'Frecuente · NE 3',
+    probability: 'Alto · NP 18',
+    consequence: 'Grave · NC 25',
+    risk: 'NR 450',
+    intervention: 'Nivel de intervención II',
+    interpretation: 'Rango canónico registrado: NR entre 150 y 500.',
+  });
 });
 
 test('systemic presentation keeps method identities separate without cross-method arithmetic', () => {
