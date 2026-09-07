@@ -301,6 +301,78 @@ describe('post-Anita product convergence integration', () => {
     const historical = await ownerApi.get(`/inspections/${scoped.body.id as string}`).expect(200);
     expect(historical.body.resourceScopeSnapshot).toEqual(scoped.body.resourceScopeSnapshot);
 
+    const basisUnits = await prisma.regulatoryUnit.findMany({
+      take: 2,
+      orderBy: [{ sourceVersionId: 'asc' }, { ordinal: 'asc' }],
+      select: { id: true },
+    });
+    const multiSourceBasis = await ownerApi
+      .post('/inspection-bases')
+      .send({
+        name: 'Base eléctrica multifuente para alcance',
+        inspectionDomain: 'ELECTRICAL',
+        reason: 'Verificar que Resource Scope no reduzca fuentes suplementarias.',
+        technicalSources: [
+          { standardVersionId, role: 'PRIMARY_TECHNICAL', displayOrder: 1 },
+          {
+            standardVersionId: '57100000-0000-4000-8000-000000000002',
+            role: 'SUPPLEMENTAL_TECHNICAL',
+            displayOrder: 2,
+          },
+        ],
+        regulatoryUnits: basisUnits.map(({ id }, index) => ({
+          regulatoryUnitId: id,
+          displayOrder: index + 1,
+        })),
+      })
+      .expect(201);
+    await ownerApi
+      .post(`/inspection-bases/versions/${multiSourceBasis.body.id as string}/activate`)
+      .expect(201);
+
+    const inspectionCountBeforeBlockedScope = await prisma.inspection.count({
+      where: { organizationId: orgA.organizationId },
+    });
+    await ownerApi
+      .post('/inspections')
+      .send({
+        workCenterId: orgA.centerId,
+        title: 'Scope parcial prohibido',
+        inspectionDomain: 'ELECTRICAL',
+        resourceId: outletResourceId,
+        riskMethodVersionId,
+      })
+      .expect(400)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          code: 'INSPECTION_RESOURCE_MULTI_SOURCE_MAPPING_UNSUPPORTED',
+        }),
+      );
+    expect(await prisma.inspection.count({ where: { organizationId: orgA.organizationId } })).toBe(
+      inspectionCountBeforeBlockedScope,
+    );
+
+    const unscopedMultiSource = await ownerApi
+      .post('/inspections')
+      .send({
+        workCenterId: orgA.centerId,
+        title: 'Base multifuente sin alcance de recurso',
+        inspectionDomain: 'ELECTRICAL',
+        riskMethodVersionId,
+      })
+      .expect(201);
+    expect(unscopedMultiSource.body).toMatchObject({
+      inspectionBasisVersionId: multiSourceBasis.body.id,
+      resourceScopeSnapshot: null,
+    });
+    expect(unscopedMultiSource.body.criterionResults).toHaveLength(7);
+    await ownerApi
+      .get(`/inspections/${scoped.body.id as string}`)
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body.resourceScopeSnapshot).toEqual(scoped.body.resourceScopeSnapshot),
+      );
+
     const privateTaxonomyId = randomUUID();
     const privateVersionId = randomUUID();
     const privateResourceId = randomUUID();
@@ -342,6 +414,10 @@ describe('post-Anita product convergence integration', () => {
       .expect(200)
       .expect(({ text }) => expect(text).toBe(''));
     await api(ownerB.token, orgB.organizationId)
+      .post('/inspection-resources/proposals')
+      .send({ resourceId: privateResourceId, keywords: [] })
+      .expect(404);
+    await ownerApi
       .post('/inspection-resources/proposals')
       .send({ resourceId: privateResourceId, keywords: [] })
       .expect(404);

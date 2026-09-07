@@ -151,6 +151,7 @@ export class InspectionsService {
           input.inspectionDomain,
           input.resourceId,
           selectedStandardVersionId,
+          resolvedBasis?.technicalSources.length ?? (selectedStandardVersionId ? 1 : 0),
         )
       : null;
     const allCriteria = resolvedBasis

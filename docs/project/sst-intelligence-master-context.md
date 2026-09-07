@@ -19,8 +19,12 @@ controlling decisions are in
 
 Plan Operativo is a versioned source of planned work and is not Work Queue. Resource Scope is a
 separate, versioned layer before exact criterion mapping and does not replace Basis or Standards.
+Its V0 scoped flow blocks a multi-technical-source Basis rather than silently dropping supplemental
+criteria; the explicit unscoped flow preserves the existing multi-source behavior.
 AI may create a validated tenant-private editorial proposal in controlled staging, but cannot
-publish runtime truth. Production external AI remains disabled.
+publish runtime truth. The provider receives only bounded, complete, verified official unit text
+and public synthetic resource metadata; it receives no tenant operational data. Production
+external AI remains disabled.
 
 ## Product direction
 

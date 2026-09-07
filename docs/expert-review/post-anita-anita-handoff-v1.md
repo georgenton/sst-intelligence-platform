@@ -14,6 +14,13 @@ Please review with synthetic scenarios only:
    obligation?
 6. Is `APPROVED` for an AI proposal clearly editorial and sufficiently separated from runtime
    publication?
+7. What complete, explicit resource mapping model would be professionally valid for a Basis with
+   primary and supplemental technical sources? V0 blocks scoped creation until that is decided and
+   preserves the existing unscoped multi-source execution.
+
+The controlled drafting experiment reads only complete, bounded text from verified official
+Ecuadorian units plus public synthetic resource metadata. It does not send tenant operational data,
+and approval still cannot publish a runtime mapping.
 
 Pending Anita: taxonomy terminology, mapping content, method guidance wording and any real
 professional approval. Engineering must not publish real Rules or represent this demo corpus as an

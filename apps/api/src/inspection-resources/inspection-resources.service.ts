@@ -17,6 +17,37 @@ import { InspectionDraftingProvider } from './inspection-drafting.provider';
 
 type Context = Pick<AuditEvent, 'requestId' | 'ip' | 'userAgent'>;
 
+export const INSPECTION_DRAFTING_MAX_UNIT_CHARACTERS = 16_000;
+export const INSPECTION_DRAFTING_MAX_OFFICIAL_TEXT_CHARACTERS = 32_000;
+
+type OfficialContextUnit = {
+  id: string;
+  officialText: string;
+};
+
+export function selectBoundedOfficialContext<T extends OfficialContextUnit>(units: readonly T[]) {
+  const selected: T[] = [];
+  let officialTextCharacters = 0;
+  for (const unit of units) {
+    if (!unit.officialText.trim()) continue;
+    if (unit.officialText.length > INSPECTION_DRAFTING_MAX_UNIT_CHARACTERS) {
+      throw new ServiceUnavailableException({
+        code: 'INSPECTION_DRAFTING_OFFICIAL_UNIT_TOO_LARGE',
+        message:
+          'Una unidad oficial excede el límite seguro y no será truncada. Ajusta las palabras clave para seleccionar otra unidad completa.',
+      });
+    }
+    if (
+      officialTextCharacters + unit.officialText.length >
+      INSPECTION_DRAFTING_MAX_OFFICIAL_TEXT_CHARACTERS
+    )
+      break;
+    selected.push(unit);
+    officialTextCharacters += unit.officialText.length;
+  }
+  return selected;
+}
+
 @Injectable()
 export class InspectionResourcesService {
   constructor(
@@ -66,15 +97,23 @@ export class InspectionResourcesService {
     domain: string,
     resourceId: string | undefined,
     standardVersionId: string | undefined,
+    executableTechnicalSourceCount = 1,
   ) {
+    // Omitting resourceId is the explicit legacy API path. The V0 workspace sends a
+    // resource for new scoped inspections; historical clients remain snapshot-free.
+    if (!resourceId) return null;
+    if (executableTechnicalSourceCount > 1) {
+      throw new BadRequestException({
+        code: 'INSPECTION_RESOURCE_MULTI_SOURCE_MAPPING_UNSUPPORTED',
+        message:
+          'Alcance de recursos V0 todavía no demuestra un mapping completo para bases con varias fuentes técnicas. Continúa sin alcance de recurso para conservar todos los criterios de la base.',
+      });
+    }
     const catalog = await this.catalog(organizationId, {
       domain: domain as InspectionResourceQueryDto['domain'],
       standardVersionId,
     });
     if (!catalog) return null;
-    // Omitting resourceId is the explicit legacy API path. The V0 workspace sends a
-    // resource for new scoped inspections; historical clients remain snapshot-free.
-    if (!resourceId) return null;
     const resource = catalog.resources.find(({ id }) => id === resourceId);
     if (!resource) {
       throw new BadRequestException({
@@ -151,7 +190,7 @@ export class InspectionResourcesService {
     input: CreateInspectionDraftProposalDto,
     context: Context,
   ) {
-    const resource = await this.requireResource(organizationId, input.resourceId);
+    const resource = await this.requireResource(input.resourceId);
     const keywords = [...new Set([resource.name, ...input.keywords].map((value) => value.trim()))]
       .filter(Boolean)
       .slice(0, 8);
@@ -172,6 +211,7 @@ export class InspectionResourcesService {
         identifier: true,
         locator: true,
         heading: true,
+        officialText: true,
         sourceVersionId: true,
         sourceVersion: { select: { sourceId: true } },
       },
@@ -184,17 +224,26 @@ export class InspectionResourcesService {
         message: 'No hay unidades oficiales verificadas y acotadas para preparar este borrador.',
       });
     }
+    const boundedUnits = selectBoundedOfficialContext(units);
+    if (!boundedUnits.length) {
+      throw new ServiceUnavailableException({
+        code: 'INSPECTION_DRAFTING_NO_USABLE_OFFICIAL_CONTEXT',
+        message:
+          'No hay texto oficial completo dentro del límite seguro para preparar el borrador.',
+      });
+    }
     const response = await this.drafting.propose({
       organizationId,
       userId,
       resource,
-      units: units.map((unit) => ({
+      units: boundedUnits.map((unit) => ({
         id: unit.id,
         sourceId: unit.sourceVersion.sourceId,
         sourceVersionId: unit.sourceVersionId,
         identifier: unit.identifier,
         locator: unit.locator,
         heading: unit.heading,
+        officialText: unit.officialText,
       })),
     });
     const output = validateInspectionDraftProposal({
@@ -202,7 +251,7 @@ export class InspectionResourcesService {
       expectedJurisdictionCode: 'EC',
       expectedResourceId: resource.id,
       allowedUnits: new Map(
-        units.map((unit) => [
+        boundedUnits.map((unit) => [
           unit.id,
           {
             locator: unit.locator,
@@ -219,12 +268,12 @@ export class InspectionResourcesService {
         provider: response.provider,
         model: response.model,
         jurisdictionCode: 'EC',
-        sourceUnitIds: units.map(({ id }) => id),
+        sourceUnitIds: boundedUnits.map(({ id }) => id),
         proposedCriteria: output.criteria as Prisma.InputJsonValue,
         validationSnapshot: {
           schema: 'INSPECTION_EDITORIAL_PROPOSAL_V1',
           citationValidation: 'PASS',
-          allowedUnitCount: units.length,
+          allowedUnitCount: boundedUnits.length,
           activationAllowed: false,
         },
         createdById: userId,
@@ -240,7 +289,7 @@ export class InspectionResourcesService {
         provider: response.provider,
         model: response.model,
         resourceId: resource.id,
-        sourceUnitCount: units.length,
+        sourceUnitCount: boundedUnits.length,
         citationValidation: 'PASS',
       },
       ...context,
@@ -296,13 +345,13 @@ export class InspectionResourcesService {
     return this.requireProposal(organizationId, proposalId);
   }
 
-  private async requireResource(organizationId: string, resourceId: string) {
+  private async requireResource(resourceId: string) {
     const resource = await this.prisma.inspectionResource.findFirst({
       where: {
         id: resourceId,
         taxonomyVersion: {
           status: 'ACTIVE',
-          taxonomy: { OR: [{ organizationId: null }, { organizationId }] },
+          taxonomy: { organizationId: null },
         },
       },
       select: { id: true, name: true, level: true },
