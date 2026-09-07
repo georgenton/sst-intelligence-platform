@@ -22,3 +22,5 @@ export * from './regulatory-review-corpus.js';
 export * from './operational-execution.js';
 export * from './organization-team.js';
 export * from './workforce-safety.js';
+export * from './operational-plan.js';
+export * from './inspection-resource-scope.js';

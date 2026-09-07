@@ -1,0 +1,9 @@
+export const OPERATIONAL_PLAN_WRITE_ROLES = [
+  'ORG_OWNER',
+  'ORG_ADMIN',
+  'SST_MANAGER',
+  'SST_TECHNICIAN',
+  'CONSULTANT',
+] as const;
+
+export const OPERATIONAL_PLAN_ACTIVATE_ROLES = ['ORG_OWNER', 'ORG_ADMIN', 'SST_MANAGER'] as const;

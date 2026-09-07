@@ -43,6 +43,10 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'work-queue'] as const,
     workQueue: (organizationId: string, filters = '') =>
       [...privateRoot, 'org', organizationId, 'work-queue', filters] as const,
+    operationalPlans: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'operational-plans'] as const,
+    operationalPlan: (organizationId: string, planId: string) =>
+      [...privateRoot, 'org', organizationId, 'operational-plans', planId] as const,
     obligations: (organizationId: string, filters = '') =>
       [...privateRoot, 'org', organizationId, 'obligations', filters] as const,
     obligation: (organizationId: string, obligationId: string) =>
@@ -129,6 +133,17 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'inspection-bases'] as const,
     inspectionBasisActive: (organizationId: string, domain: string) =>
       [...privateRoot, 'org', organizationId, 'inspection-bases', 'active', domain] as const,
+    inspectionResources: (organizationId: string, domain: string, standardVersionId: string) =>
+      [
+        ...privateRoot,
+        'org',
+        organizationId,
+        'inspection-resources',
+        domain,
+        standardVersionId,
+      ] as const,
+    inspectionResourceProposals: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'inspection-resources', 'proposals'] as const,
     inspectionBasisRegulatoryUnits: (organizationId: string, search: string) =>
       [
         ...privateRoot,

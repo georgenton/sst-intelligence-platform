@@ -25,6 +25,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RiskMethodologyService } from '../risk-methodology/risk-methodology.service';
 import { InspectionStandardsService } from '../inspection-standards/inspection-standards.service';
 import { InspectionBasisService } from '../inspection-basis/inspection-basis.service';
+import { InspectionResourcesService } from '../inspection-resources/inspection-resources.service';
 import type {
   AlertQueryDto,
   CompleteSystemicReviewDto,
@@ -52,6 +53,7 @@ export class InspectionsService {
     private readonly riskMethods: RiskMethodologyService,
     private readonly inspectionStandards: InspectionStandardsService,
     private readonly inspectionBases: InspectionBasisService,
+    private readonly inspectionResources: InspectionResourcesService,
   ) {}
 
   context(organizationId: string) {
@@ -141,9 +143,23 @@ export class InspectionsService {
     const primarySource = resolvedBasis?.technicalSources.find(
       ({ role }) => role === 'PRIMARY_TECHNICAL',
     );
-    const criteria = resolvedBasis
+    const selectedStandardVersionId =
+      primarySource?.standardVersion.id ?? resolvedStandard?.standardVersion.id;
+    const resolvedResource = input.inspectionDomain
+      ? await this.inspectionResources.resolveForInspection(
+          organizationId,
+          input.inspectionDomain,
+          input.resourceId,
+          selectedStandardVersionId,
+        )
+      : null;
+    const allCriteria = resolvedBasis
       ? resolvedBasis.technicalSources.flatMap(({ standardVersion }) => standardVersion.criteria)
       : (resolvedStandard?.standardVersion.criteria ?? []);
+    const selectedCriterionIds = new Set(resolvedResource?.criterionIds ?? []);
+    const criteria = resolvedResource
+      ? allCriteria.filter(({ id }) => selectedCriterionIds.has(id))
+      : allCriteria;
     const inspection = await this.prisma.inspection.create({
       data: {
         organizationId,
@@ -169,6 +185,9 @@ export class InspectionsService {
         inspectionBasisSnapshot: resolvedBasis
           ? this.inspectionBases.snapshot(resolvedBasis)
           : undefined,
+        resourceTaxonomyVersionId: resolvedResource?.taxonomyVersion.id,
+        resourceMappingVersionId: resolvedResource?.mappingVersion.id,
+        resourceScopeSnapshot: resolvedResource?.snapshot,
         criterionResults: criteria.length
           ? {
               create: criteria.map((criterion) => ({
@@ -202,6 +221,8 @@ export class InspectionsService {
         inspectionDomain: inspection.inspectionDomain,
         standardVersionId: inspection.standardVersionId,
         inspectionBasisVersionId: inspection.inspectionBasisVersionId,
+        resourceTaxonomyVersionId: inspection.resourceTaxonomyVersionId,
+        resourceMappingVersionId: inspection.resourceMappingVersionId,
       },
       context,
     );
@@ -247,6 +268,8 @@ export class InspectionsService {
             },
           },
         },
+        resourceTaxonomyVersion: { include: { taxonomy: true } },
+        resourceMappingVersion: true,
         criterionResults: {
           where: { organizationId },
           orderBy: { criterion: { displayOrder: 'asc' } },

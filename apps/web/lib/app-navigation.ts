@@ -55,6 +55,13 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         match: 'segment',
       },
       {
+        id: 'operational-plans',
+        label: 'Plan operativo',
+        href: '/app/plans',
+        group: 'operation',
+        match: 'segment',
+      },
+      {
         id: 'workers',
         label: 'Personas / Trabajadores',
         href: '/app/workers',
@@ -171,6 +178,14 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         id: 'inspection-standards',
         label: 'Estándares de inspección',
         href: '/app/settings/inspection-standards',
+        group: 'assessments',
+        match: 'segment',
+        requiredFeature: 'module.inspections',
+      },
+      {
+        id: 'inspection-resources',
+        label: 'Alcance de recursos',
+        href: '/app/settings/inspection-resources',
         group: 'assessments',
         match: 'segment',
         requiredFeature: 'module.inspections',
