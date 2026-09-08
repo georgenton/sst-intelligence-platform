@@ -27,10 +27,37 @@ type CatalogItem = {
   description?: string | null;
   manufacturerModel?: string | null;
   referenceStandard?: string | null;
+  referenceJurisdiction?: string | null;
+  referenceProvenance?: string | null;
+  referenceReviewStatus?: 'PENDING_PROFESSIONAL_REVIEW' | 'REVIEWED' | 'REJECTED' | null;
   defaultReplacementIntervalDays?: number | null;
   status: 'ACTIVE' | 'INACTIVE';
 };
 type CatalogResponse = { items: CatalogItem[]; total: number };
+type Position = {
+  id: string;
+  name: string;
+  riskContexts: Array<{ id: string; category: string; description: string }>;
+};
+type PositionCandidates = {
+  position: Position;
+  categories: PpeCategory[];
+  suggestions: Array<{
+    risk: { id: string; category: string; description: string };
+    categories: PpeCategory[];
+  }>;
+  catalogItems: CatalogItem[];
+  decisionBoundary: string;
+};
+type PositionRequirement = {
+  id: string;
+  reason: string;
+  decision: 'SELECTED_BY_PROFESSIONAL' | 'REQUIRED_INTERNALLY';
+  position: { id: string; name: string };
+  ppeCatalogItem: CatalogItem;
+  workCenter?: { id: string; name: string } | null;
+  workArea?: { id: string; name: string } | null;
+};
 type PpeRequirement = {
   id: string;
   reason: string;
@@ -64,7 +91,15 @@ type PpeIssue = {
   }>;
 };
 type WorkerPpeWorkspace = {
-  worker: { id: string; displayName: string; status: 'ACTIVE' | 'INACTIVE' };
+  worker: {
+    id: string;
+    displayName: string;
+    status: 'ACTIVE' | 'INACTIVE';
+    workCenterId?: string | null;
+    workAreaId?: string | null;
+    positionId?: string | null;
+    position?: { id: string; name: string } | null;
+  };
   requirements: PpeRequirement[];
   issues: PpeIssue[];
 };
@@ -73,6 +108,9 @@ type CatalogForm = {
   category: PpeCategory;
   description: string;
   referenceStandard: string;
+  referenceJurisdiction: string;
+  referenceProvenance: string;
+  referenceReviewStatus: 'PENDING_PROFESSIONAL_REVIEW' | 'REVIEWED' | 'REJECTED';
   defaultReplacementIntervalDays: string;
 };
 type RequirementForm = { ppeCatalogItemId: string; reason: string };
@@ -84,6 +122,8 @@ type IssueForm = {
   evidenceNote: string;
 };
 type Operation = { path: string; body: Record<string, unknown> };
+type IncidentList = { items: Array<{ id: string; title: string; status: string }> };
+type ReplacementReason = 'EXPIRY' | 'WEAR' | 'DAMAGE' | 'LOSS' | 'OTHER_JUSTIFIED';
 
 const CATEGORY_LABELS: Record<PpeCategory, string> = {
   HEAD: 'Cabeza',
@@ -112,6 +152,13 @@ const WRITE_ROLES = new Set([
   'CONSULTANT',
 ]);
 const REVIEW_ROLES = new Set(['ORG_OWNER', 'ORG_ADMIN', 'SST_MANAGER']);
+const REPLACEMENT_REASON_LABELS: Record<ReplacementReason, string> = {
+  EXPIRY: 'Vencimiento',
+  WEAR: 'Desgaste',
+  DAMAGE: 'Daño',
+  LOSS: 'Pérdida',
+  OTHER_JUSTIFIED: 'Otra razón justificada',
+};
 
 function errorMessage(error: unknown) {
   return error instanceof ApiClientError
@@ -125,11 +172,45 @@ export function PpeCatalog() {
   const queryClient = useQueryClient();
   const organizationId = organization.activeId;
   const canManage = REVIEW_ROLES.has(organization.currentRole ?? '');
+  const [positionId, setPositionId] = useState('');
+  const [riskContextId, setRiskContextId] = useState('');
+  const [riskCategory, setRiskCategory] = useState('ELECTRICAL');
+  const [riskDescription, setRiskDescription] = useState('');
   const catalog = useQuery({
     queryKey: queryKeys.organization.ppeCatalog(organizationId ?? 'inactive'),
     queryFn: ({ signal }) =>
       auth.request<CatalogResponse>('/ppe/catalog?pageSize=100', { signal }, organizationId!),
     enabled: Boolean(organizationId),
+  });
+  const positions = useQuery({
+    queryKey: queryKeys.organization.positions(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<Position[]>('/workers/positions', { signal }, organizationId!),
+    enabled: Boolean(organizationId),
+  });
+  const positionRequirements = useQuery({
+    queryKey: queryKeys.organization.positionPpeRequirements(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<PositionRequirement[]>(
+        '/ppe/position-requirements',
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId),
+  });
+  const candidates = useQuery({
+    queryKey: [
+      ...queryKeys.organization.positions(organizationId ?? 'inactive'),
+      positionId,
+      'ppe-candidates',
+    ],
+    queryFn: ({ signal }) =>
+      auth.request<PositionCandidates>(
+        `/workers/positions/${positionId}/ppe-candidates`,
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId && positionId),
   });
   const form = useForm<CatalogForm>({
     defaultValues: {
@@ -137,9 +218,13 @@ export function PpeCatalog() {
       category: 'HEAD',
       description: '',
       referenceStandard: '',
+      referenceJurisdiction: '',
+      referenceProvenance: '',
+      referenceReviewStatus: 'PENDING_PROFESSIONAL_REVIEW',
       defaultReplacementIntervalDays: '',
     },
   });
+  const referenceReviewStatus = form.watch('referenceReviewStatus');
   const create = useMutation({
     mutationFn: (values: CatalogForm) =>
       auth.request(
@@ -151,6 +236,13 @@ export function PpeCatalog() {
             category: values.category,
             ...(values.description ? { description: values.description } : {}),
             ...(values.referenceStandard ? { referenceStandard: values.referenceStandard } : {}),
+            ...(values.referenceJurisdiction
+              ? { referenceJurisdiction: values.referenceJurisdiction }
+              : {}),
+            ...(values.referenceProvenance
+              ? { referenceProvenance: values.referenceProvenance }
+              : {}),
+            referenceReviewStatus: values.referenceReviewStatus,
             ...(values.defaultReplacementIntervalDays
               ? { defaultReplacementIntervalDays: Number(values.defaultReplacementIntervalDays) }
               : {}),
@@ -160,6 +252,45 @@ export function PpeCatalog() {
       ),
     onSuccess: async () => {
       form.reset();
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.scope(organizationId!),
+      });
+    },
+  });
+  const addRisk = useMutation({
+    mutationFn: () =>
+      auth.request(
+        `/workers/positions/${positionId}/risks`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ category: riskCategory, description: riskDescription }),
+        },
+        organizationId!,
+      ),
+    onSuccess: async () => {
+      setRiskDescription('');
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.scope(organizationId!),
+      });
+    },
+  });
+  const selectRequirement = useMutation({
+    mutationFn: (item: CatalogItem) =>
+      auth.request(
+        '/ppe/position-requirements',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            positionId,
+            riskContextId,
+            ppeCatalogItemId: item.id,
+            reason: `Selección profesional para ${candidates.data?.position.name ?? 'el cargo'}.`,
+            decision: 'SELECTED_BY_PROFESSIONAL',
+          }),
+        },
+        organizationId!,
+      ),
+    onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.organization.scope(organizationId!),
       });
@@ -178,6 +309,110 @@ export function PpeCatalog() {
         <span>Metadatos técnicos informativos</span>
         <span>Sin contenido propietario de normas</span>
       </ContextSummary>
+
+      <WorkspaceSection
+        eyebrow="Cargo → riesgo → EPP"
+        title="Selección profesional"
+        description="El motor propone categorías de forma determinística; la selección y el requisito interno siempre requieren decisión humana autorizada."
+      >
+        <label className="field">
+          <span>Cargo</span>
+          <select
+            value={positionId}
+            onChange={(event) => {
+              setPositionId(event.target.value);
+              setRiskContextId('');
+            }}
+          >
+            <option value="">Selecciona un cargo</option>
+            {(positions.data ?? []).map((position) => (
+              <option key={position.id} value={position.id}>
+                {position.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {canManage && positionId ? (
+          <div className="workforce-form workforce-compact-form">
+            <label className="field">
+              <span>Categoría de riesgo</span>
+              <select
+                value={riskCategory}
+                onChange={(event) => setRiskCategory(event.target.value)}
+              >
+                <option value="ELECTRICAL">Eléctrico</option>
+                <option value="ARC_FLASH">Arco eléctrico</option>
+                <option value="PROJECTION">Proyección</option>
+                <option value="MECHANICAL">Mecánico</option>
+                <option value="ERGONOMIC">Ergonómico</option>
+                <option value="CHEMICAL">Químico</option>
+                <option value="BIOLOGICAL">Biológico</option>
+                <option value="PHYSICAL">Físico</option>
+                <option value="OTHER">Otro</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Descripción del riesgo</span>
+              <input
+                value={riskDescription}
+                onChange={(event) => setRiskDescription(event.target.value)}
+              />
+            </label>
+            <button
+              className="button secondary"
+              type="button"
+              disabled={!riskDescription.trim() || addRisk.isPending}
+              onClick={() => addRisk.mutate()}
+            >
+              Agregar riesgo
+            </button>
+          </div>
+        ) : null}
+        {candidates.data ? <p>{candidates.data.decisionBoundary}</p> : null}
+        {candidates.data?.suggestions.length ? (
+          <label className="field">
+            <span>Riesgo que sustenta la selección</span>
+            <select
+              value={riskContextId}
+              onChange={(event) => setRiskContextId(event.target.value)}
+            >
+              <option value="">Selecciona un riesgo registrado</option>
+              {candidates.data.suggestions.map(({ risk }) => (
+                <option key={risk.id} value={risk.id}>
+                  {risk.category} · {risk.description}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <div className="card-grid">
+          {(candidates.data?.catalogItems ?? [])
+            .filter((item) => {
+              if (!riskContextId) return false;
+              const selected = candidates.data?.suggestions.find(
+                ({ risk }) => risk.id === riskContextId,
+              );
+              return selected?.categories.includes(item.category);
+            })
+            .map((item) => (
+              <Card key={item.id}>
+                <h3>{item.name}</h3>
+                <p>{CATEGORY_LABELS[item.category]}</p>
+                {canManage ? (
+                  <button
+                    className="button"
+                    type="button"
+                    disabled={!riskContextId || selectRequirement.isPending}
+                    onClick={() => selectRequirement.mutate(item)}
+                  >
+                    Seleccionar profesionalmente
+                  </button>
+                ) : null}
+              </Card>
+            ))}
+        </div>
+        <p>{positionRequirements.data?.length ?? 0} requisitos por cargo seleccionados.</p>
+      </WorkspaceSection>
       {canManage ? (
         <WorkspaceSection eyebrow="Catálogo interno" title="Nuevo elemento de EPP">
           <form
@@ -204,7 +439,48 @@ export function PpeCatalog() {
             </label>
             <label className="field">
               <span>Referencia técnica (metadato opcional)</span>
-              <input {...form.register('referenceStandard')} />
+              <input
+                {...form.register('referenceStandard', {
+                  validate: (value) =>
+                    referenceReviewStatus !== 'REVIEWED' ||
+                    value.trim().length > 0 ||
+                    'Una referencia revisada requiere el estándar o referencia técnica.',
+                })}
+              />
+              {form.formState.errors.referenceStandard ? (
+                <span className="field-error">
+                  {form.formState.errors.referenceStandard.message}
+                </span>
+              ) : null}
+            </label>
+            <label className="field">
+              <span>Jurisdicción o contexto de la referencia</span>
+              <input {...form.register('referenceJurisdiction')} />
+            </label>
+            <label className="field workforce-form__wide">
+              <span>Proveniencia verificable de la referencia</span>
+              <textarea
+                rows={2}
+                {...form.register('referenceProvenance', {
+                  validate: (value) =>
+                    referenceReviewStatus !== 'REVIEWED' ||
+                    value.trim().length > 0 ||
+                    'Una referencia revisada requiere proveniencia verificable.',
+                })}
+              />
+              {form.formState.errors.referenceProvenance ? (
+                <span className="field-error">
+                  {form.formState.errors.referenceProvenance.message}
+                </span>
+              ) : null}
+            </label>
+            <label className="field">
+              <span>Estado de revisión profesional</span>
+              <select {...form.register('referenceReviewStatus')}>
+                <option value="PENDING_PROFESSIONAL_REVIEW">Pendiente de revisión</option>
+                <option value="REVIEWED">Revisada</option>
+                <option value="REJECTED">Descartada</option>
+              </select>
             </label>
             <label className="field">
               <span>Intervalo orientativo de reemplazo (días)</span>
@@ -251,6 +527,22 @@ export function PpeCatalog() {
                     ? ` · intervalo ${item.defaultReplacementIntervalDays} días`
                     : ''}
                 </small>
+                {item.referenceJurisdiction ? (
+                  <small>Contexto de referencia: {item.referenceJurisdiction}</small>
+                ) : null}
+                {item.referenceProvenance ? (
+                  <small>Proveniencia: {item.referenceProvenance}</small>
+                ) : null}
+                {item.referenceReviewStatus ? (
+                  <small>
+                    Revisión:{' '}
+                    {item.referenceReviewStatus === 'REVIEWED'
+                      ? 'revisada profesionalmente'
+                      : item.referenceReviewStatus === 'REJECTED'
+                        ? 'descartada'
+                        : 'pendiente de revisión profesional'}
+                  </small>
+                ) : null}
               </div>
             </article>
           ))}
@@ -277,6 +569,11 @@ export function WorkerPpePanel({
   const [conditions, setConditions] = useState<Record<string, string>>({});
   const [conditionNotes, setConditionNotes] = useState<Record<string, string>>({});
   const [replacementEvidence, setReplacementEvidence] = useState<Record<string, string>>({});
+  const [replacementReasons, setReplacementReasons] = useState<Record<string, ReplacementReason>>(
+    {},
+  );
+  const [replacementReasonNotes, setReplacementReasonNotes] = useState<Record<string, string>>({});
+  const [replacementIncidentIds, setReplacementIncidentIds] = useState<Record<string, string>>({});
   const workspace = useQuery({
     queryKey: queryKeys.organization.workerPpe(organizationId ?? 'inactive', workerId),
     queryFn: ({ signal }) =>
@@ -292,6 +589,26 @@ export function WorkerPpePanel({
         organizationId!,
       ),
     enabled: Boolean(organizationId && canWrite),
+  });
+  const positionRequirements = useQuery({
+    queryKey: queryKeys.organization.positionPpeRequirements(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<PositionRequirement[]>(
+        '/ppe/position-requirements',
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId && canWrite),
+  });
+  const incidents = useQuery({
+    queryKey: queryKeys.organization.incidents(organizationId ?? 'inactive', 'ppe-link'),
+    queryFn: ({ signal }) =>
+      auth.request<IncidentList>(
+        `/incidents?pageSize=100&workerId=${encodeURIComponent(workerId)}`,
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId && canReplace),
   });
   const requirementForm = useForm<RequirementForm>({
     defaultValues: { ppeCatalogItemId: '', reason: '' },
@@ -339,6 +656,45 @@ export function WorkerPpePanel({
         <span>{issues.filter((item) => item.status === 'IN_SERVICE').length} en servicio</span>
         <span>{issues.filter((item) => item.replacementDue).length} con reemplazo requerido</span>
       </ContextSummary>
+
+      {canWrite && workspace.data?.worker.positionId ? (
+        <div className="card-grid">
+          {(positionRequirements.data ?? [])
+            .filter(
+              (item) =>
+                item.position.id === workspace.data?.worker.positionId &&
+                (!item.workCenter || item.workCenter.id === workspace.data?.worker.workCenterId) &&
+                (!item.workArea || item.workArea.id === workspace.data?.worker.workAreaId) &&
+                !requirements.some(
+                  (requirement) =>
+                    requirement.ppeCatalogItem.id === item.ppeCatalogItem.id &&
+                    requirement.status !== 'CANCELLED',
+                ),
+            )
+            .map((item) => (
+              <Card key={item.id}>
+                <p className="eyebrow">Requisito del cargo {item.position.name}</p>
+                <h3>{item.ppeCatalogItem.name}</h3>
+                <p>{item.reason}</p>
+                <button
+                  className="button secondary"
+                  type="button"
+                  disabled={operation.isPending}
+                  onClick={() =>
+                    run('/ppe/requirements', {
+                      workerId,
+                      ppeCatalogItemId: item.ppeCatalogItem.id,
+                      positionRequirementId: item.id,
+                      reason: `Aplicación profesional del requisito vigente para ${item.position.name}.`,
+                    })
+                  }
+                >
+                  Asignar requisito al trabajador
+                </button>
+              </Card>
+            ))}
+        </div>
+      ) : null}
 
       {canWrite ? (
         <form
@@ -545,6 +901,58 @@ export function WorkerPpePanel({
             {canReplace && issue.status === 'REPLACEMENT_DUE' ? (
               <div className="workforce-form workforce-compact-form">
                 <label className="field">
+                  <span>{`Razón de reemplazo de ${issue.ppeCatalogItem.name}`}</span>
+                  <select
+                    value={replacementReasons[issue.id] ?? 'WEAR'}
+                    onChange={(event) =>
+                      setReplacementReasons((current) => ({
+                        ...current,
+                        [issue.id]: event.target.value as ReplacementReason,
+                      }))
+                    }
+                  >
+                    {Object.entries(REPLACEMENT_REASON_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>{`Justificación del reemplazo de ${issue.ppeCatalogItem.name}`}</span>
+                  <textarea
+                    rows={2}
+                    value={replacementReasonNotes[issue.id] ?? ''}
+                    onChange={(event) =>
+                      setReplacementReasonNotes((current) => ({
+                        ...current,
+                        [issue.id]: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                {(replacementReasons[issue.id] ?? 'WEAR') === 'DAMAGE' ? (
+                  <label className="field">
+                    <span>Accidente o incidente relacionado (opcional)</span>
+                    <select
+                      value={replacementIncidentIds[issue.id] ?? ''}
+                      onChange={(event) =>
+                        setReplacementIncidentIds((current) => ({
+                          ...current,
+                          [issue.id]: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">No vincular; no se crea un incidente automáticamente</option>
+                      {(incidents.data?.items ?? []).map((incident) => (
+                        <option key={incident.id} value={incident.id}>
+                          {incident.title} · {incident.status}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                <label className="field">
                   <span>{`Evidencia de reemplazo de ${issue.ppeCatalogItem.name}`}</span>
                   <textarea
                     rows={2}
@@ -567,8 +975,19 @@ export function WorkerPpePanel({
                         expectedVersion: issue.version,
                         issuedAt: new Date().toISOString(),
                         evidenceNote: replacementEvidence[issue.id],
+                        reason: replacementReasons[issue.id] ?? 'WEAR',
+                        ...(replacementReasonNotes[issue.id]?.trim()
+                          ? { reasonNote: replacementReasonNotes[issue.id]!.trim() }
+                          : {}),
+                        ...(replacementIncidentIds[issue.id]
+                          ? { linkedIncidentId: replacementIncidentIds[issue.id] }
+                          : {}),
                       },
-                      () => setReplacementEvidence((current) => ({ ...current, [issue.id]: '' })),
+                      () => {
+                        setReplacementEvidence((current) => ({ ...current, [issue.id]: '' }));
+                        setReplacementReasonNotes((current) => ({ ...current, [issue.id]: '' }));
+                        setReplacementIncidentIds((current) => ({ ...current, [issue.id]: '' }));
+                      },
                     )
                   }
                   type="button"

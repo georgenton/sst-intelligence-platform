@@ -17,6 +17,8 @@ import {
   IncidentEvidenceScope,
   IncidentEvidenceType,
   IncidentEventType,
+  IncidentEventLocation,
+  IncidentInvestigationMethod,
   IncidentFactorCategory,
   IncidentStatus,
 } from '@prisma/client';
@@ -33,10 +35,13 @@ export class IncidentQueryDto {
 
 export class CreateIncidentDto {
   @IsUUID() workCenterId!: string;
+  @IsOptional() @IsUUID() workAreaId?: string;
   @IsDateString() occurredAt!: string;
   @IsString() @Length(3, 200) title!: string;
   @IsString() @Length(3, 4000) description!: string;
   @IsEnum(IncidentEventType) eventType!: IncidentEventType;
+  @IsEnum(IncidentEventLocation) eventLocation!: IncidentEventLocation;
+  @IsEnum(ActionPriority) attentionPriority!: ActionPriority;
   @IsOptional() @IsString() @Length(1, 1000) activityContext?: string;
   @IsOptional() @IsUUID() linkedInspectionId?: string;
   @IsOptional() @IsUUID() linkedFindingId?: string;
@@ -53,8 +58,14 @@ export class AddIncidentWorkerDto {
   @IsOptional() @IsString() @Length(1, 500) involvement?: string;
 }
 
+export class AddIncidentPpeIssueDto {
+  @IsUUID() ppeIssueId!: string;
+  @IsOptional() @IsString() @Length(1, 1000) note?: string;
+}
+
 export class StartIncidentInvestigationDto {
   @IsInt() @Min(1) expectedVersion!: number;
+  @IsEnum(IncidentInvestigationMethod) method!: IncidentInvestigationMethod;
 }
 
 export class CompleteIncidentInvestigationDto {

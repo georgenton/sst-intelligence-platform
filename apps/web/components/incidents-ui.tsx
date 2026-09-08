@@ -52,8 +52,12 @@ type Incident = {
   status: IncidentStatus;
   occurredAt: string;
   reportedAt?: string | null;
+  eventLocation?:
+    'OWN_FACILITY' | 'CLIENT_OR_EXTERNAL_FACILITY' | 'PUBLIC_ROAD' | 'REMOTE_WORK' | 'OTHER' | null;
+  attentionPriority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT' | null;
   version: number;
   workCenter: { id: string; name: string };
+  workArea?: { id: string; name: string } | null;
   reportedBy?: { id: string; displayName: string };
   linkedInspection?: { id: string; title: string } | null;
   linkedFinding?: { id: string; title: string } | null;
@@ -67,6 +71,7 @@ type Incident = {
     id: string;
     status: 'IN_PROGRESS' | 'COMPLETED';
     summary?: string | null;
+    method?: 'STRUCTURED_FACTORS' | 'ISHIKAWA' | 'OTHER_PROFESSIONAL' | null;
     startedAt: string;
     completedAt?: string | null;
     version: number;
@@ -83,6 +88,16 @@ type Incident = {
   }>;
   actions: IncidentAction[];
   evidence: Evidence[];
+  ppeLinks: Array<{
+    id: string;
+    note?: string | null;
+    ppeIssue: {
+      id: string;
+      status: string;
+      assetReference?: string | null;
+      ppeCatalogItem: { id: string; name: string; category: string };
+    };
+  }>;
 };
 type IncidentList = {
   items: Array<
@@ -102,6 +117,7 @@ type IncidentAnalytics = {
   byEventType: Array<{ eventType: 'INCIDENT' | 'NEAR_MISS'; count: number }>;
 };
 type WorkCenter = { id: string; name: string; isActive: boolean };
+type WorkArea = { id: string; name: string; workCenterId: string };
 type WorkerList = { items: Worker[]; total: number };
 type OrganizationMember = {
   id: string;
@@ -111,10 +127,14 @@ type OrganizationMember = {
 };
 type IncidentForm = {
   workCenterId: string;
+  workAreaId: string;
   occurredAt: string;
   title: string;
   description: string;
   eventType: 'INCIDENT' | 'NEAR_MISS';
+  eventLocation:
+    'OWN_FACILITY' | 'CLIENT_OR_EXTERNAL_FACILITY' | 'PUBLIC_ROAD' | 'REMOTE_WORK' | 'OTHER';
+  attentionPriority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   activityContext: string;
 };
 type FactorForm = { category: string; description: string; rationale: string };
@@ -273,13 +293,22 @@ export function IncidentRegistry() {
       ),
     enabled: Boolean(organizationId),
   });
+  const areas = useQuery({
+    queryKey: queryKeys.organization.workAreas(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<WorkArea[]>('/workers/work-areas', { signal }, organizationId!),
+    enabled: Boolean(organizationId),
+  });
   const form = useForm<IncidentForm>({
     defaultValues: {
       workCenterId: '',
+      workAreaId: '',
       occurredAt: '',
       title: '',
       description: '',
       eventType: 'INCIDENT',
+      eventLocation: 'OWN_FACILITY',
+      attentionPriority: 'MEDIUM',
       activityContext: '',
     },
   });
@@ -291,6 +320,7 @@ export function IncidentRegistry() {
           method: 'POST',
           body: JSON.stringify({
             ...values,
+            workAreaId: values.workAreaId || undefined,
             occurredAt: new Date(values.occurredAt).toISOString(),
             ...(values.activityContext ? {} : { activityContext: undefined }),
           }),
@@ -309,7 +339,7 @@ export function IncidentRegistry() {
     <WorkspaceShell className="workforce-shell">
       <WorkspaceHeader
         eyebrow="Operación · Incidentes"
-        title="Incidentes y casi incidentes"
+        title="Accidentes e Incidentes"
         description="Registra hechos, conduce la investigación profesional y da seguimiento a acciones sin convertir el sistema en un expediente médico ni legal."
       />
       <ContextSummary>
@@ -351,6 +381,40 @@ export function IncidentRegistry() {
             <label className="field">
               <span>Fecha y hora del evento</span>
               <input type="datetime-local" {...form.register('occurredAt', { required: true })} />
+            </label>
+            <label className="field">
+              <span>Área (opcional)</span>
+              <select {...form.register('workAreaId')}>
+                <option value="">Sin área específica</option>
+                {(areas.data ?? [])
+                  .filter((area) => area.workCenterId === form.watch('workCenterId'))
+                  .map((area) => (
+                    <option key={area.id} value={area.id}>
+                      {area.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Lugar del evento</span>
+              <select {...form.register('eventLocation')}>
+                <option value="OWN_FACILITY">Instalación propia</option>
+                <option value="CLIENT_OR_EXTERNAL_FACILITY">
+                  Instalación de cliente o externa
+                </option>
+                <option value="PUBLIC_ROAD">Vía pública</option>
+                <option value="REMOTE_WORK">Trabajo remoto</option>
+                <option value="OTHER">Otro</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Prioridad de atención interna</span>
+              <select {...form.register('attentionPriority')}>
+                <option value="LOW">Baja</option>
+                <option value="MEDIUM">Media</option>
+                <option value="HIGH">Alta</option>
+                <option value="URGENT">Urgente</option>
+              </select>
             </label>
             <label className="field">
               <span>Título breve</span>
@@ -451,6 +515,9 @@ export function IncidentWorkspace({ incidentId }: { incidentId: string }) {
   const canReview = REVIEW_ROLES.has(organization.currentRole ?? '');
   const [workerId, setWorkerId] = useState('');
   const [workerInvolvement, setWorkerInvolvement] = useState('');
+  const [investigationMethod, setInvestigationMethod] = useState<
+    'STRUCTURED_FACTORS' | 'ISHIKAWA' | 'OTHER_PROFESSIONAL'
+  >('ISHIKAWA');
   const [investigationEvidence, setInvestigationEvidence] = useState('');
   const [actionEvidence, setActionEvidence] = useState<Record<string, string>>({});
   const factorForm = useForm<FactorForm>({
@@ -543,6 +610,24 @@ export function IncidentWorkspace({ incidentId }: { incidentId: string }) {
       <ContextSummary>
         <span>{data.eventType === 'NEAR_MISS' ? 'Casi incidente' : 'Incidente'}</span>
         <span>{data.workCenter.name}</span>
+        <span>{data.workArea?.name ?? 'Sin área específica'}</span>
+        <span>
+          Lugar:{' '}
+          {data.eventLocation === 'OWN_FACILITY'
+            ? 'instalación propia'
+            : data.eventLocation === 'CLIENT_OR_EXTERNAL_FACILITY'
+              ? 'instalación externa'
+              : data.eventLocation === 'PUBLIC_ROAD'
+                ? 'vía pública'
+                : data.eventLocation === 'REMOTE_WORK'
+                  ? 'trabajo remoto'
+                  : data.eventLocation === 'OTHER'
+                    ? 'otro'
+                    : 'histórico no registrado'}
+        </span>
+        <span>
+          Prioridad interna: {data.attentionPriority?.toLowerCase() ?? 'histórica no registrada'}
+        </span>
         <span>{new Date(data.occurredAt).toLocaleString('es-EC')}</span>
       </ContextSummary>
       {operation.isError ? <p role="alert">{errorMessage(operation.error)}</p> : null}
@@ -649,22 +734,47 @@ export function IncidentWorkspace({ incidentId }: { incidentId: string }) {
             title="Factores identificados durante la investigación"
           >
             {!data.investigation && canWrite && data.status === 'REPORTED' ? (
-              <button
-                className="button"
-                disabled={operation.isPending}
-                onClick={() =>
-                  run(`/incidents/${incidentId}/investigation/start`, {
-                    expectedVersion: data.version,
-                  })
-                }
-                type="button"
-              >
-                Iniciar investigación
-              </button>
+              <div className="workforce-form workforce-compact-form">
+                <label className="field">
+                  <span>Método de investigación</span>
+                  <select
+                    value={investigationMethod}
+                    onChange={(event) =>
+                      setInvestigationMethod(
+                        event.target.value as
+                          'STRUCTURED_FACTORS' | 'ISHIKAWA' | 'OTHER_PROFESSIONAL',
+                      )
+                    }
+                  >
+                    <option value="ISHIKAWA">Ishikawa</option>
+                    <option value="STRUCTURED_FACTORS">Factores estructurados</option>
+                    <option value="OTHER_PROFESSIONAL">Otro método profesional</option>
+                  </select>
+                </label>
+                <button
+                  className="button"
+                  disabled={operation.isPending}
+                  onClick={() =>
+                    run(`/incidents/${incidentId}/investigation/start`, {
+                      expectedVersion: data.version,
+                      method: investigationMethod,
+                    })
+                  }
+                  type="button"
+                >
+                  Iniciar investigación
+                </button>
+              </div>
             ) : null}
             {data.investigation ? (
               <p>
-                Iniciada por {data.investigation.startedBy.displayName}. Estado:{' '}
+                Método:{' '}
+                {data.investigation.method === 'ISHIKAWA'
+                  ? 'Ishikawa'
+                  : data.investigation.method === 'STRUCTURED_FACTORS'
+                    ? 'Factores estructurados'
+                    : 'Otro método profesional'}
+                . Iniciada por {data.investigation.startedBy.displayName}. Estado:{' '}
                 {data.investigation.status === 'COMPLETED' ? 'completada' : 'en curso'}.
               </p>
             ) : (
@@ -774,6 +884,21 @@ export function IncidentWorkspace({ incidentId }: { incidentId: string }) {
                 </button>
               </div>
             ) : null}
+          </WorkspaceSection>
+
+          <WorkspaceSection eyebrow="Trazabilidad" title="EPP relacionado">
+            {data.ppeLinks.length === 0 ? <p>No hay entregas de EPP vinculadas.</p> : null}
+            {data.ppeLinks.map((link) => (
+              <Card key={link.id}>
+                <h3>{link.ppeIssue.ppeCatalogItem.name}</h3>
+                <p>{link.ppeIssue.status}</p>
+                {link.note ? <small>{link.note}</small> : null}
+              </Card>
+            ))}
+            <p>
+              Los vínculos se registran de forma explícita; el sistema no crea ni concluye un
+              accidente o incidente a partir del estado del EPP.
+            </p>
           </WorkspaceSection>
 
           <WorkspaceSection eyebrow="Seguimiento" title="Acciones del incidente">

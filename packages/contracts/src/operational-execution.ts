@@ -95,6 +95,7 @@ export const WORK_QUEUE_ITEM_TYPES = [
   'WORK_PERMIT_DUE',
   'INCIDENT_INVESTIGATION',
   'INCIDENT_ACTION',
+  'SAFETY_OBSERVATION_FOLLOW_UP',
   'PPE_REPLACEMENT_DUE',
   'PPE_CONDITION_REVIEW',
   'TRAINING_REQUIRED',
@@ -125,6 +126,7 @@ export function workQueuePriorityRank(input: {
     input.type === 'INCIDENT_INVESTIGATION' ||
     input.type === 'PPE_CONDITION_REVIEW' ||
     input.type === 'TRAINING_SESSION_FOLLOW_UP' ||
+    input.type === 'SAFETY_OBSERVATION_FOLLOW_UP' ||
     input.type === 'GOVERNANCE_ACTION' ||
     input.type === 'OPERATIONAL_SIGNAL' ||
     input.type === 'OPERATIONAL_PLAN_ITEM'

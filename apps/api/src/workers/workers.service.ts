@@ -4,16 +4,25 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
-import { assertWorkerDateRange } from '@sst/contracts';
+import type { PpeCategory, Prisma } from '@prisma/client';
+import { assertWorkerDateRange, suggestPpeCategories } from '@sst/contracts';
 import { AuditService, type AuditEvent } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
-import type { CreateWorkerDto, DeactivateWorkerDto, UpdateWorkerDto, WorkerQueryDto } from './dto';
+import type {
+  CreatePositionDto,
+  CreatePositionRiskDto,
+  CreateWorkerDto,
+  DeactivateWorkerDto,
+  UpdateWorkerDto,
+  WorkerQueryDto,
+} from './dto';
 
 type Context = Pick<AuditEvent, 'requestId' | 'ip' | 'userAgent'>;
 
 const workerInclude = {
   workCenter: { select: { id: true, name: true } },
+  workArea: { select: { id: true, name: true, workCenterId: true } },
+  position: { select: { id: true, name: true, code: true } },
   linkedUser: { select: { id: true, displayName: true, email: true } },
   createdBy: { select: { id: true, displayName: true } },
 } as const;
@@ -31,6 +40,8 @@ export class WorkersService {
       organizationId,
       ...(query.status ? { status: query.status } : {}),
       ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
+      ...(query.workAreaId ? { workAreaId: query.workAreaId } : {}),
+      ...(query.positionId ? { positionId: query.positionId } : {}),
       ...(search
         ? {
             OR: [
@@ -54,6 +65,133 @@ export class WorkersService {
     return { items, page: query.page, pageSize: query.pageSize, total };
   }
 
+  positions(organizationId: string) {
+    return this.prisma.position.findMany({
+      where: { organizationId },
+      include: {
+        riskContexts: { where: { isActive: true }, orderBy: [{ category: 'asc' }, { id: 'asc' }] },
+        _count: { select: { workers: true, ppeRequirements: true } },
+      },
+      orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
+    });
+  }
+
+  workAreas(organizationId: string) {
+    return this.prisma.workArea.findMany({
+      where: { organizationId, isActive: true },
+      select: { id: true, name: true, workCenterId: true },
+      orderBy: [{ workCenterId: 'asc' }, { name: 'asc' }],
+    });
+  }
+
+  async createPosition(
+    organizationId: string,
+    userId: string,
+    input: CreatePositionDto,
+    context: Context,
+  ) {
+    const position = await this.prisma.position.create({
+      data: {
+        organizationId,
+        createdById: userId,
+        name: input.name.trim(),
+        code: input.code?.trim(),
+        description: input.description?.trim(),
+      },
+    });
+    await this.audit.record({
+      organizationId,
+      actorUserId: userId,
+      action: 'POSITION_CREATED',
+      entityType: 'Position',
+      entityId: position.id,
+      metadata: { code: position.code },
+      ...context,
+    });
+    return position;
+  }
+
+  async addPositionRisk(
+    organizationId: string,
+    positionId: string,
+    userId: string,
+    input: CreatePositionRiskDto,
+    context: Context,
+  ) {
+    const position = await this.prisma.position.findFirst({
+      where: { id: positionId, organizationId, isActive: true },
+      select: { id: true },
+    });
+    if (!position) throw new NotFoundException('Cargo no encontrado.');
+    const risk = await this.prisma.positionRiskContext.create({
+      data: {
+        organizationId,
+        positionId,
+        category: input.category,
+        description: input.description.trim(),
+        provenance: input.provenance?.trim(),
+        createdById: userId,
+      },
+    });
+    await this.audit.record({
+      organizationId,
+      actorUserId: userId,
+      action: 'POSITION_RISK_CONTEXT_CREATED',
+      entityType: 'PositionRiskContext',
+      entityId: risk.id,
+      metadata: { positionId, category: input.category },
+      ...context,
+    });
+    return risk;
+  }
+
+  async positionPpeCandidates(organizationId: string, positionId: string) {
+    const position = await this.prisma.position.findFirst({
+      where: { id: positionId, organizationId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        riskContexts: {
+          where: { isActive: true },
+          select: { id: true, category: true, description: true },
+        },
+      },
+    });
+    if (!position) throw new NotFoundException('Cargo no encontrado.');
+    const categories = suggestPpeCategories(position.riskContexts.map((risk) => risk.category));
+    const suggestions = position.riskContexts.map((risk) => ({
+      risk,
+      categories: suggestPpeCategories([risk.category]),
+    }));
+    const catalogItems = categories.length
+      ? await this.prisma.ppeCatalogItem.findMany({
+          where: {
+            organizationId,
+            status: 'ACTIVE',
+            category: { in: categories as PpeCategory[] },
+          },
+          select: {
+            id: true,
+            name: true,
+            category: true,
+            referenceStandard: true,
+            referenceJurisdiction: true,
+            referenceProvenance: true,
+            referenceReviewStatus: true,
+          },
+          orderBy: [{ category: 'asc' }, { name: 'asc' }],
+        })
+      : [];
+    return {
+      position,
+      categories,
+      suggestions,
+      catalogItems,
+      decisionBoundary:
+        'Sugerencias determinísticas. Un profesional autorizado debe seleccionar antes de convertirlas en requisito interno.',
+    };
+  }
+
   async get(organizationId: string, id: string) {
     const worker = await this.prisma.worker.findFirst({
       where: { id, organizationId },
@@ -67,7 +205,13 @@ export class WorkersService {
     const startDate = input.startDate ? new Date(input.startDate) : null;
     const endDate = input.endDate ? new Date(input.endDate) : null;
     this.assertDates(startDate, endDate);
-    await this.requireTenantReferences(organizationId, input.workCenterId, input.linkedUserId);
+    await this.requireTenantReferences(
+      organizationId,
+      input.workCenterId,
+      input.linkedUserId,
+      input.workAreaId,
+      input.positionId,
+    );
     try {
       const worker = await this.prisma.worker.create({
         data: {
@@ -76,6 +220,8 @@ export class WorkersService {
           displayName: input.displayName.trim(),
           internalCode: input.internalCode?.trim(),
           workCenterId: input.workCenterId,
+          workAreaId: input.workAreaId,
+          positionId: input.positionId,
           jobTitle: input.jobTitle?.trim(),
           linkedUserId: input.linkedUserId,
           startDate,
@@ -113,6 +259,8 @@ export class WorkersService {
     this.assertVersion(current.version, input.expectedVersion);
     const workCenterId = Object.hasOwn(input, 'workCenterId') ? input.workCenterId : undefined;
     const linkedUserId = Object.hasOwn(input, 'linkedUserId') ? input.linkedUserId : undefined;
+    const workAreaId = Object.hasOwn(input, 'workAreaId') ? input.workAreaId : undefined;
+    const positionId = Object.hasOwn(input, 'positionId') ? input.positionId : undefined;
     const nextLinkedUserId = Object.hasOwn(input, 'linkedUserId')
       ? (input.linkedUserId ?? null)
       : current.linkedUserId;
@@ -121,6 +269,8 @@ export class WorkersService {
       organizationId,
       workCenterId ?? undefined,
       linkedUserId ?? undefined,
+      workAreaId ?? undefined,
+      positionId ?? undefined,
     );
     const startDate = Object.hasOwn(input, 'startDate')
       ? input.startDate
@@ -166,6 +316,8 @@ export class WorkersService {
                 ? { internalCode: input.internalCode?.trim() ?? null }
                 : {}),
               ...(Object.hasOwn(input, 'workCenterId') ? { workCenterId: input.workCenterId } : {}),
+              ...(Object.hasOwn(input, 'workAreaId') ? { workAreaId: input.workAreaId } : {}),
+              ...(Object.hasOwn(input, 'positionId') ? { positionId: input.positionId } : {}),
               ...(Object.hasOwn(input, 'jobTitle')
                 ? { jobTitle: input.jobTitle?.trim() ?? null }
                 : {}),
@@ -253,8 +405,10 @@ export class WorkersService {
     organizationId: string,
     workCenterId?: string,
     linkedUserId?: string,
+    workAreaId?: string,
+    positionId?: string,
   ) {
-    const [workCenter, membership] = await Promise.all([
+    const [workCenter, membership, workArea, position] = await Promise.all([
       workCenterId
         ? this.prisma.workCenter.findFirst({
             where: { id: workCenterId, organizationId, isActive: true },
@@ -267,6 +421,18 @@ export class WorkersService {
             select: { id: true },
           })
         : null,
+      workAreaId
+        ? this.prisma.workArea.findFirst({
+            where: { id: workAreaId, organizationId, isActive: true },
+            select: { id: true, workCenterId: true },
+          })
+        : null,
+      positionId
+        ? this.prisma.position.findFirst({
+            where: { id: positionId, organizationId, isActive: true },
+            select: { id: true },
+          })
+        : null,
     ]);
     if (workCenterId && !workCenter)
       throw new BadRequestException('El centro de trabajo no pertenece a la organización activa.');
@@ -274,6 +440,12 @@ export class WorkersService {
       throw new BadRequestException(
         'La cuenta vinculada requiere una membresía activa en la organización.',
       );
+    if (workAreaId && !workArea)
+      throw new BadRequestException('El área no pertenece a la organización activa.');
+    if (workCenterId && workArea && workArea.workCenterId !== workCenterId)
+      throw new BadRequestException('El área no pertenece al centro de trabajo seleccionado.');
+    if (positionId && !position)
+      throw new BadRequestException('El cargo no pertenece a la organización activa.');
   }
 
   private assertDates(startDate?: Date | null, endDate?: Date | null) {

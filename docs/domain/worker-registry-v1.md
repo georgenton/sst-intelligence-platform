@@ -32,3 +32,22 @@ Incidentes, EPP and Capacitación. Primary UI uses human Spanish labels and neve
 UUIDs or internal feature keys. The workspace derives a current cross-domain summary from each
 source lifecycle and keeps exact links to Incident, EPP and Training records; it does not calculate
 a Worker safety score.
+
+## Workforce context V2 candidate
+
+Status: implemented on `feat/workforce-safety-product-refinement-v2`; external review required.
+
+`WorkCenter` remains the physical site, branch, plant or logistics center, and `WorkArea` remains a
+subdivision inside that site. A separate `Plant` entity was deliberately not created: the existing
+pair represents Quito/Plant A/Production, Quito/Plant B/Administration and Guayaquil/Logistics
+Center/Warehouse without an ambiguous extra level. City remains metadata of the Work Center.
+
+`Position` is now an organization-scoped operational role shared by Workers, structured risk
+contexts, EPP requirements and training audiences. A Worker may reference one Work Center, one
+compatible Work Area and one Position while retaining the legacy free-text job title. All new
+fields are nullable so historical workers remain truthful. Cross-tenant and center/area consistency
+checks are server-authoritative.
+
+Worker is still not User or Membership. Creating a Worker does not create access, consume a seat or
+change a subscription. Inactivation preserves Incident, EPP, Training and future non-clinical SST
+history. Payroll, compensation, leave, recruiting, tax and clinical records remain out of scope.

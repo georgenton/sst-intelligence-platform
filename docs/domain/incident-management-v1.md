@@ -32,3 +32,25 @@ inactive-Worker history.
 
 SUT/IESS filing, statutory deadlines and legal reportability are deferred reviewed regulatory
 workflows.
+
+## Accidentes e Incidentes V2 candidate
+
+Status: implemented on `feat/workforce-safety-product-refinement-v2`; external review required.
+
+Spanish product navigation now says **Accidentes e Incidentes**. New records select a bounded event
+location (`OWN_FACILITY`, external/client facility, public road, remote work or other) and an
+internal attention priority. These fields guide Work Queue presentation only; neither determines
+legal responsibility, reportability, severity, causality or compliance. Both are nullable for
+truthful legacy history.
+
+Investigations may declare a structured-factors, Ishikawa or other professional method. The
+Ishikawa surface groups bounded contributing factors and evidence. The final investigation summary
+is written by an authorized professional; no automatic root cause exists. Same-tenant EPP issues
+can be linked explicitly and remain separately historical. An EPP issue can be linked only after its
+Worker is explicitly included in the Incident; the API never infers involvement. For a damage
+replacement, the Incident references the damaged original issue rather than the later replacement.
+Worker, Position (through Worker), Work Center, Work Area, Evidence, factors and actions remain
+traceable through their canonical records.
+
+Location wording, factor categories and professional investigation refinements are **PENDING
+ANITA**. Legal filing and automatic submissions remain **DEFERRED**.

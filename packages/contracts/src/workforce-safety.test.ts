@@ -10,6 +10,10 @@ import {
   deriveWorkerCompetencyStatus,
   isPpeReplacementDue,
   ppeConditionRequiresReview,
+  suggestPpeCategories,
+  assertSafetyObservationTransition,
+  trainingNeedRequiresApprovedRequirement,
+  trainingNeedProvenanceError,
 } from './workforce-safety.js';
 
 describe('worker registry rules', () => {
@@ -65,6 +69,16 @@ describe('incident management rules', () => {
 });
 
 describe('PPE lifecycle', () => {
+  it('suggests deterministic candidates from position risks without making the decision', () => {
+    expect(suggestPpeCategories(['PROJECTION', 'ELECTRICAL', 'PROJECTION'])).toEqual([
+      'EYE_FACE',
+      'FOOT',
+      'HAND_ARM',
+      'HEAD',
+    ]);
+    expect(suggestPpeCategories(['ERGONOMIC'])).toEqual([]);
+  });
+
   it('keeps replacement as a new historical issue', () => {
     expect(() => assertPpeIssueTransition('REPLACEMENT_DUE', 'REPLACED')).not.toThrow();
     expect(() => assertPpeIssueTransition('REPLACED', 'IN_SERVICE')).toThrow(
@@ -93,7 +107,68 @@ describe('PPE lifecycle', () => {
   });
 });
 
+describe('safety observation lifecycle', () => {
+  it('keeps triage and resolution explicit and terminal', () => {
+    expect(() => assertSafetyObservationTransition('OPEN', 'UNDER_REVIEW')).not.toThrow();
+    expect(() =>
+      assertSafetyObservationTransition('UNDER_REVIEW', 'ACTION_REQUIRED'),
+    ).not.toThrow();
+    expect(() => assertSafetyObservationTransition('ACTION_REQUIRED', 'RESOLVED')).not.toThrow();
+    expect(() => assertSafetyObservationTransition('RESOLVED', 'UNDER_REVIEW')).toThrow(
+      'INVALID_SAFETY_OBSERVATION_TRANSITION',
+    );
+  });
+});
+
 describe('training and competency lifecycle', () => {
+  it.each([
+    ['PLAN', { linkedPlanItemId: 'plan-item' }],
+    ['RISK', { linkedAssessmentId: 'assessment' }],
+    ['PPE_REQUIREMENT', { linkedPpeRequirementId: 'ppe-requirement' }],
+    ['INCIDENT', { linkedIncidentId: 'incident' }],
+    ['SAFETY_OBSERVATION', { linkedSafetyObservationId: 'observation' }],
+    ['FINDING', { linkedFindingId: 'finding' }],
+    ['APPROVED_REQUIREMENT', { linkedRegulatoryRequirementId: 'requirement' }],
+    ['POSITION', { positionId: 'position' }],
+    ['MANUAL', {}],
+  ])('accepts one canonical provenance for %s', (sourceType, references) => {
+    expect(trainingNeedProvenanceError({ sourceType, ...references })).toBeNull();
+  });
+
+  it.each([
+    ['MANUAL with an Incident link', { sourceType: 'MANUAL', linkedIncidentId: 'incident' }],
+    [
+      'INCIDENT with Incident and Finding links',
+      { sourceType: 'INCIDENT', linkedIncidentId: 'incident', linkedFindingId: 'finding' },
+    ],
+    [
+      'PLAN with Plan and Assessment links',
+      { sourceType: 'PLAN', linkedPlanItemId: 'plan', linkedAssessmentId: 'assessment' },
+    ],
+    ['POSITION without a Position', { sourceType: 'POSITION' }],
+    [
+      'POSITION with a canonical link',
+      { sourceType: 'POSITION', positionId: 'position', linkedIncidentId: 'incident' },
+    ],
+  ])('rejects contradictory provenance: %s', (_label, input) => {
+    expect(trainingNeedProvenanceError(input)).not.toBeNull();
+  });
+
+  it('does not represent a candidate regulatory requirement as an approved training duty', () => {
+    expect(
+      trainingNeedRequiresApprovedRequirement({
+        sourceType: 'APPROVED_REQUIREMENT',
+        requirementEditorialStatus: 'CANDIDATE',
+      }),
+    ).toBe(false);
+    expect(
+      trainingNeedRequiresApprovedRequirement({
+        sourceType: 'APPROVED_REQUIREMENT',
+        requirementEditorialStatus: 'APPROVED_FOR_RULE_DRAFTING',
+      }),
+    ).toBe(true);
+  });
+
   it('keeps the session lifecycle finite', () => {
     expect(() => assertTrainingSessionTransition('DRAFT', 'SCHEDULED')).not.toThrow();
     expect(() => assertTrainingSessionTransition('SCHEDULED', 'COMPLETED')).not.toThrow();

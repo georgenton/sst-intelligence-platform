@@ -75,6 +75,20 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'incidents', 'detail', incidentId] as const,
     incidentAnalytics: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'incidents', 'analytics'] as const,
+    safetyObservations: (organizationId: string, filters = '') =>
+      [...privateRoot, 'org', organizationId, 'safety-observations', 'list', filters] as const,
+    safetyObservation: (organizationId: string, observationId: string) =>
+      [...privateRoot, 'org', organizationId, 'safety-observations', observationId] as const,
+    positions: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'positions'] as const,
+    workAreas: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'work-areas'] as const,
+    positionPpeRequirements: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'ppe', 'position-requirements'] as const,
+    trainingNeeds: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'training', 'needs'] as const,
+    trainingPlan: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'training', 'plan'] as const,
     ppeCatalog: (organizationId: string, filters = '') =>
       [...privateRoot, 'org', organizationId, 'ppe', 'catalog', filters] as const,
     workerPpe: (organizationId: string, workerId: string) =>
@@ -161,6 +175,8 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'inspections', 'detail', inspectionId] as const,
     finding: (organizationId: string, findingId: string) =>
       [...privateRoot, 'org', organizationId, 'findings', 'detail', findingId] as const,
+    findingSearch: (organizationId: string, search: string) =>
+      [...privateRoot, 'org', organizationId, 'findings', 'search', search] as const,
     inspectionAlerts: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'inspections', 'alerts'] as const,
     inspectionAlertList: (organizationId: string, filters: string) =>

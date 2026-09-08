@@ -117,6 +117,131 @@ export function ppeConditionRequiresReview(condition: string) {
   return condition === 'REVIEW_REQUIRED' || condition === 'UNSERVICEABLE';
 }
 
+export const POSITION_RISK_CATEGORIES = [
+  'ELECTRICAL',
+  'ARC_FLASH',
+  'PROJECTION',
+  'MECHANICAL',
+  'ERGONOMIC',
+  'CHEMICAL',
+  'BIOLOGICAL',
+  'PHYSICAL',
+  'OTHER',
+] as const;
+export type PositionRiskCategory = (typeof POSITION_RISK_CATEGORIES)[number];
+
+export const PPE_CATEGORY_BY_POSITION_RISK: Readonly<
+  Record<PositionRiskCategory, readonly string[]>
+> = {
+  ELECTRICAL: ['HAND_ARM', 'FOOT', 'HEAD'],
+  ARC_FLASH: ['EYE_FACE', 'BODY', 'HAND_ARM', 'HEAD'],
+  PROJECTION: ['EYE_FACE'],
+  MECHANICAL: ['HAND_ARM', 'FOOT', 'HEAD'],
+  ERGONOMIC: [],
+  CHEMICAL: ['EYE_FACE', 'RESPIRATORY', 'HAND_ARM', 'BODY'],
+  BIOLOGICAL: ['EYE_FACE', 'RESPIRATORY', 'HAND_ARM', 'BODY'],
+  PHYSICAL: ['HEARING', 'HEAD', 'BODY'],
+  OTHER: [],
+};
+
+export function suggestPpeCategories(risks: readonly PositionRiskCategory[]) {
+  return [...new Set(risks.flatMap((risk) => PPE_CATEGORY_BY_POSITION_RISK[risk]))].sort();
+}
+
+export const SAFETY_OBSERVATION_STATUSES = [
+  'OPEN',
+  'UNDER_REVIEW',
+  'ACTION_REQUIRED',
+  'RESOLVED',
+  'CLOSED_NO_ACTION',
+] as const;
+export type SafetyObservationStatus = (typeof SAFETY_OBSERVATION_STATUSES)[number];
+
+const safetyObservationTransitions: Record<
+  SafetyObservationStatus,
+  readonly SafetyObservationStatus[]
+> = {
+  OPEN: ['UNDER_REVIEW', 'ACTION_REQUIRED', 'RESOLVED', 'CLOSED_NO_ACTION'],
+  UNDER_REVIEW: ['ACTION_REQUIRED', 'RESOLVED', 'CLOSED_NO_ACTION'],
+  ACTION_REQUIRED: ['UNDER_REVIEW', 'RESOLVED'],
+  RESOLVED: [],
+  CLOSED_NO_ACTION: [],
+};
+
+export function assertSafetyObservationTransition(
+  from: SafetyObservationStatus,
+  to: SafetyObservationStatus,
+) {
+  if (!safetyObservationTransitions[from].includes(to)) {
+    throw new Error(`INVALID_SAFETY_OBSERVATION_TRANSITION:${from}:${to}`);
+  }
+}
+
+export function trainingNeedRequiresApprovedRequirement(input: {
+  sourceType: string;
+  requirementEditorialStatus?: string | null;
+}) {
+  return (
+    input.sourceType !== 'APPROVED_REQUIREMENT' ||
+    input.requirementEditorialStatus === 'APPROVED_FOR_RULE_DRAFTING'
+  );
+}
+
+export const TRAINING_NEED_CANONICAL_SOURCE_FIELDS = [
+  'linkedPlanItemId',
+  'linkedAssessmentId',
+  'linkedPpeRequirementId',
+  'linkedIncidentId',
+  'linkedSafetyObservationId',
+  'linkedFindingId',
+  'linkedRegulatoryRequirementId',
+] as const;
+
+export type TrainingNeedCanonicalSourceField =
+  (typeof TRAINING_NEED_CANONICAL_SOURCE_FIELDS)[number];
+
+export type TrainingNeedProvenanceInput = {
+  sourceType: string;
+  positionId?: string | null;
+} & Partial<Record<TrainingNeedCanonicalSourceField, string | null>>;
+
+const trainingNeedCanonicalSourceByType: Readonly<
+  Record<string, TrainingNeedCanonicalSourceField | null>
+> = {
+  PLAN: 'linkedPlanItemId',
+  RISK: 'linkedAssessmentId',
+  POSITION: null,
+  PPE_REQUIREMENT: 'linkedPpeRequirementId',
+  INCIDENT: 'linkedIncidentId',
+  SAFETY_OBSERVATION: 'linkedSafetyObservationId',
+  FINDING: 'linkedFindingId',
+  APPROVED_REQUIREMENT: 'linkedRegulatoryRequirementId',
+  MANUAL: null,
+};
+
+export function trainingNeedProvenanceError(input: TrainingNeedProvenanceInput): string | null {
+  if (!(input.sourceType in trainingNeedCanonicalSourceByType)) {
+    return 'UNKNOWN_TRAINING_NEED_SOURCE';
+  }
+  const presentCanonicalFields = TRAINING_NEED_CANONICAL_SOURCE_FIELDS.filter((field) =>
+    Boolean(input[field]),
+  );
+  const expectedField = trainingNeedCanonicalSourceByType[input.sourceType];
+
+  if (input.sourceType === 'POSITION') {
+    if (!input.positionId) return 'POSITION_SOURCE_REQUIRES_POSITION';
+    if (presentCanonicalFields.length > 0) return 'POSITION_SOURCE_HAS_CANONICAL_LINK';
+    return null;
+  }
+  if (input.sourceType === 'MANUAL') {
+    return presentCanonicalFields.length === 0 ? null : 'MANUAL_SOURCE_HAS_CANONICAL_LINK';
+  }
+  if (presentCanonicalFields.length !== 1 || presentCanonicalFields[0] !== expectedField) {
+    return 'TRAINING_NEED_CANONICAL_SOURCE_MISMATCH';
+  }
+  return null;
+}
+
 export const TRAINING_SESSION_STATUSES = ['DRAFT', 'SCHEDULED', 'COMPLETED', 'CANCELLED'] as const;
 export type TrainingSessionStatus = (typeof TRAINING_SESSION_STATUSES)[number];
 

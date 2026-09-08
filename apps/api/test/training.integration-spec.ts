@@ -96,8 +96,29 @@ describe('training and competency integration', () => {
 
     await api(viewer.token, orgA)
       .post('/training/definitions')
-      .send({ title: 'No autorizada', category: 'Interna' })
+      .send({ title: 'No autorizada', category: 'Interna', deliveryClassification: 'INTERNAL' })
       .expect(403);
+    await api(owner.token, orgA)
+      .post('/training/definitions')
+      .send({
+        title: `Confirmación sin proveniencia ${suffix}`,
+        category: 'Seguridad operativa',
+        deliveryClassification: 'CERTIFICATION_CONFIRMED',
+      })
+      .expect(400);
+    const confirmedDefinition = await api(owner.token, orgA)
+      .post('/training/definitions')
+      .send({
+        title: `Confirmación con proveniencia ${suffix}`,
+        category: 'Seguridad operativa',
+        deliveryClassification: 'CERTIFICATION_CONFIRMED',
+        classificationProvenance: 'Documento sintético revisado por profesional SST.',
+      })
+      .expect(201);
+    expect(confirmedDefinition.body).toMatchObject({
+      deliveryClassification: 'CERTIFICATION_CONFIRMED',
+      classificationProvenance: 'Documento sintético revisado por profesional SST.',
+    });
     const definition = await api(owner.token, orgA)
       .post('/training/definitions')
       .send({
@@ -105,12 +126,17 @@ describe('training and competency integration', () => {
         description: 'Definición interna sin afirmar obligación legal.',
         category: 'Seguridad operativa',
         validityDays: 30,
+        deliveryClassification: 'INTERNAL',
       })
       .expect(201);
     const definitionId = definition.body.id as string;
     const otherDefinition = await api(owner.token, orgB)
       .post('/training/definitions')
-      .send({ title: `Definición ajena ${suffix}`, category: 'Interna' })
+      .send({
+        title: `Definición ajena ${suffix}`,
+        category: 'Interna',
+        deliveryClassification: 'UNKNOWN',
+      })
       .expect(201);
     const definitions = await api(viewer.token, orgA).get('/training/definitions').expect(200);
     expect(definitions.body.items).toEqual(

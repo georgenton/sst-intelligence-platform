@@ -7,7 +7,14 @@ import { requestMetadata } from '../common/request-context';
 import { OrganizationContext, Roles } from '../organizations/organization-context.decorator';
 import { OrganizationGuard } from '../organizations/organization.guard';
 import { RolesGuard } from '../organizations/roles.guard';
-import { CreateWorkerDto, DeactivateWorkerDto, UpdateWorkerDto, WorkerQueryDto } from './dto';
+import {
+  CreatePositionDto,
+  CreatePositionRiskDto,
+  CreateWorkerDto,
+  DeactivateWorkerDto,
+  UpdateWorkerDto,
+  WorkerQueryDto,
+} from './dto';
 import { WORKER_ADMIN_ROLES } from './worker-policy';
 import { WorkersService } from './workers.service';
 
@@ -21,6 +28,55 @@ export class WorkersController {
   @Get()
   list(@OrganizationContext() organization: { id: string }, @Query() query: WorkerQueryDto) {
     return this.workers.list(organization.id, query);
+  }
+
+  @Get('positions')
+  positions(@OrganizationContext() organization: { id: string }) {
+    return this.workers.positions(organization.id);
+  }
+
+  @Get('work-areas')
+  workAreas(@OrganizationContext() organization: { id: string }) {
+    return this.workers.workAreas(organization.id);
+  }
+
+  @Post('positions')
+  @Roles(...WORKER_ADMIN_ROLES)
+  @UseGuards(RolesGuard)
+  createPosition(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: CreatePositionDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.workers.createPosition(organization.id, user.id, body, requestMetadata(request));
+  }
+
+  @Post('positions/:positionId/risks')
+  @Roles(...WORKER_ADMIN_ROLES)
+  @UseGuards(RolesGuard)
+  addPositionRisk(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('positionId') positionId: string,
+    @Body() body: CreatePositionRiskDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.workers.addPositionRisk(
+      organization.id,
+      positionId,
+      user.id,
+      body,
+      requestMetadata(request),
+    );
+  }
+
+  @Get('positions/:positionId/ppe-candidates')
+  positionPpeCandidates(
+    @OrganizationContext() organization: { id: string },
+    @Param('positionId') positionId: string,
+  ) {
+    return this.workers.positionPpeCandidates(organization.id, positionId);
   }
 
   @Post()

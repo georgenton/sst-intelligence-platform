@@ -12,6 +12,7 @@ import { OrganizationGuard } from '../organizations/organization.guard';
 import { RolesGuard } from '../organizations/roles.guard';
 import {
   AddIncidentWorkerDto,
+  AddIncidentPpeIssueDto,
   CompleteIncidentInvestigationDto,
   CreateIncidentActionDto,
   CreateIncidentDto,
@@ -117,6 +118,19 @@ export class IncidentsController {
       body,
       requestMetadata(request),
     );
+  }
+
+  @Post(':id/ppe-issues')
+  @Roles(...INCIDENT_WRITE_ROLES)
+  @UseGuards(RolesGuard)
+  addPpeIssue(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: AddIncidentPpeIssueDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.incidents.addPpeIssue(organization.id, id, user.id, body, requestMetadata(request));
   }
 
   @Post(':id/investigation/complete')

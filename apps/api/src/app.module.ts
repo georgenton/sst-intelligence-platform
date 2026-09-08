@@ -30,6 +30,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RegulatorySourceModule } from './regulatory-sources/regulatory-source.module';
 import { RegulatoryRiskLinkModule } from './regulatory-risk-links/regulatory-risk-link.module';
 import { RiskMethodologyModule } from './risk-methodology/risk-methodology.module';
+import { SafetyObservationsModule } from './safety-observations/safety-observations.module';
 import { SolutionFinderModule } from './solution-finder/solution-finder.module';
 import { TechnicalRiskModule } from './technical-risk/technical-risk.module';
 import { TrainingModule } from './training/training.module';
@@ -112,6 +113,7 @@ import { WorkersModule } from './workers/workers.module';
     RegulatorySourceModule,
     RegulatoryRiskLinkModule,
     RiskMethodologyModule,
+    SafetyObservationsModule,
     SolutionFinderModule,
     DashboardModule,
     GovernanceModule,

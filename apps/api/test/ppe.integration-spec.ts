@@ -262,6 +262,7 @@ describe('PPE operations integration', () => {
           issuedAt: '2026-08-31T11:00:00.000Z',
           assetReference: `EPP-REPLACEMENT-${suffix}`,
           evidenceNote: 'Sustitución física registrada.',
+          reason: 'WEAR',
         });
     const replacementResponses = await Promise.all([replacementRequest(), replacementRequest()]);
     expect(replacementResponses.map(({ status }) => status).sort()).toEqual([201, 409]);

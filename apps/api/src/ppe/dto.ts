@@ -1,4 +1,11 @@
-import { PpeCatalogStatus, PpeCategory, PpeCondition } from '@prisma/client';
+import {
+  PpeCatalogStatus,
+  PpeCategory,
+  PpeCondition,
+  PpeReferenceReviewStatus,
+  PpeReplacementReason,
+  PpeRequirementDecision,
+} from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsDateString,
@@ -27,7 +34,20 @@ export class CreatePpeCatalogItemDto {
   @IsOptional() @IsString() @Length(1, 2000) description?: string;
   @IsOptional() @IsString() @Length(1, 200) manufacturerModel?: string;
   @IsOptional() @IsString() @Length(1, 300) referenceStandard?: string;
+  @IsOptional() @IsString() @Length(1, 120) referenceJurisdiction?: string;
+  @IsOptional() @IsString() @Length(1, 1000) referenceProvenance?: string;
+  @IsOptional() @IsEnum(PpeReferenceReviewStatus) referenceReviewStatus?: PpeReferenceReviewStatus;
   @IsOptional() @IsInt() @Min(1) @Max(3650) defaultReplacementIntervalDays?: number;
+}
+
+export class CreatePositionPpeRequirementDto {
+  @IsUUID() positionId!: string;
+  @IsOptional() @IsUUID() riskContextId?: string;
+  @IsUUID() ppeCatalogItemId!: string;
+  @IsOptional() @IsUUID() workCenterId?: string;
+  @IsOptional() @IsUUID() workAreaId?: string;
+  @IsString() @Length(3, 2000) reason!: string;
+  @IsEnum(PpeRequirementDecision) decision!: PpeRequirementDecision;
 }
 
 export class CreatePpeRequirementDto {
@@ -36,6 +56,7 @@ export class CreatePpeRequirementDto {
   @IsOptional() @IsUUID() workCenterId?: string;
   @IsOptional() @IsUUID() linkedAssessmentId?: string;
   @IsOptional() @IsUUID() linkedFindingId?: string;
+  @IsOptional() @IsUUID() positionRequirementId?: string;
   @IsString() @Length(3, 2000) reason!: string;
 }
 
@@ -72,4 +93,7 @@ export class ReplacePpeIssueDto {
   @IsOptional() @IsDateString() expectedReplacementAt?: string;
   @IsOptional() @IsString() @Length(1, 2000) evidenceNote?: string;
   @IsOptional() @IsUrl({ require_protocol: true, protocols: ['https'] }) evidenceUrl?: string;
+  @IsEnum(PpeReplacementReason) reason!: PpeReplacementReason;
+  @IsOptional() @IsString() @Length(1, 1000) reasonNote?: string;
+  @IsOptional() @IsUUID() linkedIncidentId?: string;
 }

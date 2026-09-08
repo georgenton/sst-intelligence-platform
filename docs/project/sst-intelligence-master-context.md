@@ -50,7 +50,29 @@ behavior is covered by the isolated 18/18 main E2E gate; the production smoke cr
 or synthetic tenant data. The electrical taxonomy and mappings remain synthetic and pending Anita
 review, multi-source scoped mapping remains deferred, and editorial AI remains staging-only.
 Production uses `DETERMINISTIC_LOCAL_V1`, has no OpenAI key and recorded zero external-AI requests.
-Workforce Safety Product Refinement V2 has not started.
+Workforce Safety Product Refinement V2 is implemented on an unmerged candidate branch and remains
+pending external audit; it is not part of the production baseline.
+
+## Workforce Safety Product Refinement V2 — candidate
+
+The candidate connects Position, Worker, structured risk context, EPP, Accident/Incident, Safety
+Observation, Training and existing Work Queue while preserving their separate lifecycles. Existing
+`WorkCenter` means physical site/plant/center and `WorkArea` means subdivision; no `Plant` entity is
+needed. Worker remains independent from User/Membership and consumes no seat.
+
+EPP candidate categories are deterministic local mappings followed by explicit professional
+selection. Replacement preserves the old issue and may link explicitly to an existing Incident.
+Accidentes e Incidentes gain nullable event-location, internal-priority and investigation-method
+context without legal severity or automatic root cause. Safety Observation is a new bounded,
+authenticated preventive aggregate that creates neither Finding nor Incident automatically and
+links existing operational Actions rather than duplicating them. Training Needs retain provenance,
+audiences remain Workers/Positions/locations rather than Memberships, and the printable plan uses
+manual signature placeholders.
+
+All new historical fields are nullable and the migration is additive. No commercial feature key,
+PlanFeature assignment, external Workforce AI, stock/ERP, LMS, clinical data, public reporting,
+notification provider or electronic signature is introduced. Mappings, classification language and
+workflow refinements are synthetic/candidate and **PENDING ANITA**.
 
 ## Product direction
 

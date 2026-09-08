@@ -32,12 +32,22 @@ export type Worker = {
   notes?: string | null;
   version: number;
   workCenter?: { id: string; name: string } | null;
+  workArea?: { id: string; name: string; workCenterId: string } | null;
+  position?: { id: string; name: string; code?: string | null } | null;
   linkedUser?: { id: string; displayName: string; email: string } | null;
   createdBy: { id: string; displayName: string };
 };
 
 type WorkerListResponse = { items: Worker[]; total: number };
 type WorkCenter = { id: string; name: string; isActive: boolean };
+type WorkArea = { id: string; name: string; workCenterId: string };
+type Position = {
+  id: string;
+  name: string;
+  code?: string | null;
+  riskContexts: Array<{ id: string; category: string; description: string }>;
+  _count: { workers: number; ppeRequirements: number };
+};
 type Member = {
   status: string;
   user: { id: string; displayName: string; email: string };
@@ -46,11 +56,14 @@ type WorkerForm = {
   displayName: string;
   internalCode: string;
   workCenterId: string;
+  workAreaId: string;
+  positionId: string;
   jobTitle: string;
   linkedUserId: string;
   startDate: string;
   notes: string;
 };
+type PositionForm = { name: string; code: string; description: string };
 type WorkerIncidentSummary = {
   items: Array<{ status: string }>;
   total: number;
@@ -210,6 +223,18 @@ export function WorkerRegistry() {
       ),
     enabled: Boolean(organizationId),
   });
+  const areas = useQuery({
+    queryKey: queryKeys.organization.workAreas(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<WorkArea[]>('/workers/work-areas', { signal }, organizationId!),
+    enabled: Boolean(organizationId),
+  });
+  const positions = useQuery({
+    queryKey: queryKeys.organization.positions(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<Position[]>('/workers/positions', { signal }, organizationId!),
+    enabled: Boolean(organizationId),
+  });
   const members = useQuery({
     queryKey: queryKeys.organization.members(organizationId ?? 'inactive'),
     queryFn: ({ signal }) =>
@@ -225,10 +250,36 @@ export function WorkerRegistry() {
       displayName: '',
       internalCode: '',
       workCenterId: '',
+      workAreaId: '',
+      positionId: '',
       jobTitle: '',
       linkedUserId: '',
       startDate: '',
       notes: '',
+    },
+  });
+  const positionForm = useForm<PositionForm>({
+    defaultValues: { name: '', code: '', description: '' },
+  });
+  const createPosition = useMutation({
+    mutationFn: (values: PositionForm) =>
+      auth.request(
+        '/workers/positions',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            name: values.name,
+            code: values.code || undefined,
+            description: values.description || undefined,
+          }),
+        },
+        organizationId!,
+      ),
+    onSuccess: async () => {
+      positionForm.reset();
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.scope(organizationId!),
+      });
     },
   });
   const createWorker = useMutation({
@@ -241,6 +292,8 @@ export function WorkerRegistry() {
             displayName: values.displayName,
             ...(values.internalCode ? { internalCode: values.internalCode } : {}),
             ...(values.workCenterId ? { workCenterId: values.workCenterId } : {}),
+            ...(values.workAreaId ? { workAreaId: values.workAreaId } : {}),
+            ...(values.positionId ? { positionId: values.positionId } : {}),
             ...(values.jobTitle ? { jobTitle: values.jobTitle } : {}),
             ...(values.linkedUserId ? { linkedUserId: values.linkedUserId } : {}),
             ...(values.startDate ? { startDate: values.startDate } : {}),
@@ -315,6 +368,35 @@ export function WorkerRegistry() {
               </select>
             </label>
             <label className="field">
+              <span>Cargo estructurado</span>
+              <select {...form.register('positionId')}>
+                <option value="">Sin cargo estructurado</option>
+                {(positions.data ?? []).map((position) => (
+                  <option key={position.id} value={position.id}>
+                    {position.name}
+                  </option>
+                ))}
+              </select>
+              <small>El cargo conecta riesgos, EPP y capacitación.</small>
+            </label>
+            <label className="field">
+              <span>Área de trabajo</span>
+              <select {...form.register('workAreaId')}>
+                <option value="">Sin área asignada</option>
+                {(areas.data ?? [])
+                  .filter(
+                    (area) =>
+                      !form.watch('workCenterId') ||
+                      area.workCenterId === form.watch('workCenterId'),
+                  )
+                  .map((area) => (
+                    <option key={area.id} value={area.id}>
+                      {area.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="field">
               <span>Cargo o función</span>
               <input {...form.register('jobTitle')} />
             </label>
@@ -350,6 +432,53 @@ export function WorkerRegistry() {
               ) : null}
             </div>
           </form>
+        </WorkspaceSection>
+      ) : null}
+
+      {canAdminister ? (
+        <WorkspaceSection
+          eyebrow="Contexto organizacional"
+          title="Cargos"
+          description="Los cargos son perfiles operativos; no crean usuarios, permisos ni asientos comerciales."
+        >
+          <form
+            className="workforce-form"
+            onSubmit={positionForm.handleSubmit((values) => createPosition.mutate(values))}
+          >
+            <label className="field">
+              <span>Nombre del cargo</span>
+              <input {...positionForm.register('name', { required: true })} />
+            </label>
+            <label className="field">
+              <span>Código (opcional)</span>
+              <input {...positionForm.register('code')} />
+            </label>
+            <label className="field workforce-form__wide">
+              <span>Descripción</span>
+              <textarea rows={2} {...positionForm.register('description')} />
+            </label>
+            <div className="workforce-form__actions">
+              <button className="button" disabled={createPosition.isPending} type="submit">
+                Crear cargo
+              </button>
+              {createPosition.isError ? (
+                <p role="alert">{errorMessage(createPosition.error)}</p>
+              ) : null}
+            </div>
+          </form>
+          <div className="worker-list">
+            {(positions.data ?? []).map((position) => (
+              <article className="worker-row" key={position.id}>
+                <div>
+                  <h3>{position.name}</h3>
+                  <p>
+                    {position._count.workers} trabajadores · {position.riskContexts.length} riesgos
+                    · {position._count.ppeRequirements} requisitos EPP
+                  </p>
+                </div>
+              </article>
+            ))}
+          </div>
         </WorkspaceSection>
       ) : null}
 
@@ -410,8 +539,11 @@ export function WorkerRegistry() {
                   <h3>{worker.displayName}</h3>
                   <WorkerStatus status={worker.status} />
                 </div>
-                <p>{worker.jobTitle ?? 'Función no registrada'}</p>
-                <small>{worker.workCenter?.name ?? 'Sin centro de trabajo asignado'}</small>
+                <p>{worker.position?.name ?? worker.jobTitle ?? 'Función no registrada'}</p>
+                <small>
+                  {worker.workCenter?.name ?? 'Sin centro'}
+                  {worker.workArea ? ` · ${worker.workArea.name}` : ''}
+                </small>
               </div>
               <Link className="button secondary" href={`/app/workers/${worker.id}`}>
                 Abrir espacio de trabajo
@@ -510,7 +642,7 @@ export function WorkerWorkspace({ workerId }: { workerId: string }) {
       ) : null}
       <ContextSummary>
         <span>{data.workCenter?.name ?? 'Sin centro de trabajo'}</span>
-        <span>{data.jobTitle ?? 'Sin cargo registrado'}</span>
+        <span>{data.position?.name ?? data.jobTitle ?? 'Sin cargo registrado'}</span>
         <span>{data.linkedUser ? 'Cuenta vinculada' : 'No requiere cuenta de acceso'}</span>
       </ContextSummary>
       {entitlements.isLoading ? (
@@ -528,7 +660,7 @@ export function WorkerWorkspace({ workerId }: { workerId: string }) {
               </div>
               <div>
                 <dt>Cargo o función</dt>
-                <dd>{data.jobTitle ?? 'Sin registrar'}</dd>
+                <dd>{data.position?.name ?? data.jobTitle ?? 'Sin registrar'}</dd>
               </div>
               <div>
                 <dt>Inicio</dt>
