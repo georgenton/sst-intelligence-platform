@@ -278,7 +278,7 @@ describe('adaptive field intelligence integration', () => {
           initialMethodResult: {},
           ...(index === 1
             ? {
-                residualMethodVersionId: methods[0]!.id,
+                residualMethodVersionId: method.id,
                 residualMethodInput: {},
                 residualMethodResult: {},
                 residualRiskLevel: 'LOW',
@@ -316,7 +316,7 @@ describe('adaptive field intelligence integration', () => {
     ).toEqual([0, 1]);
     expect(
       summary.body.riskMethods.find(
-        (entry: { methodVersionId: string }) => entry.methodVersionId === methods[0]!.id,
+        (entry: { methodVersionId: string }) => entry.methodVersionId === methods[1]!.id,
       ),
     ).toMatchObject({ residualCount: 1, residualLevels: { LOW: 1 } });
     expect(summary.body.mixedMethodComparison.comparable).toBe(false);
