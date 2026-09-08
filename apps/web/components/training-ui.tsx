@@ -25,6 +25,29 @@ type TrainingDefinition = {
   category: string;
   validityDays?: number | null;
   isActive: boolean;
+  deliveryClassification?: string | null;
+};
+type TrainingNeed = {
+  id: string;
+  sourceType: string;
+  reason: string;
+  requiredByDate?: string | null;
+  trainingDefinition: Pick<TrainingDefinition, 'id' | 'title' | 'deliveryClassification'>;
+  audiences: Array<{
+    id: string;
+    type: string;
+    groupLabel?: string | null;
+    position?: { id: string; name: string } | null;
+    worker?: { id: string; displayName: string } | null;
+    workCenter?: { id: string; name: string } | null;
+    workArea?: { id: string; name: string } | null;
+  }>;
+  _count: { sessions: number };
+};
+type TrainingPlan = {
+  sessions: TrainingSessionSummary[];
+  signaturePlaceholders: string[];
+  printNotice: string;
 };
 type DefinitionResponse = { items: TrainingDefinition[]; total: number };
 type TrainingSessionStatus = 'DRAFT' | 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
@@ -40,6 +63,9 @@ type TrainingSessionSummary = {
   version: number;
   trainingDefinition: Pick<TrainingDefinition, 'id' | 'title' | 'validityDays'>;
   workCenter?: { id: string; name: string } | null;
+  workArea?: { id: string; name: string } | null;
+  trainingNeed?: { id: string; sourceType: string; reason: string } | null;
+  responsibleUser?: { id: string; displayName: string } | null;
   _count: { participants: number; completions: number };
 };
 type SessionResponse = { items: TrainingSessionSummary[]; total: number };
@@ -113,11 +139,23 @@ type WorkerTrainingWorkspace = {
   }>;
 };
 type WorkCenter = { id: string; name: string; isActive: boolean };
+type WorkArea = { id: string; name: string; workCenterId: string };
+type Position = { id: string; name: string; isActive: boolean };
+type IncidentList = { items: Array<{ id: string; title: string }> };
+type ObservationList = { items: Array<{ id: string; title: string }> };
+type TrainingNeedSourceType = 'MANUAL' | 'POSITION' | 'INCIDENT' | 'SAFETY_OBSERVATION';
+type TrainingAudienceType = 'POSITION' | 'WORKER' | 'WORK_CENTER' | 'WORK_AREA' | 'EXPLICIT_GROUP';
 type DefinitionForm = {
   title: string;
   description: string;
   category: string;
   validityDays: string;
+  deliveryClassification:
+    | 'INTERNAL'
+    | 'EXTERNAL_PROVIDER'
+    | 'CERTIFICATION_REVIEW_REQUIRED'
+    | 'CERTIFICATION_CONFIRMED'
+    | 'UNKNOWN';
 };
 type SessionForm = {
   trainingDefinitionId: string;
@@ -127,6 +165,7 @@ type SessionForm = {
   mode: TrainingMode;
   instructorName: string;
   location: string;
+  trainingNeedId: string;
 };
 type RequirementForm = {
   trainingDefinitionId: string;
@@ -206,6 +245,26 @@ export function TrainingCatalog() {
       auth.request<SessionResponse>('/training/sessions?pageSize=100', { signal }, organizationId!),
     enabled: Boolean(organizationId),
   });
+  const needs = useQuery({
+    queryKey: queryKeys.organization.trainingNeeds(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<TrainingNeed[]>('/training/needs', { signal }, organizationId!),
+    enabled: Boolean(organizationId),
+  });
+  const plan = useQuery({
+    queryKey: queryKeys.organization.trainingPlan(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<TrainingPlan>('/training/plan', { signal }, organizationId!),
+    enabled: Boolean(organizationId),
+  });
+  const [needDefinitionId, setNeedDefinitionId] = useState('');
+  const [needReason, setNeedReason] = useState('');
+  const [needSourceType, setNeedSourceType] = useState<TrainingNeedSourceType>('MANUAL');
+  const [needSourceId, setNeedSourceId] = useState('');
+  const [audienceNeedId, setAudienceNeedId] = useState('');
+  const [audienceType, setAudienceType] = useState<TrainingAudienceType>('POSITION');
+  const [audienceReferenceId, setAudienceReferenceId] = useState('');
+  const [audienceGroupLabel, setAudienceGroupLabel] = useState('');
   const centers = useQuery({
     queryKey: queryKeys.organization.workCenters(organizationId ?? 'inactive'),
     queryFn: ({ signal }) =>
@@ -216,8 +275,55 @@ export function TrainingCatalog() {
       ),
     enabled: Boolean(organizationId && canWrite),
   });
+  const areas = useQuery({
+    queryKey: queryKeys.organization.workAreas(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<WorkArea[]>('/workers/work-areas', { signal }, organizationId!),
+    enabled: Boolean(organizationId && canWrite),
+  });
+  const positions = useQuery({
+    queryKey: queryKeys.organization.positions(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<Position[]>('/workers/positions', { signal }, organizationId!),
+    enabled: Boolean(organizationId && canWrite),
+  });
+  const workers = useQuery({
+    queryKey: queryKeys.organization.workers(organizationId ?? 'inactive', 'training-audience'),
+    queryFn: ({ signal }) =>
+      auth.request<WorkerResponse>(
+        '/workers?status=ACTIVE&pageSize=100',
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId && canWrite),
+  });
+  const incidents = useQuery({
+    queryKey: queryKeys.organization.incidents(organizationId ?? 'inactive', 'training-source'),
+    queryFn: ({ signal }) =>
+      auth.request<IncidentList>('/incidents?pageSize=100', { signal }, organizationId!),
+    enabled: Boolean(organizationId && canWrite && needSourceType === 'INCIDENT'),
+  });
+  const observations = useQuery({
+    queryKey: queryKeys.organization.safetyObservations(
+      organizationId ?? 'inactive',
+      'training-source',
+    ),
+    queryFn: ({ signal }) =>
+      auth.request<ObservationList>(
+        '/safety-observations?pageSize=100',
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId && canWrite && needSourceType === 'SAFETY_OBSERVATION'),
+  });
   const definitionForm = useForm<DefinitionForm>({
-    defaultValues: { title: '', description: '', category: '', validityDays: '' },
+    defaultValues: {
+      title: '',
+      description: '',
+      category: '',
+      validityDays: '',
+      deliveryClassification: 'UNKNOWN',
+    },
   });
   const sessionForm = useForm<SessionForm>({
     defaultValues: {
@@ -228,6 +334,7 @@ export function TrainingCatalog() {
       mode: 'IN_PERSON',
       instructorName: '',
       location: '',
+      trainingNeedId: '',
     },
   });
   const createDefinition = useMutation({
@@ -241,6 +348,7 @@ export function TrainingCatalog() {
             description: values.description || undefined,
             category: values.category,
             validityDays: values.validityDays ? Number(values.validityDays) : undefined,
+            deliveryClassification: values.deliveryClassification,
           }),
         },
         organizationId!,
@@ -266,6 +374,7 @@ export function TrainingCatalog() {
             mode: values.mode,
             instructorName: values.instructorName || undefined,
             location: values.location || undefined,
+            trainingNeedId: values.trainingNeedId || undefined,
           }),
         },
         organizationId!,
@@ -277,6 +386,76 @@ export function TrainingCatalog() {
       });
     },
   });
+  const createNeed = useMutation({
+    mutationFn: () =>
+      auth.request(
+        '/training/needs',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            trainingDefinitionId: needDefinitionId,
+            sourceType: needSourceType,
+            reason: needReason,
+            ...(needSourceType === 'POSITION' ? { positionId: needSourceId } : {}),
+            ...(needSourceType === 'INCIDENT' ? { linkedIncidentId: needSourceId } : {}),
+            ...(needSourceType === 'SAFETY_OBSERVATION'
+              ? { linkedSafetyObservationId: needSourceId }
+              : {}),
+          }),
+        },
+        organizationId!,
+      ),
+    onSuccess: async () => {
+      setNeedReason('');
+      setNeedSourceId('');
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.scope(organizationId!),
+      });
+    },
+  });
+  const addAudience = useMutation({
+    mutationFn: () =>
+      auth.request(
+        `/training/needs/${audienceNeedId}/audiences`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            type: audienceType,
+            ...(audienceType === 'POSITION' ? { positionId: audienceReferenceId } : {}),
+            ...(audienceType === 'WORKER' ? { workerId: audienceReferenceId } : {}),
+            ...(audienceType === 'WORK_CENTER' ? { workCenterId: audienceReferenceId } : {}),
+            ...(audienceType === 'WORK_AREA' ? { workAreaId: audienceReferenceId } : {}),
+            ...(audienceType === 'EXPLICIT_GROUP' ? { groupLabel: audienceGroupLabel.trim() } : {}),
+          }),
+        },
+        organizationId!,
+      ),
+    onSuccess: async () => {
+      setAudienceReferenceId('');
+      setAudienceGroupLabel('');
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.scope(organizationId!),
+      });
+    },
+  });
+  const needSourceOptions =
+    needSourceType === 'POSITION'
+      ? (positions.data ?? []).map((item) => ({ id: item.id, label: item.name }))
+      : needSourceType === 'INCIDENT'
+        ? (incidents.data?.items ?? []).map((item) => ({ id: item.id, label: item.title }))
+        : needSourceType === 'SAFETY_OBSERVATION'
+          ? (observations.data?.items ?? []).map((item) => ({ id: item.id, label: item.title }))
+          : [];
+  const audienceOptions =
+    audienceType === 'POSITION'
+      ? (positions.data ?? []).map((item) => ({ id: item.id, label: item.name }))
+      : audienceType === 'WORKER'
+        ? (workers.data?.items ?? []).map((item) => ({ id: item.id, label: item.displayName }))
+        : audienceType === 'WORK_CENTER'
+          ? (centers.data ?? []).map((item) => ({ id: item.id, label: item.name }))
+          : audienceType === 'WORK_AREA'
+            ? (areas.data ?? []).map((item) => ({ id: item.id, label: item.name }))
+            : [];
 
   return (
     <WorkspaceShell className="workforce-shell">
@@ -290,6 +469,212 @@ export function TrainingCatalog() {
         <span>{sessions.data?.total ?? 0} sesiones registradas</span>
         <span>Sin puntajes ni certificación legal automática</span>
       </ContextSummary>
+
+      <WorkspaceSection
+        eyebrow="Necesidad → audiencia → sesión"
+        title="Necesidades de capacitación"
+      >
+        {canWrite ? (
+          <div className="workforce-form workforce-compact-form">
+            <label className="field">
+              <span>Capacitación</span>
+              <select
+                value={needDefinitionId}
+                onChange={(event) => setNeedDefinitionId(event.target.value)}
+              >
+                <option value="">Selecciona una definición</option>
+                {(definitions.data?.items ?? []).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Origen de la necesidad</span>
+              <select
+                value={needSourceType}
+                onChange={(event) => {
+                  setNeedSourceType(event.target.value as TrainingNeedSourceType);
+                  setNeedSourceId('');
+                }}
+              >
+                <option value="MANUAL">Decisión profesional manual</option>
+                <option value="POSITION">Cargo / contexto de riesgo</option>
+                <option value="INCIDENT">Accidente o incidente</option>
+                <option value="SAFETY_OBSERVATION">Observación de seguridad</option>
+              </select>
+            </label>
+            {needSourceType !== 'MANUAL' ? (
+              <label className="field">
+                <span>Registro de origen</span>
+                <select
+                  value={needSourceId}
+                  onChange={(event) => setNeedSourceId(event.target.value)}
+                >
+                  <option value="">Selecciona el registro canónico</option>
+                  {needSourceOptions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <label className="field">
+              <span>Justificación profesional</span>
+              <input value={needReason} onChange={(event) => setNeedReason(event.target.value)} />
+            </label>
+            <button
+              className="button"
+              type="button"
+              disabled={
+                !needDefinitionId ||
+                !needReason.trim() ||
+                (needSourceType !== 'MANUAL' && !needSourceId) ||
+                createNeed.isPending
+              }
+              onClick={() => createNeed.mutate()}
+            >
+              Registrar necesidad
+            </button>
+          </div>
+        ) : null}
+        <div className="worker-list">
+          {(needs.data ?? []).map((need) => (
+            <article className="worker-row" key={need.id}>
+              <div>
+                <h3>{need.trainingDefinition.title}</h3>
+                <p>{need.reason}</p>
+                <small>
+                  {need.sourceType} · {need.audiences.length} audiencia(s) · {need._count.sessions}{' '}
+                  sesión(es)
+                </small>
+                {need.audiences.map((audience) => (
+                  <p key={audience.id}>
+                    {audience.position?.name ??
+                      audience.worker?.displayName ??
+                      audience.workCenter?.name ??
+                      audience.workArea?.name ??
+                      audience.groupLabel}{' '}
+                    · {audience.type}
+                  </p>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+        {canWrite && (needs.data?.length ?? 0) > 0 ? (
+          <div className="workforce-form workforce-compact-form">
+            <label className="field">
+              <span>Necesidad a segmentar</span>
+              <select
+                value={audienceNeedId}
+                onChange={(event) => setAudienceNeedId(event.target.value)}
+              >
+                <option value="">Selecciona una necesidad</option>
+                {(needs.data ?? []).map((need) => (
+                  <option key={need.id} value={need.id}>
+                    {need.trainingDefinition.title} · {need.reason}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Tipo de audiencia</span>
+              <select
+                value={audienceType}
+                onChange={(event) => {
+                  setAudienceType(event.target.value as TrainingAudienceType);
+                  setAudienceReferenceId('');
+                  setAudienceGroupLabel('');
+                }}
+              >
+                <option value="POSITION">Cargo</option>
+                <option value="WORKER">Persona trabajadora</option>
+                <option value="WORK_CENTER">Centro de trabajo</option>
+                <option value="WORK_AREA">Área</option>
+                <option value="EXPLICIT_GROUP">Grupo explícito</option>
+              </select>
+            </label>
+            {audienceType === 'EXPLICIT_GROUP' ? (
+              <label className="field">
+                <span>Nombre del grupo</span>
+                <input
+                  value={audienceGroupLabel}
+                  onChange={(event) => setAudienceGroupLabel(event.target.value)}
+                />
+              </label>
+            ) : (
+              <label className="field">
+                <span>Audiencia canónica</span>
+                <select
+                  value={audienceReferenceId}
+                  onChange={(event) => setAudienceReferenceId(event.target.value)}
+                >
+                  <option value="">Selecciona una audiencia</option>
+                  {audienceOptions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <button
+              className="button secondary"
+              type="button"
+              disabled={
+                !audienceNeedId ||
+                (audienceType === 'EXPLICIT_GROUP'
+                  ? audienceGroupLabel.trim().length < 2
+                  : !audienceReferenceId) ||
+                addAudience.isPending
+              }
+              onClick={() => addAudience.mutate()}
+            >
+              Añadir audiencia
+            </button>
+          </div>
+        ) : null}
+      </WorkspaceSection>
+
+      <WorkspaceSection eyebrow="Documento operativo" title="Plan imprimible de capacitación">
+        <p>{plan.data?.printNotice ?? 'Preparando plan…'}</p>
+        <p>
+          {plan.data?.sessions.length ?? 0} actividades · firmas:{' '}
+          {plan.data?.signaturePlaceholders.join(', ') ??
+            'Responsable SST, facilitador y participantes'}
+          .
+        </p>
+        <div className="worker-list">
+          {(plan.data?.sessions ?? []).map((session) => (
+            <article className="worker-row" key={session.id}>
+              <div>
+                <h3>{session.trainingDefinition.title}</h3>
+                <p>
+                  {formatDate(session.scheduledStart, true)} · {MODE_LABELS[session.mode]} ·{' '}
+                  {SESSION_LABELS[session.status]}
+                </p>
+                <small>
+                  Origen: {session.trainingNeed?.sourceType ?? 'sin necesidad vinculada'} ·
+                  responsable:{' '}
+                  {session.responsibleUser?.displayName ?? session.instructorName ?? 'pendiente'} ·
+                  lugar:{' '}
+                  {session.workArea?.name ??
+                    session.workCenter?.name ??
+                    session.location ??
+                    'por definir'}{' '}
+                  · completitud: {session._count.completions}/{session._count.participants}
+                </small>
+              </div>
+            </article>
+          ))}
+        </div>
+        <button className="button secondary" type="button" onClick={() => window.print()}>
+          Imprimir plan
+        </button>
+      </WorkspaceSection>
 
       {canReview ? (
         <WorkspaceSection eyebrow="Catálogo interno" title="Nueva definición de capacitación">
@@ -312,6 +697,16 @@ export function TrainingCatalog() {
             <label className="field">
               <span>Vigencia operativa (días)</span>
               <input min="1" type="number" {...definitionForm.register('validityDays')} />
+            </label>
+            <label className="field">
+              <span>Clasificación de entrega</span>
+              <select {...definitionForm.register('deliveryClassification')}>
+                <option value="INTERNAL">Interna</option>
+                <option value="EXTERNAL_PROVIDER">Proveedor externo</option>
+                <option value="CERTIFICATION_REVIEW_REQUIRED">Certificación por revisar</option>
+                <option value="CERTIFICATION_CONFIRMED">Certificación confirmada</option>
+                <option value="UNKNOWN">No determinada</option>
+              </select>
             </label>
             <div className="workforce-form__actions">
               <button className="button" disabled={createDefinition.isPending} type="submit">
@@ -356,6 +751,17 @@ export function TrainingCatalog() {
                       {center.name}
                     </option>
                   ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Necesidad de origen (opcional)</span>
+              <select {...sessionForm.register('trainingNeedId')}>
+                <option value="">Sin necesidad vinculada</option>
+                {(needs.data ?? []).map((need) => (
+                  <option key={need.id} value={need.id}>
+                    {need.trainingDefinition.title} · {need.reason}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="field">

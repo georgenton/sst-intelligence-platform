@@ -145,10 +145,12 @@ test.describe.serial('workforce safety operations', () => {
       page.getByText('Trabajador registrado sin crear un asiento de acceso.'),
     ).toBeVisible();
 
-    await page.getByRole('link', { name: 'Incidentes', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Incidentes y casi incidentes' })).toBeVisible();
+    await page.getByRole('link', { name: 'Accidentes e Incidentes', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Accidentes e Incidentes' })).toBeVisible();
     await page.getByLabel('Tipo de evento').selectOption('NEAR_MISS');
-    await page.getByLabel('Centro de trabajo').selectOption({ index: 1 });
+    await page
+      .getByRole('combobox', { name: 'Centro de trabajo', exact: true })
+      .selectOption({ index: 1 });
     await page.getByLabel('Fecha y hora del evento').fill('2026-08-31T10:00');
     await page.getByLabel('Título breve').fill(incidentTitle);
     await page
@@ -243,6 +245,7 @@ test.describe.serial('workforce safety operations', () => {
     const email = `ppe-owner-${suffix}@example.test`;
     const password = 'ppe-e2e-password-strong-123';
     const workerName = `Técnico EPP ${suffix}`;
+    const positionName = `Técnico eléctrico ${suffix}`;
     const itemName = `Casco interno ${suffix}`;
     const sessionId = await prepareDemoRegistration(page);
     const registration = await registerE2eUser({
@@ -263,8 +266,13 @@ test.describe.serial('workforce safety operations', () => {
     await expect(page.getByText(/Demostración conceptual activa/)).toBeVisible();
 
     await page.getByRole('link', { name: 'Personas / Trabajadores', exact: true }).click();
+    await page.getByLabel('Nombre del cargo').fill(positionName);
+    await page.getByLabel('Descripción').fill('Cargo sintético para trabajo eléctrico.');
+    await page.getByRole('button', { name: 'Crear cargo' }).click();
+    await expect(page.getByRole('heading', { name: positionName, exact: true })).toBeVisible();
     await page.getByLabel('Nombre para la operación').fill(workerName);
     await page.getByLabel('Centro de trabajo asignado').selectOption({ index: 1 });
+    await page.getByLabel('Cargo estructurado').selectOption({ label: positionName });
     await page.getByRole('button', { name: 'Registrar trabajador' }).click();
     await expect(
       page.getByText('Trabajador registrado sin crear un asiento de acceso.'),
@@ -277,16 +285,29 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByLabel('Referencia técnica (metadato opcional)').fill('Referencia interna');
     await page.getByRole('button', { name: 'Agregar al catálogo' }).click();
     await expect(page.getByText('Elemento agregado al catálogo interno.')).toBeVisible();
+    await page
+      .getByRole('combobox', { name: 'Cargo', exact: true })
+      .selectOption({ label: positionName });
+    await page.getByLabel('Categoría de riesgo').selectOption('ELECTRICAL');
+    await page
+      .getByLabel('Descripción del riesgo')
+      .fill('Contacto eléctrico durante mantenimiento autorizado.');
+    await page.getByRole('button', { name: 'Agregar riesgo' }).click();
+    await page.getByLabel('Riesgo que sustenta la selección').selectOption({
+      label: 'ELECTRICAL · Contacto eléctrico durante mantenimiento autorizado.',
+    });
+    await page
+      .locator('.card')
+      .filter({ hasText: itemName })
+      .getByRole('button', { name: 'Seleccionar profesionalmente' })
+      .click();
+    await expect(page.getByText('1 requisitos por cargo seleccionados.')).toBeVisible();
 
     await page.getByRole('link', { name: 'Personas / Trabajadores', exact: true }).click();
     const workerRow = page.locator('article').filter({ hasText: workerName });
     await workerRow.getByRole('link', { name: 'Abrir espacio de trabajo' }).click();
     await expect(page.getByRole('heading', { name: 'EPP', exact: true })).toBeVisible();
-    await page.getByLabel('Elemento requerido').selectOption({ label: itemName });
-    await page
-      .getByLabel('Motivo profesional del requisito')
-      .fill('Decisión profesional documentada para la tarea sintética.');
-    await page.getByRole('button', { name: 'Añadir requisito de EPP' }).click();
+    await page.getByRole('button', { name: 'Asignar requisito al trabajador' }).click();
     await expect(page.getByText('1 requisitos pendientes')).toBeVisible();
 
     await page.getByLabel('Requisito a entregar').selectOption({ label: itemName });
@@ -380,6 +401,20 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByLabel('Vigencia operativa (días)').fill('30');
     await page.getByRole('button', { name: 'Crear definición' }).click();
     await expect(page.getByText('Definición interna creada.')).toBeVisible();
+    await page.getByLabel('Capacitación').first().selectOption({ label: trainingTitle });
+    await page
+      .getByLabel('Justificación profesional')
+      .fill('Necesidad sintética decidida por el profesional SST.');
+    await page.getByRole('button', { name: 'Registrar necesidad' }).click();
+    await expect(
+      page.getByText('Necesidad sintética decidida por el profesional SST.', { exact: true }),
+    ).toBeVisible();
+    const trainingNeedLabel = `${trainingTitle} · Necesidad sintética decidida por el profesional SST.`;
+    await page.getByLabel('Necesidad a segmentar').selectOption({ label: trainingNeedLabel });
+    await page.getByLabel('Tipo de audiencia').selectOption('WORKER');
+    await page.getByLabel('Audiencia canónica').selectOption({ label: workerName });
+    await page.getByRole('button', { name: 'Añadir audiencia' }).click();
+    await expect(page.getByText(`${workerName} · WORKER`)).toBeVisible();
 
     await page.getByRole('link', { name: 'Personas / Trabajadores', exact: true }).click();
     const workerRow = page.locator('article').filter({ hasText: workerName });
@@ -394,13 +429,18 @@ test.describe.serial('workforce safety operations', () => {
     await expect(page.getByText('No completada', { exact: true })).toBeVisible();
 
     await page.getByRole('link', { name: 'Capacitación', exact: true }).click();
-    await page.getByLabel('Centro de trabajo').selectOption({ index: 1 });
+    await page
+      .getByRole('combobox', { name: 'Centro de trabajo', exact: true })
+      .selectOption({ index: 1 });
     await page.getByLabel('Inicio').fill('2026-01-10T08:00');
     await page.getByLabel('Fin', { exact: true }).fill('2026-01-10T10:00');
     await page.getByLabel('Modalidad').selectOption('IN_PERSON');
     await page.getByLabel('Responsable o facilitador').fill('Profesional SST E2E');
-    const trainingDefinitionSelect = page.getByLabel('Capacitación');
+    const trainingDefinitionSelect = page.getByLabel('Capacitación').last();
     await trainingDefinitionSelect.selectOption({ label: trainingTitle });
+    await page
+      .getByLabel('Necesidad de origen (opcional)')
+      .selectOption({ label: trainingNeedLabel });
     await expect(trainingDefinitionSelect).not.toHaveValue('');
     await page.getByRole('button', { name: 'Crear sesión en borrador' }).click();
     await expect(page.getByText('Sesión creada.')).toBeVisible();
@@ -443,7 +483,7 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByLabel('Inicio').fill('2026-08-31T08:00');
     await page.getByLabel('Fin', { exact: true }).fill('2026-08-31T10:00');
     await page.getByLabel('Modalidad').selectOption('HYBRID');
-    await page.getByLabel('Capacitación').selectOption({ label: trainingTitle });
+    await page.getByLabel('Capacitación').last().selectOption({ label: trainingTitle });
     await page.getByRole('button', { name: 'Crear sesión en borrador' }).click();
     await expect(page.getByText('Sesión creada.')).toBeVisible();
     await page
@@ -482,5 +522,56 @@ test.describe.serial('workforce safety operations', () => {
       const overflow = await horizontalOverflowSources(page);
       expect(overflow, JSON.stringify(overflow, null, 2)).toEqual([]);
     }
+  });
+
+  test('registra, prioriza y resuelve una observación preventiva independiente', async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    const suffix = Date.now();
+    const sessionId = await prepareDemoRegistration(page);
+    const registration = await registerE2eUser({
+      displayName: 'Owner Observaciones E2E',
+      email: `observation-owner-${suffix}@example.test`,
+      password: 'observation-e2e-password-strong-123',
+    });
+    expect(registration.statusCode, registration.body).toBe(201);
+    await activateE2eUserSession(
+      page,
+      registration,
+      `/app/organizations?sessionId=${encodeURIComponent(sessionId)}`,
+    );
+    await page.getByLabel('Nombre de empresa').fill(`Organización Observaciones ${suffix}`);
+    await page.getByLabel('Sector').fill('Operación industrial sintética');
+    await page.getByRole('button', { name: 'Crear y activar demo' }).click();
+    await page.getByRole('link', { name: 'Observaciones de seguridad', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Observaciones de seguridad' })).toBeVisible();
+    const title = `Cable fuera de canaleta ${suffix}`;
+    await page.getByLabel('Título').fill(title);
+    await page
+      .getByLabel('Descripción breve')
+      .fill('Condición preventiva sintética para seguimiento.');
+    await page
+      .getByRole('combobox', { name: 'Centro de trabajo', exact: true })
+      .selectOption({ index: 1 });
+    await page.getByLabel('Prioridad de atención interna').selectOption('HIGH');
+    await page.getByRole('button', { name: 'Registrar observación' }).click();
+    await page.waitForURL(/\/app\/safety-observations\/[0-9a-f-]+$/);
+    await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible();
+    await page.getByLabel('Nota de evidencia').fill('Referencia preventiva revisada en sitio.');
+    await page.getByRole('button', { name: 'Añadir referencia de evidencia' }).click();
+    await expect(page.getByText(/Referencia preventiva revisada en sitio/)).toBeVisible();
+    await page.getByRole('button', { name: 'Iniciar revisión' }).click();
+    await expect(page.getByText('En revisión', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Requiere acción' }).click();
+    await expect(page.getByText('Requiere acción', { exact: true })).toBeVisible();
+    await page
+      .getByLabel('Nota de resolución profesional')
+      .fill('Condición atendida y verificada por el profesional.');
+    await page.getByRole('button', { name: 'Resolver con verificación' }).click();
+    await expect(page.getByText('Resuelta', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Condición atendida y verificada/)).toBeVisible();
+    await page.getByRole('link', { name: 'Cola de trabajo', exact: true }).click();
+    await expect(page.locator('article').filter({ hasText: title })).toHaveCount(0);
   });
 });

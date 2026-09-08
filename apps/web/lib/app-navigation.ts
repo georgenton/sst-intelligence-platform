@@ -70,8 +70,16 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
       },
       {
         id: 'incidents',
-        label: 'Incidentes',
+        label: 'Accidentes e Incidentes',
         href: '/app/incidents',
+        group: 'operation',
+        match: 'segment',
+        requiredFeature: 'module.incidents',
+      },
+      {
+        id: 'safety-observations',
+        label: 'Observaciones de seguridad',
+        href: '/app/safety-observations',
         group: 'operation',
         match: 'segment',
         requiredFeature: 'module.incidents',
