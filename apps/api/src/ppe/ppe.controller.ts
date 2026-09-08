@@ -15,6 +15,7 @@ import {
   CreatePpeCatalogItemDto,
   CreatePpeIssueDto,
   CreatePpeRequirementDto,
+  CreatePositionPpeRequirementDto,
   InspectPpeIssueDto,
   PpeCatalogQueryDto,
   ReplacePpeIssueDto,
@@ -62,6 +63,28 @@ export class PpeController {
     @Req() request: ApiRequest,
   ) {
     return this.ppe.createRequirement(organization.id, user.id, body, requestMetadata(request));
+  }
+
+  @Get('position-requirements')
+  positionRequirements(@OrganizationContext() organization: { id: string }) {
+    return this.ppe.positionRequirements(organization.id);
+  }
+
+  @Post('position-requirements')
+  @Roles(...PPE_REVIEW_ROLES)
+  @UseGuards(RolesGuard)
+  createPositionRequirement(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: CreatePositionPpeRequirementDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.ppe.createPositionRequirement(
+      organization.id,
+      user.id,
+      body,
+      requestMetadata(request),
+    );
   }
 
   @Post('issues')

@@ -13,6 +13,7 @@ import type {
   CreatePpeCatalogItemDto,
   CreatePpeIssueDto,
   CreatePpeRequirementDto,
+  CreatePositionPpeRequirementDto,
   InspectPpeIssueDto,
   PpeCatalogQueryDto,
   ReplacePpeIssueDto,
@@ -27,6 +28,9 @@ const issueInclude = {
       name: true,
       category: true,
       referenceStandard: true,
+      referenceJurisdiction: true,
+      referenceProvenance: true,
+      referenceReviewStatus: true,
       defaultReplacementIntervalDays: true,
     },
   },
@@ -45,6 +49,9 @@ const issueInclude = {
       recordedBy: { select: { id: true, displayName: true } },
     },
     orderBy: { inspectedAt: 'desc' as const },
+  },
+  incidentLinks: {
+    select: { id: true, note: true, incident: { select: { id: true, title: true, status: true } } },
   },
 } as const;
 
@@ -80,6 +87,9 @@ export class PpeService {
           description: true,
           manufacturerModel: true,
           referenceStandard: true,
+          referenceJurisdiction: true,
+          referenceProvenance: true,
+          referenceReviewStatus: true,
           defaultReplacementIntervalDays: true,
           status: true,
           version: true,
@@ -110,6 +120,9 @@ export class PpeService {
           description: input.description?.trim(),
           manufacturerModel: input.manufacturerModel?.trim(),
           referenceStandard: input.referenceStandard?.trim(),
+          referenceJurisdiction: input.referenceJurisdiction?.trim(),
+          referenceProvenance: input.referenceProvenance?.trim(),
+          referenceReviewStatus: input.referenceReviewStatus,
           defaultReplacementIntervalDays: input.defaultReplacementIntervalDays,
         },
       });
@@ -130,10 +143,111 @@ export class PpeService {
     }
   }
 
+  positionRequirements(organizationId: string) {
+    return this.prisma.positionPpeRequirement.findMany({
+      where: { organizationId, isActive: true },
+      include: {
+        position: { select: { id: true, name: true } },
+        riskContext: { select: { id: true, category: true, description: true } },
+        ppeCatalogItem: {
+          select: {
+            id: true,
+            name: true,
+            category: true,
+            referenceStandard: true,
+            referenceJurisdiction: true,
+            referenceReviewStatus: true,
+          },
+        },
+        workCenter: { select: { id: true, name: true } },
+        workArea: { select: { id: true, name: true } },
+        selectedBy: { select: { id: true, displayName: true } },
+      },
+      orderBy: [{ position: { name: 'asc' } }, { createdAt: 'asc' }],
+    });
+  }
+
+  async createPositionRequirement(
+    organizationId: string,
+    userId: string,
+    input: CreatePositionPpeRequirementDto,
+    context: Context,
+  ) {
+    const [position, risk, item, center, area] = await Promise.all([
+      this.prisma.position.findFirst({
+        where: { id: input.positionId, organizationId, isActive: true },
+        select: { id: true },
+      }),
+      input.riskContextId
+        ? this.prisma.positionRiskContext.findFirst({
+            where: {
+              id: input.riskContextId,
+              organizationId,
+              positionId: input.positionId,
+              isActive: true,
+            },
+            select: { id: true },
+          })
+        : null,
+      this.requireCatalogItem(organizationId, input.ppeCatalogItemId),
+      input.workCenterId
+        ? this.prisma.workCenter.findFirst({
+            where: { id: input.workCenterId, organizationId, isActive: true },
+            select: { id: true },
+          })
+        : null,
+      input.workAreaId
+        ? this.prisma.workArea.findFirst({
+            where: { id: input.workAreaId, organizationId, isActive: true },
+            select: { id: true, workCenterId: true },
+          })
+        : null,
+    ]);
+    if (!position) throw new BadRequestException('El cargo no pertenece a la organización.');
+    if (input.riskContextId && !risk)
+      throw new BadRequestException('El riesgo no pertenece al cargo seleccionado.');
+    if (input.workCenterId && !center)
+      throw new BadRequestException('El centro no pertenece a la organización.');
+    if (input.workAreaId && !area)
+      throw new BadRequestException('El área no pertenece a la organización.');
+    if (area && input.workCenterId && area.workCenterId !== input.workCenterId)
+      throw new BadRequestException('El área no pertenece al centro seleccionado.');
+    const requirement = await this.prisma.positionPpeRequirement.create({
+      data: {
+        organizationId,
+        positionId: position.id,
+        riskContextId: input.riskContextId,
+        ppeCatalogItemId: item.id,
+        workCenterId: input.workCenterId,
+        workAreaId: input.workAreaId,
+        reason: input.reason.trim(),
+        decision: input.decision,
+        selectedById: userId,
+      },
+    });
+    await this.recordAudit(
+      organizationId,
+      userId,
+      'POSITION_PPE_REQUIREMENT_SELECTED',
+      'PositionPpeRequirement',
+      requirement.id,
+      { positionId: position.id, decision: input.decision },
+      context,
+    );
+    return requirement;
+  }
+
   async workerWorkspace(organizationId: string, workerId: string) {
     const worker = await this.prisma.worker.findFirst({
       where: { id: workerId, organizationId },
-      select: { id: true, displayName: true, status: true, workCenterId: true },
+      select: {
+        id: true,
+        displayName: true,
+        status: true,
+        workCenterId: true,
+        positionId: true,
+        position: { select: { id: true, name: true } },
+      },
     });
     if (!worker) throw new NotFoundException('Trabajador no encontrado.');
     const [requirements, issues] = await Promise.all([
@@ -196,6 +310,7 @@ export class PpeService {
         workCenterId: input.workCenterId ?? worker.workCenterId,
         linkedAssessmentId: input.linkedAssessmentId,
         linkedFindingId: input.linkedFindingId,
+        positionRequirementId: input.positionRequirementId,
         reason: input.reason.trim(),
         assignedById: userId,
       },
@@ -361,6 +476,15 @@ export class PpeService {
     context: Context,
   ) {
     this.assertEvidence(input.evidenceNote, input.evidenceUrl);
+    if (input.reason === 'OTHER_JUSTIFIED' && !input.reasonNote?.trim())
+      throw new BadRequestException('Explica el motivo de reemplazo.');
+    if (input.linkedIncidentId) {
+      const incident = await this.prisma.incident.findFirst({
+        where: { id: input.linkedIncidentId, organizationId },
+        select: { id: true },
+      });
+      if (!incident) throw new BadRequestException('El incidente no pertenece a la organización.');
+    }
     const replacement = await this.prisma.$transaction(async (tx) => {
       const issue = await this.lockIssue(tx, organizationId, issueId);
       this.assertVersion(issue.version, input.expectedVersion, 'PPE_ISSUE_VERSION_CONFLICT');
@@ -392,7 +516,7 @@ export class PpeService {
       });
       this.assertSingleWriter(result.count, 'PPE_ISSUE_VERSION_CONFLICT');
       const issuedAt = new Date(input.issuedAt);
-      return tx.ppeIssue.create({
+      const created = await tx.ppeIssue.create({
         data: {
           organizationId,
           workerId: issue.workerId,
@@ -410,9 +534,23 @@ export class PpeService {
           evidenceNote: input.evidenceNote?.trim(),
           evidenceUrl: input.evidenceUrl,
           replacesIssueId: issueId,
+          replacementReason: input.reason,
+          replacementReasonNote: input.reasonNote?.trim(),
         },
         include: issueInclude,
       });
+      if (input.linkedIncidentId) {
+        await tx.incidentPpeIssue.create({
+          data: {
+            organizationId,
+            incidentId: input.linkedIncidentId,
+            ppeIssueId: created.id,
+            note:
+              input.reason === 'DAMAGE' ? 'Reemplazo vinculado por daño.' : 'Reemplazo vinculado.',
+          },
+        });
+      }
+      return created;
     });
     await this.recordAudit(
       organizationId,
@@ -450,7 +588,7 @@ export class PpeService {
   }
 
   private async requireTenantReferences(organizationId: string, input: CreatePpeRequirementDto) {
-    const [workCenter, assessment, finding] = await Promise.all([
+    const [workCenter, assessment, finding, positionRequirement] = await Promise.all([
       input.workCenterId
         ? this.prisma.workCenter.findFirst({
             where: { id: input.workCenterId, organizationId, isActive: true },
@@ -469,6 +607,12 @@ export class PpeService {
             select: { id: true },
           })
         : null,
+      input.positionRequirementId
+        ? this.prisma.positionPpeRequirement.findFirst({
+            where: { id: input.positionRequirementId, organizationId, isActive: true },
+            select: { id: true, ppeCatalogItemId: true },
+          })
+        : null,
     ]);
     if (input.workCenterId && !workCenter)
       throw new BadRequestException('El centro de trabajo no pertenece a la organización.');
@@ -476,6 +620,10 @@ export class PpeService {
       throw new BadRequestException('La evaluación de riesgo no pertenece a la organización.');
     if (input.linkedFindingId && !finding)
       throw new BadRequestException('El hallazgo no pertenece a la organización.');
+    if (input.positionRequirementId && !positionRequirement)
+      throw new BadRequestException('El requisito por cargo no pertenece a la organización.');
+    if (positionRequirement && positionRequirement.ppeCatalogItemId !== input.ppeCatalogItemId)
+      throw new BadRequestException('El EPP no coincide con el requisito seleccionado por cargo.');
   }
 
   private async requireIssue(organizationId: string, issueId: string) {

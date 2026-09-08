@@ -5,14 +5,20 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import { assertTrainingSessionTransition, deriveWorkerCompetencyStatus } from '@sst/contracts';
+import {
+  assertTrainingSessionTransition,
+  deriveWorkerCompetencyStatus,
+  trainingNeedRequiresApprovedRequirement,
+} from '@sst/contracts';
 import { AuditService, type AuditEvent } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
   CompleteTrainingParticipantDto,
+  AddTrainingAudienceDto,
   CreateCompetencyRequirementDto,
   CreateTrainingDefinitionDto,
   CreateTrainingSessionDto,
+  CreateTrainingNeedDto,
   EnrollTrainingParticipantDto,
   RecordTrainingAttendanceDto,
   TrainingDefinitionQueryDto,
@@ -24,9 +30,19 @@ type Context = Pick<AuditEvent, 'requestId' | 'ip' | 'userAgent'>;
 
 const sessionInclude = {
   trainingDefinition: {
-    select: { id: true, title: true, category: true, validityDays: true, isActive: true },
+    select: {
+      id: true,
+      title: true,
+      category: true,
+      validityDays: true,
+      isActive: true,
+      deliveryClassification: true,
+    },
   },
   workCenter: { select: { id: true, name: true } },
+  workArea: { select: { id: true, name: true } },
+  trainingNeed: { select: { id: true, sourceType: true, reason: true, requiredByDate: true } },
+  responsibleUser: { select: { id: true, displayName: true } },
   createdBy: { select: { id: true, displayName: true } },
   participants: {
     select: {
@@ -99,6 +115,8 @@ export class TrainingService {
           description: true,
           category: true,
           validityDays: true,
+          deliveryClassification: true,
+          classificationProvenance: true,
           isActive: true,
           version: true,
           createdAt: true,
@@ -126,6 +144,8 @@ export class TrainingService {
           description: input.description?.trim(),
           category: input.category.trim(),
           validityDays: input.validityDays,
+          deliveryClassification: input.deliveryClassification,
+          classificationProvenance: input.classificationProvenance?.trim(),
           createdById: userId,
         },
       });
@@ -144,6 +164,132 @@ export class TrainingService {
         throw new ConflictException('Ya existe una definición de capacitación con ese título.');
       throw error;
     }
+  }
+
+  needs(organizationId: string) {
+    return this.prisma.trainingNeed.findMany({
+      where: { organizationId },
+      include: {
+        trainingDefinition: { select: { id: true, title: true, deliveryClassification: true } },
+        position: { select: { id: true, name: true } },
+        workCenter: { select: { id: true, name: true } },
+        workArea: { select: { id: true, name: true } },
+        audiences: {
+          include: {
+            position: { select: { id: true, name: true } },
+            worker: { select: { id: true, displayName: true } },
+            workCenter: { select: { id: true, name: true } },
+            workArea: { select: { id: true, name: true } },
+          },
+        },
+        _count: { select: { sessions: true } },
+      },
+      orderBy: [{ requiredByDate: 'asc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async createNeed(
+    organizationId: string,
+    userId: string,
+    input: CreateTrainingNeedDto,
+    context: Context,
+  ) {
+    const references = await this.requireNeedReferences(organizationId, input);
+    if (
+      !trainingNeedRequiresApprovedRequirement({
+        sourceType: input.sourceType,
+        requirementEditorialStatus: references.requirementStatus,
+      })
+    ) {
+      throw new BadRequestException(
+        'Solo un requisito editorialmente aprobado puede originar una necesidad obligatoria.',
+      );
+    }
+    this.assertNeedSource(input);
+    const need = await this.prisma.trainingNeed.create({
+      data: {
+        organizationId,
+        createdById: userId,
+        trainingDefinitionId: input.trainingDefinitionId,
+        linkedPlanItemId: input.linkedPlanItemId,
+        sourceType: input.sourceType,
+        reason: input.reason.trim(),
+        positionId: input.positionId,
+        workCenterId: input.workCenterId,
+        workAreaId: input.workAreaId,
+        linkedAssessmentId: input.linkedAssessmentId,
+        linkedPpeRequirementId: input.linkedPpeRequirementId,
+        linkedIncidentId: input.linkedIncidentId,
+        linkedSafetyObservationId: input.linkedSafetyObservationId,
+        linkedFindingId: input.linkedFindingId,
+        linkedRegulatoryRequirementId: input.linkedRegulatoryRequirementId,
+        requiredByDate: input.requiredByDate ? new Date(input.requiredByDate) : undefined,
+        renewalRequired: input.renewalRequired,
+      },
+    });
+    await this.recordAudit(
+      organizationId,
+      userId,
+      'TRAINING_NEED_CREATED',
+      'TrainingNeed',
+      need.id,
+      { sourceType: need.sourceType },
+      context,
+    );
+    return need;
+  }
+
+  async addAudience(
+    organizationId: string,
+    needId: string,
+    userId: string,
+    input: AddTrainingAudienceDto,
+    context: Context,
+  ) {
+    const need = await this.prisma.trainingNeed.findFirst({
+      where: { id: needId, organizationId },
+      select: { id: true },
+    });
+    if (!need) throw new NotFoundException('Necesidad de capacitación no encontrada.');
+    this.assertAudience(input);
+    await this.requireAudienceReference(organizationId, input);
+    const audience = await this.prisma.trainingAudience.create({
+      data: {
+        organizationId,
+        trainingNeedId: needId,
+        type: input.type,
+        positionId: input.positionId,
+        workerId: input.workerId,
+        workCenterId: input.workCenterId,
+        workAreaId: input.workAreaId,
+        groupLabel: input.groupLabel?.trim(),
+      },
+    });
+    await this.recordAudit(
+      organizationId,
+      userId,
+      'TRAINING_AUDIENCE_ADDED',
+      'TrainingNeed',
+      needId,
+      { audienceType: input.type },
+      context,
+    );
+    return audience;
+  }
+
+  async plan(organizationId: string) {
+    const sessions = await this.prisma.trainingSession.findMany({
+      where: { organizationId, status: { not: 'CANCELLED' } },
+      include: sessionInclude,
+      orderBy: [{ scheduledStart: 'asc' }, { id: 'asc' }],
+    });
+    return {
+      generatedAt: new Date(),
+      sessions,
+      signaturePlaceholders: ['Responsable SST', 'Facilitador', 'Participantes'],
+      printNotice:
+        'Vista imprimible para firma manuscrita. No constituye firma electrónica ni certificación automática.',
+    };
   }
 
   async sessions(organizationId: string, query: TrainingSessionQueryDto) {
@@ -168,6 +314,9 @@ export class TrainingService {
           createdAt: true,
           trainingDefinition: { select: { id: true, title: true, validityDays: true } },
           workCenter: { select: { id: true, name: true } },
+          workArea: { select: { id: true, name: true } },
+          trainingNeed: { select: { id: true, sourceType: true, reason: true } },
+          responsibleUser: { select: { id: true, displayName: true } },
           _count: { select: { participants: true, completions: true } },
         },
         orderBy: [{ scheduledStart: 'desc' }, { createdAt: 'desc' }],
@@ -194,7 +343,7 @@ export class TrainingService {
     input: CreateTrainingSessionDto,
     context: Context,
   ) {
-    const [definition, workCenter] = await Promise.all([
+    const [definition, workCenter, workArea, need, responsible] = await Promise.all([
       this.requireDefinition(organizationId, input.trainingDefinitionId, true),
       input.workCenterId
         ? this.prisma.workCenter.findFirst({
@@ -202,9 +351,39 @@ export class TrainingService {
             select: { id: true },
           })
         : null,
+      input.workAreaId
+        ? this.prisma.workArea.findFirst({
+            where: { id: input.workAreaId, organizationId, isActive: true },
+            select: { id: true, workCenterId: true },
+          })
+        : null,
+      input.trainingNeedId
+        ? this.prisma.trainingNeed.findFirst({
+            where: {
+              id: input.trainingNeedId,
+              organizationId,
+              trainingDefinitionId: input.trainingDefinitionId,
+            },
+            select: { id: true },
+          })
+        : null,
+      input.responsibleUserId
+        ? this.prisma.membership.findFirst({
+            where: { organizationId, userId: input.responsibleUserId, status: 'ACTIVE' },
+            select: { id: true },
+          })
+        : null,
     ]);
     if (input.workCenterId && !workCenter)
       throw new BadRequestException('El centro de trabajo no pertenece a la organización.');
+    if (input.workAreaId && !workArea)
+      throw new BadRequestException('El área no pertenece a la organización.');
+    if (workArea && input.workCenterId && workArea.workCenterId !== input.workCenterId)
+      throw new BadRequestException('El área no pertenece al centro seleccionado.');
+    if (input.trainingNeedId && !need)
+      throw new BadRequestException('La necesidad no corresponde a la capacitación elegida.');
+    if (input.responsibleUserId && !responsible)
+      throw new BadRequestException('El responsable no tiene membresía activa.');
     const scheduledStart = new Date(input.scheduledStart);
     const scheduledEnd = new Date(input.scheduledEnd);
     if (scheduledEnd <= scheduledStart)
@@ -214,6 +393,9 @@ export class TrainingService {
         organizationId,
         trainingDefinitionId: definition.id,
         workCenterId: input.workCenterId,
+        workAreaId: input.workAreaId,
+        trainingNeedId: input.trainingNeedId,
+        responsibleUserId: input.responsibleUserId,
         scheduledStart,
         scheduledEnd,
         mode: input.mode,
@@ -651,6 +833,173 @@ export class TrainingService {
         historyOrder: index + 1,
       })),
     };
+  }
+
+  private assertNeedSource(input: CreateTrainingNeedDto) {
+    const sourceFields: Record<string, keyof CreateTrainingNeedDto | null> = {
+      PLAN: 'linkedPlanItemId',
+      RISK: 'linkedAssessmentId',
+      POSITION: 'positionId',
+      PPE_REQUIREMENT: 'linkedPpeRequirementId',
+      INCIDENT: 'linkedIncidentId',
+      SAFETY_OBSERVATION: 'linkedSafetyObservationId',
+      FINDING: 'linkedFindingId',
+      APPROVED_REQUIREMENT: 'linkedRegulatoryRequirementId',
+      MANUAL: null,
+    };
+    const expected = sourceFields[input.sourceType];
+    if (expected && !input[expected])
+      throw new BadRequestException(
+        'La necesidad requiere la referencia de procedencia seleccionada.',
+      );
+  }
+
+  private async requireNeedReferences(organizationId: string, input: CreateTrainingNeedDto) {
+    const [
+      definition,
+      planItem,
+      position,
+      center,
+      area,
+      assessment,
+      ppeRequirement,
+      incident,
+      observation,
+      finding,
+      requirement,
+    ] = await Promise.all([
+      this.requireDefinition(organizationId, input.trainingDefinitionId, true),
+      input.linkedPlanItemId
+        ? this.prisma.operationalPlanItem.findFirst({
+            where: { id: input.linkedPlanItemId, organizationId },
+            select: { id: true },
+          })
+        : null,
+      input.positionId
+        ? this.prisma.position.findFirst({
+            where: { id: input.positionId, organizationId, isActive: true },
+            select: { id: true },
+          })
+        : null,
+      input.workCenterId
+        ? this.prisma.workCenter.findFirst({
+            where: { id: input.workCenterId, organizationId, isActive: true },
+            select: { id: true },
+          })
+        : null,
+      input.workAreaId
+        ? this.prisma.workArea.findFirst({
+            where: { id: input.workAreaId, organizationId, isActive: true },
+            select: { id: true, workCenterId: true },
+          })
+        : null,
+      input.linkedAssessmentId
+        ? this.prisma.technicalAssessment.findFirst({
+            where: { id: input.linkedAssessmentId, organizationId },
+            select: { id: true },
+          })
+        : null,
+      input.linkedPpeRequirementId
+        ? this.prisma.positionPpeRequirement.findFirst({
+            where: { id: input.linkedPpeRequirementId, organizationId, isActive: true },
+            select: { id: true },
+          })
+        : null,
+      input.linkedIncidentId
+        ? this.prisma.incident.findFirst({
+            where: { id: input.linkedIncidentId, organizationId },
+            select: { id: true },
+          })
+        : null,
+      input.linkedSafetyObservationId
+        ? this.prisma.safetyObservation.findFirst({
+            where: { id: input.linkedSafetyObservationId, organizationId },
+            select: { id: true },
+          })
+        : null,
+      input.linkedFindingId
+        ? this.prisma.inspectionFinding.findFirst({
+            where: { id: input.linkedFindingId, organizationId },
+            select: { id: true },
+          })
+        : null,
+      input.linkedRegulatoryRequirementId
+        ? this.prisma.regulatoryRequirement.findUnique({
+            where: { id: input.linkedRegulatoryRequirementId },
+            select: { id: true, editorialStatus: true },
+          })
+        : null,
+    ]);
+    const checks: Array<[unknown, unknown, string]> = [
+      [input.linkedPlanItemId, planItem, 'El ítem del plan no pertenece a la organización.'],
+      [input.positionId, position, 'El cargo no pertenece a la organización.'],
+      [input.workCenterId, center, 'El centro no pertenece a la organización.'],
+      [input.workAreaId, area, 'El área no pertenece a la organización.'],
+      [input.linkedAssessmentId, assessment, 'La evaluación no pertenece a la organización.'],
+      [
+        input.linkedPpeRequirementId,
+        ppeRequirement,
+        'El requisito EPP no pertenece a la organización.',
+      ],
+      [input.linkedIncidentId, incident, 'El incidente no pertenece a la organización.'],
+      [
+        input.linkedSafetyObservationId,
+        observation,
+        'La observación no pertenece a la organización.',
+      ],
+      [input.linkedFindingId, finding, 'El hallazgo no pertenece a la organización.'],
+    ];
+    for (const [requested, found, message] of checks)
+      if (requested && !found) throw new BadRequestException(message);
+    if (area && input.workCenterId && area.workCenterId !== input.workCenterId)
+      throw new BadRequestException('El área no pertenece al centro seleccionado.');
+    if (input.linkedRegulatoryRequirementId && !requirement)
+      throw new BadRequestException('El requisito regulatorio no existe.');
+    return { definition, requirementStatus: requirement?.editorialStatus ?? null };
+  }
+
+  private assertAudience(input: AddTrainingAudienceDto) {
+    const expected: Record<string, keyof AddTrainingAudienceDto> = {
+      POSITION: 'positionId',
+      WORKER: 'workerId',
+      WORK_CENTER: 'workCenterId',
+      WORK_AREA: 'workAreaId',
+      EXPLICIT_GROUP: 'groupLabel',
+    };
+    const populated = ['positionId', 'workerId', 'workCenterId', 'workAreaId', 'groupLabel'].filter(
+      (key) => Boolean(input[key as keyof AddTrainingAudienceDto]),
+    );
+    if (populated.length !== 1 || populated[0] !== expected[input.type])
+      throw new BadRequestException(
+        'La audiencia debe tener exactamente la referencia de su tipo.',
+      );
+  }
+
+  private async requireAudienceReference(organizationId: string, input: AddTrainingAudienceDto) {
+    const valid =
+      input.type === 'POSITION'
+        ? await this.prisma.position.findFirst({
+            where: { id: input.positionId, organizationId, isActive: true },
+            select: { id: true },
+          })
+        : input.type === 'WORKER'
+          ? await this.prisma.worker.findFirst({
+              where: { id: input.workerId, organizationId, status: 'ACTIVE' },
+              select: { id: true },
+            })
+          : input.type === 'WORK_CENTER'
+            ? await this.prisma.workCenter.findFirst({
+                where: { id: input.workCenterId, organizationId, isActive: true },
+                select: { id: true },
+              })
+            : input.type === 'WORK_AREA'
+              ? await this.prisma.workArea.findFirst({
+                  where: { id: input.workAreaId, organizationId, isActive: true },
+                  select: { id: true },
+                })
+              : { id: 'explicit-group' };
+    if (!valid)
+      throw new BadRequestException('La audiencia no pertenece a la organización activa.');
   }
 
   private async requireWorker(organizationId: string, workerId: string, active: boolean) {

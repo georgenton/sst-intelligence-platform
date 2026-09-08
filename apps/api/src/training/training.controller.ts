@@ -12,9 +12,11 @@ import { OrganizationGuard } from '../organizations/organization.guard';
 import { RolesGuard } from '../organizations/roles.guard';
 import {
   CompleteTrainingParticipantDto,
+  AddTrainingAudienceDto,
   CreateCompetencyRequirementDto,
   CreateTrainingDefinitionDto,
   CreateTrainingSessionDto,
+  CreateTrainingNeedDto,
   EnrollTrainingParticipantDto,
   RecordTrainingAttendanceDto,
   TrainingDefinitionQueryDto,
@@ -50,6 +52,47 @@ export class TrainingController {
     @Req() request: ApiRequest,
   ) {
     return this.training.createDefinition(organization.id, user.id, body, requestMetadata(request));
+  }
+
+  @Get('needs')
+  needs(@OrganizationContext() organization: { id: string }) {
+    return this.training.needs(organization.id);
+  }
+
+  @Post('needs')
+  @Roles(...TRAINING_WRITE_ROLES)
+  @UseGuards(RolesGuard)
+  createNeed(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: CreateTrainingNeedDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.training.createNeed(organization.id, user.id, body, requestMetadata(request));
+  }
+
+  @Post('needs/:needId/audiences')
+  @Roles(...TRAINING_WRITE_ROLES)
+  @UseGuards(RolesGuard)
+  addAudience(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('needId') needId: string,
+    @Body() body: AddTrainingAudienceDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.training.addAudience(
+      organization.id,
+      needId,
+      user.id,
+      body,
+      requestMetadata(request),
+    );
+  }
+
+  @Get('plan')
+  plan(@OrganizationContext() organization: { id: string }) {
+    return this.training.plan(organization.id);
   }
 
   @Get('sessions')

@@ -117,6 +117,76 @@ export function ppeConditionRequiresReview(condition: string) {
   return condition === 'REVIEW_REQUIRED' || condition === 'UNSERVICEABLE';
 }
 
+export const POSITION_RISK_CATEGORIES = [
+  'ELECTRICAL',
+  'ARC_FLASH',
+  'PROJECTION',
+  'MECHANICAL',
+  'ERGONOMIC',
+  'CHEMICAL',
+  'BIOLOGICAL',
+  'PHYSICAL',
+  'OTHER',
+] as const;
+export type PositionRiskCategory = (typeof POSITION_RISK_CATEGORIES)[number];
+
+export const PPE_CATEGORY_BY_POSITION_RISK: Readonly<
+  Record<PositionRiskCategory, readonly string[]>
+> = {
+  ELECTRICAL: ['HAND_ARM', 'FOOT', 'HEAD'],
+  ARC_FLASH: ['EYE_FACE', 'BODY', 'HAND_ARM', 'HEAD'],
+  PROJECTION: ['EYE_FACE'],
+  MECHANICAL: ['HAND_ARM', 'FOOT', 'HEAD'],
+  ERGONOMIC: [],
+  CHEMICAL: ['EYE_FACE', 'RESPIRATORY', 'HAND_ARM', 'BODY'],
+  BIOLOGICAL: ['EYE_FACE', 'RESPIRATORY', 'HAND_ARM', 'BODY'],
+  PHYSICAL: ['HEARING', 'HEAD', 'BODY'],
+  OTHER: [],
+};
+
+export function suggestPpeCategories(risks: readonly PositionRiskCategory[]) {
+  return [...new Set(risks.flatMap((risk) => PPE_CATEGORY_BY_POSITION_RISK[risk]))].sort();
+}
+
+export const SAFETY_OBSERVATION_STATUSES = [
+  'OPEN',
+  'UNDER_REVIEW',
+  'ACTION_REQUIRED',
+  'RESOLVED',
+  'CLOSED_NO_ACTION',
+] as const;
+export type SafetyObservationStatus = (typeof SAFETY_OBSERVATION_STATUSES)[number];
+
+const safetyObservationTransitions: Record<
+  SafetyObservationStatus,
+  readonly SafetyObservationStatus[]
+> = {
+  OPEN: ['UNDER_REVIEW', 'ACTION_REQUIRED', 'RESOLVED', 'CLOSED_NO_ACTION'],
+  UNDER_REVIEW: ['ACTION_REQUIRED', 'RESOLVED', 'CLOSED_NO_ACTION'],
+  ACTION_REQUIRED: ['UNDER_REVIEW', 'RESOLVED'],
+  RESOLVED: [],
+  CLOSED_NO_ACTION: [],
+};
+
+export function assertSafetyObservationTransition(
+  from: SafetyObservationStatus,
+  to: SafetyObservationStatus,
+) {
+  if (!safetyObservationTransitions[from].includes(to)) {
+    throw new Error(`INVALID_SAFETY_OBSERVATION_TRANSITION:${from}:${to}`);
+  }
+}
+
+export function trainingNeedRequiresApprovedRequirement(input: {
+  sourceType: string;
+  requirementEditorialStatus?: string | null;
+}) {
+  return (
+    input.sourceType !== 'APPROVED_REQUIREMENT' ||
+    input.requirementEditorialStatus === 'APPROVED_FOR_RULE_DRAFTING'
+  );
+}
+
 export const TRAINING_SESSION_STATUSES = ['DRAFT', 'SCHEDULED', 'COMPLETED', 'CANCELLED'] as const;
 export type TrainingSessionStatus = (typeof TRAINING_SESSION_STATUSES)[number];
 

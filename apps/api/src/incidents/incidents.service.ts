@@ -14,6 +14,7 @@ import { AuditService, type AuditEvent } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
   AddIncidentWorkerDto,
+  AddIncidentPpeIssueDto,
   CompleteIncidentInvestigationDto,
   CreateIncidentActionDto,
   CreateIncidentDto,
@@ -30,6 +31,7 @@ type Context = Pick<AuditEvent, 'requestId' | 'ip' | 'userAgent'>;
 
 const incidentInclude = {
   workCenter: { select: { id: true, name: true } },
+  workArea: { select: { id: true, name: true } },
   reportedBy: { select: { id: true, displayName: true } },
   linkedInspection: { select: { id: true, title: true } },
   linkedFinding: { select: { id: true, title: true } },
@@ -56,6 +58,7 @@ const incidentInclude = {
       id: true,
       status: true,
       summary: true,
+      method: true,
       startedAt: true,
       completedAt: true,
       version: true,
@@ -115,6 +118,20 @@ const incidentInclude = {
     },
     orderBy: { createdAt: 'desc' as const },
   },
+  ppeLinks: {
+    select: {
+      id: true,
+      note: true,
+      ppeIssue: {
+        select: {
+          id: true,
+          status: true,
+          assetReference: true,
+          ppeCatalogItem: { select: { id: true, name: true, category: true } },
+        },
+      },
+    },
+  },
 } as const;
 
 @Injectable()
@@ -150,6 +167,8 @@ export class IncidentsService {
           title: true,
           description: true,
           eventType: true,
+          eventLocation: true,
+          attentionPriority: true,
           status: true,
           occurredAt: true,
           reportedAt: true,
@@ -222,10 +241,13 @@ export class IncidentsService {
         organizationId,
         reportedByUserId: userId,
         workCenterId: input.workCenterId,
+        workAreaId: input.workAreaId,
         occurredAt: new Date(input.occurredAt),
         title: input.title.trim(),
         description: input.description.trim(),
         eventType: input.eventType,
+        eventLocation: input.eventLocation,
+        attentionPriority: input.attentionPriority,
         activityContext: input.activityContext?.trim(),
         linkedInspectionId: input.linkedInspectionId,
         linkedFindingId: input.linkedFindingId,
@@ -325,6 +347,49 @@ export class IncidentsService {
     }
   }
 
+  async addPpeIssue(
+    organizationId: string,
+    incidentId: string,
+    userId: string,
+    input: AddIncidentPpeIssueDto,
+    context: Context,
+  ) {
+    const [incident, ppeIssue] = await Promise.all([
+      this.requireCurrent(organizationId, incidentId),
+      this.prisma.ppeIssue.findFirst({
+        where: { id: input.ppeIssueId, organizationId },
+        select: { id: true },
+      }),
+    ]);
+    if (['CLOSED', 'CANCELLED'].includes(incident.status))
+      throw new BadRequestException('No puedes cambiar el EPP de un incidente finalizado.');
+    if (!ppeIssue)
+      throw new BadRequestException('La entrega de EPP no pertenece a la organización.');
+    try {
+      const link = await this.prisma.incidentPpeIssue.create({
+        data: {
+          organizationId,
+          incidentId,
+          ppeIssueId: input.ppeIssueId,
+          note: input.note?.trim(),
+        },
+      });
+      await this.recordAudit(
+        organizationId,
+        userId,
+        'INCIDENT_PPE_LINKED',
+        incidentId,
+        { ppeIssueId: input.ppeIssueId },
+        context,
+      );
+      return link;
+    } catch (error) {
+      if (this.isUniqueConflict(error))
+        throw new ConflictException('La entrega de EPP ya está vinculada al incidente.');
+      throw error;
+    }
+  }
+
   async startInvestigation(
     organizationId: string,
     incidentId: string,
@@ -343,7 +408,7 @@ export class IncidentsService {
       });
       if (existing) throw new ConflictException('La investigación ya fue iniciada.');
       await tx.incidentInvestigation.create({
-        data: { organizationId, incidentId, startedById: userId },
+        data: { organizationId, incidentId, startedById: userId, method: input.method },
       });
       const result = await tx.incident.updateMany({
         where: { id: incidentId, organizationId, version: input.expectedVersion },
@@ -356,7 +421,7 @@ export class IncidentsService {
       userId,
       'INCIDENT_INVESTIGATION_STARTED',
       incidentId,
-      {},
+      { method: input.method },
       context,
     );
     return this.get(organizationId, incidentId);
@@ -679,11 +744,17 @@ export class IncidentsService {
   }
 
   private async requireTenantReferences(organizationId: string, input: CreateIncidentDto) {
-    const [workCenter, inspection, finding, assessment] = await Promise.all([
+    const [workCenter, workArea, inspection, finding, assessment] = await Promise.all([
       this.prisma.workCenter.findFirst({
         where: { id: input.workCenterId, organizationId, isActive: true },
         select: { id: true },
       }),
+      input.workAreaId
+        ? this.prisma.workArea.findFirst({
+            where: { id: input.workAreaId, organizationId, isActive: true },
+            select: { id: true, workCenterId: true },
+          })
+        : null,
       input.linkedInspectionId
         ? this.prisma.inspection.findFirst({
             where: { id: input.linkedInspectionId, organizationId },
@@ -705,6 +776,10 @@ export class IncidentsService {
     ]);
     if (!workCenter)
       throw new BadRequestException('El centro de trabajo no pertenece a la organización activa.');
+    if (input.workAreaId && !workArea)
+      throw new BadRequestException('El área no pertenece a la organización activa.');
+    if (workArea && workArea.workCenterId !== input.workCenterId)
+      throw new BadRequestException('El área no pertenece al centro de trabajo seleccionado.');
     if (input.linkedInspectionId && !inspection)
       throw new BadRequestException('La inspección vinculada no pertenece a la organización.');
     if (input.linkedFindingId && !finding)

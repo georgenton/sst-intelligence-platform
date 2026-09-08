@@ -67,6 +67,7 @@ export class WorkQueueService {
       permits,
       incidentInvestigations,
       incidentActions,
+      safetyObservations,
       ppeReplacements,
       ppeConditionReviews,
       trainingRequirements,
@@ -242,7 +243,6 @@ export class WorkQueueService {
       moduleEnabled('INCIDENTS') &&
       incidentsEnabled &&
       !query.assignedToUserId &&
-      (!query.priority || query.priority === 'HIGH') &&
       !Object.keys(dueFilter).length
         ? this.prisma.incident.findMany({
             where: {
@@ -253,12 +253,14 @@ export class WorkQueueService {
                 { investigation: { is: { status: 'IN_PROGRESS' } } },
               ],
               ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
+              ...(query.priority ? { attentionPriority: query.priority } : {}),
             },
             select: {
               id: true,
               title: true,
               description: true,
               status: true,
+              attentionPriority: true,
               createdAt: true,
               workCenter: { select: { id: true, name: true } },
             },
@@ -295,6 +297,30 @@ export class WorkQueueService {
             },
             take: limit,
             orderBy: { createdAt: 'desc' },
+          })
+        : [],
+      moduleEnabled('INCIDENTS') && incidentsEnabled
+        ? this.prisma.safetyObservation.findMany({
+            where: {
+              organizationId,
+              status: { in: ['OPEN', 'UNDER_REVIEW', 'ACTION_REQUIRED'] },
+              ...(query.priority ? { priority: query.priority } : {}),
+              ...(query.assignedToUserId ? { assignedToUserId: query.assignedToUserId } : {}),
+              ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
+            },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              status: true,
+              priority: true,
+              observedAt: true,
+              createdAt: true,
+              workCenter: { select: { id: true, name: true } },
+              assignedTo: { select: { id: true, displayName: true } },
+            },
+            take: limit,
+            orderBy: [{ priority: 'desc' }, { observedAt: 'asc' }],
           })
         : [],
       moduleEnabled('PPE') &&
@@ -752,7 +778,7 @@ export class WorkQueueService {
             ? 'Incidente reportado pendiente de iniciar investigación.'
             : 'Investigación de incidente pendiente de conclusión profesional.',
         status: incident.status,
-        priority: 'HIGH' as const,
+        priority: incident.attentionPriority ?? ('HIGH' as const),
         dueAt: null,
         overdue: false,
         assignee: null,
@@ -781,6 +807,25 @@ export class WorkQueueService {
         regulatoryContext: null,
         riskContext: null,
         createdAt: action.createdAt,
+      })),
+      ...safetyObservations.map((observation) => ({
+        type: 'SAFETY_OBSERVATION_FOLLOW_UP' as const,
+        sourceId: observation.id,
+        organizationId,
+        workCenter: observation.workCenter,
+        title: observation.title,
+        summary: observation.description,
+        status: observation.status,
+        priority: observation.priority,
+        dueAt: null,
+        overdue: false,
+        assignee: observation.assignedTo,
+        origin: 'Observación de seguridad',
+        module: 'INCIDENTS' as const,
+        deepLink: `/app/safety-observations/${observation.id}`,
+        regulatoryContext: null,
+        riskContext: null,
+        createdAt: observation.createdAt,
       })),
       ...ppeReplacements.map((issue) => ({
         type: 'PPE_REPLACEMENT_DUE' as const,

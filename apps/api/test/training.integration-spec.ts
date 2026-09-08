@@ -96,7 +96,7 @@ describe('training and competency integration', () => {
 
     await api(viewer.token, orgA)
       .post('/training/definitions')
-      .send({ title: 'No autorizada', category: 'Interna' })
+      .send({ title: 'No autorizada', category: 'Interna', deliveryClassification: 'INTERNAL' })
       .expect(403);
     const definition = await api(owner.token, orgA)
       .post('/training/definitions')
@@ -105,12 +105,17 @@ describe('training and competency integration', () => {
         description: 'Definición interna sin afirmar obligación legal.',
         category: 'Seguridad operativa',
         validityDays: 30,
+        deliveryClassification: 'INTERNAL',
       })
       .expect(201);
     const definitionId = definition.body.id as string;
     const otherDefinition = await api(owner.token, orgB)
       .post('/training/definitions')
-      .send({ title: `Definición ajena ${suffix}`, category: 'Interna' })
+      .send({
+        title: `Definición ajena ${suffix}`,
+        category: 'Interna',
+        deliveryClassification: 'UNKNOWN',
+      })
       .expect(201);
     const definitions = await api(viewer.token, orgA).get('/training/definitions').expect(200);
     expect(definitions.body.items).toEqual(

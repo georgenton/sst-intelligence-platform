@@ -104,6 +104,8 @@ describe('incident management integration', () => {
         title: 'No autorizado',
         description: 'Registro que no debe ser creado.',
         eventType: 'INCIDENT',
+        eventLocation: 'OWN_FACILITY',
+        attentionPriority: 'MEDIUM',
       })
       .expect(403);
     await api(technician.token, orgA)
@@ -114,6 +116,8 @@ describe('incident management integration', () => {
         title: 'Centro ajeno',
         description: 'La referencia cruza el límite organizacional.',
         eventType: 'INCIDENT',
+        eventLocation: 'OWN_FACILITY',
+        attentionPriority: 'MEDIUM',
       })
       .expect(400);
 
@@ -126,6 +130,8 @@ describe('incident management integration', () => {
         description: 'Material cayó dentro del área delimitada sin contacto con personas.',
         activityContext: 'Inspección visual durante preparación de mantenimiento.',
         eventType: 'NEAR_MISS',
+        eventLocation: 'OWN_FACILITY',
+        attentionPriority: 'HIGH',
       })
       .expect(201);
     const incidentId = created.body.id as string;
@@ -158,7 +164,7 @@ describe('incident management integration', () => {
     expect(reported.body).toMatchObject({ status: 'REPORTED', version: 2 });
     const investigation = await api(technician.token, orgA)
       .post(`/incidents/${incidentId}/investigation/start`)
-      .send({ expectedVersion: 2 })
+      .send({ expectedVersion: 2, method: 'ISHIKAWA' })
       .expect(201);
     expect(investigation.body).toMatchObject({ status: 'UNDER_INVESTIGATION', version: 3 });
 

@@ -1,4 +1,11 @@
-import { TrainingAttendance, TrainingMode, TrainingSessionStatus } from '@prisma/client';
+import {
+  TrainingAttendance,
+  TrainingAudienceType,
+  TrainingDeliveryClassification,
+  TrainingMode,
+  TrainingNeedSourceType,
+  TrainingSessionStatus,
+} from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -26,6 +33,35 @@ export class CreateTrainingDefinitionDto {
   @IsOptional() @IsString() @Length(1, 2000) description?: string;
   @IsString() @Length(2, 120) category!: string;
   @IsOptional() @IsInt() @Min(1) @Max(3650) validityDays?: number;
+  @IsEnum(TrainingDeliveryClassification) deliveryClassification!: TrainingDeliveryClassification;
+  @IsOptional() @IsString() @Length(1, 1000) classificationProvenance?: string;
+}
+
+export class CreateTrainingNeedDto {
+  @IsUUID() trainingDefinitionId!: string;
+  @IsOptional() @IsUUID() linkedPlanItemId?: string;
+  @IsEnum(TrainingNeedSourceType) sourceType!: TrainingNeedSourceType;
+  @IsString() @Length(3, 2000) reason!: string;
+  @IsOptional() @IsUUID() positionId?: string;
+  @IsOptional() @IsUUID() workCenterId?: string;
+  @IsOptional() @IsUUID() workAreaId?: string;
+  @IsOptional() @IsUUID() linkedAssessmentId?: string;
+  @IsOptional() @IsUUID() linkedPpeRequirementId?: string;
+  @IsOptional() @IsUUID() linkedIncidentId?: string;
+  @IsOptional() @IsUUID() linkedSafetyObservationId?: string;
+  @IsOptional() @IsUUID() linkedFindingId?: string;
+  @IsOptional() @IsUUID() linkedRegulatoryRequirementId?: string;
+  @IsOptional() @IsDateString() requiredByDate?: string;
+  @IsOptional() @IsBoolean() renewalRequired?: boolean;
+}
+
+export class AddTrainingAudienceDto {
+  @IsEnum(TrainingAudienceType) type!: TrainingAudienceType;
+  @IsOptional() @IsUUID() positionId?: string;
+  @IsOptional() @IsUUID() workerId?: string;
+  @IsOptional() @IsUUID() workCenterId?: string;
+  @IsOptional() @IsUUID() workAreaId?: string;
+  @IsOptional() @IsString() @Length(2, 200) groupLabel?: string;
 }
 
 export class CreateCompetencyRequirementDto {
@@ -49,6 +85,9 @@ export class TrainingSessionQueryDto {
 export class CreateTrainingSessionDto {
   @IsUUID() trainingDefinitionId!: string;
   @IsOptional() @IsUUID() workCenterId?: string;
+  @IsOptional() @IsUUID() workAreaId?: string;
+  @IsOptional() @IsUUID() trainingNeedId?: string;
+  @IsOptional() @IsUUID() responsibleUserId?: string;
   @IsDateString() scheduledStart!: string;
   @IsDateString() scheduledEnd!: string;
   @IsEnum(TrainingMode) mode!: TrainingMode;
