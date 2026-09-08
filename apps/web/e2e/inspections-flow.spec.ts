@@ -54,6 +54,37 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await page.getByRole('button', { name: 'Crear y activar demo' }).click();
   await expect(page.getByText(/Demostración conceptual activa/)).toBeVisible();
 
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/app/field');
+  await expect(
+    page.getByRole('heading', { name: 'Registrar, verificar y dar seguimiento' }),
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: /Observación rápida/ })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.getByRole('link', { name: /Observación rápida/ }).click();
+  await page.getByLabel('Título').fill(`Señal preventiva ${suffix}`);
+  await page.getByLabel('Descripción breve').fill('Cable sintético fuera de su canaleta.');
+  await page.getByLabel('Centro de trabajo').selectOption({ index: 1 });
+  await page
+    .getByLabel('Nota de evidencia (opcional)')
+    .fill('Evidencia sintética registrada desde campo.');
+  await Promise.all([
+    page.waitForURL(/\/app\/safety-observations\/[0-9a-f-]+$/),
+    page.getByRole('button', { name: 'Registrar observación' }).click(),
+  ]);
+  await expect(page.getByText('Evidencia sintética registrada desde campo.')).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
   await page.goto('/app/plans');
   await expect(page.getByRole('heading', { name: 'Planifica el trabajo SST' })).toBeVisible();
   const generatedPlan = page.waitForResponse(
@@ -77,6 +108,7 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await page.getByRole('link', { name: 'Plan operativo sugerido' }).click();
   await expect(page.getByText(/Procedencia: FINDING/).first()).toBeVisible();
 
+  await page.setViewportSize({ width: 390, height: 844 });
   const inspectionsResponse = await page.goto('/app/inspections');
   expect(inspectionsResponse?.ok()).toBe(true);
   await expect(page).toHaveURL(/\/app\/inspections$/);
@@ -91,6 +123,7 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await page.getByLabel('Área (opcional)').selectOption({ label: 'Planta A' });
   await page.getByLabel('Título').fill(`Inspección de campo ${suffix}`);
   await page.getByLabel('Descripción').fill('Recorrido operacional E2E.');
+  await page.getByRole('radio', { name: /Técnica/ }).check();
   await page.getByRole('radio', { name: /Matriz demostrativa 5×5 histórica/ }).check();
   await Promise.all([
     page.waitForURL(/\/app\/inspections\/[0-9a-f-]+$/),
@@ -169,6 +202,9 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await page.getByRole('button', { name: 'Enviar a verificación' }).click();
   await expect(page.getByText('Pendiente de verificación').first()).toBeVisible();
   await expect(page.getByText('Acción completada', { exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
 
   await page.setViewportSize({ width: 320, height: 800 });
   await page.getByRole('switch', { name: 'Enfoque inactivo' }).click();
