@@ -453,6 +453,7 @@ describe('workforce safety refinement integration', () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: session.body.id,
+          _count: { participants: 1, completions: 0 },
           trainingNeed: expect.objectContaining({
             id: need.body.id,
             sourceType: 'SAFETY_OBSERVATION',

@@ -50,6 +50,13 @@ async function horizontalOverflowSources(page: Page) {
   });
 }
 
+function trainingSessionRow(page: Page, title: string) {
+  const sessionList = page.locator('section').filter({
+    has: page.getByRole('heading', { level: 2, name: 'Sesiones registradas', exact: true }),
+  });
+  return sessionList.locator('article').filter({ hasText: title }).first();
+}
+
 test.describe.serial('workforce safety operations', () => {
   test('registra y desactiva un trabajador sin consumir un asiento de acceso', async ({ page }) => {
     test.setTimeout(120_000);
@@ -444,7 +451,7 @@ test.describe.serial('workforce safety operations', () => {
     await expect(trainingDefinitionSelect).not.toHaveValue('');
     await page.getByRole('button', { name: 'Crear sesión en borrador' }).click();
     await expect(page.getByText('Sesión creada.')).toBeVisible();
-    const sessionRow = page.locator('article').filter({ hasText: trainingTitle }).first();
+    const sessionRow = trainingSessionRow(page, trainingTitle);
     await sessionRow.getByRole('link', { name: 'Abrir sesión' }).click();
     await page.getByLabel('Persona trabajadora activa').selectOption({ label: workerName });
     await page.getByRole('button', { name: 'Inscribir trabajador' }).click();
@@ -486,10 +493,7 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByLabel('Capacitación').last().selectOption({ label: trainingTitle });
     await page.getByRole('button', { name: 'Crear sesión en borrador' }).click();
     await expect(page.getByText('Sesión creada.')).toBeVisible();
-    await page
-      .locator('article')
-      .filter({ hasText: trainingTitle })
-      .first()
+    await trainingSessionRow(page, trainingTitle)
       .getByRole('link', { name: 'Abrir sesión' })
       .click();
     await page.getByLabel('Persona trabajadora activa').selectOption({ label: workerName });
@@ -544,6 +548,8 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByLabel('Nombre de empresa').fill(`Organización Observaciones ${suffix}`);
     await page.getByLabel('Sector').fill('Operación industrial sintética');
     await page.getByRole('button', { name: 'Crear y activar demo' }).click();
+    await expect(page).toHaveURL(/\/app$/);
+    await expect(page.getByText(/Demostración conceptual activa/)).toBeVisible();
     await page.getByRole('link', { name: 'Observaciones de seguridad', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Observaciones de seguridad' })).toBeVisible();
     const title = `Cable fuera de canaleta ${suffix}`;
@@ -562,9 +568,10 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByRole('button', { name: 'Añadir referencia de evidencia' }).click();
     await expect(page.getByText(/Referencia preventiva revisada en sitio/)).toBeVisible();
     await page.getByRole('button', { name: 'Iniciar revisión' }).click();
-    await expect(page.getByText('En revisión', { exact: true })).toBeVisible();
+    const observationStatus = page.locator('main .workspace-context-summary');
+    await expect(observationStatus.getByText('En revisión', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Requiere acción' }).click();
-    await expect(page.getByText('Requiere acción', { exact: true })).toBeVisible();
+    await expect(observationStatus.getByText('Requiere acción', { exact: true })).toBeVisible();
     await page
       .getByLabel('Nota de resolución profesional')
       .fill('Condición atendida y verificada por el profesional.');

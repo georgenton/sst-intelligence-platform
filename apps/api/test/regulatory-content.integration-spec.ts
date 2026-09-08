@@ -24,6 +24,14 @@ const CORPUS_SOURCE_KEYS = [
   'EC_MDT_2025_122_CONSTRUCTION',
 ] as const;
 
+const CANONICAL_REQUIREMENT_KEYS = [
+  'MDT_2024_196_SST_RESPONSIBLE_REGISTRATION',
+  'MDT_2024_196_PREVENTION_PLAN_REGISTRATION',
+  'MDT_2024_196_HYGIENE_SAFETY_REGULATION_REGISTRATION',
+  'MDT_2024_196_PSYCHOSOCIAL_PROGRAM_REGISTRATION',
+  'MDT_2024_196_ANNUAL_TRAINING_PLAN_REGISTRATION',
+] as const;
+
 describe('regulatory provision and requirement foundation integration', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -75,10 +83,22 @@ describe('regulatory provision and requirement foundation integration', () => {
       .set('x-organization-id', organizationId);
   }
 
-  it('starts with only the pending MDT-2024-196 reference candidates and no published rules', async () => {
-    expect(await prisma.regulatoryProvision.count()).toBe(2);
-    expect(await prisma.regulatoryRequirement.count()).toBe(5);
-    expect(await prisma.regulatoryRequirementSource.count()).toBe(6);
+  it('preserves the pending MDT-2024-196 reference candidates and no published rules', async () => {
+    expect(
+      await prisma.regulatoryProvision.count({
+        where: { sourceVersion: { source: { sourceKey: 'EC_MDT_2024_196' } } },
+      }),
+    ).toBe(2);
+    expect(
+      await prisma.regulatoryRequirement.count({
+        where: { requirementKey: { in: [...CANONICAL_REQUIREMENT_KEYS] } },
+      }),
+    ).toBe(5);
+    expect(
+      await prisma.regulatoryRequirementSource.count({
+        where: { requirement: { requirementKey: { in: [...CANONICAL_REQUIREMENT_KEYS] } } },
+      }),
+    ).toBe(6);
     expect(
       await prisma.adaptiveRuleDraft.count({
         where: { regulatory: true, status: 'TECHNICAL_REVIEW_PENDING' },
@@ -121,9 +141,15 @@ describe('regulatory provision and requirement foundation integration', () => {
       organizationId,
       '/regulatory-requirements',
     );
-    expect(requirements.body).toHaveLength(5);
+    const canonicalRequirements = requirements.body.filter(
+      (requirement: { requirementKey: string }) =>
+        CANONICAL_REQUIREMENT_KEYS.includes(
+          requirement.requirementKey as (typeof CANONICAL_REQUIREMENT_KEYS)[number],
+        ),
+    );
+    expect(canonicalRequirements).toHaveLength(5);
     expect(
-      requirements.body.every(
+      canonicalRequirements.every(
         (requirement: { editorialStatus: string; provenanceCount: number }) =>
           requirement.editorialStatus === 'TECHNICAL_REVIEW_PENDING' &&
           requirement.provenanceCount > 0,

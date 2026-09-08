@@ -82,6 +82,7 @@ const sessionInclude = {
     },
     orderBy: { enrolledAt: 'asc' as const },
   },
+  _count: { select: { participants: true, completions: true } },
 } as const;
 
 @Injectable()
