@@ -522,6 +522,14 @@ type ExpertDraft = {
     }>;
   }>;
   publicationBoundary: string;
+  professionalDecision: string;
+  reviews: Array<{
+    id: string;
+    decision: string;
+    comment?: string | null;
+    createdAt: string;
+    reviewer: { displayName: string };
+  }>;
 };
 
 export function UnifiedExpertReviewWorkspace() {
@@ -564,6 +572,9 @@ export function UnifiedExpertReviewWorkspace() {
               <p className="applicability-kicker">{draft.candidateLabel}</p>
               <h2>{draft.requirements[0]?.title ?? draft.ruleKey}</h2>
               <p>{draft.requirements[0]?.description}</p>
+              <p>
+                <strong>Qué debe decidir el profesional:</strong> {draft.professionalDecision}
+              </p>
               {draft.requirements
                 .flatMap(({ exactArticles }) => exactArticles)
                 .map((article) => (
@@ -581,6 +592,21 @@ export function UnifiedExpertReviewWorkspace() {
                   </div>
                 ))}
               <small>Regla candidata v{draft.revision} · revisar no publica</small>
+              <section aria-label="Historial de revisión profesional">
+                <h3>Historial</h3>
+                {draft.reviews.length === 0 ? (
+                  <p>Sin decisiones profesionales registradas.</p>
+                ) : (
+                  draft.reviews.map((review) => (
+                    <p key={review.id}>
+                      <strong>{review.decision.replaceAll('_', ' ')}</strong> ·{' '}
+                      {review.reviewer.displayName} ·{' '}
+                      {new Date(review.createdAt).toLocaleDateString('es-EC')}
+                      {review.comment ? ` — ${review.comment}` : ''}
+                    </p>
+                  ))
+                )}
+              </section>
             </article>
           ))
         )}

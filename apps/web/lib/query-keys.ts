@@ -250,6 +250,12 @@ export const queryKeys = {
         'proposal',
         proposalId,
       ] as const,
+    adaptiveGapAnalyses: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'adaptive-intelligence', 'gap-analyses'] as const,
+    operationalSearch: (organizationId: string, search: string) =>
+      [...privateRoot, 'org', organizationId, 'operational-search', search] as const,
+    managementIntelligence: (organizationId: string, filters = '') =>
+      [...privateRoot, 'org', organizationId, 'management-intelligence', filters] as const,
     regulatorySources: (organizationId: string, filters: string) =>
       [...privateRoot, 'org', organizationId, 'regulatory-sources', 'list', filters] as const,
     regulatorySource: (organizationId: string, sourceKey: string) =>

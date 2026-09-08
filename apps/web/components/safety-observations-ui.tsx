@@ -73,6 +73,8 @@ type ObservationForm = {
   observedAt: string;
   priority: Priority;
   assignedToUserId: string;
+  evidenceNote: string;
+  evidenceUrl: string;
 };
 
 const WRITE_ROLES = new Set([
@@ -154,11 +156,13 @@ export function SafetyObservationRegistry() {
       observedAt: new Date().toISOString().slice(0, 16),
       priority: 'MEDIUM',
       assignedToUserId: '',
+      evidenceNote: '',
+      evidenceUrl: '',
     },
   });
   const create = useMutation({
-    mutationFn: (values: ObservationForm) =>
-      auth.request<Observation>(
+    mutationFn: async (values: ObservationForm) => {
+      const observation = await auth.request<Observation>(
         '/safety-observations',
         {
           method: 'POST',
@@ -167,10 +171,28 @@ export function SafetyObservationRegistry() {
             workAreaId: values.workAreaId || undefined,
             assignedToUserId: values.assignedToUserId || undefined,
             observedAt: new Date(values.observedAt).toISOString(),
+            evidenceNote: undefined,
+            evidenceUrl: undefined,
           }),
         },
         organizationId!,
-      ),
+      );
+      if (values.evidenceNote.trim() || values.evidenceUrl.trim()) {
+        await auth.request(
+          `/safety-observations/${observation.id}/evidence`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              type: values.evidenceUrl.trim() ? 'EXTERNAL_LINK' : 'NOTE',
+              note: values.evidenceNote.trim() || undefined,
+              externalUrl: values.evidenceUrl.trim() || undefined,
+            }),
+          },
+          organizationId!,
+        );
+      }
+      return observation;
+    },
     onSuccess: async (observation) => {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.organization.scope(organizationId!),
@@ -276,6 +298,23 @@ export function SafetyObservationRegistry() {
               <label>
                 Fecha y hora observada
                 <input type="datetime-local" {...form.register('observedAt', { required: true })} />
+              </label>
+              <label>
+                Nota de evidencia (opcional)
+                <textarea
+                  rows={2}
+                  placeholder="Qué se observó o qué evidencia quedó registrada"
+                  {...form.register('evidenceNote')}
+                />
+              </label>
+              <label>
+                Enlace HTTPS de evidencia (opcional)
+                <input
+                  type="url"
+                  inputMode="url"
+                  placeholder="https://…"
+                  {...form.register('evidenceUrl')}
+                />
               </label>
               <label>
                 Prioridad de atención interna
