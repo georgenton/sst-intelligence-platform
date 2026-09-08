@@ -1,7 +1,7 @@
 # SST Intelligence — master project context
 
-Status: canonical continuity document. Runtime implementation baseline: PR #42 merge
-`1bfb08132789b305bdac7013deaed1d43914699f`, verified in production on 2026-09-07. The subsequent
+Status: canonical continuity document. Runtime implementation baseline: PR #43 merge
+`f834920664c7bcb3ade8ff07933e870e7809c13d`, verified in production on 2026-09-08. The subsequent
 closure-documentation commit does not change runtime behavior.
 
 This document is the authoritative entry point for future engineering sessions. Detailed domain,
@@ -50,12 +50,12 @@ behavior is covered by the isolated 18/18 main E2E gate; the production smoke cr
 or synthetic tenant data. The electrical taxonomy and mappings remain synthetic and pending Anita
 review, multi-source scoped mapping remains deferred, and editorial AI remains staging-only.
 Production uses `DETERMINISTIC_LOCAL_V1`, has no OpenAI key and recorded zero external-AI requests.
-Workforce Safety Product Refinement V2 is implemented on an unmerged candidate branch and remains
-pending external audit; it is not part of the production baseline.
+Workforce Safety Product Refinement V2 was subsequently merged and production-verified through
+PR #43; its exact closure evidence is recorded below.
 
-## Workforce Safety Product Refinement V2 — candidate
+## Workforce Safety Product Refinement V2 — production closed
 
-The candidate connects Position, Worker, structured risk context, EPP, Accident/Incident, Safety
+The production slice connects Position, Worker, structured risk context, EPP, Accident/Incident, Safety
 Observation, Training and existing Work Queue while preserving their separate lifecycles. Existing
 `WorkCenter` means physical site/plant/center and `WorkArea` means subdivision; no `Plant` entity is
 needed. Worker remains independent from User/Membership and consumes no seat.
@@ -72,7 +72,39 @@ manual signature placeholders.
 All new historical fields are nullable and the migration is additive. No commercial feature key,
 PlanFeature assignment, external Workforce AI, stock/ERP, LMS, clinical data, public reporting,
 notification provider or electronic signature is introduced. Mappings, classification language and
-workflow refinements are synthetic/candidate and **PENDING ANITA**.
+workflow refinements remain **PENDING ANITA**.
+
+## PR43 Workforce Safety Product Refinement V2 production closure
+
+PR #43 merged the externally audited HEAD `7f8f222e3da030fd0b0bea8cf7bad583d953a071`
+through merge commit `f834920664c7bcb3ade8ff07933e870e7809c13d` on 2026-09-08. Main Quality
+Gate [34259930387](https://github.com/georgenton/sst-intelligence-platform/actions/runs/34259930387)
+passed in attempt 1: 23 contract files / 318 tests, 13 API suites / 48 tests, 103 web tests,
+30 integration suites / 69 tests and 19/19 E2E in 15 serial batches with workers=1, retries=0 and
+retried=0. Migrations, validators, regulatory corpus review, build, repeated reference sync and the
+runtime image also passed.
+
+Railway production deployment `d62d7682-9626-4e4d-9c4e-edbbfef4189a` applied migration
+`20260907232300_workforce_safety_refinement_v2` as migration 32, started successfully and returned
+health HTTP 200. Vercel deployment `dpl_4qAd4cMXZRMzu4yokeUyba4y9AFN` is READY on production with
+the canonical demo aliases and the exact merge SHA. Staging production remains isolated on the
+authorized PR41 track `5ed765d7387f51f53821296fbec8944b16e87a8b`.
+
+Production retains 15 RegulatorySources, 25 RegulatorySourceVersions, 1112 RegulatoryUnits,
+893 ARTICLE units, 5 candidate Requirements, 5 candidate RuleDrafts and zero real published
+RuleVersions. Historical workforce, inspection, risk, resource-scope and plan records were not
+recalculated or backfilled; GTC45 is unchanged. Production keeps
+`CONVERSATIONAL_AI_PROVIDER=DETERMINISTIC_LOCAL_V1`, has no OpenAI key and recorded zero external
+provider requests, including Workforce data.
+
+The closed product scope comprises Organization/Worker Context V2, Position, EPP V2, Accidentes e
+Incidentes V2, Safety Observation V1, Training Plan V2 and Work Queue convergence. Terminology,
+Position/risk/EPP mappings, standards/certifications guidance, event-location categories, Ishikawa
+professional refinement, certified/internal training guidance and Safety Observation field-intake
+refinements remain **PENDING ANITA**. Public QR/anonymous intake, mobile/PWA field operations,
+offline, notification providers, Psychosocial, clinical functions, ERP, full LMS, real e-sign and
+Workforce external AI remain deferred. This closure does not attribute professional approval to
+Anita.
 
 ## Product direction
 

@@ -87,24 +87,24 @@ assistant uses a server-side allowlisted action registry, current membership aut
 explicit mutation confirmation, idempotency and structured citations. The deterministic demo
 provider validates architecture without selecting a production LLM vendor.
 
-### E — Incident management — V2 candidate implemented, pending external audit
+### E — Incident management — V2 production closed
 
 Accidentes e Incidentes add bounded event location, internal attention priority, structured
 investigation method and explicit EPP traceability without automatic root-cause or legal claims.
 
-### F — PPE — V2 candidate implemented, pending external audit
+### F — PPE — V2 production closed
 
 Position → deterministic risk mapping → professional EPP selection → Worker assignment → delivery →
 condition → replacement → evidence is implemented. Inventory/stock and ERP semantics remain
 deferred.
 
-### G — Training and competency — V2 candidate implemented, pending external audit
+### G — Training and competency — V2 production closed
 
 Training Need provenance, Position/Worker/location audiences, linked sessions, attendance,
 completion, renewal and a printable plan are implemented without becoming an LMS or certification
 authority.
 
-### G.1 — Safety Observations — V1 candidate implemented, pending external audit
+### G.1 — Safety Observations — V1 production closed
 
 Authenticated spontaneous preventive reporting has a finite lifecycle, evidence references,
 explicit existing-Action links and canonical Work Queue projection. It is not an Inspection,
@@ -217,6 +217,21 @@ The bounded Plan Operativo V0, synthetic electrical Resource Scope V0, human-rea
 presentation and controlled editorial proposal flow are available. The taxonomy/mappings still
 await Anita review, scoped multi-source resource mapping remains deferred, proposal approval does
 not publish runtime truth, and production external AI remains disabled with zero requests.
-Workforce Safety Product Refinement V2 is implemented on a Draft candidate branch and awaits
-external audit. Until merged and production-verified, the production baseline remains Workforce
-Safety Operations V1.
+Workforce Safety Product Refinement V2 is production closed through PR #43 merge
+`f834920664c7bcb3ade8ff07933e870e7809c13d` on 2026-09-08. Main Quality Gate 34259930387 passed
+in attempt 1 with 30/30 integration suites, 69/69 integration tests and 19/19 E2E in 15 serial
+batches, workers=1 and retries=0. Railway applied additive migration 32 and Vercel Demo reached
+READY from the exact merge SHA; staging production remained isolated on the authorized PR41 track.
+
+Organization/Worker Context V2, Position, EPP V2, Accidentes e Incidentes V2, Safety Observation
+V1, Training Plan V2 and Work Queue convergence are **DONE**. Worker remains separate from User and
+Membership, no Plant entity exists, Plan Operativo remains distinct from Work Queue and no automatic
+root cause or automatic cross-domain record creation is introduced. Historical data and GTC45 are
+unchanged; regulatory parity remains 15 sources, 25 versions, 1112 units/893 articles, 5 candidate
+Requirements, 5 candidate RuleDrafts and zero real published RuleVersions.
+
+Terminology, Position/risk/EPP mappings, standards/certifications guidance, event-location
+categories, Ishikawa professional refinement, certified/internal training guidance and Safety
+Observation field-intake refinements remain **PENDING ANITA**. Public QR and anonymous intake,
+mobile/PWA deep field operations, offline, notification providers, Psychosocial, clinical, ERP,
+full LMS, real e-sign and Workforce external AI remain deferred. No Anita approval is claimed.

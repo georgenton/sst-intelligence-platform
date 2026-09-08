@@ -159,3 +159,40 @@ La taxonomía y sus mappings eléctricos son sintéticos y siguen pendientes de 
 scoped multi-source continúa diferido. El flujo editorial con IA sigue limitado a staging.
 Producción conserva `DETERMINISTIC_LOCAL_V1`, `OPENAI_API_KEY` ausente y cero solicitudes externas.
 Este cierre no atribuye aprobación a Anita ni inicia Workforce Safety Product Refinement V2.
+
+## Cierre productivo PR43 — 2026-09-08
+
+PR43 integró el HEAD auditado `7f8f222e3da030fd0b0bea8cf7bad583d953a071` mediante merge commit
+`f834920664c7bcb3ade8ff07933e870e7809c13d` a las `2026-09-08T17:54:53Z`. El Quality Gate de main
+[34259930387](https://github.com/georgenton/sst-intelligence-platform/actions/runs/34259930387)
+pasó en el intento 1, sin rerun: 23 archivos / 318 pruebas de contracts, 13 suites / 48 pruebas API,
+103 pruebas web, 30 suites / 69 pruebas de integración y 19/19 E2E, 15 lotes, workers=1, retries=0
+y retried=0. También pasaron migraciones, seed, lint, typecheck, validadores SST/regulatorios,
+build, reference sync repetido e imagen runtime.
+
+Railway desplegó automáticamente `d62d7682-9626-4e4d-9c4e-edbbfef4189a` desde `main` y el merge
+SHA exacto. El release aplicó la migración 32
+`20260907232300_workforce_safety_refinement_v2`, completó reference sync, inició Nest y respondió
+health HTTP 200 sin crash loop. Vercel Demo desplegó automáticamente
+`dpl_4qAd4cMXZRMzu4yokeUyba4y9AFN`, READY/production, con el SHA exacto y aliases canónicos.
+Staging production no fue promovido: conserva el track PR41
+`5ed765d7387f51f53821296fbec8944b16e87a8b` y sus bases y variables permanecen aisladas.
+
+El smoke productivo fue de solo lectura y no usó datos de clientes. La página de inicio de sesión y
+las páginas de Workers, EPP, Incident, Safety Observation, Training y Work Queue respondieron HTTP 200; health
+API respondió 200 y los endpoints de dominio protegidos, sin credenciales, respondieron 401 en vez
+de 5xx. La funcionalidad autenticada, detalles, historia y convergencia están cubiertos por el gate
+aislado 19/19 del mismo runtime.
+
+La base productiva conserva 15 RegulatorySources, 25 RegulatorySourceVersions, 1112
+RegulatoryUnits, 893 ARTICLE, 5 candidate Requirements, 5 candidate RuleDrafts y 0 real published
+RuleVersions. La migración no contiene backfills, updates, deletes ni drops; Worker/User/Membership,
+Plan Operativo/Work Queue y los agregados de seguridad mantienen sus límites. GTC45 e históricos
+de Workforce, inspecciones, riesgos, Resource Scope y planes no fueron recalculados.
+
+Producción usa `CONVERSATIONAL_AI_PROVIDER=DETERMINISTIC_LOCAL_V1`, `AI_ENABLED=false`, no tiene
+`OPENAI_API_KEY` y registra cero solicitudes externas, incluidas las relacionadas con Workforce.
+Terminología, mappings Position/risk/EPP, guidance de estándares/certificaciones, categorías de
+ubicación, refinamiento Ishikawa, guidance de capacitación y captura de Safety Observation quedan
+PENDING ANITA. QR/anonymous intake, PWA/offline, notificaciones, Psychosocial, clinical, ERP, full
+LMS, e-sign y Workforce external AI continúan diferidos; no se atribuye aprobación a Anita.
