@@ -87,20 +87,29 @@ assistant uses a server-side allowlisted action registry, current membership aut
 explicit mutation confirmation, idempotency and structured citations. The deterministic demo
 provider validates architecture without selecting a production LLM vendor.
 
-### E — Incident management — implementation authorized
+### E — Incident management — V2 candidate implemented, pending external audit
 
-Operational incident lifecycle, investigation evidence and contributing factors without automatic
-root-cause claims.
+Accidentes e Incidentes add bounded event location, internal attention priority, structured
+investigation method and explicit EPP traceability without automatic root-cause or legal claims.
 
-### F — PPE — implementation authorized
+### F — PPE — V2 candidate implemented, pending external audit
 
-Worker/position → risk → PPE → delivery → inspection → expiry/renewal → evidence. Inventory and
-stock follow later.
+Position → deterministic risk mapping → professional EPP selection → Worker assignment → delivery →
+condition → replacement → evidence is implemented. Inventory/stock and ERP semantics remain
+deferred.
 
-### G — Training and competency — implementation authorized
+### G — Training and competency — V2 candidate implemented, pending external audit
 
-Role/activity → competency → training → attendance → assessment → evidence → expiry/renewal, linked
-to Requirements, risks, findings and actions.
+Training Need provenance, Position/Worker/location audiences, linked sessions, attendance,
+completion, renewal and a printable plan are implemented without becoming an LMS or certification
+authority.
+
+### G.1 — Safety Observations — V1 candidate implemented, pending external audit
+
+Authenticated spontaneous preventive reporting has a finite lifecycle, evidence references,
+explicit existing-Action links and canonical Work Queue projection. It is not an Inspection,
+Finding or Incident and creates none automatically. Public/anonymous/mobile reporting remains
+deferred.
 
 ### H — SST governance — bounded V1 production closed
 
@@ -208,4 +217,6 @@ The bounded Plan Operativo V0, synthetic electrical Resource Scope V0, human-rea
 presentation and controlled editorial proposal flow are available. The taxonomy/mappings still
 await Anita review, scoped multi-source resource mapping remains deferred, proposal approval does
 not publish runtime truth, and production external AI remains disabled with zero requests.
-Workforce Safety Product Refinement V2 is explicitly deferred and has not started.
+Workforce Safety Product Refinement V2 is implemented on a Draft candidate branch and awaits
+external audit. Until merged and production-verified, the production baseline remains Workforce
+Safety Operations V1.
