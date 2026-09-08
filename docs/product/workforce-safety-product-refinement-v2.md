@@ -14,6 +14,12 @@ and merge are still required.
 - Canonical Work Queue projections; no duplicated execution lifecycle.
 - Additive migration, tenant validation and regression coverage.
 
+Audit hardening additionally enforces Worker/Position EPP scope consistency, damaged-issue
+chronology, one canonical Training Need provenance, reviewed-reference evidence and duplicate
+Position EPP protection. Work Queue treats legacy Incidents with null attention priority as HIGH
+for both display and filtering, while undated Safety Observations are excluded from due-date
+queries.
+
 ## SYNTHETIC
 
 - Risk-category-to-EPP candidate mappings and electrical-maintenance demonstration examples.

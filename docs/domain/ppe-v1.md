@@ -45,9 +45,21 @@ reference is Ecuadorian law. Full proprietary standard text and vendor catalogs 
 
 Replacement is additive: the old issue becomes historical and a new issue stores the bounded
 reason (expiry, wear, damage, loss or another justified reason) and predecessor link. Damage may be
-explicitly linked to an existing same-tenant Incident; it never creates an Incident automatically.
+explicitly linked to an existing same-tenant Incident: the Incident references the damaged original
+issue, while the new issue references that original through `replacesIssueId`. The Worker must first
+be explicitly listed as involved in the Incident; no involvement or Incident is created
+automatically.
 V2 intentionally does not add stock tables: Requirement, Assignment, Issue, Condition, Replacement
 and History solve the validated safety workflow without procurement, warehouses or accounting.
+
+A Worker requirement that cites a Position requirement must match its Position and EPP item. Any
+optional Work Center or Work Area scope must also match the Worker. Repeating the exact active
+Position/risk/EPP/Center/Area selection is rejected under a Position-scoped transaction lock,
+including combinations whose optional scopes are null.
+
+An EPP reference marked `REVIEWED` requires both a non-empty technical reference and verifiable
+provenance. This is evidence of professional/technical review only, never a legal or commercial
+certification claim.
 
 Certification vocabulary, candidate mappings and inventory depth are **PENDING ANITA**. Brand,
 supplier, procurement and ERP behavior are **DEFERRED**.

@@ -358,13 +358,22 @@ export class IncidentsService {
       this.requireCurrent(organizationId, incidentId),
       this.prisma.ppeIssue.findFirst({
         where: { id: input.ppeIssueId, organizationId },
-        select: { id: true },
+        select: { id: true, workerId: true },
       }),
     ]);
     if (['CLOSED', 'CANCELLED'].includes(incident.status))
       throw new BadRequestException('No puedes cambiar el EPP de un incidente finalizado.');
     if (!ppeIssue)
       throw new BadRequestException('La entrega de EPP no pertenece a la organización.');
+    const involvedWorker = await this.prisma.incidentWorker.findFirst({
+      where: { organizationId, incidentId, workerId: ppeIssue.workerId },
+      select: { id: true },
+    });
+    if (!involvedWorker) {
+      throw new BadRequestException(
+        'Vincula explícitamente al trabajador con el incidente antes de asociar su EPP.',
+      );
+    }
     try {
       const link = await this.prisma.incidentPpeIssue.create({
         data: {

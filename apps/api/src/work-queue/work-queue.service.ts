@@ -253,7 +253,13 @@ export class WorkQueueService {
                 { investigation: { is: { status: 'IN_PROGRESS' } } },
               ],
               ...(query.workCenterId ? { workCenterId: query.workCenterId } : {}),
-              ...(query.priority ? { attentionPriority: query.priority } : {}),
+              ...(query.priority === 'HIGH'
+                ? {
+                    AND: [{ OR: [{ attentionPriority: 'HIGH' }, { attentionPriority: null }] }],
+                  }
+                : query.priority
+                  ? { attentionPriority: query.priority }
+                  : {}),
             },
             select: {
               id: true,
@@ -299,7 +305,7 @@ export class WorkQueueService {
             orderBy: { createdAt: 'desc' },
           })
         : [],
-      moduleEnabled('INCIDENTS') && incidentsEnabled
+      moduleEnabled('INCIDENTS') && incidentsEnabled && !Object.keys(dueFilter).length
         ? this.prisma.safetyObservation.findMany({
             where: {
               organizationId,

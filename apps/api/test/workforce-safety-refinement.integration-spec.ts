@@ -86,6 +86,12 @@ describe('workforce safety refinement integration', () => {
     const areaB = await prisma.workArea.create({
       data: { organizationId: orgB, workCenterId: centerB.id, name: `Bodega ${suffix}` },
     });
+    const centerAOther = await prisma.workCenter.create({
+      data: { organizationId: orgA, name: `Centro alterno ${suffix}`, city: 'Quito' },
+    });
+    const areaAOther = await prisma.workArea.create({
+      data: { organizationId: orgA, workCenterId: centerA.id, name: `Área alterna ${suffix}` },
+    });
 
     const positionA = await api(owner.token, orgA)
       .post('/workers/positions')
@@ -94,6 +100,10 @@ describe('workforce safety refinement integration', () => {
     const positionB = await api(owner.token, orgB)
       .post('/workers/positions')
       .send({ name: `Cargo ajeno ${suffix}` })
+      .expect(201);
+    const positionAOther = await api(owner.token, orgA)
+      .post('/workers/positions')
+      .send({ name: `Cargo alterno ${suffix}` })
       .expect(201);
     const riskA = await api(owner.token, orgA)
       .post(`/workers/positions/${positionA.body.id}/risks`)
@@ -139,6 +149,15 @@ describe('workforce safety refinement integration', () => {
         createdById: owner.userId,
       },
     });
+    const workerWithoutPosition = await prisma.worker.create({
+      data: {
+        organizationId: orgA,
+        displayName: 'Persona sin cargo',
+        workCenterId: centerA.id,
+        workAreaId: areaA.id,
+        createdById: owner.userId,
+      },
+    });
 
     const catalogA = await prisma.ppeCatalogItem.create({
       data: {
@@ -156,6 +175,25 @@ describe('workforce safety refinement integration', () => {
         createdById: owner.userId,
       },
     });
+    await api(owner.token, orgA)
+      .post('/ppe/catalog')
+      .send({
+        name: `Referencia incompleta ${suffix}`,
+        category: 'HEAD',
+        referenceStandard: 'Referencia técnica sintética',
+        referenceReviewStatus: 'REVIEWED',
+      })
+      .expect(400);
+    await api(owner.token, orgA)
+      .post('/ppe/catalog')
+      .send({
+        name: `Referencia revisada ${suffix}`,
+        category: 'HEAD',
+        referenceStandard: 'Referencia técnica sintética',
+        referenceProvenance: 'Registro sintético verificado por profesional.',
+        referenceReviewStatus: 'REVIEWED',
+      })
+      .expect(201);
     const candidates = await api(owner.token, orgA)
       .get(`/workers/positions/${positionA.body.id}/ppe-candidates`)
       .expect(200);
@@ -196,6 +234,93 @@ describe('workforce safety refinement integration', () => {
         decision: 'REQUIRED_INTERNALLY',
       })
       .expect(201);
+    const positionMismatchRequirement = await api(owner.token, orgA)
+      .post('/ppe/position-requirements')
+      .send({
+        positionId: positionAOther.body.id,
+        ppeCatalogItemId: catalogA.id,
+        reason: 'Requisito de otro cargo del mismo tenant.',
+        decision: 'REQUIRED_INTERNALLY',
+      })
+      .expect(201);
+    const centerMismatchRequirement = await api(owner.token, orgA)
+      .post('/ppe/position-requirements')
+      .send({
+        positionId: positionA.body.id,
+        ppeCatalogItemId: catalogA.id,
+        workCenterId: centerAOther.id,
+        reason: 'Requisito de otro centro del mismo tenant.',
+        decision: 'REQUIRED_INTERNALLY',
+      })
+      .expect(201);
+    const areaMismatchRequirement = await api(owner.token, orgA)
+      .post('/ppe/position-requirements')
+      .send({
+        positionId: positionA.body.id,
+        ppeCatalogItemId: catalogA.id,
+        workCenterId: centerA.id,
+        workAreaId: areaAOther.id,
+        reason: 'Requisito de otra área del mismo tenant.',
+        decision: 'REQUIRED_INTERNALLY',
+      })
+      .expect(201);
+    for (const positionRequirementId of [
+      positionMismatchRequirement.body.id,
+      centerMismatchRequirement.body.id,
+      areaMismatchRequirement.body.id,
+    ]) {
+      await api(owner.token, orgA)
+        .post('/ppe/requirements')
+        .send({
+          workerId: workerA.body.id,
+          ppeCatalogItemId: catalogA.id,
+          positionRequirementId,
+          reason: 'Debe rechazarse por provenance incompatible.',
+        })
+        .expect(400);
+    }
+    await api(owner.token, orgA)
+      .post('/ppe/requirements')
+      .send({
+        workerId: workerWithoutPosition.id,
+        ppeCatalogItemId: catalogA.id,
+        positionRequirementId: positionRequirement.body.id,
+        reason: 'No puede aplicar un requisito por cargo sin cargo asignado.',
+      })
+      .expect(400);
+    const duplicateCatalog = await prisma.ppeCatalogItem.create({
+      data: {
+        organizationId: orgA,
+        name: `EPP idempotencia ${suffix}`,
+        category: 'HEAD',
+        createdById: owner.userId,
+      },
+    });
+    const duplicatePositionRequirement = () =>
+      api(owner.token, orgA).post('/ppe/position-requirements').send({
+        positionId: positionA.body.id,
+        ppeCatalogItemId: duplicateCatalog.id,
+        reason: 'Selección repetida sin scopes opcionales.',
+        decision: 'SELECTED_BY_PROFESSIONAL',
+      });
+    const duplicateResponses = await Promise.all([
+      duplicatePositionRequirement(),
+      duplicatePositionRequirement(),
+    ]);
+    expect(duplicateResponses.map(({ status }) => status).sort()).toEqual([201, 409]);
+    expect(
+      await prisma.positionPpeRequirement.count({
+        where: {
+          organizationId: orgA,
+          positionId: positionA.body.id,
+          ppeCatalogItemId: duplicateCatalog.id,
+          riskContextId: null,
+          workCenterId: null,
+          workAreaId: null,
+          isActive: true,
+        },
+      }),
+    ).toBe(1);
     const workerRequirement = await api(owner.token, orgA)
       .post('/ppe/requirements')
       .send({
@@ -247,6 +372,10 @@ describe('workforce safety refinement integration', () => {
       where: { organizationId: orgA },
     });
     await api(owner.token, orgA)
+      .post(`/incidents/${incident.body.id}/workers`)
+      .send({ workerId: workerA.body.id, involvement: 'Persona vinculada explícitamente.' })
+      .expect(201);
+    await api(owner.token, orgA)
       .post(`/ppe/issues/${issued.body.id}/replace`)
       .send({
         expectedVersion: 3,
@@ -272,9 +401,27 @@ describe('workforce safety refinement integration', () => {
     });
     expect(
       await prisma.incidentPpeIssue.count({
-        where: { incidentId: incident.body.id, ppeIssueId: issueHistory[1]!.id },
+        where: { incidentId: incident.body.id, ppeIssueId: issueHistory[0]!.id },
       }),
     ).toBe(1);
+    expect(
+      await prisma.incidentPpeIssue.count({
+        where: { incidentId: incident.body.id, ppeIssueId: issueHistory[1]!.id },
+      }),
+    ).toBe(0);
+    const uninvolvedIssue = await prisma.ppeIssue.create({
+      data: {
+        organizationId: orgA,
+        workerId: workerWithoutPosition.id,
+        ppeCatalogItemId: catalogA.id,
+        issuedAt: new Date(),
+        issuedById: owner.userId,
+      },
+    });
+    await api(owner.token, orgA)
+      .post(`/incidents/${incident.body.id}/ppe-issues`)
+      .send({ ppeIssueId: uninvolvedIssue.id })
+      .expect(400);
     const foreignIssue = await prisma.ppeIssue.create({
       data: {
         organizationId: orgB,
@@ -384,6 +531,43 @@ describe('workforce safety refinement integration', () => {
         }),
       ]),
     );
+    const legacyIncident = await prisma.incident.create({
+      data: {
+        organizationId: orgA,
+        workCenterId: centerA.id,
+        occurredAt: new Date('2026-09-06T10:00:00.000Z'),
+        reportedAt: new Date('2026-09-06T11:00:00.000Z'),
+        reportedByUserId: owner.userId,
+        title: 'Incidente histórico sin prioridad V2',
+        description: 'Registro histórico conservado sin backfill de prioridad.',
+        eventType: 'NEAR_MISS',
+        status: 'REPORTED',
+      },
+    });
+    const highQueue = await api(owner.token, orgA)
+      .get('/work-queue?module=INCIDENTS&priority=HIGH&pageSize=100')
+      .expect(200);
+    expect(highQueue.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'INCIDENT_INVESTIGATION',
+          sourceId: legacyIncident.id,
+          priority: 'HIGH',
+        }),
+      ]),
+    );
+    const mediumQueue = await api(owner.token, orgA)
+      .get('/work-queue?module=INCIDENTS&priority=MEDIUM&pageSize=100')
+      .expect(200);
+    expect(mediumQueue.body.items).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ sourceId: legacyIncident.id })]),
+    );
+    const datedQueue = await api(owner.token, orgA)
+      .get('/work-queue?module=INCIDENTS&dueFrom=2026-01-01&dueTo=2026-12-31&pageSize=100')
+      .expect(200);
+    expect(datedQueue.body.items).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ sourceId: observation.body.id })]),
+    );
     const transitions = await Promise.all([
       api(owner.token, orgA)
         .post(`/safety-observations/${observation.body.id}/transition`)
@@ -403,13 +587,61 @@ describe('workforce safety refinement integration', () => {
         createdById: owner.userId,
       },
     });
+    const operationalPlan = await api(owner.token, orgA)
+      .post('/operational-plans')
+      .send({
+        name: `Plan de capacitación ${suffix}`,
+        periodStart: '2026-01-01',
+        periodEnd: '2026-12-31',
+        items: [
+          {
+            title: 'Ejecutar formación preventiva',
+            priority: 'HIGH',
+            workCenterId: centerA.id,
+            evidenceReferences: [],
+            provenanceType: 'MANUAL',
+            provenanceSnapshot: {},
+          },
+        ],
+      })
+      .expect(201);
+    const planItemId = operationalPlan.body.versions[0].items[0].id as string;
+    await api(owner.token, orgA)
+      .post('/training/needs')
+      .send({
+        trainingDefinitionId: definition.id,
+        sourceType: 'MANUAL',
+        linkedIncidentId: incident.body.id,
+        reason: 'Payload contradictorio manual con fuente oculta.',
+      })
+      .expect(400);
+    await api(owner.token, orgA)
+      .post('/training/needs')
+      .send({
+        trainingDefinitionId: definition.id,
+        sourceType: 'INCIDENT',
+        linkedIncidentId: incident.body.id,
+        linkedFindingId: '00000000-0000-4000-8000-000000000001',
+        reason: 'Payload contradictorio con dos fuentes canónicas.',
+      })
+      .expect(400);
+    await api(owner.token, orgA)
+      .post('/training/needs')
+      .send({
+        trainingDefinitionId: definition.id,
+        sourceType: 'PLAN',
+        linkedPlanItemId: planItemId,
+        linkedAssessmentId: '00000000-0000-4000-8000-000000000001',
+        reason: 'Payload contradictorio con plan y evaluación.',
+      })
+      .expect(400);
     const need = await api(owner.token, orgA)
       .post('/training/needs')
       .send({
         trainingDefinitionId: definition.id,
-        sourceType: 'SAFETY_OBSERVATION',
-        linkedSafetyObservationId: observation.body.id,
-        reason: 'Reforzar la inspección previa al uso.',
+        sourceType: 'PLAN',
+        linkedPlanItemId: planItemId,
+        reason: 'Ejecutar la formación preventiva definida en el Plan Operativo.',
       })
       .expect(201);
     await api(owner.token, orgA)
@@ -456,7 +688,7 @@ describe('workforce safety refinement integration', () => {
           _count: { participants: 1, completions: 0 },
           trainingNeed: expect.objectContaining({
             id: need.body.id,
-            sourceType: 'SAFETY_OBSERVATION',
+            sourceType: 'PLAN',
           }),
         }),
       ]),

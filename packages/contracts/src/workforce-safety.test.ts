@@ -13,6 +13,7 @@ import {
   suggestPpeCategories,
   assertSafetyObservationTransition,
   trainingNeedRequiresApprovedRequirement,
+  trainingNeedProvenanceError,
 } from './workforce-safety.js';
 
 describe('worker registry rules', () => {
@@ -120,6 +121,39 @@ describe('safety observation lifecycle', () => {
 });
 
 describe('training and competency lifecycle', () => {
+  it.each([
+    ['PLAN', { linkedPlanItemId: 'plan-item' }],
+    ['RISK', { linkedAssessmentId: 'assessment' }],
+    ['PPE_REQUIREMENT', { linkedPpeRequirementId: 'ppe-requirement' }],
+    ['INCIDENT', { linkedIncidentId: 'incident' }],
+    ['SAFETY_OBSERVATION', { linkedSafetyObservationId: 'observation' }],
+    ['FINDING', { linkedFindingId: 'finding' }],
+    ['APPROVED_REQUIREMENT', { linkedRegulatoryRequirementId: 'requirement' }],
+    ['POSITION', { positionId: 'position' }],
+    ['MANUAL', {}],
+  ])('accepts one canonical provenance for %s', (sourceType, references) => {
+    expect(trainingNeedProvenanceError({ sourceType, ...references })).toBeNull();
+  });
+
+  it.each([
+    ['MANUAL with an Incident link', { sourceType: 'MANUAL', linkedIncidentId: 'incident' }],
+    [
+      'INCIDENT with Incident and Finding links',
+      { sourceType: 'INCIDENT', linkedIncidentId: 'incident', linkedFindingId: 'finding' },
+    ],
+    [
+      'PLAN with Plan and Assessment links',
+      { sourceType: 'PLAN', linkedPlanItemId: 'plan', linkedAssessmentId: 'assessment' },
+    ],
+    ['POSITION without a Position', { sourceType: 'POSITION' }],
+    [
+      'POSITION with a canonical link',
+      { sourceType: 'POSITION', positionId: 'position', linkedIncidentId: 'incident' },
+    ],
+  ])('rejects contradictory provenance: %s', (_label, input) => {
+    expect(trainingNeedProvenanceError(input)).not.toBeNull();
+  });
+
   it('does not represent a candidate regulatory requirement as an approved training duty', () => {
     expect(
       trainingNeedRequiresApprovedRequirement({

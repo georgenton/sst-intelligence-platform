@@ -175,6 +175,8 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'inspections', 'detail', inspectionId] as const,
     finding: (organizationId: string, findingId: string) =>
       [...privateRoot, 'org', organizationId, 'findings', 'detail', findingId] as const,
+    findingSearch: (organizationId: string, search: string) =>
+      [...privateRoot, 'org', organizationId, 'findings', 'search', search] as const,
     inspectionAlerts: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'inspections', 'alerts'] as const,
     inspectionAlertList: (organizationId: string, filters: string) =>

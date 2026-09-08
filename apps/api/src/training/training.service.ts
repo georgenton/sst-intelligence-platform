@@ -8,6 +8,7 @@ import type { Prisma } from '@prisma/client';
 import {
   assertTrainingSessionTransition,
   deriveWorkerCompetencyStatus,
+  trainingNeedProvenanceError,
   trainingNeedRequiresApprovedRequirement,
 } from '@sst/contracts';
 import { AuditService, type AuditEvent } from '../audit/audit.service';
@@ -137,6 +138,14 @@ export class TrainingService {
     input: CreateTrainingDefinitionDto,
     context: Context,
   ) {
+    if (
+      input.deliveryClassification === 'CERTIFICATION_CONFIRMED' &&
+      !input.classificationProvenance?.trim()
+    ) {
+      throw new BadRequestException(
+        'Una certificación confirmada requiere proveniencia verificable.',
+      );
+    }
     try {
       const definition = await this.prisma.trainingDefinition.create({
         data: {
@@ -195,6 +204,7 @@ export class TrainingService {
     input: CreateTrainingNeedDto,
     context: Context,
   ) {
+    this.assertNeedSource(input);
     const references = await this.requireNeedReferences(organizationId, input);
     if (
       !trainingNeedRequiresApprovedRequirement({
@@ -206,7 +216,6 @@ export class TrainingService {
         'Solo un requisito editorialmente aprobado puede originar una necesidad obligatoria.',
       );
     }
-    this.assertNeedSource(input);
     const need = await this.prisma.trainingNeed.create({
       data: {
         organizationId,
@@ -837,22 +846,11 @@ export class TrainingService {
   }
 
   private assertNeedSource(input: CreateTrainingNeedDto) {
-    const sourceFields: Record<string, keyof CreateTrainingNeedDto | null> = {
-      PLAN: 'linkedPlanItemId',
-      RISK: 'linkedAssessmentId',
-      POSITION: 'positionId',
-      PPE_REQUIREMENT: 'linkedPpeRequirementId',
-      INCIDENT: 'linkedIncidentId',
-      SAFETY_OBSERVATION: 'linkedSafetyObservationId',
-      FINDING: 'linkedFindingId',
-      APPROVED_REQUIREMENT: 'linkedRegulatoryRequirementId',
-      MANUAL: null,
-    };
-    const expected = sourceFields[input.sourceType];
-    if (expected && !input[expected])
+    if (trainingNeedProvenanceError(input)) {
       throw new BadRequestException(
-        'La necesidad requiere la referencia de procedencia seleccionada.',
+        'La necesidad debe declarar exactamente una procedencia canónica coherente con su origen.',
       );
+    }
   }
 
   private async requireNeedReferences(organizationId: string, input: CreateTrainingNeedDto) {

@@ -16,6 +16,8 @@ Migration: `20260907232300_workforce_safety_refinement_v2`.
 - Historical EPP issues and Training completions are not recalculated.
 - No Plant table, commercial feature key, PlanFeature assignment, stock/ERP table or external-AI
   configuration is introduced.
+- The post-audit integrity repairs require no additional migration or backfill; they validate current
+  references transactionally and preserve every existing nullable historical value.
 
 ## Required release gates
 

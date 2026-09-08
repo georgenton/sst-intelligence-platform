@@ -26,6 +26,7 @@ type TrainingDefinition = {
   validityDays?: number | null;
   isActive: boolean;
   deliveryClassification?: string | null;
+  classificationProvenance?: string | null;
 };
 type TrainingNeed = {
   id: string;
@@ -143,7 +144,44 @@ type WorkArea = { id: string; name: string; workCenterId: string };
 type Position = { id: string; name: string; isActive: boolean };
 type IncidentList = { items: Array<{ id: string; title: string }> };
 type ObservationList = { items: Array<{ id: string; title: string }> };
-type TrainingNeedSourceType = 'MANUAL' | 'POSITION' | 'INCIDENT' | 'SAFETY_OBSERVATION';
+type OperationalPlanList = {
+  items: Array<{
+    id: string;
+    versions: Array<{
+      id: string;
+      name: string;
+      status: string;
+      items: Array<{ id: string; title: string }>;
+    }>;
+  }>;
+};
+type TechnicalAssessmentList = {
+  items: Array<{ id: string; title: string; status: string }>;
+};
+type PositionPpeRequirementSource = {
+  id: string;
+  reason: string;
+  position: { id: string; name: string };
+  ppeCatalogItem: { id: string; name: string };
+};
+type FindingSearchResponse = {
+  items: Array<{ id: string; title: string; inspection: { id: string; title: string } }>;
+};
+type RegulatoryRequirementSource = {
+  id: string;
+  title: string;
+  editorialStatus: string;
+};
+type TrainingNeedSourceType =
+  | 'PLAN'
+  | 'RISK'
+  | 'POSITION'
+  | 'PPE_REQUIREMENT'
+  | 'INCIDENT'
+  | 'SAFETY_OBSERVATION'
+  | 'FINDING'
+  | 'APPROVED_REQUIREMENT'
+  | 'MANUAL';
 type TrainingAudienceType = 'POSITION' | 'WORKER' | 'WORK_CENTER' | 'WORK_AREA' | 'EXPLICIT_GROUP';
 type DefinitionForm = {
   title: string;
@@ -156,6 +194,7 @@ type DefinitionForm = {
     | 'CERTIFICATION_REVIEW_REQUIRED'
     | 'CERTIFICATION_CONFIRMED'
     | 'UNKNOWN';
+  classificationProvenance: string;
 };
 type SessionForm = {
   trainingDefinitionId: string;
@@ -222,6 +261,20 @@ function formatDate(value?: string | null, withTime = false) {
       });
 }
 
+function trainingNeedSourceReference(sourceType: TrainingNeedSourceType, sourceId: string) {
+  if (sourceType === 'PLAN') return { linkedPlanItemId: sourceId };
+  if (sourceType === 'RISK') return { linkedAssessmentId: sourceId };
+  if (sourceType === 'POSITION') return { positionId: sourceId };
+  if (sourceType === 'PPE_REQUIREMENT') return { linkedPpeRequirementId: sourceId };
+  if (sourceType === 'INCIDENT') return { linkedIncidentId: sourceId };
+  if (sourceType === 'SAFETY_OBSERVATION') return { linkedSafetyObservationId: sourceId };
+  if (sourceType === 'FINDING') return { linkedFindingId: sourceId };
+  if (sourceType === 'APPROVED_REQUIREMENT') {
+    return { linkedRegulatoryRequirementId: sourceId };
+  }
+  return {};
+}
+
 export function TrainingCatalog() {
   const auth = useAuth();
   const organization = useOrganization();
@@ -261,6 +314,7 @@ export function TrainingCatalog() {
   const [needReason, setNeedReason] = useState('');
   const [needSourceType, setNeedSourceType] = useState<TrainingNeedSourceType>('MANUAL');
   const [needSourceId, setNeedSourceId] = useState('');
+  const [findingSearch, setFindingSearch] = useState('');
   const [audienceNeedId, setAudienceNeedId] = useState('');
   const [audienceType, setAudienceType] = useState<TrainingAudienceType>('POSITION');
   const [audienceReferenceId, setAudienceReferenceId] = useState('');
@@ -316,6 +370,64 @@ export function TrainingCatalog() {
       ),
     enabled: Boolean(organizationId && canWrite && needSourceType === 'SAFETY_OBSERVATION'),
   });
+  const operationalPlans = useQuery({
+    queryKey: queryKeys.organization.operationalPlans(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<OperationalPlanList>(
+        '/operational-plans?pageSize=100',
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId && canWrite && needSourceType === 'PLAN'),
+  });
+  const assessments = useQuery({
+    queryKey: queryKeys.organization.technicalRiskAssessments(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<TechnicalAssessmentList>(
+        '/technical-risk/assessments',
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId && canWrite && needSourceType === 'RISK'),
+  });
+  const positionPpeRequirements = useQuery({
+    queryKey: queryKeys.organization.positionPpeRequirements(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<PositionPpeRequirementSource[]>(
+        '/ppe/position-requirements',
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId && canWrite && needSourceType === 'PPE_REQUIREMENT'),
+  });
+  const findings = useQuery({
+    queryKey: queryKeys.organization.findingSearch(
+      organizationId ?? 'inactive',
+      findingSearch.trim(),
+    ),
+    queryFn: ({ signal }) =>
+      auth.request<FindingSearchResponse>(
+        `/inspections/findings/search?q=${encodeURIComponent(findingSearch.trim())}&pageSize=100`,
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(
+      organizationId &&
+      canWrite &&
+      needSourceType === 'FINDING' &&
+      findingSearch.trim().length >= 2,
+    ),
+  });
+  const regulatoryRequirements = useQuery({
+    queryKey: queryKeys.organization.regulatoryRequirements(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<RegulatoryRequirementSource[]>(
+        '/regulatory-requirements',
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId && canWrite && needSourceType === 'APPROVED_REQUIREMENT'),
+  });
   const definitionForm = useForm<DefinitionForm>({
     defaultValues: {
       title: '',
@@ -323,8 +435,10 @@ export function TrainingCatalog() {
       category: '',
       validityDays: '',
       deliveryClassification: 'UNKNOWN',
+      classificationProvenance: '',
     },
   });
+  const deliveryClassification = definitionForm.watch('deliveryClassification');
   const sessionForm = useForm<SessionForm>({
     defaultValues: {
       trainingDefinitionId: '',
@@ -349,6 +463,7 @@ export function TrainingCatalog() {
             category: values.category,
             validityDays: values.validityDays ? Number(values.validityDays) : undefined,
             deliveryClassification: values.deliveryClassification,
+            classificationProvenance: values.classificationProvenance || undefined,
           }),
         },
         organizationId!,
@@ -396,11 +511,7 @@ export function TrainingCatalog() {
             trainingDefinitionId: needDefinitionId,
             sourceType: needSourceType,
             reason: needReason,
-            ...(needSourceType === 'POSITION' ? { positionId: needSourceId } : {}),
-            ...(needSourceType === 'INCIDENT' ? { linkedIncidentId: needSourceId } : {}),
-            ...(needSourceType === 'SAFETY_OBSERVATION'
-              ? { linkedSafetyObservationId: needSourceId }
-              : {}),
+            ...trainingNeedSourceReference(needSourceType, needSourceId),
           }),
         },
         organizationId!,
@@ -438,14 +549,48 @@ export function TrainingCatalog() {
       });
     },
   });
+  const planSourceOptions = (operationalPlans.data?.items ?? []).flatMap((plan) => {
+    const version = plan.versions.find(({ status }) => status === 'ACTIVE') ?? plan.versions[0];
+    if (!version || version.status === 'RETIRED') return [];
+    return version.items.map((item) => ({
+      id: item.id,
+      label: `${version.name} · ${item.title}`,
+    }));
+  });
   const needSourceOptions =
-    needSourceType === 'POSITION'
-      ? (positions.data ?? []).map((item) => ({ id: item.id, label: item.name }))
-      : needSourceType === 'INCIDENT'
-        ? (incidents.data?.items ?? []).map((item) => ({ id: item.id, label: item.title }))
-        : needSourceType === 'SAFETY_OBSERVATION'
-          ? (observations.data?.items ?? []).map((item) => ({ id: item.id, label: item.title }))
-          : [];
+    needSourceType === 'PLAN'
+      ? planSourceOptions
+      : needSourceType === 'RISK'
+        ? (assessments.data?.items ?? []).map((item) => ({
+            id: item.id,
+            label: `${item.title} · ${item.status}`,
+          }))
+        : needSourceType === 'POSITION'
+          ? (positions.data ?? []).map((item) => ({ id: item.id, label: item.name }))
+          : needSourceType === 'PPE_REQUIREMENT'
+            ? (positionPpeRequirements.data ?? []).map((item) => ({
+                id: item.id,
+                label: `${item.position.name} · ${item.ppeCatalogItem.name}`,
+              }))
+            : needSourceType === 'INCIDENT'
+              ? (incidents.data?.items ?? []).map((item) => ({ id: item.id, label: item.title }))
+              : needSourceType === 'SAFETY_OBSERVATION'
+                ? (observations.data?.items ?? []).map((item) => ({
+                    id: item.id,
+                    label: item.title,
+                  }))
+                : needSourceType === 'FINDING'
+                  ? (findings.data?.items ?? []).map((item) => ({
+                      id: item.id,
+                      label: `${item.inspection.title} · ${item.title}`,
+                    }))
+                  : needSourceType === 'APPROVED_REQUIREMENT'
+                    ? (regulatoryRequirements.data ?? [])
+                        .filter(
+                          ({ editorialStatus }) => editorialStatus === 'APPROVED_FOR_RULE_DRAFTING',
+                        )
+                        .map((item) => ({ id: item.id, label: item.title }))
+                    : [];
   const audienceOptions =
     audienceType === 'POSITION'
       ? (positions.data ?? []).map((item) => ({ id: item.id, label: item.name }))
@@ -497,14 +642,34 @@ export function TrainingCatalog() {
                 onChange={(event) => {
                   setNeedSourceType(event.target.value as TrainingNeedSourceType);
                   setNeedSourceId('');
+                  setFindingSearch('');
                 }}
               >
                 <option value="MANUAL">Decisión profesional manual</option>
-                <option value="POSITION">Cargo / contexto de riesgo</option>
+                <option value="PLAN">Ítem de Plan Operativo</option>
+                <option value="RISK">Evaluación técnica / contexto de riesgo</option>
+                <option value="POSITION">Cargo</option>
+                <option value="PPE_REQUIREMENT">Requisito EPP por cargo</option>
                 <option value="INCIDENT">Accidente o incidente</option>
                 <option value="SAFETY_OBSERVATION">Observación de seguridad</option>
+                <option value="FINDING">Hallazgo de inspección</option>
+                <option value="APPROVED_REQUIREMENT">Requisito editorial aprobado</option>
               </select>
             </label>
+            {needSourceType === 'FINDING' ? (
+              <label className="field">
+                <span>Buscar hallazgo</span>
+                <input
+                  value={findingSearch}
+                  minLength={2}
+                  onChange={(event) => {
+                    setFindingSearch(event.target.value);
+                    setNeedSourceId('');
+                  }}
+                  placeholder="Título, descripción, centro o área"
+                />
+              </label>
+            ) : null}
             {needSourceType !== 'MANUAL' ? (
               <label className="field">
                 <span>Registro de origen</span>
@@ -519,6 +684,12 @@ export function TrainingCatalog() {
                     </option>
                   ))}
                 </select>
+                {needSourceType === 'APPROVED_REQUIREMENT' ? (
+                  <small>
+                    Requisito editorial aprobado para elaboración/revisión; no equivale a una
+                    RuleVersion publicada ni a una ley aplicable confirmada.
+                  </small>
+                ) : null}
               </label>
             ) : null}
             <label className="field">
@@ -708,6 +879,24 @@ export function TrainingCatalog() {
                 <option value="UNKNOWN">No determinada</option>
               </select>
             </label>
+            {deliveryClassification === 'CERTIFICATION_CONFIRMED' ? (
+              <label className="field workforce-form__wide">
+                <span>Proveniencia de la confirmación</span>
+                <textarea
+                  rows={2}
+                  {...definitionForm.register('classificationProvenance', {
+                    validate: (value) =>
+                      value.trim().length > 0 ||
+                      'Una certificación confirmada requiere proveniencia verificable.',
+                  })}
+                />
+                {definitionForm.formState.errors.classificationProvenance ? (
+                  <span className="field-error">
+                    {definitionForm.formState.errors.classificationProvenance.message}
+                  </span>
+                ) : null}
+              </label>
+            ) : null}
             <div className="workforce-form__actions">
               <button className="button" disabled={createDefinition.isPending} type="submit">
                 {createDefinition.isPending ? 'Guardando…' : 'Crear definición'}
@@ -718,6 +907,19 @@ export function TrainingCatalog() {
               {createDefinition.isSuccess ? <p role="status">Definición interna creada.</p> : null}
             </div>
           </form>
+          <div className="worker-list">
+            {(definitions.data?.items ?? []).map((definition) => (
+              <article className="worker-row" key={definition.id}>
+                <div>
+                  <h3>{definition.title}</h3>
+                  <p>{definition.deliveryClassification ?? 'Clasificación no determinada'}</p>
+                  {definition.classificationProvenance ? (
+                    <small>Proveniencia: {definition.classificationProvenance}</small>
+                  ) : null}
+                </div>
+              </article>
+            ))}
+          </div>
         </WorkspaceSection>
       ) : null}
 

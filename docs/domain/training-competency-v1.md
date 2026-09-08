@@ -36,19 +36,29 @@ Status: implemented on `feat/workforce-safety-product-refinement-v2`; external r
 `TrainingNeed` records one explicit provenance type: Plan item, risk assessment, Position, EPP
 requirement, Incident, Safety Observation, Finding, approved regulatory Requirement or manual
 professional decision. Candidate Requirements are rejected from the approved-requirement path.
+Every non-manual type accepts exactly its corresponding canonical reference; `MANUAL` accepts none,
+and `POSITION` requires only `positionId` as provenance. Position, Work Center and Work Area remain
+optional contextual scope for the other source types. Contradictory or hidden source links are
+rejected by the API.
 `TrainingAudience` targets a Position, Worker, Work Center, Work Area or named explicit group;
 Workers remain independent from Memberships and do not need SaaS access.
 
 Training definitions carry a bounded delivery classification: internal, external provider,
 certification review required, certification confirmed or unknown. This is professional metadata,
-not an automatic legal certification statement. Sessions may retain their Need, area and responsible
-member while attendance, completion, evidence, validity and renewal continue using the V1 history.
+not an automatic legal certification statement. `CERTIFICATION_CONFIRMED` requires visible,
+verifiable `classificationProvenance`; pending certification review does not. Sessions may retain
+their Need, area and responsible member while attendance, completion, evidence, validity and renewal
+continue using the V1 history.
 
 The Training Plan surface assembles canonical sessions with provenance, audience context,
 responsible/facilitator, date, modality, location, status and completion counts. Browser printing
 adds manual signature placeholders; no electronic-signature or PDF engine was introduced. Plan
 Operativo remains separate and may reference execution of a training program without owning the
 specialized Training lifecycle.
+
+The product selector exposes all nine finite provenance types using existing domain APIs. Its
+approved-requirement wording explicitly states that editorial approval for drafting/review is not a
+published RuleVersion or a confirmed applicability decision.
 
 Classification and certification guidance are **PENDING ANITA**. A complete LMS, exams, content
 marketplace and electronic-signature provider are **DEFERRED**.

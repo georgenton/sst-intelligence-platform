@@ -187,6 +187,61 @@ export function trainingNeedRequiresApprovedRequirement(input: {
   );
 }
 
+export const TRAINING_NEED_CANONICAL_SOURCE_FIELDS = [
+  'linkedPlanItemId',
+  'linkedAssessmentId',
+  'linkedPpeRequirementId',
+  'linkedIncidentId',
+  'linkedSafetyObservationId',
+  'linkedFindingId',
+  'linkedRegulatoryRequirementId',
+] as const;
+
+export type TrainingNeedCanonicalSourceField =
+  (typeof TRAINING_NEED_CANONICAL_SOURCE_FIELDS)[number];
+
+export type TrainingNeedProvenanceInput = {
+  sourceType: string;
+  positionId?: string | null;
+} & Partial<Record<TrainingNeedCanonicalSourceField, string | null>>;
+
+const trainingNeedCanonicalSourceByType: Readonly<
+  Record<string, TrainingNeedCanonicalSourceField | null>
+> = {
+  PLAN: 'linkedPlanItemId',
+  RISK: 'linkedAssessmentId',
+  POSITION: null,
+  PPE_REQUIREMENT: 'linkedPpeRequirementId',
+  INCIDENT: 'linkedIncidentId',
+  SAFETY_OBSERVATION: 'linkedSafetyObservationId',
+  FINDING: 'linkedFindingId',
+  APPROVED_REQUIREMENT: 'linkedRegulatoryRequirementId',
+  MANUAL: null,
+};
+
+export function trainingNeedProvenanceError(input: TrainingNeedProvenanceInput): string | null {
+  if (!(input.sourceType in trainingNeedCanonicalSourceByType)) {
+    return 'UNKNOWN_TRAINING_NEED_SOURCE';
+  }
+  const presentCanonicalFields = TRAINING_NEED_CANONICAL_SOURCE_FIELDS.filter((field) =>
+    Boolean(input[field]),
+  );
+  const expectedField = trainingNeedCanonicalSourceByType[input.sourceType];
+
+  if (input.sourceType === 'POSITION') {
+    if (!input.positionId) return 'POSITION_SOURCE_REQUIRES_POSITION';
+    if (presentCanonicalFields.length > 0) return 'POSITION_SOURCE_HAS_CANONICAL_LINK';
+    return null;
+  }
+  if (input.sourceType === 'MANUAL') {
+    return presentCanonicalFields.length === 0 ? null : 'MANUAL_SOURCE_HAS_CANONICAL_LINK';
+  }
+  if (presentCanonicalFields.length !== 1 || presentCanonicalFields[0] !== expectedField) {
+    return 'TRAINING_NEED_CANONICAL_SOURCE_MISMATCH';
+  }
+  return null;
+}
+
 export const TRAINING_SESSION_STATUSES = ['DRAFT', 'SCHEDULED', 'COMPLETED', 'CANCELLED'] as const;
 export type TrainingSessionStatus = (typeof TRAINING_SESSION_STATUSES)[number];
 

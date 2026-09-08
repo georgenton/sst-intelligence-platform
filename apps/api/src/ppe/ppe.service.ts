@@ -110,6 +110,14 @@ export class PpeService {
     input: CreatePpeCatalogItemDto,
     context: Context,
   ) {
+    if (
+      input.referenceReviewStatus === 'REVIEWED' &&
+      (!input.referenceStandard?.trim() || !input.referenceProvenance?.trim())
+    ) {
+      throw new BadRequestException(
+        'Una referencia revisada requiere la referencia técnica y su proveniencia verificable.',
+      );
+    }
     try {
       const item = await this.prisma.ppeCatalogItem.create({
         data: {
@@ -212,18 +220,42 @@ export class PpeService {
       throw new BadRequestException('El área no pertenece a la organización.');
     if (area && input.workCenterId && area.workCenterId !== input.workCenterId)
       throw new BadRequestException('El área no pertenece al centro seleccionado.');
-    const requirement = await this.prisma.positionPpeRequirement.create({
-      data: {
-        organizationId,
-        positionId: position.id,
-        riskContextId: input.riskContextId,
-        ppeCatalogItemId: item.id,
-        workCenterId: input.workCenterId,
-        workAreaId: input.workAreaId,
-        reason: input.reason.trim(),
-        decision: input.decision,
-        selectedById: userId,
-      },
+    const requirement = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        SELECT id FROM "Position"
+        WHERE id = ${position.id}::uuid AND "organizationId" = ${organizationId}::uuid
+        FOR UPDATE
+      `;
+      const duplicate = await tx.positionPpeRequirement.findFirst({
+        where: {
+          organizationId,
+          positionId: position.id,
+          riskContextId: input.riskContextId ?? null,
+          ppeCatalogItemId: item.id,
+          workCenterId: input.workCenterId ?? null,
+          workAreaId: input.workAreaId ?? null,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      if (duplicate) {
+        throw new ConflictException(
+          'Ya existe un requisito activo idéntico para el cargo y alcance seleccionados.',
+        );
+      }
+      return tx.positionPpeRequirement.create({
+        data: {
+          organizationId,
+          positionId: position.id,
+          riskContextId: input.riskContextId,
+          ppeCatalogItemId: item.id,
+          workCenterId: input.workCenterId,
+          workAreaId: input.workAreaId,
+          reason: input.reason.trim(),
+          decision: input.decision,
+          selectedById: userId,
+        },
+      });
     });
     await this.recordAudit(
       organizationId,
@@ -245,6 +277,7 @@ export class PpeService {
         displayName: true,
         status: true,
         workCenterId: true,
+        workAreaId: true,
         positionId: true,
         position: { select: { id: true, name: true } },
       },
@@ -301,7 +334,7 @@ export class PpeService {
       this.requireWorker(organizationId, input.workerId, true),
       this.requireCatalogItem(organizationId, input.ppeCatalogItemId),
     ]);
-    await this.requireTenantReferences(organizationId, input);
+    await this.requireTenantReferences(organizationId, input, worker);
     const requirement = await this.prisma.workerPpeRequirement.create({
       data: {
         organizationId,
@@ -478,13 +511,6 @@ export class PpeService {
     this.assertEvidence(input.evidenceNote, input.evidenceUrl);
     if (input.reason === 'OTHER_JUSTIFIED' && !input.reasonNote?.trim())
       throw new BadRequestException('Explica el motivo de reemplazo.');
-    if (input.linkedIncidentId) {
-      const incident = await this.prisma.incident.findFirst({
-        where: { id: input.linkedIncidentId, organizationId },
-        select: { id: true },
-      });
-      if (!incident) throw new BadRequestException('El incidente no pertenece a la organización.');
-    }
     const replacement = await this.prisma.$transaction(async (tx) => {
       const issue = await this.lockIssue(tx, organizationId, issueId);
       this.assertVersion(issue.version, input.expectedVersion, 'PPE_ISSUE_VERSION_CONFLICT');
@@ -505,6 +531,22 @@ export class PpeService {
         select: { id: true, defaultReplacementIntervalDays: true },
       });
       if (!catalogItem) throw new BadRequestException('El elemento de catálogo ya no está activo.');
+      if (input.linkedIncidentId) {
+        const incident = await tx.incident.findFirst({
+          where: { id: input.linkedIncidentId, organizationId },
+          select: {
+            id: true,
+            involvedWorkers: { where: { workerId: issue.workerId }, select: { id: true } },
+          },
+        });
+        if (!incident)
+          throw new BadRequestException('El incidente no pertenece a la organización.');
+        if (incident.involvedWorkers.length === 0) {
+          throw new BadRequestException(
+            'Vincula explícitamente al trabajador con el incidente antes de asociar su EPP.',
+          );
+        }
+      }
       const result = await tx.ppeIssue.updateMany({
         where: {
           id: issueId,
@@ -544,9 +586,11 @@ export class PpeService {
           data: {
             organizationId,
             incidentId: input.linkedIncidentId,
-            ppeIssueId: created.id,
+            ppeIssueId: issueId,
             note:
-              input.reason === 'DAMAGE' ? 'Reemplazo vinculado por daño.' : 'Reemplazo vinculado.',
+              input.reason === 'DAMAGE'
+                ? 'Entrega original vinculada por daño antes del reemplazo.'
+                : 'Entrega original vinculada al evento antes del reemplazo.',
           },
         });
       }
@@ -567,7 +611,7 @@ export class PpeService {
   private async requireWorker(organizationId: string, workerId: string, active: boolean) {
     const worker = await this.prisma.worker.findFirst({
       where: { id: workerId, organizationId, ...(active ? { status: 'ACTIVE' } : {}) },
-      select: { id: true, status: true, workCenterId: true },
+      select: { id: true, status: true, workCenterId: true, workAreaId: true, positionId: true },
     });
     if (!worker)
       throw new BadRequestException(
@@ -587,7 +631,16 @@ export class PpeService {
     return item;
   }
 
-  private async requireTenantReferences(organizationId: string, input: CreatePpeRequirementDto) {
+  private async requireTenantReferences(
+    organizationId: string,
+    input: CreatePpeRequirementDto,
+    worker: {
+      id: string;
+      workCenterId: string | null;
+      workAreaId: string | null;
+      positionId: string | null;
+    },
+  ) {
     const [workCenter, assessment, finding, positionRequirement] = await Promise.all([
       input.workCenterId
         ? this.prisma.workCenter.findFirst({
@@ -610,7 +663,13 @@ export class PpeService {
       input.positionRequirementId
         ? this.prisma.positionPpeRequirement.findFirst({
             where: { id: input.positionRequirementId, organizationId, isActive: true },
-            select: { id: true, ppeCatalogItemId: true },
+            select: {
+              id: true,
+              positionId: true,
+              ppeCatalogItemId: true,
+              workCenterId: true,
+              workAreaId: true,
+            },
           })
         : null,
     ]);
@@ -624,6 +683,17 @@ export class PpeService {
       throw new BadRequestException('El requisito por cargo no pertenece a la organización.');
     if (positionRequirement && positionRequirement.ppeCatalogItemId !== input.ppeCatalogItemId)
       throw new BadRequestException('El EPP no coincide con el requisito seleccionado por cargo.');
+    if (positionRequirement && !worker.positionId)
+      throw new BadRequestException('El trabajador no tiene un cargo para aplicar este requisito.');
+    if (positionRequirement && positionRequirement.positionId !== worker.positionId)
+      throw new BadRequestException('El requisito de EPP corresponde a otro cargo.');
+    if (
+      positionRequirement?.workCenterId &&
+      positionRequirement.workCenterId !== worker.workCenterId
+    )
+      throw new BadRequestException('El requisito de EPP corresponde a otro centro de trabajo.');
+    if (positionRequirement?.workAreaId && positionRequirement.workAreaId !== worker.workAreaId)
+      throw new BadRequestException('El requisito de EPP corresponde a otra área de trabajo.');
   }
 
   private async requireIssue(organizationId: string, issueId: string) {

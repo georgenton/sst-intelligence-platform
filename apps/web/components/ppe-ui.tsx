@@ -55,6 +55,8 @@ type PositionRequirement = {
   decision: 'SELECTED_BY_PROFESSIONAL' | 'REQUIRED_INTERNALLY';
   position: { id: string; name: string };
   ppeCatalogItem: CatalogItem;
+  workCenter?: { id: string; name: string } | null;
+  workArea?: { id: string; name: string } | null;
 };
 type PpeRequirement = {
   id: string;
@@ -93,6 +95,8 @@ type WorkerPpeWorkspace = {
     id: string;
     displayName: string;
     status: 'ACTIVE' | 'INACTIVE';
+    workCenterId?: string | null;
+    workAreaId?: string | null;
     positionId?: string | null;
     position?: { id: string; name: string } | null;
   };
@@ -220,6 +224,7 @@ export function PpeCatalog() {
       defaultReplacementIntervalDays: '',
     },
   });
+  const referenceReviewStatus = form.watch('referenceReviewStatus');
   const create = useMutation({
     mutationFn: (values: CatalogForm) =>
       auth.request(
@@ -434,7 +439,19 @@ export function PpeCatalog() {
             </label>
             <label className="field">
               <span>Referencia técnica (metadato opcional)</span>
-              <input {...form.register('referenceStandard')} />
+              <input
+                {...form.register('referenceStandard', {
+                  validate: (value) =>
+                    referenceReviewStatus !== 'REVIEWED' ||
+                    value.trim().length > 0 ||
+                    'Una referencia revisada requiere el estándar o referencia técnica.',
+                })}
+              />
+              {form.formState.errors.referenceStandard ? (
+                <span className="field-error">
+                  {form.formState.errors.referenceStandard.message}
+                </span>
+              ) : null}
             </label>
             <label className="field">
               <span>Jurisdicción o contexto de la referencia</span>
@@ -442,7 +459,20 @@ export function PpeCatalog() {
             </label>
             <label className="field workforce-form__wide">
               <span>Proveniencia verificable de la referencia</span>
-              <textarea rows={2} {...form.register('referenceProvenance')} />
+              <textarea
+                rows={2}
+                {...form.register('referenceProvenance', {
+                  validate: (value) =>
+                    referenceReviewStatus !== 'REVIEWED' ||
+                    value.trim().length > 0 ||
+                    'Una referencia revisada requiere proveniencia verificable.',
+                })}
+              />
+              {form.formState.errors.referenceProvenance ? (
+                <span className="field-error">
+                  {form.formState.errors.referenceProvenance.message}
+                </span>
+              ) : null}
             </label>
             <label className="field">
               <span>Estado de revisión profesional</span>
@@ -573,7 +603,11 @@ export function WorkerPpePanel({
   const incidents = useQuery({
     queryKey: queryKeys.organization.incidents(organizationId ?? 'inactive', 'ppe-link'),
     queryFn: ({ signal }) =>
-      auth.request<IncidentList>('/incidents?pageSize=100', { signal }, organizationId!),
+      auth.request<IncidentList>(
+        `/incidents?pageSize=100&workerId=${encodeURIComponent(workerId)}`,
+        { signal },
+        organizationId!,
+      ),
     enabled: Boolean(organizationId && canReplace),
   });
   const requirementForm = useForm<RequirementForm>({
@@ -629,6 +663,8 @@ export function WorkerPpePanel({
             .filter(
               (item) =>
                 item.position.id === workspace.data?.worker.positionId &&
+                (!item.workCenter || item.workCenter.id === workspace.data?.worker.workCenterId) &&
+                (!item.workArea || item.workArea.id === workspace.data?.worker.workAreaId) &&
                 !requirements.some(
                   (requirement) =>
                     requirement.ppeCatalogItem.id === item.ppeCatalogItem.id &&

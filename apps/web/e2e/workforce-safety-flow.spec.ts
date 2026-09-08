@@ -408,6 +408,20 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByLabel('Vigencia operativa (días)').fill('30');
     await page.getByRole('button', { name: 'Crear definición' }).click();
     await expect(page.getByText('Definición interna creada.')).toBeVisible();
+    const needSource = page.getByLabel('Origen de la necesidad');
+    for (const sourceType of [
+      'PLAN',
+      'RISK',
+      'POSITION',
+      'PPE_REQUIREMENT',
+      'INCIDENT',
+      'SAFETY_OBSERVATION',
+      'FINDING',
+      'APPROVED_REQUIREMENT',
+      'MANUAL',
+    ]) {
+      await expect(needSource.locator(`option[value="${sourceType}"]`)).toHaveCount(1);
+    }
     await page.getByLabel('Capacitación').first().selectOption({ label: trainingTitle });
     await page
       .getByLabel('Justificación profesional')

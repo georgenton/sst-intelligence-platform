@@ -98,6 +98,27 @@ describe('training and competency integration', () => {
       .post('/training/definitions')
       .send({ title: 'No autorizada', category: 'Interna', deliveryClassification: 'INTERNAL' })
       .expect(403);
+    await api(owner.token, orgA)
+      .post('/training/definitions')
+      .send({
+        title: `Confirmación sin proveniencia ${suffix}`,
+        category: 'Seguridad operativa',
+        deliveryClassification: 'CERTIFICATION_CONFIRMED',
+      })
+      .expect(400);
+    const confirmedDefinition = await api(owner.token, orgA)
+      .post('/training/definitions')
+      .send({
+        title: `Confirmación con proveniencia ${suffix}`,
+        category: 'Seguridad operativa',
+        deliveryClassification: 'CERTIFICATION_CONFIRMED',
+        classificationProvenance: 'Documento sintético revisado por profesional SST.',
+      })
+      .expect(201);
+    expect(confirmedDefinition.body).toMatchObject({
+      deliveryClassification: 'CERTIFICATION_CONFIRMED',
+      classificationProvenance: 'Documento sintético revisado por profesional SST.',
+    });
     const definition = await api(owner.token, orgA)
       .post('/training/definitions')
       .send({

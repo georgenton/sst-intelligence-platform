@@ -46,8 +46,11 @@ truthful legacy history.
 Investigations may declare a structured-factors, Ishikawa or other professional method. The
 Ishikawa surface groups bounded contributing factors and evidence. The final investigation summary
 is written by an authorized professional; no automatic root cause exists. Same-tenant EPP issues
-can be linked explicitly and remain separately historical. Worker, Position (through Worker), Work
-Center, Work Area, Evidence, factors and actions remain traceable through their canonical records.
+can be linked explicitly and remain separately historical. An EPP issue can be linked only after its
+Worker is explicitly included in the Incident; the API never infers involvement. For a damage
+replacement, the Incident references the damaged original issue rather than the later replacement.
+Worker, Position (through Worker), Work Center, Work Area, Evidence, factors and actions remain
+traceable through their canonical records.
 
 Location wording, factor categories and professional investigation refinements are **PENDING
 ANITA**. Legal filing and automatic submissions remain **DEFERRED**.
