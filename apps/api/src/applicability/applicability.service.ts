@@ -10,6 +10,7 @@ import {
   evaluateApplicability,
   organizationSstProfileSchema,
   type OrganizationSstProfile,
+  organizationProfileFactSchema,
 } from '@sst/contracts';
 import { AuditService, type AuditEvent } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -60,22 +61,110 @@ export class ApplicabilityService {
     input: CreateOrganizationSstProfileVersionDto,
     context: Context,
   ) {
-    const [organization, workCenterCount] = await Promise.all([
+    const [organization, workCenters, workAreaCount, positionCount] = await Promise.all([
       this.prisma.organization.findFirst({
         where: { id: organizationId },
         select: { country: true, sector: true },
       }),
-      this.prisma.workCenter.count({ where: { organizationId } }),
+      this.prisma.workCenter.findMany({
+        where: { organizationId },
+        select: { id: true, city: true },
+      }),
+      this.prisma.workArea.count({ where: { organizationId } }),
+      this.prisma.position.count({ where: { organizationId, isActive: true } }),
     ]);
     if (!organization) throw new NotFoundException('Organización no encontrada.');
 
+    const allowedWorkCenterIds = new Set(workCenters.map(({ id }) => id));
+    const suppliedFacts = (input.facts ?? []).map((fact) =>
+      organizationProfileFactSchema.parse(fact),
+    );
+    if (
+      suppliedFacts.some(
+        (fact) => fact.workCenterId && !allowedWorkCenterIds.has(fact.workCenterId),
+      )
+    ) {
+      throw new NotFoundException(
+        'El hecho de contexto referencia un centro de otra organización.',
+      );
+    }
+    const booleanFact = (key: string, value: boolean | undefined) =>
+      value === undefined
+        ? []
+        : [
+            {
+              key,
+              value: value ? 'KNOWN_TRUE' : 'KNOWN_FALSE',
+              scope: 'ORGANIZATION',
+              provenance: { source: 'DECLARED_BY_ORGANIZATION' },
+            },
+          ];
+    const derivedFacts = [
+      {
+        key: 'WORK_CENTER_CITY_CONFIRMED',
+        value:
+          workCenters.length > 0 && workCenters.every(({ city }) => Boolean(city))
+            ? 'KNOWN_TRUE'
+            : 'UNKNOWN',
+        scope: 'ORGANIZATION',
+        provenance: {
+          source: 'DERIVED_DETERMINISTICALLY',
+          note: 'Derivado de los centros activos registrados.',
+        },
+      },
+      {
+        key: 'WORK_AREA_STRUCTURE_CONFIRMED',
+        value: workAreaCount > 0 ? 'KNOWN_TRUE' : 'UNKNOWN',
+        scope: 'ORGANIZATION',
+        provenance: {
+          source: 'DERIVED_DETERMINISTICALLY',
+          note: 'Derivado de las áreas registradas.',
+        },
+      },
+      {
+        key: 'POSITION_DISTRIBUTION_CONFIRMED',
+        value: positionCount > 0 ? 'KNOWN_TRUE' : 'UNKNOWN',
+        scope: 'ORGANIZATION',
+        provenance: {
+          source: 'DERIVED_DETERMINISTICALLY',
+          note: 'Derivado de los cargos activos registrados.',
+        },
+      },
+    ];
+    const contextFacts = [
+      ...suppliedFacts,
+      ...booleanFact('PHYSICAL_SITE_PRESENT', input.hasPhysicalSite),
+      ...booleanFact('ADMINISTRATIVE_OR_REMOTE_ONLY', input.administrativeOrRemoteOnly),
+      ...booleanFact(
+        'CONTRACTOR_OR_EXTERNAL_PERSONNEL_PRESENT',
+        input.hasContractorsOrExternalPersonnel,
+      ),
+      ...booleanFact('CHEMICAL_PROCESS_PRESENT', input.hasChemicalProcesses),
+      ...booleanFact('HIGH_ENERGY_OPERATION_PRESENT', input.hasHighEnergyOperations),
+      ...derivedFacts,
+    ].filter(
+      (fact, index, all) =>
+        all.findIndex(
+          (other) =>
+            `${other.scope}:${'workCenterId' in other ? (other.workCenterId ?? '') : ''}:${other.key}` ===
+            `${fact.scope}:${'workCenterId' in fact ? (fact.workCenterId ?? '') : ''}:${fact.key}`,
+        ) === index,
+    );
+
+    const requestsV2 =
+      input.managementPriority !== undefined ||
+      input.hasPhysicalSite !== undefined ||
+      input.administrativeOrRemoteOnly !== undefined ||
+      input.hasContractorsOrExternalPersonnel !== undefined ||
+      input.facts !== undefined;
     const snapshot = organizationSstProfileSchema.parse({
-      schemaVersion: '1.0.0',
+      schemaVersion: requestsV2 ? '2.0.0' : '1.0.0',
       organization: {
         country: organization.country,
         ...(organization.sector ? { sector: organization.sector } : {}),
-        workCenterCount,
+        workCenterCount: workCenters.length,
         ...(input.workerCount === undefined ? {} : { workerCount: input.workerCount }),
+        ...(input.managementPriority ? { managementPriority: input.managementPriority } : {}),
       },
       operations: {
         ...(input.hasChemicalProcesses === undefined
@@ -85,6 +174,7 @@ export class ApplicabilityService {
           ? {}
           : { hasHighEnergyOperations: input.hasHighEnergyOperations }),
       },
+      ...(requestsV2 ? { contextFacts } : {}),
     });
 
     const profile = await this.createNextProfileVersion(organizationId, userId, snapshot);

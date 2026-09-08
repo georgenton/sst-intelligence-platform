@@ -78,6 +78,18 @@ export class UnifiedSstEvaluationService {
       include: workspaceInclude,
       orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
     });
+    const reviews = await this.prisma.regulatoryInterpretationReview.findMany({
+      where: { ruleDraftId: { in: drafts.map(({ id }) => id) } },
+      select: {
+        id: true,
+        ruleDraftId: true,
+        decision: true,
+        comment: true,
+        createdAt: true,
+        reviewer: { select: { id: true, displayName: true } },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
     return drafts.map((draft) => ({
       id: draft.id,
       revision: draft.revision,
@@ -109,6 +121,9 @@ export class UnifiedSstEvaluationService {
         ),
       })),
       publicationBoundary: 'REVIEW_DOES_NOT_AUTO_PUBLISH',
+      reviews: reviews.filter(({ ruleDraftId }) => ruleDraftId === draft.id),
+      professionalDecision:
+        'El profesional decide aprobar, rechazar, solicitar cambios o revisión legal; la publicación es un proceso separado.',
     }));
   }
 

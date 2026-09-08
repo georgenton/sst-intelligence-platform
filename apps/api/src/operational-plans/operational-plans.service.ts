@@ -92,6 +92,21 @@ export class OperationalPlansService {
     return this.create(organizationId, userId, { ...input, origin: 'MANUAL' }, context);
   }
 
+  createGapDraft(
+    organizationId: string,
+    userId: string,
+    input: OperationalPlanVersionInput,
+    context: Context,
+  ) {
+    if (
+      input.origin !== 'DETERMINISTIC_DRAFT' ||
+      input.items.some(({ provenanceType }) => provenanceType !== 'GAP_ANALYSIS')
+    ) {
+      throw new BadRequestException('El borrador de gaps debe conservar procedencia GAP_ANALYSIS.');
+    }
+    return this.create(organizationId, userId, input, context);
+  }
+
   async createVersion(
     organizationId: string,
     planId: string,
