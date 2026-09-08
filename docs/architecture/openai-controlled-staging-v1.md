@@ -137,3 +137,6 @@ printing raw secrets or prompts. Production is checked separately for provider
 The following remain `PENDING` and block production/high-sensitivity expansion: DPA applicability,
 retention configuration, Ecuador transfer assessment, subprocessor review and OpenAI account/project
 security controls. A successful LOW staging pilot does not close these gates.
+
+The concrete isolated resource topology, synthetic bootstrap and credential-owner handoff are
+defined in [Isolated Staging Environment V1](../deployment/isolated-staging-v1.md).

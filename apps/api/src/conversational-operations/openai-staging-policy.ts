@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { resolveDeploymentEnvironment } from '../common/deployment-environment';
 
 export const OPENAI_STAGING_MODEL = 'gpt-5.6-terra' as const;
 export const OPENAI_STAGING_POLICY_VERSION = 'openai-controlled-staging-low-v1' as const;
@@ -28,22 +29,7 @@ function csvSet(value: string | undefined) {
 export function readOpenAiStagingConfiguration(
   environment: Environment = process.env,
 ): OpenAiStagingConfiguration {
-  const explicitEnvironment = environment.SST_DEPLOYMENT_ENVIRONMENT?.trim().toLowerCase();
-  const platformProduction =
-    environment.RAILWAY_ENVIRONMENT_NAME?.trim().toLowerCase() === 'production' ||
-    environment.VERCEL_ENV?.trim().toLowerCase() === 'production';
-  const deploymentEnvironment = platformProduction
-    ? 'production'
-    : explicitEnvironment === 'staging' ||
-        explicitEnvironment === 'production' ||
-        explicitEnvironment === 'test' ||
-        explicitEnvironment === 'local'
-      ? explicitEnvironment
-      : environment.NODE_ENV === 'production'
-        ? 'production'
-        : environment.NODE_ENV === 'test'
-          ? 'test'
-          : 'local';
+  const deploymentEnvironment = resolveDeploymentEnvironment(environment);
   return {
     deploymentEnvironment,
     provider:

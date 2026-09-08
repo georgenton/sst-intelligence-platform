@@ -38,24 +38,23 @@ import { UnifiedSstEvaluationModule } from './unified-sst-evaluation/unified-sst
 import { WorkQueueModule } from './work-queue/work-queue.module';
 import { WorkPermitsModule } from './work-permits/work-permits.module';
 import { WorkersModule } from './workers/workers.module';
+import { resolveDeploymentEnvironment } from './common/deployment-environment';
+import { resolveRefreshCookieName } from './auth/auth-cookie';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       validate: (config: Record<string, unknown>) => {
-        const explicitDeployment =
-          typeof config.SST_DEPLOYMENT_ENVIRONMENT === 'string'
-            ? config.SST_DEPLOYMENT_ENVIRONMENT.toLowerCase()
-            : null;
-        const platformProduction =
-          (typeof config.RAILWAY_ENVIRONMENT_NAME === 'string' &&
-            config.RAILWAY_ENVIRONMENT_NAME.toLowerCase() === 'production') ||
-          (typeof config.VERCEL_ENV === 'string' &&
-            config.VERCEL_ENV.toLowerCase() === 'production');
-        const deploymentEnvironment = platformProduction
-          ? 'production'
-          : (explicitDeployment ?? (config.NODE_ENV === 'production' ? 'production' : 'local'));
+        const deploymentEnvironment = resolveDeploymentEnvironment(config);
+        resolveRefreshCookieName(
+          Object.fromEntries(
+            Object.entries(config).map(([key, value]) => [
+              key,
+              typeof value === 'string' ? value : undefined,
+            ]),
+          ),
+        );
         if (config.NODE_ENV === 'production') {
           if (config.COOKIE_SECURE !== 'true') {
             throw new Error('COOKIE_SECURE must be true in production');

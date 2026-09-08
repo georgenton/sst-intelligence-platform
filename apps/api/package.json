@@ -18,6 +18,7 @@
     "prisma:reset": "prisma migrate reset",
     "reference:sync": "node dist/reference-data/reference-sync.cli.js",
     "production:release": "pnpm prisma:deploy && pnpm reference:sync",
+    "staging:bootstrap": "node dist/staging/staging-bootstrap.cli.js",
     "regulatory:import-pilot": "ts-node --transpile-only --project prisma/tsconfig.seed.json prisma/regulatory-pilot-import-cli.ts",
     "test:reference-sync": "node test/reference-sync.integration.mjs",
     "test:runtime-image": "node test/runtime-image-corpus.integration.mjs"
