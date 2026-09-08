@@ -129,7 +129,7 @@ export class InspectionsService {
     context: Context,
   ) {
     await this.assertLocation(organizationId, input.workCenterId, input.workAreaId);
-    const inspectionDepth = input.inspectionDepth ?? 'BASIC';
+    const inspectionDepth = input.inspectionDepth;
     const methodVersion = await this.riskMethods.requireAvailableVersion(input.riskMethodVersionId);
     const organization = await this.prisma.organization.findUniqueOrThrow({
       where: { id: organizationId },

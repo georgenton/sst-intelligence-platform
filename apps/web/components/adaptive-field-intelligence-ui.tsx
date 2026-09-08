@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { queryKeys } from '@/lib/query-keys';
+import type { AdaptiveSessionSummary } from '@/lib/adaptive-configuration-types';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
 import {
@@ -31,7 +32,15 @@ type ProfileVersion = {
     contextFacts?: Array<{
       key: string;
       value: string;
-      provenance: { source: string; note?: string };
+      scope: 'ORGANIZATION' | 'WORK_CENTER';
+      workCenterId?: string;
+      provenance: {
+        source: string;
+        note?: string;
+        evidenceReference?: { type: string; id: string; label: string };
+        actorUserId?: string;
+        confirmedAt?: string;
+      };
     }>;
   };
   createdAt: string;
@@ -54,6 +63,14 @@ type GapAnalysis = {
   createdAt: string;
 };
 type Page<T> = { items: T[]; total: number };
+type WorkCenter = { id: string; name: string };
+type UnifiedEvaluationOption = {
+  id: string;
+  status: string;
+  createdAt: string;
+  profileVersionId: string;
+  _count: { items: number };
+};
 type ProfileFormValues = {
   workerCount: string;
   managementPriority: string;
@@ -95,6 +112,24 @@ export function AdaptiveProfileAndGaps() {
     queryFn: ({ signal }) =>
       api.request<ProfileVersion[]>('/applicability/profile-versions', { signal }),
     enabled: Boolean(orgId),
+  });
+  const centers = useQuery({
+    queryKey: queryKeys.organization.workCenters(orgId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      api.request<WorkCenter[]>(`/organizations/${orgId}/work-centers`, { signal }),
+    enabled: Boolean(orgId),
+  });
+  const adaptiveSources = useQuery({
+    queryKey: queryKeys.organization.adaptiveSessions(orgId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      api.request<AdaptiveSessionSummary[]>('/adaptive-configuration/sessions', { signal }),
+    enabled: Boolean(orgId && sourceType === 'ADAPTIVE_CONFIGURATION'),
+  });
+  const evaluationSources = useQuery({
+    queryKey: queryKeys.organization.unifiedSstEvaluations(orgId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      api.request<UnifiedEvaluationOption[]>('/unified-sst-evaluations', { signal }),
+    enabled: Boolean(orgId && sourceType === 'UNIFIED_SST_EVALUATION'),
   });
   const gaps = useQuery({
     queryKey: queryKeys.organization.adaptiveGapAnalyses(orgId ?? 'inactive'),
@@ -181,7 +216,7 @@ export function AdaptiveProfileAndGaps() {
               </p>
               <div className="intelligence-grid">
                 {(latestProfile.snapshot.contextFacts ?? []).map((fact) => (
-                  <Card key={fact.key}>
+                  <Card key={`${fact.scope}:${fact.workCenterId ?? ''}:${fact.key}`}>
                     <strong>{fact.key.replaceAll('_', ' ')}</strong>
                     <p>
                       {fact.value === 'UNKNOWN'
@@ -191,8 +226,20 @@ export function AdaptiveProfileAndGaps() {
                           : 'Conocido: no'}
                     </p>
                     <small>
-                      {fact.provenance.source.replaceAll('_', ' ')}
+                      Alcance:{' '}
+                      {fact.scope === 'ORGANIZATION'
+                        ? 'Organización'
+                        : (centers.data?.find(({ id }) => id === fact.workCenterId)?.name ??
+                          'Centro no disponible')}
+                      {' · '}
+                      Procedencia: {fact.provenance.source.replaceAll('_', ' ')}
+                      {fact.provenance.evidenceReference
+                        ? ` · ${fact.provenance.evidenceReference.label}`
+                        : ''}
                       {fact.provenance.note ? ` · ${fact.provenance.note}` : ''}
+                      {fact.provenance.confirmedAt
+                        ? ` · Confirmado ${new Date(fact.provenance.confirmedAt).toLocaleString('es-EC')}`
+                        : ''}
                     </small>
                   </Card>
                 ))}
@@ -248,20 +295,44 @@ export function AdaptiveProfileAndGaps() {
               Origen
               <select
                 value={sourceType}
-                onChange={(event) => setSourceType(event.target.value as typeof sourceType)}
+                onChange={(event) => {
+                  setSourceType(event.target.value as typeof sourceType);
+                  setSourceId('');
+                }}
               >
                 <option value="ADAPTIVE_CONFIGURATION">Propuesta adaptativa</option>
                 <option value="UNIFIED_SST_EVALUATION">Evaluación SST unificada</option>
               </select>
             </label>
             <label>
-              ID exacto del origen
-              <input
+              Fuente canónica
+              <select
                 value={sourceId}
                 onChange={(event) => setSourceId(event.target.value)}
                 required
-                pattern="[0-9a-fA-F-]{36}"
-              />
+              >
+                <option value="">Selecciona una fuente</option>
+                {sourceType === 'ADAPTIVE_CONFIGURATION'
+                  ? (adaptiveSources.data ?? []).flatMap((session) => {
+                      const run = session.runs[0];
+                      return run?.proposal
+                        ? [
+                            <option key={run.proposal.id} value={run.proposal.id}>
+                              {session.rulePackVersion.packDefinition.name} · propuesta V
+                              {run.proposal.proposalVersion} · ejecución {run.runNumber} ·{' '}
+                              {new Date(session.updatedAt).toLocaleDateString('es-EC')}
+                            </option>,
+                          ]
+                        : [];
+                    })
+                  : (evaluationSources.data ?? []).map((evaluation) => (
+                      <option key={evaluation.id} value={evaluation.id}>
+                        Evaluación {evaluation.status.replaceAll('_', ' ')} ·{' '}
+                        {evaluation._count.items} resultados ·{' '}
+                        {new Date(evaluation.createdAt).toLocaleDateString('es-EC')}
+                      </option>
+                    ))}
+              </select>
             </label>
             <button disabled={createGap.isPending}>Crear snapshot de brechas</button>
           </form>
@@ -269,6 +340,7 @@ export function AdaptiveProfileAndGaps() {
             <label className="gap-row" key={item.key}>
               <input
                 type="checkbox"
+                disabled={item.type === 'IMPLEMENTED_EVIDENCE_AVAILABLE'}
                 checked={selected.includes(item.key)}
                 onChange={(event) =>
                   setSelected((current) =>
@@ -285,6 +357,9 @@ export function AdaptiveProfileAndGaps() {
                   {item.knownState}
                 </small>
                 <span>{item.explanation}</span>
+                {item.type === 'IMPLEMENTED_EVIDENCE_AVAILABLE' ? (
+                  <span>Estado informativo: no genera trabajo del Plan Operativo.</span>
+                ) : null}
               </span>
             </label>
           ))}
@@ -315,6 +390,7 @@ type SearchResult = {
   status?: string;
   workCenterName?: string;
   deepLink: string;
+  ctaLabel: string;
 };
 export function OperationalSearch() {
   const api = useOrgApi();
@@ -365,7 +441,7 @@ export function OperationalSearch() {
               <p>{item.snippet}</p>
               <small>{item.workCenterName ?? 'Contexto organizacional'}</small>
               <p>
-                <Link href={item.deepLink}>Abrir registro</Link>
+                <Link href={item.deepLink}>{item.ctaLabel}</Link>
               </p>
             </Card>
           ))}
@@ -389,14 +465,29 @@ type IntelligenceSummary = {
     residualCount: number;
   }>;
   mixedMethodComparison: { comparable: boolean };
+  unavailableDomains: string[];
+  filterScope: Record<string, string>;
 };
 export function ManagementIntelligence() {
   const api = useOrgApi();
   const orgId = api.organization.activeId;
+  const [findingCategory, setFindingCategory] = useState('');
+  const [observationCategory, setObservationCategory] = useState('');
+  const [incidentEventType, setIncidentEventType] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const filters = new URLSearchParams(
+    Object.entries({ findingCategory, observationCategory, incidentEventType, dateFrom, dateTo })
+      .filter(([, value]) => Boolean(value))
+      .reduce<Record<string, string>>((result, [key, value]) => ({ ...result, [key]: value }), {}),
+  ).toString();
   const summary = useQuery({
-    queryKey: queryKeys.organization.managementIntelligence(orgId ?? 'inactive'),
+    queryKey: queryKeys.organization.managementIntelligence(orgId ?? 'inactive', filters),
     queryFn: ({ signal }) =>
-      api.request<IntelligenceSummary>('/management-intelligence/summary', { signal }),
+      api.request<IntelligenceSummary>(
+        `/management-intelligence/summary${filters ? `?${filters}` : ''}`,
+        { signal },
+      ),
     enabled: Boolean(orgId),
   });
   const total = (key: string) =>
@@ -420,6 +511,69 @@ export function ManagementIntelligence() {
               : 'Métodos separados'}
           </span>
         </ContextSummary>
+        <WorkspaceSection title="Filtros del corte" eyebrow="Alcance explícito por dominio">
+          <div className="responsive-form">
+            <label>
+              Categoría de hallazgo
+              <input
+                value={findingCategory}
+                onChange={(event) => setFindingCategory(event.target.value)}
+                placeholder="Ej. ELECTRICAL"
+              />
+            </label>
+            <label>
+              Categoría de observación
+              <select
+                value={observationCategory}
+                onChange={(event) => setObservationCategory(event.target.value)}
+              >
+                <option value="">Todas</option>
+                <option value="UNSAFE_ACT">Acto inseguro</option>
+                <option value="UNSAFE_CONDITION">Condición insegura</option>
+                <option value="GOOD_PRACTICE">Buena práctica</option>
+                <option value="HOUSEKEEPING">Orden y limpieza</option>
+                <option value="PPE">EPP</option>
+                <option value="OTHER">Otra</option>
+              </select>
+            </label>
+            <label>
+              Tipo de incidente
+              <select
+                value={incidentEventType}
+                onChange={(event) => setIncidentEventType(event.target.value)}
+              >
+                <option value="">Todos</option>
+                <option value="INCIDENT">Incidente</option>
+                <option value="NEAR_MISS">Casi incidente</option>
+              </select>
+            </label>
+            <label>
+              Desde
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(event) => setDateFrom(event.target.value)}
+              />
+            </label>
+            <label>
+              Hasta
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(event) => setDateTo(event.target.value)}
+              />
+            </label>
+          </div>
+          <p className="boundary-note">
+            El rango de fechas afecta hallazgos, observaciones, incidentes y sus series derivadas;
+            no altera Plan, capacitación, EPP ni revisión profesional.
+          </p>
+          {summary.data?.unavailableDomains.length ? (
+            <p role="status">
+              Dominios no disponibles por plan: {summary.data.unavailableDomains.join(', ')}.
+            </p>
+          ) : null}
+        </WorkspaceSection>
         <WorkspaceSection title="Concentración operativa" eyebrow="Datos canónicos">
           <div className="management-kpis">
             {(

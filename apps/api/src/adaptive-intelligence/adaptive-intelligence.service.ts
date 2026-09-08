@@ -7,8 +7,10 @@ import {
 import { Prisma } from '@prisma/client';
 import {
   adaptiveContentHash,
+  canonicalizeGapCandidates,
   deriveGapAnalysisItems,
   gapAnalysisItemSchema,
+  isActionableGapType,
   operationalPlanVersionInputSchema,
   type GapCandidate,
 } from '@sst/contracts';
@@ -59,14 +61,15 @@ export class AdaptiveIntelligenceService {
       input.sourceType === 'ADAPTIVE_CONFIGURATION'
         ? await this.fromAdaptiveProposal(organizationId, input.sourceId)
         : await this.fromUnifiedEvaluation(organizationId, input.sourceId);
+    const candidates = canonicalizeGapCandidates(resolved.candidates);
     const items = deriveGapAnalysisItems(
       { type: input.sourceType, id: input.sourceId },
-      resolved.candidates,
+      candidates,
     );
     const inputHash = adaptiveContentHash({
       sourceType: input.sourceType,
       sourceId: input.sourceId,
-      candidates: resolved.candidates,
+      candidates,
     });
     const outputHash = adaptiveContentHash(items);
     const created = await this.createVersion(organizationId, userId, {
@@ -111,6 +114,11 @@ export class AdaptiveIntelligenceService {
     const selected = selectedKeys.map((key) => allItems.find((item) => item.key === key));
     if (selected.some((item) => !item))
       throw new BadRequestException('Una brecha seleccionada no pertenece al análisis activo.');
+    if (selected.some((item) => !isActionableGapType(item!.type))) {
+      throw new BadRequestException(
+        'Los estados implementados con evidencia son informativos y no generan trabajo del Plan.',
+      );
+    }
     const planInput = operationalPlanVersionInputSchema.parse({
       name: input.name,
       description: input.description,

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   assertMethodologyComparable,
+  adaptiveContentHash,
+  canonicalizeGapCandidates,
   deriveGapAnalysisItems,
   inspectionDepthSnapshot,
   organizationSstProfileSchema,
@@ -55,6 +57,37 @@ describe('adaptive field intelligence boundaries', () => {
       ['CONTROL_B', 'EVIDENCE_REQUIRED'],
     ]);
     expect(JSON.stringify(items)).not.toMatch(/NON_COMPLIANT|COMPLIANT/);
+  });
+
+  it('hashes the same logical gap input independently of candidate and evidence order', () => {
+    const candidates = [
+      {
+        itemId: '20000000-0000-4000-8000-000000000002',
+        targetKey: 'CONTROL_B',
+        title: 'Control B',
+        expectedState: 'MANDATORY',
+        evidenceReferences: ['evidence-z', 'evidence-a'],
+        missingFacts: ['fact-z', 'fact-a'],
+      },
+      {
+        itemId: '20000000-0000-4000-8000-000000000001',
+        targetKey: 'CONTROL_A',
+        title: 'Control A',
+        expectedState: 'RECOMMENDED',
+      },
+    ];
+    const reversed = [...candidates].reverse().map((candidate) => ({
+      ...candidate,
+      evidenceReferences: [...(candidate.evidenceReferences ?? [])].reverse(),
+      missingFacts: [...(candidate.missingFacts ?? [])].reverse(),
+    }));
+    const hash = (input: typeof candidates) =>
+      adaptiveContentHash({
+        sourceType: source.type,
+        sourceId: source.id,
+        candidates: canonicalizeGapCandidates(input),
+      });
+    expect(hash(candidates)).toBe(hash(reversed));
   });
 
   it('keeps depth finite and versioned', () => {

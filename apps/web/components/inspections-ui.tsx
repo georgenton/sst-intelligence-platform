@@ -19,6 +19,7 @@ import {
   canVerifyFindings,
   canWriteInspections,
   filterSearchParams,
+  inspectionDepthLabel,
   statusMeta,
   type InspectionFilters,
 } from '@/lib/inspection-experience';
@@ -1778,12 +1779,7 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
               <span>Inspector: {query.data.inspector.displayName}</span>
             ) : null}
             <span>
-              Profundidad:{' '}
-              {query.data.inspectionDepth === 'SYSTEMIC'
-                ? 'Sistémica'
-                : query.data.inspectionDepth === 'TECHNICAL'
-                  ? 'Técnica'
-                  : 'Básica'}
+              Profundidad: {inspectionDepthLabel(query.data.inspectionDepth)}
               {query.data.inspectionDepthVersion ? ` · v${query.data.inspectionDepthVersion}` : ''}
             </span>
           </div>

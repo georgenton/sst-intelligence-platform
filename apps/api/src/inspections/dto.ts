@@ -49,7 +49,7 @@ export class InspectionQueryDto {
 export class CreateInspectionDto {
   @IsUUID() workCenterId!: string;
   @IsUUID() riskMethodVersionId!: string;
-  @IsOptional() @IsEnum(InspectionDepth) inspectionDepth?: InspectionDepth;
+  @IsEnum(InspectionDepth) inspectionDepth!: InspectionDepth;
   @IsOptional() @IsEnum(InspectionDomain) inspectionDomain?: InspectionDomain;
   @IsOptional() @IsUUID() resourceId?: string;
   @IsOptional() @IsUUID() workAreaId?: string;

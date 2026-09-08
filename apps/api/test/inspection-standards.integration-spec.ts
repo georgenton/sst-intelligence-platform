@@ -186,6 +186,7 @@ describe('inspection standards integration', () => {
         title: 'Electrical without silent fallback',
         inspectionDomain: 'FIRE_PROTECTION',
         riskMethodVersionId: demoRiskMethodVersionId,
+        inspectionDepth: 'BASIC',
       })
       .expect(400)
       .expect(({ body }) => {
@@ -202,6 +203,7 @@ describe('inspection standards integration', () => {
         title,
         inspectionDomain: 'ELECTRICAL',
         riskMethodVersionId: demoRiskMethodVersionId,
+        inspectionDepth: 'BASIC',
       });
 
     const inspectionA1 = await createInspection(apiA, orgA.centerId, 'Tenant A standard A').expect(
@@ -230,6 +232,7 @@ describe('inspection standards integration', () => {
         inspectionDomain: 'ELECTRICAL',
         standardVersionId: electricalStandardBId,
         riskMethodVersionId: demoRiskMethodVersionId,
+        inspectionDepth: 'BASIC',
       })
       .expect(400);
 

@@ -72,7 +72,12 @@ describe('risk methodology runtime integration', () => {
     const created = await request(app.getHttpServer())
       .post('/api/v1/inspections')
       .set(authorized())
-      .send({ workCenterId, title, riskMethodVersionId: methodVersionId })
+      .send({
+        workCenterId,
+        title,
+        riskMethodVersionId: methodVersionId,
+        inspectionDepth: 'BASIC',
+      })
       .expect(201);
     await request(app.getHttpServer())
       .post(`/api/v1/inspections/${created.body.id as string}/start`)
@@ -548,6 +553,7 @@ describe('risk methodology runtime integration', () => {
         workCenterId,
         title: 'Unavailable method',
         riskMethodVersionId: '00000000-0000-4000-8000-000000000000',
+        inspectionDepth: 'BASIC',
       })
       .expect(400)
       .expect(({ body }) => expect(body.code).toBe('RISK_METHOD_UNAVAILABLE'));

@@ -99,6 +99,7 @@ describe('intelligent inspections integration', () => {
         workAreaId: areaA.id,
         title: 'Inspection January',
         riskMethodVersionId: demoRiskMethodVersionId,
+        inspectionDepth: 'BASIC',
       })
       .expect(201);
     const inspectionId = inspection.body.id as string;
@@ -344,6 +345,7 @@ describe('intelligent inspections integration', () => {
           workAreaId: areaA.id,
           title,
           riskMethodVersionId: demoRiskMethodVersionId,
+          inspectionDepth: 'BASIC',
         })
         .expect(201);
       const id = created.body.id as string;
@@ -642,6 +644,7 @@ describe('intelligent inspections integration', () => {
         workAreaId: areaB.id,
         title: 'Cross tenant area',
         riskMethodVersionId: demoRiskMethodVersionId,
+        inspectionDepth: 'BASIC',
       })
       .expect(404);
     expect(await prisma.actionEvidence.findUnique({ where: { id: evidenceB.id } })).not.toBeNull();
@@ -667,6 +670,7 @@ describe('intelligent inspections integration', () => {
         workCenterId: centerA.id,
         title: 'No debe usar centro inactivo',
         riskMethodVersionId: demoRiskMethodVersionId,
+        inspectionDepth: 'BASIC',
       })
       .expect(404);
     expect(await prisma.inspection.findUnique({ where: { id: inspectionId } })).not.toBeNull();

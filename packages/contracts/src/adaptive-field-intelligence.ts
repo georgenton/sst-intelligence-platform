@@ -11,6 +11,14 @@ export const GAP_TYPES = [
   'IMPLEMENTED_EVIDENCE_AVAILABLE',
 ] as const;
 
+export const ACTIONABLE_GAP_TYPES = GAP_TYPES.filter(
+  (type) => type !== 'IMPLEMENTED_EVIDENCE_AVAILABLE',
+);
+
+export function isActionableGapType(type: (typeof GAP_TYPES)[number]) {
+  return type !== 'IMPLEMENTED_EVIDENCE_AVAILABLE';
+}
+
 export const gapAnalysisItemSchema = z.object({
   key: z.string().trim().min(3).max(200),
   targetKey: z.string().trim().min(3).max(200),
@@ -43,51 +51,59 @@ export type GapCandidate = {
   workCenterId?: string | null;
 };
 
+export function canonicalizeGapCandidates(candidates: readonly GapCandidate[]): GapCandidate[] {
+  return candidates
+    .map((candidate) => ({
+      ...candidate,
+      evidenceReferences: [...(candidate.evidenceReferences ?? [])].sort(),
+      missingFacts: [...(candidate.missingFacts ?? [])].sort(),
+    }))
+    .sort(
+      (left, right) =>
+        left.targetKey.localeCompare(right.targetKey) || left.itemId.localeCompare(right.itemId),
+    );
+}
+
 export function deriveGapAnalysisItems(
   source: { type: 'ADAPTIVE_CONFIGURATION' | 'UNIFIED_SST_EVALUATION'; id: string },
   candidates: readonly GapCandidate[],
 ): GapAnalysisItem[] {
-  return [...candidates]
-    .sort(
-      (left, right) =>
-        left.targetKey.localeCompare(right.targetKey) || left.itemId.localeCompare(right.itemId),
-    )
-    .map((candidate) => {
-      const evidence = [...(candidate.evidenceReferences ?? [])].sort();
-      const missing = [...(candidate.missingFacts ?? [])].sort();
-      const knownState = candidate.currentState ?? 'UNKNOWN';
-      let type: GapAnalysisItem['type'];
-      if (candidate.professionalReviewRequired) type = 'PROFESSIONAL_REVIEW_PENDING';
-      else if (missing.length || knownState === 'UNKNOWN') type = 'INFORMATION_REQUIRED';
-      else if (knownState === 'NOT_IMPLEMENTED') type = 'CAPABILITY_ABSENT';
-      else if (knownState === 'PARTIALLY_IMPLEMENTED') type = 'PARTIALLY_IMPLEMENTED';
-      else if (evidence.length === 0) type = 'EVIDENCE_REQUIRED';
-      else type = 'IMPLEMENTED_EVIDENCE_AVAILABLE';
-      return gapAnalysisItemSchema.parse({
-        key: `${source.type}:${source.id}:${candidate.itemId}`,
-        targetKey: candidate.targetKey,
-        title: candidate.title,
-        type,
-        expectedState: candidate.expectedState,
-        knownState,
-        explanation:
-          type === 'INFORMATION_REQUIRED'
-            ? `Falta información verificable: ${missing.join(', ') || 'estado actual'}.`
-            : type === 'EVIDENCE_REQUIRED'
-              ? 'El estado fue declarado, pero aún no tiene evidencia referenciada.'
-              : type === 'PROFESSIONAL_REVIEW_PENDING'
-                ? 'La propuesta requiere decisión profesional antes de cualquier conclusión.'
-                : type === 'CAPABILITY_ABSENT'
-                  ? 'La capacidad operativa fue declarada como no implementada.'
-                  : type === 'PARTIALLY_IMPLEMENTED'
-                    ? 'La implementación fue declarada como parcial.'
-                    : 'Existe una declaración implementada con evidencia disponible.',
-        workCenterId: candidate.workCenterId ?? null,
-        evidenceReferences: evidence,
-        source: { ...source, itemId: candidate.itemId },
-        professionalReviewRequired: candidate.professionalReviewRequired ?? false,
-      });
+  return canonicalizeGapCandidates(candidates).map((candidate) => {
+    const evidence = [...(candidate.evidenceReferences ?? [])].sort();
+    const missing = [...(candidate.missingFacts ?? [])].sort();
+    const knownState = candidate.currentState ?? 'UNKNOWN';
+    let type: GapAnalysisItem['type'];
+    if (candidate.professionalReviewRequired) type = 'PROFESSIONAL_REVIEW_PENDING';
+    else if (missing.length || knownState === 'UNKNOWN') type = 'INFORMATION_REQUIRED';
+    else if (knownState === 'NOT_IMPLEMENTED') type = 'CAPABILITY_ABSENT';
+    else if (knownState === 'PARTIALLY_IMPLEMENTED') type = 'PARTIALLY_IMPLEMENTED';
+    else if (evidence.length === 0) type = 'EVIDENCE_REQUIRED';
+    else type = 'IMPLEMENTED_EVIDENCE_AVAILABLE';
+    return gapAnalysisItemSchema.parse({
+      key: `${source.type}:${source.id}:${candidate.itemId}`,
+      targetKey: candidate.targetKey,
+      title: candidate.title,
+      type,
+      expectedState: candidate.expectedState,
+      knownState,
+      explanation:
+        type === 'INFORMATION_REQUIRED'
+          ? `Falta información verificable: ${missing.join(', ') || 'estado actual'}.`
+          : type === 'EVIDENCE_REQUIRED'
+            ? 'El estado fue declarado, pero aún no tiene evidencia referenciada.'
+            : type === 'PROFESSIONAL_REVIEW_PENDING'
+              ? 'La propuesta requiere decisión profesional antes de cualquier conclusión.'
+              : type === 'CAPABILITY_ABSENT'
+                ? 'La capacidad operativa fue declarada como no implementada.'
+                : type === 'PARTIALLY_IMPLEMENTED'
+                  ? 'La implementación fue declarada como parcial.'
+                  : 'Existe una declaración implementada con evidencia disponible.',
+      workCenterId: candidate.workCenterId ?? null,
+      evidenceReferences: evidence,
+      source: { ...source, itemId: candidate.itemId },
+      professionalReviewRequired: candidate.professionalReviewRequired ?? false,
     });
+  });
 }
 
 export const INSPECTION_DEPTHS = ['BASIC', 'TECHNICAL', 'SYSTEMIC'] as const;

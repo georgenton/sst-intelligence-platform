@@ -37,6 +37,10 @@ describe('adaptive field intelligence integration', () => {
       .send({ name: `${label} ${suffix}`, country: 'Ecuador', sector: 'Servicios' })
       .expect(201);
     const organizationId = response.body.id as string;
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: { demoExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) },
+    });
     const center = await prisma.workCenter.findFirstOrThrow({ where: { organizationId } });
     const moduleDefinition = await prisma.moduleDefinition.findUniqueOrThrow({
       where: { key: 'INSPECTIONS_INTELLIGENCE' },
@@ -65,7 +69,7 @@ describe('adaptive field intelligence integration', () => {
   it('versions tri-state profile facts, depth and explicit gap-to-plan conversion without tenant leakage', async () => {
     const a = await fixture('adaptive-a');
     const b = await fixture('adaptive-b');
-    await a
+    const profileResponse = await a
       .post('/applicability/profile-versions')
       .send({
         workerCount: 24,
@@ -82,7 +86,7 @@ describe('adaptive field intelligence integration', () => {
         expect(body.snapshot.contextFacts).toEqual(
           expect.arrayContaining([
             expect.objectContaining({
-              key: 'WORK_AREA_STRUCTURE_CONFIRMED',
+              key: 'WORK_AREAS_PRESENT',
               value: 'UNKNOWN',
               provenance: { source: 'DERIVED_DETERMINISTICALLY', note: expect.any(String) },
             }),
@@ -104,9 +108,224 @@ describe('adaptive field intelligence integration', () => {
       })
       .expect(404);
 
+    await a
+      .post('/applicability/profile-versions')
+      .send({
+        hasPhysicalSite: true,
+        facts: [
+          {
+            key: 'PHYSICAL_SITE_PRESENT',
+            value: 'KNOWN_FALSE',
+            scope: 'ORGANIZATION',
+            provenance: { source: 'DECLARED_BY_ORGANIZATION' },
+          },
+        ],
+      })
+      .expect(400);
+    await a
+      .post('/applicability/profile-versions')
+      .send({
+        hasPhysicalSite: false,
+        facts: [
+          {
+            key: 'PHYSICAL_SITE_PRESENT',
+            value: 'KNOWN_TRUE',
+            scope: 'ORGANIZATION',
+            provenance: { source: 'DECLARED_BY_ORGANIZATION' },
+          },
+        ],
+      })
+      .expect(400);
+    await a
+      .post('/applicability/profile-versions')
+      .send({
+        facts: [
+          {
+            key: 'WORK_AREAS_PRESENT',
+            value: 'KNOWN_FALSE',
+            scope: 'ORGANIZATION',
+            provenance: { source: 'DECLARED_BY_ORGANIZATION' },
+          },
+        ],
+      })
+      .expect(400);
+    await a
+      .post('/applicability/profile-versions')
+      .send({
+        facts: [
+          {
+            key: 'PHYSICAL_SITE_PRESENT',
+            value: 'KNOWN_TRUE',
+            scope: 'ORGANIZATION',
+            provenance: { source: 'DERIVED_DETERMINISTICALLY' },
+          },
+        ],
+      })
+      .expect(400);
+    await a
+      .post('/applicability/profile-versions')
+      .send({
+        hasPhysicalSite: true,
+        facts: [
+          {
+            key: 'PHYSICAL_SITE_PRESENT',
+            value: 'KNOWN_TRUE',
+            scope: 'ORGANIZATION',
+            provenance: { source: 'DECLARED_BY_ORGANIZATION' },
+          },
+        ],
+      })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(
+          body.snapshot.contextFacts.filter(
+            ({ key }: { key: string }) => key === 'PHYSICAL_SITE_PRESENT',
+          ),
+        ).toHaveLength(1);
+      });
+    const observationA = await prisma.safetyObservation.create({
+      data: {
+        organizationId: a.organizationId,
+        title: 'Observación para perfil',
+        description: 'Evidencia canónica sintética.',
+        category: 'OTHER',
+        workCenterId: a.center.id,
+        observedAt: new Date(),
+        reportedById: a.user.id,
+      },
+    });
+    const evidenceA = await prisma.safetyObservationEvidence.create({
+      data: {
+        organizationId: a.organizationId,
+        safetyObservationId: observationA.id,
+        type: 'NOTE',
+        note: 'Evidencia sintética.',
+        createdById: a.user.id,
+      },
+    });
+    const evidenceBackedFact = (evidenceId: string) => ({
+      facts: [
+        {
+          key: 'PROCESS_ACTIVITY_FAMILIES_CONFIRMED',
+          value: 'KNOWN_TRUE',
+          scope: 'ORGANIZATION',
+          provenance: {
+            source: 'EVIDENCE_BACKED',
+            evidenceReference: { type: 'SAFETY_OBSERVATION_EVIDENCE', id: evidenceId },
+          },
+        },
+      ],
+    });
+    await a
+      .post('/applicability/profile-versions')
+      .send({
+        facts: [
+          {
+            key: 'PROCESS_ACTIVITY_FAMILIES_CONFIRMED',
+            value: 'KNOWN_TRUE',
+            scope: 'ORGANIZATION',
+            provenance: { source: 'EVIDENCE_BACKED', evidenceReference: 'not-structured' },
+          },
+        ],
+      })
+      .expect(400);
+    await a
+      .post('/applicability/profile-versions')
+      .send(evidenceBackedFact(evidenceA.id))
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.snapshot.contextFacts).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              provenance: {
+                source: 'EVIDENCE_BACKED',
+                evidenceReference: {
+                  type: 'SAFETY_OBSERVATION_EVIDENCE',
+                  id: evidenceA.id,
+                  label: expect.stringContaining('Evidencia de observación'),
+                },
+              },
+            }),
+          ]),
+        );
+      });
+    const viewer = await prisma.user.create({
+      data: {
+        email: `profile-viewer-${suffix}@example.test`,
+        displayName: 'Profile viewer',
+        passwordHash: 'fixture-not-login',
+      },
+    });
+    await prisma.membership.create({
+      data: {
+        organizationId: a.organizationId,
+        userId: viewer.id,
+        role: 'VIEWER',
+        status: 'ACTIVE',
+      },
+    });
+    const viewerToken = await jwt.signAsync({ id: viewer.id, sub: viewer.id, email: viewer.email });
+    await request(app.getHttpServer())
+      .post('/api/v1/applicability/profile-versions')
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .set('x-organization-id', a.organizationId)
+      .send({
+        facts: [
+          {
+            key: 'ECONOMIC_ACTIVITY_CONFIRMED',
+            value: 'KNOWN_TRUE',
+            scope: 'ORGANIZATION',
+            provenance: { source: 'PROFESSIONAL_CONFIRMED' },
+          },
+        ],
+      })
+      .expect(403);
+    await b
+      .post('/applicability/profile-versions')
+      .send(evidenceBackedFact(evidenceA.id))
+      .expect(404);
+    await a
+      .post('/applicability/profile-versions')
+      .send(evidenceBackedFact('30000000-0000-4000-8000-000000000099'))
+      .expect(404);
+    await a
+      .post('/applicability/profile-versions')
+      .send({
+        facts: [
+          {
+            key: 'ECONOMIC_ACTIVITY_CONFIRMED',
+            value: 'KNOWN_TRUE',
+            scope: 'ORGANIZATION',
+            provenance: { source: 'PROFESSIONAL_CONFIRMED', note: 'Confirmación sintética.' },
+          },
+        ],
+      })
+      .expect(201)
+      .expect(({ body }) => {
+        expect(body.snapshot.contextFacts).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              provenance: expect.objectContaining({
+                source: 'PROFESSIONAL_CONFIRMED',
+                actorUserId: a.user.id,
+                confirmedAt: expect.any(String),
+              }),
+            }),
+          ]),
+        );
+      });
+
     const method = await prisma.riskMethodVersion.findFirstOrThrow({
       where: { publicationStatus: 'PUBLISHED' },
     });
+    await a
+      .post('/inspections')
+      .send({
+        workCenterId: a.center.id,
+        riskMethodVersionId: method.id,
+        title: 'Inspección sin profundidad',
+      })
+      .expect(400);
     const inspection = await a
       .post('/inspections')
       .send({
@@ -121,6 +340,45 @@ describe('adaptive field intelligence integration', () => {
       inspectionDepthVersion: '1.0.0',
       inspectionDepthSnapshot: { depth: 'SYSTEMIC', version: '1.0.0' },
     });
+
+    for (const depth of ['BASIC', 'TECHNICAL'] as const) {
+      await a
+        .post('/inspections')
+        .send({
+          workCenterId: a.center.id,
+          riskMethodVersionId: method.id,
+          inspectionDepth: depth,
+          title: `Inspección profundidad ${depth}`,
+        })
+        .expect(201)
+        .expect(({ body }) => {
+          expect(body).toMatchObject({
+            inspectionDepth: depth,
+            inspectionDepthVersion: '1.0.0',
+            inspectionDepthSnapshot: { depth, version: '1.0.0' },
+          });
+        });
+    }
+
+    const evaluation = await a
+      .post('/unified-sst-evaluations')
+      .send({ profileVersionId: profileResponse.body.id })
+      .expect(201);
+    const realGap = await a
+      .post('/adaptive-intelligence/gap-analyses')
+      .send({ sourceType: 'UNIFIED_SST_EVALUATION', sourceId: evaluation.body.id })
+      .expect(201);
+    expect(realGap.body).toMatchObject({
+      sourceType: 'UNIFIED_SST_EVALUATION',
+      sourceId: evaluation.body.id,
+      inputHash: expect.stringMatching(/^sha256:/),
+      outputHash: expect.stringMatching(/^sha256:/),
+      items: expect.any(Array),
+    });
+    await b
+      .post('/adaptive-intelligence/gap-analyses')
+      .send({ sourceType: 'UNIFIED_SST_EVALUATION', sourceId: evaluation.body.id })
+      .expect(404);
 
     const gapItem = {
       key: `ADAPTIVE_CONFIGURATION:10000000-0000-4000-8000-000000000001:20000000-0000-4000-8000-000000000001`,
@@ -142,7 +400,7 @@ describe('adaptive field intelligence integration', () => {
     const analysis = await prisma.organizationGapAnalysis.create({
       data: {
         organizationId: a.organizationId,
-        version: 1,
+        version: 2,
         sourceType: 'ADAPTIVE_CONFIGURATION',
         sourceId: '10000000-0000-4000-8000-000000000001',
         inputHash: `sha256:${'a'.repeat(64)}`,
@@ -165,7 +423,29 @@ describe('adaptive field intelligence integration', () => {
       origin: 'DETERMINISTIC_DRAFT',
       items: [expect.objectContaining({ provenanceType: 'GAP_ANALYSIS' })],
     });
-  });
+
+    const informational = await prisma.organizationGapAnalysis.create({
+      data: {
+        organizationId: a.organizationId,
+        version: 99,
+        sourceType: 'ADAPTIVE_CONFIGURATION',
+        sourceId: '10000000-0000-4000-8000-000000000002',
+        inputHash: `sha256:${'c'.repeat(64)}`,
+        outputHash: `sha256:${'d'.repeat(64)}`,
+        items: [{ ...gapItem, key: `${gapItem.key}:info`, type: 'IMPLEMENTED_EVIDENCE_AVAILABLE' }],
+        createdById: a.user.id,
+      },
+    });
+    await a
+      .post(`/adaptive-intelligence/gap-analyses/${informational.id}/plan-draft`)
+      .send({
+        selectedItemKeys: [`${gapItem.key}:info`],
+        name: 'No debe crearse',
+        periodStart: '2026-09-08',
+        periodEnd: '2026-12-08',
+      })
+      .expect(400);
+  }, 20_000);
 
   it('searches from tenant-scoped queries with filters, safe snippets, pagination and deterministic ordering', async () => {
     const a = await fixture('search-a');
@@ -204,6 +484,22 @@ describe('adaptive field intelligence integration', () => {
         updatedAt: timestamp,
       },
     });
+    const method = await prisma.riskMethodVersion.findFirstOrThrow({
+      where: { publicationStatus: 'PUBLISHED' },
+    });
+    await prisma.inspection.create({
+      data: {
+        organizationId: a.organizationId,
+        workCenterId: a.center.id,
+        title: 'Inspección entitlement sentinel',
+        inspectorUserId: a.user.id,
+        riskMethodVersionId: method.id,
+        riskMethodSnapshot: {},
+        inspectionDepth: 'BASIC',
+        inspectionDepthVersion: '1.0.0',
+        inspectionDepthSnapshot: { depth: 'BASIC', version: '1.0.0' },
+      },
+    });
     const first = await a
       .get(
         `/operational-search?q=determinista&types=WORKER&workCenterId=${a.center.id}&page=1&pageSize=1`,
@@ -237,6 +533,43 @@ describe('adaptive field intelligence integration', () => {
     expect(repeatAgain.body.items.map(({ id }: { id: string }) => id)).toEqual(
       repeat.body.items.map(({ id }: { id: string }) => id),
     );
+    const inspectionModule = await prisma.moduleDefinition.findUniqueOrThrow({
+      where: { key: 'INSPECTIONS_INTELLIGENCE' },
+    });
+    await prisma.organizationModule.update({
+      where: {
+        organizationId_moduleId: {
+          organizationId: a.organizationId,
+          moduleId: inspectionModule.id,
+        },
+      },
+      data: { status: 'SUSPENDED' },
+    });
+    await a
+      .get('/operational-search?q=entitlement&types=INSPECTION,FINDING,ACTION')
+      .expect(200)
+      .expect(({ body }) => expect(body).toMatchObject({ items: [], total: 0 }));
+    await prisma.organizationModule.update({
+      where: {
+        organizationId_moduleId: {
+          organizationId: a.organizationId,
+          moduleId: inspectionModule.id,
+        },
+      },
+      data: { status: 'ACTIVE' },
+    });
+    await a
+      .get('/operational-search?q=entitlement&types=INSPECTION')
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.items).toEqual([
+          expect.objectContaining({
+            type: 'INSPECTION',
+            navigationKind: 'DETAIL',
+            ctaLabel: 'Abrir registro',
+          }),
+        ]);
+      });
   });
 
   it('keeps management counts tenant-scoped and risk methods separated without worker rankings', async () => {
@@ -267,7 +600,7 @@ describe('adaptive field intelligence integration', () => {
           organizationId: a.organizationId,
           inspectionId: inspection.id,
           workCenterId: a.center.id,
-          category: 'ELECTRICAL',
+          category: index === 0 ? 'ELECTRICAL' : 'ERGONOMIC',
           title: `Hallazgo método ${index}`,
           description: 'Condición sintética para conteo.',
           riskMethodKey: method.methodDefinition.methodKey,
@@ -303,23 +636,25 @@ describe('adaptive field intelligence integration', () => {
       where: { organizationId: a.organizationId },
     });
     const summary = await a
-      .get(`/management-intelligence/summary?workCenterId=${a.center.id}&category=ELECTRICAL`)
+      .get(
+        `/management-intelligence/summary?workCenterId=${a.center.id}&findingCategory=ELECTRICAL`,
+      )
       .expect(200);
-    expect(summary.body.riskMethods).toHaveLength(2);
-    expect(
-      summary.body.riskMethods.every((entry: { initialCount: number }) => entry.initialCount === 1),
-    ).toBe(true);
-    expect(
-      summary.body.riskMethods
-        .map((entry: { residualCount: number }) => entry.residualCount)
-        .sort(),
-    ).toEqual([0, 1]);
-    expect(
-      summary.body.riskMethods.find(
-        (entry: { methodVersionId: string }) => entry.methodVersionId === methods[1]!.id,
-      ),
-    ).toMatchObject({ residualCount: 1, residualLevels: { LOW: 1 } });
-    expect(summary.body.mixedMethodComparison.comparable).toBe(false);
+    expect(summary.body.riskMethods).toEqual([
+      expect.objectContaining({
+        methodVersionId: methods[0]!.id,
+        initialCount: 1,
+        residualCount: 0,
+      }),
+    ]);
+    expect(summary.body.mixedMethodComparison.comparable).toBe(true);
+    const outsideDate = await a
+      .get(
+        `/management-intelligence/summary?findingCategory=ELECTRICAL&dateFrom=2100-01-01T00:00:00.000Z`,
+      )
+      .expect(200);
+    expect(outsideDate.body.riskMethods).toEqual([]);
+    expect(summary.body.filterScope.findingCategory).toContain('metodología');
     expect(summary.body.boundary).toMatchObject({
       workerRanking: false,
       businessPriorityDoesNotChangeScores: true,
@@ -331,5 +666,68 @@ describe('adaptive field intelligence integration', () => {
       await prisma.inspectionFinding.count({ where: { organizationId: a.organizationId } }),
     ).toBe(historicalBefore);
     expect(JSON.stringify(summary.body)).not.toContain('Dato ajeno');
+    const inspectionModule = await prisma.moduleDefinition.findUniqueOrThrow({
+      where: { key: 'INSPECTIONS_INTELLIGENCE' },
+    });
+    await prisma.organizationModule.update({
+      where: {
+        organizationId_moduleId: {
+          organizationId: a.organizationId,
+          moduleId: inspectionModule.id,
+        },
+      },
+      data: { status: 'SUSPENDED' },
+    });
+    await a
+      .get('/management-intelligence/summary?findingCategory=ELECTRICAL')
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body.counts.findings).toEqual([]);
+        expect(body.riskMethods).toEqual([]);
+        expect(body.unavailableDomains).toContain('INSPECTIONS');
+      });
+  });
+
+  it('recovers optional observation evidence without creating a second observation', async () => {
+    const a = await fixture('field-evidence');
+    const observation = await a
+      .post('/safety-observations')
+      .send({
+        title: 'Observación única en campo',
+        description: 'Registro sintético para probar recuperación de evidencia.',
+        category: 'UNSAFE_CONDITION',
+        workCenterId: a.center.id,
+        observedAt: new Date().toISOString(),
+        priority: 'MEDIUM',
+      })
+      .expect(201);
+    await a
+      .post(`/safety-observations/${observation.body.id}/evidence`)
+      .send({ type: 'EXTERNAL_LINK', externalUrl: 'http://invalid.example.test/evidence' })
+      .expect(400);
+    expect(
+      await prisma.safetyObservation.count({
+        where: { organizationId: a.organizationId, title: 'Observación única en campo' },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.safetyObservationEvidence.count({
+        where: { organizationId: a.organizationId, safetyObservationId: observation.body.id },
+      }),
+    ).toBe(0);
+    await a
+      .post(`/safety-observations/${observation.body.id}/evidence`)
+      .send({ type: 'NOTE', note: 'Evidencia recuperada sin reenviar la observación.' })
+      .expect(201);
+    expect(
+      await prisma.safetyObservation.count({
+        where: { organizationId: a.organizationId, title: 'Observación única en campo' },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.safetyObservationEvidence.count({
+        where: { organizationId: a.organizationId, safetyObservationId: observation.body.id },
+      }),
+    ).toBe(1);
   });
 });

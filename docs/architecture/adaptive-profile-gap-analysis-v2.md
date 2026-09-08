@@ -6,7 +6,9 @@ Estado: **DONE** para el modelo y recorrido implementados; **PENDING ANITA** par
 
 El perfil SST sigue siendo un snapshot inmutable de contexto organizacional, no un ERP, HRIS ni una declaración jurídica. La versión `2.0.0` conserva los campos consumidos por Applicability V1 y añade hechos de contexto finitos. Cada hecho representa `KNOWN_TRUE`, `KNOWN_FALSE` o `UNKNOWN`: una respuesta ausente nunca equivale a falso.
 
-La procedencia distingue `DECLARED_BY_ORGANIZATION`, `DERIVED_DETERMINISTICALLY`, `EVIDENCE_BACKED`, `IMPORTED_REFERENCE` y `PROFESSIONAL_CONFIRMED`. Los hechos por centro exigen un Work Center de la organización activa. Las derivaciones actuales se limitan a datos canónicos existentes —ciudad de centros, presencia de áreas y cargos— y no crean datos durante la migración.
+La procedencia distingue `DECLARED_BY_ORGANIZATION`, `DERIVED_DETERMINISTICALLY`, `EVIDENCE_BACKED`, `IMPORTED_REFERENCE` y `PROFESSIONAL_CONFIRMED`. Los hechos por centro exigen un Work Center de la organización activa. `EVIDENCE_BACKED` conserva un descriptor estructurado de tipo, id y etiqueta resuelto contra Evidence canónico del tenant; no acepta texto libre, referencias inexistentes o cross-tenant. `DERIVED_DETERMINISTICALLY` es exclusivamente server-owned. `PROFESSIONAL_CONFIRMED` exige el rol vigente de la ruta y registra actor y fecha desde el servidor. Las derivaciones actuales se limitan a datos canónicos existentes —ciudad de centros, presencia de áreas y cargos— y no crean datos durante la migración ni afirman completitud.
+
+Una identidad semántica (`scope + workCenterId + key`) no puede contener valores contradictorios. Duplicados equivalentes se canonicalizan y los hechos derivados por el servidor no pueden sobrescribirse desde el payload.
 
 `managementPriority` expresa atención gerencial (`ROUTINE`, `FOCUSED`, `URGENT`). No participa en el evaluador de aplicabilidad, en GTC45/5×5, ni suprime Requirements.
 
@@ -14,9 +16,9 @@ La procedencia distingue `DECLARED_BY_ORGANIZATION`, `DERIVED_DETERMINISTICALLY`
 
 `OrganizationGapAnalysis` conserva versión, origen, hashes de entrada/salida, perfil relacionado y la lista ordenada de gaps. Sus estados son descriptivos: información o evidencia requerida, actividad todavía no planificada, capacidad ausente, revisión profesional pendiente, diferencia de implementación, implementación parcial o implementación declarada con evidencia disponible.
 
-No existe `COMPLIANT` ni `NON_COMPLIANT`. El origen debe ser una propuesta Adaptive Configuration o una Unified SST Evaluation de la organización activa. El resultado es reproducible desde su snapshot y nunca recalcula históricos.
+No existe `COMPLIANT` ni `NON_COMPLIANT`. El origen debe ser una propuesta Adaptive Configuration o una Unified SST Evaluation de la organización activa. Los candidates y sus conjuntos lógicos se ordenan antes de calcular `inputHash`, de modo que el hash no depende del orden de lectura de Prisma. El resultado es reproducible desde su snapshot y nunca recalcula históricos.
 
-Gap no es Plan Item. La conversión requiere seleccionar explícitamente entre 1 y 50 gaps y crea un borrador de Plan Operativo con procedencia `GAP_ANALYSIS`; conserva análisis, versión, gap, estados y evidencia. No activa el plan ni crea ítems masivos.
+Gap no es Plan Item. La conversión requiere seleccionar explícitamente entre 1 y 50 gaps accionables y crea un borrador de Plan Operativo con procedencia `GAP_ANALYSIS`; conserva análisis, versión, gap, estados y evidencia. `IMPLEMENTED_EVIDENCE_AVAILABLE` es informativo y se rechaza para conversión tanto en API como en UI. No activa el plan ni crea ítems masivos.
 
 ## Datos y límites
 

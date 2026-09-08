@@ -295,6 +295,7 @@ describe('consultant portfolio integration', () => {
         input: {
           workCenterId: centerA.id,
           riskMethodVersionId: randomUUID(),
+          inspectionDepth: 'BASIC',
           inspectionDomain: 'ELECTRICAL',
           title: `No ejecutar después de revocación ${suffix}`,
         },

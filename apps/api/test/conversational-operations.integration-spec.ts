@@ -141,6 +141,7 @@ describe('Conversational Operations V1 integration', () => {
         input: {
           workCenterId: orgB.centerId,
           riskMethodVersionId,
+          inspectionDepth: 'BASIC',
           inspectionDomain: 'ELECTRICAL',
           title: 'No debe crearse sin base activa',
         },
@@ -160,6 +161,7 @@ describe('Conversational Operations V1 integration', () => {
         input: {
           workCenterId: orgA.centerId,
           riskMethodVersionId,
+          inspectionDepth: 'BASIC',
           inspectionDomain: 'ELECTRICAL',
           title: 'No debe crearse',
         },
@@ -178,6 +180,7 @@ describe('Conversational Operations V1 integration', () => {
     const createInput = {
       workCenterId: orgA.centerId,
       riskMethodVersionId,
+      inspectionDepth: 'BASIC',
       inspectionDomain: 'ELECTRICAL',
       title: `Inspección conversacional ${suffix}`,
       description: 'Recorrido guiado por acciones estructuradas.',

@@ -76,6 +76,11 @@ type ObservationForm = {
   evidenceNote: string;
   evidenceUrl: string;
 };
+type PendingObservationEvidence = {
+  organizationId: string;
+  observationId: string;
+  payload: { type: 'NOTE' | 'EXTERNAL_LINK'; note?: string; externalUrl?: string };
+};
 
 const WRITE_ROLES = new Set([
   'ORG_OWNER',
@@ -113,6 +118,9 @@ export function SafetyObservationRegistry() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const organizationId = organization.activeId;
+  const [pendingEvidence, setPendingEvidence] = useState<PendingObservationEvidence | null>(null);
+  const activePendingEvidence =
+    pendingEvidence?.organizationId === organizationId ? pendingEvidence : null;
   const canWrite = WRITE_ROLES.has(organization.currentRole ?? '');
   const observations = useQuery({
     queryKey: queryKeys.organization.safetyObservations(organizationId ?? 'inactive'),
@@ -177,27 +185,63 @@ export function SafetyObservationRegistry() {
         },
         organizationId!,
       );
-      if (values.evidenceNote.trim() || values.evidenceUrl.trim()) {
-        await auth.request(
-          `/safety-observations/${observation.id}/evidence`,
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              type: values.evidenceUrl.trim() ? 'EXTERNAL_LINK' : 'NOTE',
+      const evidencePayload =
+        values.evidenceNote.trim() || values.evidenceUrl.trim()
+          ? {
+              type: (values.evidenceUrl.trim() ? 'EXTERNAL_LINK' : 'NOTE') as
+                'NOTE' | 'EXTERNAL_LINK',
               note: values.evidenceNote.trim() || undefined,
               externalUrl: values.evidenceUrl.trim() || undefined,
-            }),
-          },
-          organizationId!,
-        );
+            }
+          : null;
+      if (evidencePayload) {
+        try {
+          await auth.request(
+            `/safety-observations/${observation.id}/evidence`,
+            {
+              method: 'POST',
+              body: JSON.stringify(evidencePayload),
+            },
+            organizationId!,
+          );
+        } catch {
+          return { observation, pendingEvidence: evidencePayload };
+        }
       }
-      return observation;
+      return { observation, pendingEvidence: null };
     },
-    onSuccess: async (observation) => {
+    onSuccess: async ({ observation, pendingEvidence: failedEvidence }) => {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.organization.scope(organizationId!),
       });
+      if (failedEvidence) {
+        setPendingEvidence({
+          organizationId: organizationId!,
+          observationId: observation.id,
+          payload: failedEvidence,
+        });
+        return;
+      }
       router.push(`/app/safety-observations/${observation.id}`);
+    },
+  });
+  const retryEvidence = useMutation({
+    mutationFn: async () => {
+      if (!activePendingEvidence) return;
+      await auth.request(
+        `/safety-observations/${activePendingEvidence.observationId}/evidence`,
+        {
+          method: 'POST',
+          body: JSON.stringify(activePendingEvidence.payload),
+        },
+        organizationId!,
+      );
+      return activePendingEvidence.observationId;
+    },
+    onSuccess: (observationId) => {
+      if (!observationId) return;
+      setPendingEvidence(null);
+      router.push(`/app/safety-observations/${observationId}`);
     },
   });
 
@@ -338,10 +382,23 @@ export function SafetyObservationRegistry() {
                     ))}
                 </select>
               </label>
-              <button type="submit" disabled={create.isPending}>
+              <button type="submit" disabled={create.isPending || Boolean(activePendingEvidence)}>
                 Registrar observación
               </button>
               {create.isError ? <p role="alert">{errorMessage(create.error)}</p> : null}
+              {activePendingEvidence ? (
+                <div role="alert" className="boundary-note">
+                  <p>Observación registrada; la evidencia no pudo guardarse.</p>
+                  <button
+                    type="button"
+                    disabled={retryEvidence.isPending}
+                    onClick={() => retryEvidence.mutate()}
+                  >
+                    Reintentar solo la evidencia
+                  </button>
+                  {retryEvidence.isError ? <p>{errorMessage(retryEvidence.error)}</p> : null}
+                </div>
+              ) : null}
             </form>
           ) : null}
         </WorkspaceSection>

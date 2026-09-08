@@ -8,7 +8,7 @@ Se mantienen dimensiones independientes:
 
 `Legal Applicability != Operational Risk != Inspection Depth != Business Priority != Risk Appetite != Work Queue Priority`.
 
-Inspection Depth se limita a `BASIC`, `TECHNICAL` y `SYSTEMIC`, se guarda con versión y guidance en cada Inspection, y no reemplaza Resource Scope, Basis ni RiskMethodVersion. Las inspecciones históricas quedan con profundidad nula y no reciben backfill semántico.
+Inspection Depth se limita a `BASIC`, `TECHNICAL` y `SYSTEMIC`, se exige explícitamente para toda inspección nueva, se guarda con versión y guidance, y no reemplaza Resource Scope, Basis ni RiskMethodVersion. Las inspecciones históricas quedan con profundidad nula, se presentan como `No registrada (inspección histórica)` y no reciben backfill semántico.
 
 La búsqueda operacional usa PostgreSQL Full Text Search con índices GIN, filtro tenant en cada rama SQL, paginación acotada y orden estable. No se añade Elasticsearch, embeddings ni vector DB.
 

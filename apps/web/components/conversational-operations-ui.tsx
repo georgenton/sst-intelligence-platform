@@ -1032,6 +1032,7 @@ export function ConversationalOperationsWorkspace() {
         title: String(data.get('title')),
         workCenterId: String(data.get('workCenterId')),
         riskMethodVersionId: String(data.get('riskMethodVersionId')),
+        inspectionDepth: String(data.get('inspectionDepth')),
         inspectionDomain: domain,
       },
     });
@@ -1455,6 +1456,14 @@ export function ConversationalOperationsWorkspace() {
                             {method.displayName} · {method.semanticVersion}
                           </option>
                         ))}
+                      </select>
+                    </label>
+                    <label>
+                      Profundidad
+                      <select name="inspectionDepth" required defaultValue="BASIC">
+                        <option value="BASIC">Básica</option>
+                        <option value="TECHNICAL">Técnica</option>
+                        <option value="SYSTEMIC">Sistémica</option>
                       </select>
                     </label>
                     <Button type="submit" disabled={busy || !activeBasis.data}>

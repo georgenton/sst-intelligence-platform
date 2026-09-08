@@ -12,6 +12,7 @@ import {
   canVerifyFindings,
   canWriteInspections,
   filterSearchParams,
+  inspectionDepthLabel,
   statusMeta,
 } from '../lib/inspection-experience.ts';
 
@@ -24,6 +25,13 @@ test('maps status vocabularies independently for inspections, findings and actio
     statusMeta('finding', 'PENDING_VERIFICATION').label,
     statusMeta('action', 'PENDING_VERIFICATION').label,
   );
+});
+
+test('does not present a legacy null inspection depth as basic', () => {
+  assert.equal(inspectionDepthLabel('BASIC'), 'Básica');
+  assert.equal(inspectionDepthLabel('TECHNICAL'), 'Técnica');
+  assert.equal(inspectionDepthLabel('SYSTEMIC'), 'Sistémica');
+  assert.equal(inspectionDepthLabel(null), 'No registrada (inspección histórica)');
 });
 
 test('mirrors the inspection write, verification and alert role policies', () => {
