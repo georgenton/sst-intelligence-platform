@@ -235,3 +235,15 @@ categories, Ishikawa professional refinement, certified/internal training guidan
 Observation field-intake refinements remain **PENDING ANITA**. Public QR and anonymous intake,
 mobile/PWA deep field operations, offline, notification providers, Psychosocial, clinical, ERP,
 full LMS, real e-sign and Workforce external AI remain deferred. No Anita approval is claimed.
+
+### Adaptive SST + Field Operations + Intelligence V2 — implementation complete, review pending
+
+**DONE:** Organization Profile V2, tri-state provenance, Gap Analysis V1, explicit Gap→Plan draft,
+versioned Inspection Depth, bounded Field/PWA, Safety Observation field evidence, tenant-scoped
+PostgreSQL Search, methodology-safe Management Intelligence and Expert Review history.
+
+**SYNTHETIC:** depth guidance and integrated E2E organization/records. **PENDING ANITA:** fact catalog
+expansion, gap-to-plan professional criteria, depth/resource allocation and useful/misleading charts.
+**DEFERRED:** native app/offline sync, public QR, external notifications, deep ergonomics,
+psychosocial/clinical and insurance scoring. Production external AI and real Rule publication remain
+prohibited.

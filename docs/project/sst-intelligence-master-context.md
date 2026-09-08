@@ -423,3 +423,16 @@ product/privacy/security decision, not selection or integration. Current provide
 `DETERMINISTIC_LOCAL_V1`, external AI processing is disabled and no external secret is required.
 AI still cannot decide final risk, legal compliance or root cause, or produce worker/organization
 safety scores.
+
+## Adaptive SST + Field Operations + Intelligence V2
+
+El programa V2 está implementado en un Draft PR desde `main@21c7dd0`. Añade perfil SST V2 con
+triestado y procedencia, Gap Analysis descriptivo con conversión explícita a Plan, Inspection Depth
+versionada, Field Hub/PWA acotada, evidencia opcional en Safety Observation, PostgreSQL Search,
+Management Intelligence compatible por método e historial visible de Expert Review.
+
+Las decisiones están en [el ADR](../architecture/adr-adaptive-field-intelligence-v2.md) y la
+arquitectura del perfil/gap en [Adaptive Profile V2](../architecture/adaptive-profile-gap-analysis-v2.md).
+No crea Protocol Engine, Notification DB, offline sync, vector DB, Worker Safety Score, aplicación
+legal automática, causa raíz, RuleVersion real ni expansión de IA externa. Work Queue y Operational
+Signals cubren la atención in-app como proyecciones de registros canónicos.
