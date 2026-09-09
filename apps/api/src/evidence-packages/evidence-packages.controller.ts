@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, ParseEnumPipe, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseEnumPipe,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { EvidencePackageItemType } from '@prisma/client';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AccessTokenGuard } from '../auth/access-token.guard';
@@ -8,7 +18,11 @@ import { requestMetadata } from '../common/request-context';
 import { OrganizationContext, Roles } from '../organizations/organization-context.decorator';
 import { OrganizationGuard } from '../organizations/organization.guard';
 import { RolesGuard } from '../organizations/roles.guard';
-import { AddEvidencePackageItemDto, CreateEvidencePackageDto } from './dto';
+import {
+  AddEvidencePackageItemDto,
+  CreateEvidencePackageDto,
+  EvidenceReferenceQueryDto,
+} from './dto';
 import { EVIDENCE_PACKAGE_WRITE_ROLES } from './evidence-packages.policy';
 import { EvidencePackagesService } from './evidence-packages.service';
 
@@ -30,8 +44,9 @@ export class EvidencePackagesController {
   references(
     @OrganizationContext() organization: { id: string },
     @Param('type', new ParseEnumPipe(EvidencePackageItemType)) type: EvidencePackageItemType,
+    @Query() query: EvidenceReferenceQueryDto,
   ) {
-    return this.packages.listCanonicalReferences(organization.id, type);
+    return this.packages.listCanonicalReferences(organization.id, type, query);
   }
 
   @Get(':packageId')

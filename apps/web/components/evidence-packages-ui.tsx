@@ -3,7 +3,7 @@
 import { ApiClientError } from '@sst/api-client';
 import { Button, Card, StatusBadge } from '@sst/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { queryKeys } from '@/lib/query-keys';
 import { useOrganization } from './app-shell';
@@ -71,6 +71,12 @@ type EvidencePackage = {
   items: PackageItem[];
 };
 type CanonicalReferenceOption = { id: string; label: string; detail: string };
+type CanonicalReferenceCatalog = {
+  items: CanonicalReferenceOption[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
 
 const WRITE_ROLES = new Set([
   'ORG_OWNER',
@@ -115,6 +121,9 @@ export function EvidencePackagesWorkspace() {
   const [selectedId, setSelectedId] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [referenceSearch, setReferenceSearch] = useState('');
+  const [referencePage, setReferencePage] = useState(1);
+  const deferredReferenceSearch = useDeferredValue(referenceSearch.trim());
   const packages = useQuery({
     queryKey: queryKeys.organization.evidencePackages(organizationId ?? 'inactive'),
     queryFn: ({ signal }) =>
@@ -132,19 +141,32 @@ export function EvidencePackagesWorkspace() {
     defaultValues: { type: 'INSPECTION', sourceId: '' },
   });
   const selectedType = useWatch({ control: itemForm.control, name: 'type' });
+  const referenceQuery = new URLSearchParams({
+    page: String(referencePage),
+    pageSize: '20',
+  });
+  if (deferredReferenceSearch) referenceQuery.set('q', deferredReferenceSearch);
   const references = useQuery({
     queryKey: queryKeys.organization.evidencePackageReferences(
       organizationId ?? 'inactive',
       selectedType,
+      deferredReferenceSearch,
+      referencePage,
     ),
     queryFn: ({ signal }) =>
-      auth.request<CanonicalReferenceOption[]>(
-        `/evidence-packages/references/${selectedType}`,
+      auth.request<CanonicalReferenceCatalog>(
+        `/evidence-packages/references/${selectedType}?${referenceQuery.toString()}`,
         { signal },
         organizationId!,
       ),
     enabled: Boolean(organizationId && canWrite && selected?.status === 'DRAFT'),
   });
+  const referenceModuleUnavailable =
+    references.error instanceof ApiClientError &&
+    references.error.payload.code === 'ENTITLEMENT_REQUIRED';
+  const referenceTotalPages = references.data
+    ? Math.max(1, Math.ceil(references.data.total / references.data.pageSize))
+    : 1;
 
   async function refresh() {
     if (!organizationId) return;
@@ -266,7 +288,11 @@ export function EvidencePackagesWorkspace() {
                   Tipo de registro
                   <select
                     {...itemForm.register('type', {
-                      onChange: () => itemForm.setValue('sourceId', ''),
+                      onChange: () => {
+                        itemForm.setValue('sourceId', '');
+                        setReferenceSearch('');
+                        setReferencePage(1);
+                      },
                     })}
                   >
                     {Object.entries(typeLabels).map(([value, label]) => (
@@ -277,20 +303,83 @@ export function EvidencePackagesWorkspace() {
                   </select>
                 </label>
                 <label>
-                  Registro fuente
-                  <select {...itemForm.register('sourceId', { required: true })}>
-                    <option value="">Selecciona un registro</option>
-                    {references.data?.map((reference) => (
-                      <option key={reference.id} value={reference.id}>
-                        {reference.label}
-                      </option>
-                    ))}
-                  </select>
+                  Buscar registro fuente
+                  <input
+                    value={referenceSearch}
+                    maxLength={120}
+                    placeholder="Título, persona, actividad o localizador"
+                    onChange={(event) => {
+                      setReferenceSearch(event.target.value);
+                      setReferencePage(1);
+                      itemForm.setValue('sourceId', '');
+                    }}
+                  />
                 </label>
-                {references.isSuccess && !references.data.length ? (
+                <label htmlFor="evidence-package-source">Registro fuente</label>
+                <select
+                  id="evidence-package-source"
+                  {...itemForm.register('sourceId', { required: true })}
+                  disabled={references.isLoading || referenceModuleUnavailable}
+                >
+                  <option value="">
+                    {references.isLoading ? 'Cargando registros…' : 'Selecciona un registro'}
+                  </option>
+                  {references.data?.items.map((reference) => (
+                    <option key={reference.id} value={reference.id}>
+                      {reference.label} · {reference.detail}
+                    </option>
+                  ))}
+                </select>
+                {references.isLoading ? (
                   <p className="muted-copy" role="status">
-                    No hay registros disponibles de este tipo en la organización activa.
+                    Consultando registros disponibles…
                   </p>
+                ) : null}
+                {referenceModuleUnavailable ? (
+                  <p className="form-error" role="alert">
+                    Este módulo no está disponible en el plan actual. Actívalo para seleccionar sus
+                    registros.
+                  </p>
+                ) : null}
+                {references.isError && !referenceModuleUnavailable ? (
+                  <p className="form-error" role="alert">
+                    No pudimos consultar los registros fuente. Intenta nuevamente.
+                  </p>
+                ) : null}
+                {references.isSuccess && !references.data.items.length ? (
+                  <p className="muted-copy" role="status">
+                    {deferredReferenceSearch
+                      ? 'No hay coincidencias para esta búsqueda.'
+                      : 'No hay registros disponibles de este tipo en la organización activa.'}
+                  </p>
+                ) : null}
+                {references.isSuccess && references.data.total > references.data.pageSize ? (
+                  <div className="form-actions compact" aria-label="Paginación de registros fuente">
+                    <Button
+                      type="button"
+                      disabled={referencePage <= 1 || references.isFetching}
+                      onClick={() => {
+                        setReferencePage((current) => Math.max(1, current - 1));
+                        itemForm.setValue('sourceId', '');
+                      }}
+                    >
+                      Anterior
+                    </Button>
+                    <span>
+                      Página {references.data.page} de {referenceTotalPages} ·{' '}
+                      {references.data.total} registros
+                    </span>
+                    <Button
+                      type="button"
+                      disabled={referencePage >= referenceTotalPages || references.isFetching}
+                      onClick={() => {
+                        setReferencePage((current) => current + 1);
+                        itemForm.setValue('sourceId', '');
+                      }}
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
                 ) : null}
                 <p className="muted-copy">
                   El servidor comprueba que el registro pertenece a la organización activa. Las
