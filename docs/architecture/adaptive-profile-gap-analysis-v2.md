@@ -30,3 +30,13 @@ Los facts son tenant operational MEDIUM; las referencias Evidence conservan su c
 - cuáles requieren evidencia o confirmación profesional;
 - cuándo una diferencia operativa debe convertirse en actividad de Plan;
 - vocabulario final para procesos, equipos y contexto físico.
+
+## Cierre de producción
+
+El recorrido implementado quedó production closed por PR #44, HEAD auditado
+`894b12791f65f7ad42f57dc2ccb3183dc8889f62`, merge
+`38a704dd757364bfed498b8c130eb6ded745e80c` y Quality Gate 34295675414 en intento 1. La migración
+33 es aditiva: los facts desconocidos permanecen `UNKNOWN`, las inspecciones históricas no reciben
+profundidad inferida y ningún análisis histórico se recalcula. El material remitido por Anita sigue
+pendiente de verificación de fuente y mapping profesional; este cierre técnico no atribuye su
+aprobación.

@@ -33,3 +33,11 @@ los duplica ni los modifica.
 
 Local usa Compose y puerto 5448; demo/producción usan PostgreSQL administrado, TLS, secretos del
 entorno, cookies Secure y orígenes explícitos.
+
+## Registro de release PR44
+
+El despliegue automático de producción `45afbe4d-3090-4b5a-99ef-9af924ca83d6` corresponde al merge
+`38a704dd757364bfed498b8c130eb6ded745e80c` de PR #44. El pre-deploy encontró 33 migraciones,
+aplicó `20260908120000_adaptive_field_intelligence_v2` y una comprobación posterior confirmó cero
+pendientes. Nest inició correctamente y `/api/v1/health` respondió HTTP 200. No se ejecutó seed de
+datos de clientes ni despliegue manual.

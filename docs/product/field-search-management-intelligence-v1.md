@@ -23,3 +23,17 @@ El recorrido automatizado usa solamente organización, observación, evidencia, 
 - QR o reporte anónimo;
 - SMS, WhatsApp, push y Notification provider;
 - comparación normalizada entre metodologías sin equivalencia profesional aprobada.
+
+## Cierre de producción
+
+PR #44 cerró esta superficie desde el HEAD auditado
+`894b12791f65f7ad42f57dc2ccb3183dc8889f62`, merge
+`38a704dd757364bfed498b8c130eb6ded745e80c`. Quality Gate 34295675414 pasó en intento 1 con 31
+suites/73 pruebas de integración y 19/19 E2E, workers=1, retries=0. Railway producción aplicó la
+migración 33 y Vercel Demo quedó READY desde el merge exacto.
+
+`IN_APP_NOTIFICATION_V1=NOT_NEEDED`: Work Queue y Operational Signals conservan la atención
+canónica. PostgreSQL continúa siendo el único motor de búsqueda; no se añadió vector DB ni
+embeddings. Field sigue siendo web/PWA sin full offline sync, y Management Intelligence conserva
+filtros por dominio, módulos no disponibles explícitos, métodos separados y residuales nulos
+excluidos.

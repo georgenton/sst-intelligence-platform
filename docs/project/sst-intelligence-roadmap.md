@@ -236,7 +236,7 @@ Observation field-intake refinements remain **PENDING ANITA**. Public QR and ano
 mobile/PWA deep field operations, offline, notification providers, Psychosocial, clinical, ERP,
 full LMS, real e-sign and Workforce external AI remain deferred. No Anita approval is claimed.
 
-### Adaptive SST + Field Operations + Intelligence V2 — implementation complete, review pending
+### Adaptive SST + Field Operations + Intelligence V2 — production closed
 
 **DONE:** Organization Profile V2, tri-state provenance, Gap Analysis V1, explicit Gap→Plan draft,
 versioned Inspection Depth, bounded Field/PWA, Safety Observation field evidence, tenant-scoped
@@ -247,3 +247,18 @@ expansion, gap-to-plan professional criteria, depth/resource allocation and usef
 **DEFERRED:** native app/offline sync, public QR, external notifications, deep ergonomics,
 psychosocial/clinical and insurance scoring. Production external AI and real Rule publication remain
 prohibited.
+
+PR #44 cerró producción desde el HEAD auditado
+`894b12791f65f7ad42f57dc2ccb3183dc8889f62` mediante merge
+`38a704dd757364bfed498b8c130eb6ded745e80c`. Quality Gate 34295675414 pasó en intento 1 con
+24 archivos/324 pruebas de contracts, 13 suites/48 pruebas API, 108 pruebas web, 31 suites/73
+pruebas de integración y 19/19 E2E, workers=1 y retries=0. Railway aplicó la migración 33 y Vercel
+Demo quedó READY desde el SHA exacto; staging production mantuvo el track aislado PR41.
+
+Los bloques Adaptive, Inspection Depth, Field/PWA acotada, recuperación de Evidence, PostgreSQL
+Search, Management Intelligence y Expert Review UX/provenance están **DONE**.
+`IN_APP_NOTIFICATION_V1=NOT_NEEDED` para esta versión porque Work Queue y Operational Signals son
+la atención canónica. Los criterios profesionales listados en el handoff continúan **PENDING
+ANITA**; QR público, anonymous reporting, native/offline, proveedores externos, vectores/embeddings,
+Business Continuity/Insurance, ergonomía profunda, Psychosocial/clinical y Workforce AI externa
+continúan **DEFERRED**. No se inició otro programa.

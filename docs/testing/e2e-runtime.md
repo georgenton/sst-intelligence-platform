@@ -196,3 +196,32 @@ Terminología, mappings Position/risk/EPP, guidance de estándares/certificacion
 ubicación, refinamiento Ishikawa, guidance de capacitación y captura de Safety Observation quedan
 PENDING ANITA. QR/anonymous intake, PWA/offline, notificaciones, Psychosocial, clinical, ERP, full
 LMS, e-sign y Workforce external AI continúan diferidos; no se atribuye aprobación a Anita.
+
+## Cierre productivo PR44 — 2026-09-08
+
+PR44 integró el HEAD auditado `894b12791f65f7ad42f57dc2ccb3183dc8889f62` mediante merge commit
+`38a704dd757364bfed498b8c130eb6ded745e80c` a las `2026-09-09T00:35:39Z`. El Quality Gate de main
+[34295675414](https://github.com/georgenton/sst-intelligence-platform/actions/runs/34295675414)
+pasó en intento 1, sin rerun: 24 archivos/324 pruebas de contracts, 13 suites/48 pruebas API, 108
+pruebas web, 31 suites/73 pruebas de integración y 19/19 E2E en 15 lotes, workers=1, retries=0 y
+retried=0. También pasaron lint, typecheck, validadores SST/adaptativo/regulatorios, build,
+reference sync e imagen runtime.
+
+Railway desplegó automáticamente `45afbe4d-3090-4b5a-99ef-9af924ca83d6` desde `main` y el merge
+SHA exacto. El release aplicó la migración 33
+`20260908120000_adaptive_field_intelligence_v2`; luego confirmó 33 migraciones y cero pendientes,
+inició Nest una vez y respondió health HTTP 200 sin errores runtime ni 5xx observados. Vercel Demo
+desplegó `dpl_AJZKyz5tHKET8RMVExqLGZa4ovzd`, source=git, target=production, READY y con alias
+canónico. Staging production conservó `dpl_V1gVcJhNx4JCLEFdg2uTvFeZ67qd` sobre
+`codex/isolated-staging-environment-v1@5ed765d7387f51f53821296fbec8944b16e87a8b`.
+
+El smoke productivo fue de solo lectura. La portada y las rutas de perfil/brechas, Field,
+Inspections, Safety Observations, Plan, Incidents, Search y Management Intelligence respondieron
+sin 5xx; las rutas protegidas sin sesión terminaron en login y los endpoints protegidos devolvieron 401. En 390 px no hubo overflow horizontal ni errores de consola. No se mutaron datos de clientes.
+La funcionalidad autenticada y sus invariantes se validaron en el gate aislado 19/19 del SHA exacto.
+
+Producción conserva `CONVERSATIONAL_AI_PROVIDER=DETERMINISTIC_LOCAL_V1`, `AI_ENABLED=false` y
+`OPENAI_API_KEY` ausente. La paridad productiva medida es 15 fuentes, 25 versiones, 1112 unidades,
+893 artículos, 5 Requirements candidatos, 5 RuleDrafts candidatos y 0 RuleVersions regulatorias
+publicadas. No hubo backfill, recalculación histórica, cambio GTC45, Worker score, Protocol Engine,
+vector DB, full offline sync, anonymous intake ni proveedor de notificaciones.

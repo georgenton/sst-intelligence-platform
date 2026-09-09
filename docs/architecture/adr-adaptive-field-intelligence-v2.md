@@ -24,3 +24,15 @@ No se crea un aggregate Notification. Work Queue y Operational Signals ya repres
 - Analytics es factual y tenant-scoped desde la consulta.
 - PWA necesita red para escribir y presenta ese límite de forma explícita.
 - Cualquier futura notificación externa referenciará un aggregate real y requerirá otro gate.
+
+## Cierre de producción
+
+PR #44 quedó production closed el 2026-09-08 desde el HEAD auditado
+`894b12791f65f7ad42f57dc2ccb3183dc8889f62`, merge
+`38a704dd757364bfed498b8c130eb6ded745e80c`. El Quality Gate de `main` 34295675414 pasó en intento
+1; la migración aditiva 33 quedó aplicada sin pendientes, backfill ni cambio de históricos. Railway
+y Vercel Demo desplegaron automáticamente el merge exacto y staging production permaneció aislado.
+
+Este cierre no cambia las decisiones del ADR. Business Continuity/Insurance continúa design-only,
+Ergonomics requiere una metodología revisada antes de integración y Psychosocial permanece limitado
+a arquitectura y frontera de datos.

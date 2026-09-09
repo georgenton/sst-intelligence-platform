@@ -426,13 +426,40 @@ safety scores.
 
 ## Adaptive SST + Field Operations + Intelligence V2
 
-El programa V2 está implementado en un Draft PR desde `main@21c7dd0`. Añade perfil SST V2 con
-triestado y procedencia, Gap Analysis descriptivo con conversión explícita a Plan, Inspection Depth
-versionada, Field Hub/PWA acotada, evidencia opcional en Safety Observation, PostgreSQL Search,
-Management Intelligence compatible por método e historial visible de Expert Review.
+El programa V2 está **production closed** mediante PR #44: HEAD auditado
+`894b12791f65f7ad42f57dc2ccb3183dc8889f62`, merge commit
+`38a704dd757364bfed498b8c130eb6ded745e80c` y Quality Gate de `main` 34295675414 en intento 1.
+Añade perfil SST V2 con triestado y procedencia, Gap Analysis descriptivo con conversión explícita
+a Plan, Inspection Depth versionada, Field Hub/PWA acotada, evidencia opcional en Safety
+Observation, PostgreSQL Search, Management Intelligence compatible por método e historial visible
+de Expert Review.
 
 Las decisiones están en [el ADR](../architecture/adr-adaptive-field-intelligence-v2.md) y la
 arquitectura del perfil/gap en [Adaptive Profile V2](../architecture/adaptive-profile-gap-analysis-v2.md).
 No crea Protocol Engine, Notification DB, offline sync, vector DB, Worker Safety Score, aplicación
 legal automática, causa raíz, RuleVersion real ni expansión de IA externa. Work Queue y Operational
 Signals cubren la atención in-app como proyecciones de registros canónicos.
+
+La migración aditiva 33 `20260908120000_adaptive_field_intelligence_v2` está aplicada en Railway
+producción sin pendientes ni backfill semántico. Railway desplegó
+`45afbe4d-3090-4b5a-99ef-9af924ca83d6`; Vercel Demo desplegó
+`dpl_AJZKyz5tHKET8RMVExqLGZa4ovzd`, fuente Git, target production y alias canónico. Staging
+production continúa aislado en `dpl_V1gVcJhNx4JCLEFdg2uTvFeZ67qd` sobre
+`codex/isolated-staging-environment-v1@5ed765d7387f51f53821296fbec8944b16e87a8b`.
+
+Quedan **DONE** Organization Profile V2, procedencia de facts, Gap Analysis V1, límite de Business
+Priority, conversión explícita Gap→Plan, Inspection Depth V1, Field/Mobile Web V1, PWA acotada,
+recuperación de Evidence de Safety Observation, PostgreSQL Operational Search V1, Management
+Intelligence V1, analítica residual separada por metodología y mejoras de usabilidad/procedencia
+para Expert Review. `IN_APP_NOTIFICATION_V1=NOT_NEEDED`: Work Queue y Operational Signals siguen
+siendo los mecanismos canónicos suficientes en esta versión.
+
+Continúan **PENDING ANITA** los facts que cambien recomendaciones, requisitos de evidencia o
+confirmación profesional, mapping profesional recurso↔profundidad, terminología de procesos/equipos,
+criterios Gap→Plan, refinamientos finales de captura en campo y cualquier equivalencia entre
+metodologías. Continúan diferidos QR/anonymous intake, app nativa, full offline sync, proveedores
+externos de notificaciones, SMS/WhatsApp/push, vector search/embeddings, Business Continuity o
+insurance scoring, ergonomía profunda sin fuente/licencia revisada, workflows psicosociales o
+clínicos, expedientes médicos y Workforce AI externa. Business Continuity/Insurance permanece
+design-only; Ergonomics pendiente de metodología revisada; Psychosocial limitado a arquitectura y
+frontera de datos.
