@@ -41,7 +41,12 @@ test('finaliza un paquete canónico y muestra su resumen documental', async ({ p
   await expect(page.getByRole('button', { name: new RegExp(title) })).toBeVisible();
 
   await page.getByLabel('Tipo de registro').selectOption('GOVERNANCE_MEETING');
-  await page.getByLabel('Identificador canónico').fill(meeting.id);
+  await page.getByLabel('Buscar registro fuente').fill(meeting.title);
+  await expect(page.getByLabel('Registro fuente', { exact: true })).toBeEnabled();
+  await expect(page.getByRole('option', { name: new RegExp(meeting.title) })).toHaveCount(1);
+  await page.getByLabel('Registro fuente', { exact: true }).selectOption(meeting.id);
+  await expect(page.getByPlaceholder('UUID del registro fuente')).toHaveCount(0);
+  await expect(page.getByText(meeting.id)).toHaveCount(0);
   await page.getByRole('button', { name: 'Agregar referencia' }).click();
   await expect(page.getByText(meeting.title)).toBeVisible();
   await page.getByRole('button', { name: 'Finalizar manifiesto' }).click();

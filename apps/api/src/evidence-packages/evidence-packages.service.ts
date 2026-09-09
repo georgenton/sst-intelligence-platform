@@ -8,8 +8,14 @@ import {
 import type { EvidencePackageItemType, Prisma } from '@prisma/client';
 import { assertEvidencePackageTransition, orderEvidenceManifestItems } from '@sst/contracts';
 import { AuditService, type AuditEvent } from '../audit/audit.service';
+import { EntitlementService } from '../catalog/entitlement.service';
 import { PrismaService } from '../prisma/prisma.service';
-import type { AddEvidencePackageItemDto, CreateEvidencePackageDto } from './dto';
+import type {
+  AddEvidencePackageItemDto,
+  CreateEvidencePackageDto,
+  EvidenceReferenceQueryDto,
+} from './dto';
+import { EVIDENCE_REFERENCE_ENTITLEMENTS } from './evidence-packages.policy';
 
 type Context = Pick<AuditEvent, 'requestId' | 'ip' | 'userAgent'>;
 type CanonicalReference = {
@@ -17,6 +23,13 @@ type CanonicalReference = {
   sourceVersion: string | null;
   provenance: Prisma.InputJsonValue;
   contentDigest: string | null;
+};
+type CanonicalReferenceOption = { id: string; label: string; detail: string };
+type CanonicalReferenceCatalog = {
+  items: CanonicalReferenceOption[];
+  total: number;
+  page: number;
+  pageSize: number;
 };
 
 const packageInclude = {
@@ -29,6 +42,7 @@ export class EvidencePackagesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly entitlements: EntitlementService,
   ) {}
 
   list(organizationId: string) {
@@ -37,6 +51,352 @@ export class EvidencePackagesService {
       include: packageInclude,
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async listCanonicalReferences(
+    organizationId: string,
+    type: EvidencePackageItemType,
+    query: EvidenceReferenceQueryDto,
+  ): Promise<CanonicalReferenceCatalog> {
+    await this.requireReferenceEntitlements(organizationId, [type]);
+    const search = query.q?.trim();
+    const paging = { skip: (query.page - 1) * query.pageSize, take: query.pageSize };
+
+    switch (type) {
+      case 'INSPECTION': {
+        const where: Prisma.InspectionWhereInput = {
+          organizationId,
+          ...(search ? { title: { contains: search, mode: 'insensitive' } } : {}),
+        };
+        const [values, total] = await Promise.all([
+          this.prisma.inspection.findMany({
+            where,
+            select: { id: true, title: true, status: true },
+            orderBy: { updatedAt: 'desc' },
+            ...paging,
+          }),
+          this.prisma.inspection.count({ where }),
+        ]);
+        return this.catalog(this.options(values), total, query);
+      }
+      case 'FINDING': {
+        const where: Prisma.InspectionFindingWhereInput = {
+          organizationId,
+          ...(search ? { title: { contains: search, mode: 'insensitive' } } : {}),
+        };
+        const [values, total] = await Promise.all([
+          this.prisma.inspectionFinding.findMany({
+            where,
+            select: { id: true, title: true, status: true },
+            orderBy: { updatedAt: 'desc' },
+            ...paging,
+          }),
+          this.prisma.inspectionFinding.count({ where }),
+        ]);
+        return this.catalog(this.options(values), total, query);
+      }
+      case 'CORRECTIVE_ACTION': {
+        const where: Prisma.CorrectiveActionWhereInput = {
+          organizationId,
+          ...(search ? { title: { contains: search, mode: 'insensitive' } } : {}),
+        };
+        const [values, total] = await Promise.all([
+          this.prisma.correctiveAction.findMany({
+            where,
+            select: { id: true, title: true, status: true },
+            orderBy: { updatedAt: 'desc' },
+            ...paging,
+          }),
+          this.prisma.correctiveAction.count({ where }),
+        ]);
+        return this.catalog(this.options(values), total, query);
+      }
+      case 'ACTION_EVIDENCE': {
+        const where: Prisma.ActionEvidenceWhereInput = {
+          organizationId,
+          ...(search
+            ? { correctiveAction: { title: { contains: search, mode: 'insensitive' } } }
+            : {}),
+        };
+        const [values, total] = await Promise.all([
+          this.prisma.actionEvidence.findMany({
+            where,
+            select: {
+              id: true,
+              type: true,
+              createdAt: true,
+              correctiveAction: { select: { title: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            ...paging,
+          }),
+          this.prisma.actionEvidence.count({ where }),
+        ]);
+        return this.catalog(
+          values.map((value) => ({
+            id: value.id,
+            label: `${value.correctiveAction.title} · Evidencia ${value.type}`,
+            detail: value.createdAt.toLocaleDateString('es-EC'),
+          })),
+          total,
+          query,
+        );
+      }
+      case 'TECHNICAL_ASSESSMENT': {
+        const where: Prisma.TechnicalAssessmentWhereInput = {
+          organizationId,
+          ...(search ? { title: { contains: search, mode: 'insensitive' } } : {}),
+        };
+        const [values, total] = await Promise.all([
+          this.prisma.technicalAssessment.findMany({
+            where,
+            select: { id: true, title: true, status: true },
+            orderBy: { updatedAt: 'desc' },
+            ...paging,
+          }),
+          this.prisma.technicalAssessment.count({ where }),
+        ]);
+        return this.catalog(this.options(values), total, query);
+      }
+      case 'INCIDENT': {
+        const where: Prisma.IncidentWhereInput = {
+          organizationId,
+          ...(search ? { title: { contains: search, mode: 'insensitive' } } : {}),
+        };
+        const [values, total] = await Promise.all([
+          this.prisma.incident.findMany({
+            where,
+            select: { id: true, title: true, status: true },
+            orderBy: { createdAt: 'desc' },
+            ...paging,
+          }),
+          this.prisma.incident.count({ where }),
+        ]);
+        return this.catalog(this.options(values), total, query);
+      }
+      case 'PPE_ISSUE': {
+        const where: Prisma.PpeIssueWhereInput = {
+          organizationId,
+          ...(search
+            ? {
+                OR: [
+                  { worker: { displayName: { contains: search, mode: 'insensitive' } } },
+                  { ppeCatalogItem: { name: { contains: search, mode: 'insensitive' } } },
+                  { assetReference: { contains: search, mode: 'insensitive' } },
+                ],
+              }
+            : {}),
+        };
+        const [values, total] = await Promise.all([
+          this.prisma.ppeIssue.findMany({
+            where,
+            select: {
+              id: true,
+              status: true,
+              issuedAt: true,
+              worker: { select: { displayName: true } },
+              ppeCatalogItem: { select: { name: true } },
+            },
+            orderBy: { issuedAt: 'desc' },
+            ...paging,
+          }),
+          this.prisma.ppeIssue.count({ where }),
+        ]);
+        return this.catalog(
+          values.map((value) => ({
+            id: value.id,
+            label: `${value.worker.displayName} · ${value.ppeCatalogItem.name}`,
+            detail: `${value.status} · ${value.issuedAt.toLocaleDateString('es-EC')}`,
+          })),
+          total,
+          query,
+        );
+      }
+      case 'TRAINING_COMPLETION': {
+        const where: Prisma.WorkerTrainingCompletionWhereInput = {
+          organizationId,
+          ...(search
+            ? {
+                OR: [
+                  { worker: { displayName: { contains: search, mode: 'insensitive' } } },
+                  { trainingDefinition: { title: { contains: search, mode: 'insensitive' } } },
+                ],
+              }
+            : {}),
+        };
+        const [values, total] = await Promise.all([
+          this.prisma.workerTrainingCompletion.findMany({
+            where,
+            select: {
+              id: true,
+              completedAt: true,
+              worker: { select: { displayName: true } },
+              trainingDefinition: { select: { title: true } },
+            },
+            orderBy: { completedAt: 'desc' },
+            ...paging,
+          }),
+          this.prisma.workerTrainingCompletion.count({ where }),
+        ]);
+        return this.catalog(
+          values.map((value) => ({
+            id: value.id,
+            label: `${value.worker.displayName} · ${value.trainingDefinition.title}`,
+            detail: `Completada ${value.completedAt.toLocaleDateString('es-EC')}`,
+          })),
+          total,
+          query,
+        );
+      }
+      case 'WORK_PERMIT': {
+        const where: Prisma.WorkPermitWhereInput = {
+          organizationId,
+          ...(search ? { activity: { contains: search, mode: 'insensitive' } } : {}),
+        };
+        const [values, total] = await Promise.all([
+          this.prisma.workPermit.findMany({
+            where,
+            select: { id: true, activity: true, status: true },
+            orderBy: { createdAt: 'desc' },
+            ...paging,
+          }),
+          this.prisma.workPermit.count({ where }),
+        ]);
+        return this.catalog(
+          values.map((value) => ({ id: value.id, label: value.activity, detail: value.status })),
+          total,
+          query,
+        );
+      }
+      case 'OBLIGATION_EXECUTION': {
+        const where: Prisma.ObligationExecutionWhereInput = {
+          organizationId,
+          ...(search ? { title: { contains: search, mode: 'insensitive' } } : {}),
+        };
+        const [values, total] = await Promise.all([
+          this.prisma.obligationExecution.findMany({
+            where,
+            select: { id: true, title: true, status: true },
+            orderBy: { createdAt: 'desc' },
+            ...paging,
+          }),
+          this.prisma.obligationExecution.count({ where }),
+        ]);
+        return this.catalog(this.options(values), total, query);
+      }
+      case 'GOVERNANCE_MEETING': {
+        const where: Prisma.GovernanceMeetingWhereInput = {
+          organizationId,
+          ...(search ? { title: { contains: search, mode: 'insensitive' } } : {}),
+        };
+        const [values, total] = await Promise.all([
+          this.prisma.governanceMeeting.findMany({
+            where,
+            select: { id: true, title: true, status: true },
+            orderBy: { scheduledAt: 'desc' },
+            ...paging,
+          }),
+          this.prisma.governanceMeeting.count({ where }),
+        ]);
+        return this.catalog(this.options(values), total, query);
+      }
+      case 'GOVERNANCE_DECISION': {
+        const where: Prisma.GovernanceDecisionWhereInput = {
+          organizationId,
+          ...(search ? { summary: { contains: search, mode: 'insensitive' } } : {}),
+        };
+        const [values, total] = await Promise.all([
+          this.prisma.governanceDecision.findMany({
+            where,
+            select: { id: true, summary: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+            ...paging,
+          }),
+          this.prisma.governanceDecision.count({ where }),
+        ]);
+        return this.catalog(
+          values.map((value) => ({
+            id: value.id,
+            label: value.summary,
+            detail: value.createdAt.toLocaleDateString('es-EC'),
+          })),
+          total,
+          query,
+        );
+      }
+      case 'REGULATORY_UNIT': {
+        const where: Prisma.RegulatoryUnitWhereInput = search
+          ? {
+              OR: [
+                { identifier: { contains: search, mode: 'insensitive' } },
+                { locator: { contains: search, mode: 'insensitive' } },
+                { heading: { contains: search, mode: 'insensitive' } },
+              ],
+            }
+          : {};
+        const [values, total] = await Promise.all([
+          this.prisma.regulatoryUnit.findMany({
+            where,
+            select: {
+              id: true,
+              identifier: true,
+              locator: true,
+              heading: true,
+              reviewStatus: true,
+            },
+            orderBy: [{ identifier: 'asc' }, { locator: 'asc' }],
+            ...paging,
+          }),
+          this.prisma.regulatoryUnit.count({ where }),
+        ]);
+        return this.catalog(
+          values.map((value) => ({
+            id: value.id,
+            label: `${value.identifier} · ${value.locator}`,
+            detail: value.heading ?? value.reviewStatus,
+          })),
+          total,
+          query,
+        );
+      }
+      case 'INSPECTION_BASIS_VERSION': {
+        const where: Prisma.InspectionBasisVersionWhereInput = {
+          organizationId,
+          ...(search
+            ? {
+                OR: [
+                  { definition: { name: { contains: search, mode: 'insensitive' } } },
+                  { reason: { contains: search, mode: 'insensitive' } },
+                ],
+              }
+            : {}),
+        };
+        const [values, total] = await Promise.all([
+          this.prisma.inspectionBasisVersion.findMany({
+            where,
+            select: {
+              id: true,
+              version: true,
+              status: true,
+              inspectionDomain: true,
+              definition: { select: { name: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            ...paging,
+          }),
+          this.prisma.inspectionBasisVersion.count({ where }),
+        ]);
+        return this.catalog(
+          values.map((value) => ({
+            id: value.id,
+            label: `${value.definition.name} · v${value.version}`,
+            detail: `${value.inspectionDomain} · ${value.status}`,
+          })),
+          total,
+          query,
+        );
+      }
+    }
   }
 
   async get(organizationId: string, packageId: string) {
@@ -81,6 +441,7 @@ export class EvidencePackagesService {
     input: AddEvidencePackageItemDto,
     context: Context,
   ) {
+    await this.requireReferenceEntitlements(organizationId, [input.type]);
     const evidencePackage = await this.requireDraft(organizationId, packageId);
     const reference = await this.resolveCanonicalReference(
       organizationId,
@@ -135,6 +496,10 @@ export class EvidencePackagesService {
           if (!evidencePackage.items.length) {
             throw new BadRequestException('Agrega al menos una referencia antes de finalizar.');
           }
+          await this.requireReferenceEntitlements(
+            organizationId,
+            evidencePackage.items.map((item) => item.type),
+          );
           assertEvidencePackageTransition(evidencePackage.status, 'FINALIZED');
           const organization = await transaction.organization.findUniqueOrThrow({
             where: { id: organizationId },
@@ -401,7 +766,7 @@ export class EvidencePackagesService {
           `${value.identifier} · ${value.locator}`,
           value.sourceVersionId,
           value,
-          value.normalizedTextHash,
+          value.normalizedTextHash.replace(/^sha256:/, ''),
         );
       }
       case 'INSPECTION_BASIS_VERSION': {
@@ -440,6 +805,32 @@ export class EvidencePackagesService {
       provenance: JSON.parse(JSON.stringify(provenance)) as Prisma.InputJsonValue,
       contentDigest,
     };
+  }
+
+  private options(values: Array<{ id: string; title: string; status: string }>) {
+    return values.map(({ id, title, status }) => ({ id, label: title, detail: status }));
+  }
+
+  private catalog(
+    items: CanonicalReferenceOption[],
+    total: number,
+    query: EvidenceReferenceQueryDto,
+  ): CanonicalReferenceCatalog {
+    return { items, total, page: query.page, pageSize: query.pageSize };
+  }
+
+  private async requireReferenceEntitlements(
+    organizationId: string,
+    types: readonly EvidencePackageItemType[],
+  ) {
+    const features = new Set<string>();
+    for (const type of types) {
+      const feature = EVIDENCE_REFERENCE_ENTITLEMENTS[type];
+      if (feature) features.add(feature);
+    }
+    await Promise.all(
+      [...features].map((feature) => this.entitlements.require(organizationId, feature)),
+    );
   }
 
   private isUnique(error: unknown) {
