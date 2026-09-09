@@ -269,6 +269,7 @@ describe('post-Anita product convergence integration', () => {
         title: 'Inspección legacy explícita',
         inspectionDomain: 'ELECTRICAL',
         riskMethodVersionId,
+        inspectionDepth: 'BASIC',
       })
       .expect(201);
     expect(legacy.body.resourceScopeSnapshot).toBeNull();
@@ -281,6 +282,7 @@ describe('post-Anita product convergence integration', () => {
         inspectionDomain: 'ELECTRICAL',
         resourceId: outletResourceId,
         riskMethodVersionId,
+        inspectionDepth: 'BASIC',
       })
       .expect(201);
     expect(scoped.body.resourceScopeSnapshot).toMatchObject({
@@ -341,6 +343,7 @@ describe('post-Anita product convergence integration', () => {
         inspectionDomain: 'ELECTRICAL',
         resourceId: outletResourceId,
         riskMethodVersionId,
+        inspectionDepth: 'BASIC',
       })
       .expect(400)
       .expect(({ body }) =>
@@ -359,6 +362,7 @@ describe('post-Anita product convergence integration', () => {
         title: 'Base multifuente sin alcance de recurso',
         inspectionDomain: 'ELECTRICAL',
         riskMethodVersionId,
+        inspectionDepth: 'BASIC',
       })
       .expect(201);
     expect(unscopedMultiSource.body).toMatchObject({

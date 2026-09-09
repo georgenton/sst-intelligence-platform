@@ -16,6 +16,7 @@ export const operationalPlanItemProvenanceTypes = [
   'FINDING',
   'CORRECTIVE_ACTION',
   'OBLIGATION_EXECUTION',
+  'GAP_ANALYSIS',
 ] as const;
 
 export type OperationalPlanItemStatus = (typeof operationalPlanItemStatuses)[number];

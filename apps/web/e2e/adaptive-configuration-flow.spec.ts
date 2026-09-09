@@ -106,4 +106,31 @@ test('preguntas adaptativas, propuesta por centro y estado actual declarado', as
   await page.getByRole('link', { name: 'Abrir sesión' }).click();
   await expect(page.getByText('Información evaluada')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Propuesta de configuración' })).toBeVisible();
+
+  await page.goto('/app/adaptive-intelligence');
+  await expect(
+    page.getByRole('heading', { name: 'Perfil SST y análisis de brechas' }),
+  ).toBeVisible();
+  await expect(page.getByText('ID exacto del origen')).toHaveCount(0);
+  await page.getByLabel('Fuente canónica').selectOption({ index: 1 });
+  const gapResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes('/api/v1/adaptive-intelligence/gap-analyses') &&
+      response.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Crear snapshot de brechas' }).click();
+  expect((await gapResponse).status()).toBe(201);
+  const actionableGap = page
+    .locator('label.gap-row')
+    .filter({ has: page.locator('input:not([disabled])') })
+    .first();
+  await expect(actionableGap).toBeVisible();
+  await actionableGap.locator('input').check();
+  const planResponse = page.waitForResponse(
+    (response) => response.url().includes('/plan-draft') && response.request().method() === 'POST',
+  );
+  await page
+    .getByRole('button', { name: 'Convertir selección en borrador de Plan Operativo' })
+    .click();
+  expect((await planResponse).status()).toBe(201);
 });

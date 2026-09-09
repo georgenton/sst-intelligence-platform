@@ -162,3 +162,12 @@ export function alertTypeLabel(value: string): string {
   if (value in ALERT_TYPE_LABELS) return ALERT_TYPE_LABELS[value as InspectionAlertType];
   return value.replaceAll('_', ' ').toLocaleLowerCase('es');
 }
+
+export function inspectionDepthLabel(
+  depth: 'BASIC' | 'TECHNICAL' | 'SYSTEMIC' | null | undefined,
+): string {
+  if (depth === 'BASIC') return 'Básica';
+  if (depth === 'TECHNICAL') return 'Técnica';
+  if (depth === 'SYSTEMIC') return 'Sistémica';
+  return 'No registrada (inspección histórica)';
+}

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   InternalServerErrorException,
@@ -10,6 +11,9 @@ import {
   evaluateApplicability,
   organizationSstProfileSchema,
   type OrganizationSstProfile,
+  type OrganizationProfileFact,
+  organizationProfileFactInputSchema,
+  organizationProfileFactSchema,
 } from '@sst/contracts';
 import { AuditService, type AuditEvent } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -60,22 +64,149 @@ export class ApplicabilityService {
     input: CreateOrganizationSstProfileVersionDto,
     context: Context,
   ) {
-    const [organization, workCenterCount] = await Promise.all([
+    const [organization, workCenters, workAreaCount, positionCount] = await Promise.all([
       this.prisma.organization.findFirst({
         where: { id: organizationId },
         select: { country: true, sector: true },
       }),
-      this.prisma.workCenter.count({ where: { organizationId } }),
+      this.prisma.workCenter.findMany({
+        where: { organizationId, isActive: true },
+        select: { id: true, city: true },
+      }),
+      this.prisma.workArea.count({ where: { organizationId, isActive: true } }),
+      this.prisma.position.count({ where: { organizationId, isActive: true } }),
     ]);
     if (!organization) throw new NotFoundException('Organización no encontrada.');
 
+    const allowedWorkCenterIds = new Set(workCenters.map(({ id }) => id));
+    const suppliedFactInputs = (input.facts ?? []).map((fact) => {
+      const parsed = organizationProfileFactInputSchema.safeParse(fact);
+      if (!parsed.success) {
+        throw new BadRequestException('El hecho de contexto o su procedencia no son válidos.');
+      }
+      return parsed.data;
+    });
+    if (
+      suppliedFactInputs.some(
+        (fact) => fact.workCenterId && !allowedWorkCenterIds.has(fact.workCenterId),
+      )
+    ) {
+      throw new NotFoundException(
+        'El hecho de contexto referencia un centro de otra organización.',
+      );
+    }
+    const serverDerivedKeys = new Set<OrganizationProfileFact['key']>([
+      'WORK_CENTER_CITY_CONFIRMED',
+      'WORK_AREAS_PRESENT',
+      'POSITIONS_PRESENT',
+    ]);
+    if (suppliedFactInputs.some(({ key }) => serverDerivedKeys.has(key))) {
+      throw new BadRequestException(
+        'Los hechos derivados del registro canónico solo pueden ser producidos por el servidor.',
+      );
+    }
+    if (
+      suppliedFactInputs.some(({ provenance }) => provenance.source === 'DERIVED_DETERMINISTICALLY')
+    ) {
+      throw new BadRequestException(
+        'La procedencia derivada determinísticamente solo puede ser asignada por el servidor.',
+      );
+    }
+    const confirmedAt = new Date().toISOString();
+    const suppliedFacts = await Promise.all(
+      suppliedFactInputs.map(async (fact) => {
+        const evidenceReference =
+          fact.provenance.source === 'EVIDENCE_BACKED'
+            ? await this.resolveEvidenceReference(
+                organizationId,
+                fact.provenance.evidenceReference!,
+              )
+            : undefined;
+        return organizationProfileFactSchema.parse({
+          ...fact,
+          provenance: {
+            ...fact.provenance,
+            ...(evidenceReference ? { evidenceReference } : {}),
+            ...(fact.provenance.source === 'PROFESSIONAL_CONFIRMED'
+              ? { actorUserId: userId, confirmedAt }
+              : {}),
+          },
+        });
+      }),
+    );
+    const booleanFact = (
+      key: OrganizationProfileFact['key'],
+      value: boolean | undefined,
+    ): OrganizationProfileFact[] =>
+      value === undefined
+        ? []
+        : [
+            organizationProfileFactSchema.parse({
+              key,
+              value: value ? 'KNOWN_TRUE' : 'KNOWN_FALSE',
+              scope: 'ORGANIZATION',
+              provenance: { source: 'DECLARED_BY_ORGANIZATION' },
+            }),
+          ];
+    const derivedFacts: OrganizationProfileFact[] = [
+      organizationProfileFactSchema.parse({
+        key: 'WORK_CENTER_CITY_CONFIRMED',
+        value:
+          workCenters.length > 0 && workCenters.every(({ city }) => Boolean(city))
+            ? 'KNOWN_TRUE'
+            : 'UNKNOWN',
+        scope: 'ORGANIZATION',
+        provenance: {
+          source: 'DERIVED_DETERMINISTICALLY',
+          note: 'Derivado de los centros activos registrados.',
+        },
+      }),
+      organizationProfileFactSchema.parse({
+        key: 'WORK_AREAS_PRESENT',
+        value: workAreaCount > 0 ? 'KNOWN_TRUE' : 'UNKNOWN',
+        scope: 'ORGANIZATION',
+        provenance: {
+          source: 'DERIVED_DETERMINISTICALLY',
+          note: 'Derivado de la presencia de áreas activas registradas; no afirma completitud.',
+        },
+      }),
+      organizationProfileFactSchema.parse({
+        key: 'POSITIONS_PRESENT',
+        value: positionCount > 0 ? 'KNOWN_TRUE' : 'UNKNOWN',
+        scope: 'ORGANIZATION',
+        provenance: {
+          source: 'DERIVED_DETERMINISTICALLY',
+          note: 'Derivado de la presencia de cargos activos registrados; no afirma completitud.',
+        },
+      }),
+    ];
+    const contextFacts = this.mergeContextFacts([
+      ...suppliedFacts,
+      ...booleanFact('PHYSICAL_SITE_PRESENT', input.hasPhysicalSite),
+      ...booleanFact('ADMINISTRATIVE_OR_REMOTE_ONLY', input.administrativeOrRemoteOnly),
+      ...booleanFact(
+        'CONTRACTOR_OR_EXTERNAL_PERSONNEL_PRESENT',
+        input.hasContractorsOrExternalPersonnel,
+      ),
+      ...booleanFact('CHEMICAL_PROCESS_PRESENT', input.hasChemicalProcesses),
+      ...booleanFact('HIGH_ENERGY_OPERATION_PRESENT', input.hasHighEnergyOperations),
+      ...derivedFacts,
+    ]);
+
+    const requestsV2 =
+      input.managementPriority !== undefined ||
+      input.hasPhysicalSite !== undefined ||
+      input.administrativeOrRemoteOnly !== undefined ||
+      input.hasContractorsOrExternalPersonnel !== undefined ||
+      input.facts !== undefined;
     const snapshot = organizationSstProfileSchema.parse({
-      schemaVersion: '1.0.0',
+      schemaVersion: requestsV2 ? '2.0.0' : '1.0.0',
       organization: {
         country: organization.country,
         ...(organization.sector ? { sector: organization.sector } : {}),
-        workCenterCount,
+        workCenterCount: workCenters.length,
         ...(input.workerCount === undefined ? {} : { workerCount: input.workerCount }),
+        ...(input.managementPriority ? { managementPriority: input.managementPriority } : {}),
       },
       operations: {
         ...(input.hasChemicalProcesses === undefined
@@ -85,6 +216,7 @@ export class ApplicabilityService {
           ? {}
           : { hasHighEnergyOperations: input.hasHighEnergyOperations }),
       },
+      ...(requestsV2 ? { contextFacts } : {}),
     });
 
     const profile = await this.createNextProfileVersion(organizationId, userId, snapshot);
@@ -98,6 +230,95 @@ export class ApplicabilityService {
       ...context,
     });
     return profile;
+  }
+
+  private mergeContextFacts(facts: OrganizationProfileFact[]) {
+    const byIdentity = new Map<string, OrganizationProfileFact>();
+    const provenanceRank: Record<OrganizationProfileFact['provenance']['source'], number> = {
+      DECLARED_BY_ORGANIZATION: 1,
+      IMPORTED_REFERENCE: 2,
+      EVIDENCE_BACKED: 3,
+      PROFESSIONAL_CONFIRMED: 4,
+      DERIVED_DETERMINISTICALLY: 5,
+    };
+    for (const fact of [...facts].sort((left, right) =>
+      JSON.stringify(left).localeCompare(JSON.stringify(right)),
+    )) {
+      const identity = `${fact.scope}:${fact.workCenterId ?? ''}:${fact.key}`;
+      const current = byIdentity.get(identity);
+      if (!current) {
+        byIdentity.set(identity, fact);
+        continue;
+      }
+      if (current.value !== fact.value) {
+        throw new BadRequestException(
+          `El hecho ${fact.key} contiene valores contradictorios para el mismo alcance.`,
+        );
+      }
+      if (provenanceRank[fact.provenance.source] > provenanceRank[current.provenance.source]) {
+        byIdentity.set(identity, fact);
+      }
+    }
+    return [...byIdentity.values()].sort((left, right) =>
+      `${left.scope}:${left.workCenterId ?? ''}:${left.key}`.localeCompare(
+        `${right.scope}:${right.workCenterId ?? ''}:${right.key}`,
+      ),
+    );
+  }
+
+  private async resolveEvidenceReference(
+    organizationId: string,
+    reference: { type: string; id: string },
+  ) {
+    const select = { id: true, createdAt: true } as const;
+    const record =
+      reference.type === 'SAFETY_OBSERVATION_EVIDENCE'
+        ? await this.prisma.safetyObservationEvidence.findFirst({
+            where: { id: reference.id, organizationId },
+            select,
+          })
+        : reference.type === 'INCIDENT_EVIDENCE'
+          ? await this.prisma.incidentEvidence.findFirst({
+              where: { id: reference.id, organizationId },
+              select,
+            })
+          : reference.type === 'ACTION_EVIDENCE'
+            ? await this.prisma.actionEvidence.findFirst({
+                where: { id: reference.id, organizationId },
+                select,
+              })
+            : reference.type === 'OBLIGATION_EXECUTION_EVIDENCE'
+              ? await this.prisma.obligationExecutionEvidence.findFirst({
+                  where: { id: reference.id, organizationId },
+                  select,
+                })
+              : reference.type === 'TECHNICAL_ASSESSMENT_EVIDENCE'
+                ? await this.prisma.technicalAssessmentEvidence.findFirst({
+                    where: { id: reference.id, organizationId },
+                    select,
+                  })
+                : reference.type === 'GOVERNANCE_EVIDENCE'
+                  ? await this.prisma.governanceEvidence.findFirst({
+                      where: { id: reference.id, organizationId },
+                      select,
+                    })
+                  : null;
+    if (!record) {
+      throw new NotFoundException('La evidencia de perfil no existe en la organización activa.');
+    }
+    const typeLabels: Record<string, string> = {
+      SAFETY_OBSERVATION_EVIDENCE: 'Evidencia de observación de seguridad',
+      INCIDENT_EVIDENCE: 'Evidencia de incidente',
+      ACTION_EVIDENCE: 'Evidencia de acción correctiva',
+      OBLIGATION_EXECUTION_EVIDENCE: 'Evidencia de ejecución',
+      TECHNICAL_ASSESSMENT_EVIDENCE: 'Evidencia de evaluación técnica',
+      GOVERNANCE_EVIDENCE: 'Evidencia de gobernanza',
+    };
+    return {
+      type: reference.type,
+      id: record.id,
+      label: `${typeLabels[reference.type]} · ${record.createdAt.toISOString().slice(0, 10)}`,
+    };
   }
 
   listRulePacks() {

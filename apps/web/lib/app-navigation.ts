@@ -55,6 +55,14 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         match: 'segment',
       },
       {
+        id: 'field',
+        label: 'Trabajo en campo',
+        href: '/app/field',
+        group: 'operation',
+        match: 'segment',
+      },
+      { id: 'search', label: 'Buscar', href: '/app/search', group: 'operation', match: 'segment' },
+      {
         id: 'operational-plans',
         label: 'Plan operativo',
         href: '/app/plans',
@@ -152,6 +160,13 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
     label: 'Evaluaciones',
     items: [
       {
+        id: 'adaptive-intelligence',
+        label: 'Perfil y brechas',
+        href: '/app/adaptive-intelligence',
+        group: 'assessments',
+        match: 'segment',
+      },
+      {
         id: 'applicability',
         label: 'Configuración SST',
         href: '/app/applicability',
@@ -204,6 +219,13 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
     id: 'analysis',
     label: 'Análisis',
     items: [
+      {
+        id: 'management-intelligence',
+        label: 'Inteligencia gerencial',
+        href: '/app/management-intelligence',
+        group: 'analysis',
+        match: 'segment',
+      },
       {
         id: 'operational-intelligence',
         label: 'Señales operativas',

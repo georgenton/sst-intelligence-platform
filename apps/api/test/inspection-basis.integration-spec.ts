@@ -157,6 +157,7 @@ describe('Inspection Basis V2 integration', () => {
         title: 'Inspection Basis snapshot v1',
         inspectionDomain: 'ELECTRICAL',
         riskMethodVersionId: methodId,
+        inspectionDepth: 'BASIC',
       })
       .expect(201);
     expect(inspectionV1.body).toMatchObject({
@@ -193,6 +194,7 @@ describe('Inspection Basis V2 integration', () => {
         title: 'Inspection Basis snapshot v2',
         inspectionDomain: 'ELECTRICAL',
         riskMethodVersionId: methodId,
+        inspectionDepth: 'BASIC',
       })
       .expect(201);
     expect(inspectionV2.body).toMatchObject({
@@ -224,6 +226,7 @@ describe('Inspection Basis V2 integration', () => {
         title: 'Legacy standard inspection remains valid',
         inspectionDomain: 'ELECTRICAL',
         riskMethodVersionId: methodId,
+        inspectionDepth: 'BASIC',
       })
       .expect(201);
     expect(legacy.body.inspectionBasisVersionId).toBeNull();

@@ -331,6 +331,7 @@ test('portafolio aísla tenants y entitlements, explica fuentes y ancla la escri
           input: {
             workCenterId: centers[0]!.id,
             riskMethodVersionId: '00000000-0000-4000-8000-000000000036',
+            inspectionDepth: 'BASIC',
             inspectionDomain: 'ELECTRICAL',
             title: `No ejecutar después de revocación ${suffix}`,
           },

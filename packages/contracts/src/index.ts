@@ -24,3 +24,4 @@ export * from './organization-team.js';
 export * from './workforce-safety.js';
 export * from './operational-plan.js';
 export * from './inspection-resource-scope.js';
+export * from './adaptive-field-intelligence.js';

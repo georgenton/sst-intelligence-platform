@@ -19,6 +19,7 @@ import {
   inspectionCriterionResultInputSchema,
   type CorrectiveActionStatus,
   type FindingCategory,
+  inspectionDepthSnapshot,
 } from '@sst/contracts';
 import { AuditService, type AuditEvent } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -128,6 +129,7 @@ export class InspectionsService {
     context: Context,
   ) {
     await this.assertLocation(organizationId, input.workCenterId, input.workAreaId);
+    const inspectionDepth = input.inspectionDepth;
     const methodVersion = await this.riskMethods.requireAvailableVersion(input.riskMethodVersionId);
     const organization = await this.prisma.organization.findUniqueOrThrow({
       where: { id: organizationId },
@@ -173,6 +175,9 @@ export class InspectionsService {
         isDemo: organization.status === 'DEMO',
         riskMethodVersionId: methodVersion.id,
         riskMethodSnapshot: this.riskMethods.snapshot(methodVersion),
+        inspectionDepth,
+        inspectionDepthVersion: inspectionDepthSnapshot(inspectionDepth).version,
+        inspectionDepthSnapshot: inspectionDepthSnapshot(inspectionDepth),
         inspectionDomain: input.inspectionDomain,
         standardPolicyVersionId: resolvedStandard?.policy.id,
         standardVersionId:
@@ -224,6 +229,8 @@ export class InspectionsService {
         inspectionBasisVersionId: inspection.inspectionBasisVersionId,
         resourceTaxonomyVersionId: inspection.resourceTaxonomyVersionId,
         resourceMappingVersionId: inspection.resourceMappingVersionId,
+        inspectionDepth: inspection.inspectionDepth,
+        inspectionDepthVersion: inspection.inspectionDepthVersion,
       },
       context,
     );

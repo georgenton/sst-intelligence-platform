@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SST Intelligence">
+  <rect width="512" height="512" rx="96" fill="#16362c"/>
+  <path d="M256 72 92 142v112c0 97 66 158 164 186 98-28 164-89 164-186V142L256 72Z" fill="#e8f3ed"/>
+  <path d="m168 260 58 58 120-128" fill="none" stroke="#25745d" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

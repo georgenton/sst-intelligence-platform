@@ -17,7 +17,7 @@ export const APPLICABILITY_SOURCE_TYPES = ['DEMO', 'REGULATORY', 'STANDARD', 'IN
 export const applicabilitySourceTypeSchema = z.enum(APPLICABILITY_SOURCE_TYPES);
 export type ApplicabilitySourceType = z.infer<typeof applicabilitySourceTypeSchema>;
 
-export const organizationSstProfileSchema = z
+export const organizationSstProfileV1Schema = z
   .object({
     schemaVersion: z.literal('1.0.0'),
     organization: z
@@ -36,6 +36,193 @@ export const organizationSstProfileSchema = z
       .strict(),
   })
   .strict();
+
+export const organizationProfileFactKeys = [
+  'ECONOMIC_ACTIVITY_CONFIRMED',
+  'PHYSICAL_SITE_PRESENT',
+  'ADMINISTRATIVE_OR_REMOTE_ONLY',
+  'CONTRACTOR_OR_EXTERNAL_PERSONNEL_PRESENT',
+  'CHEMICAL_PROCESS_PRESENT',
+  'HIGH_ENERGY_OPERATION_PRESENT',
+  'WORK_CENTER_CITY_CONFIRMED',
+  'WORK_AREAS_PRESENT',
+  'POSITIONS_PRESENT',
+  'PROCESS_ACTIVITY_FAMILIES_CONFIRMED',
+  'EQUIPMENT_RESOURCE_FAMILIES_CONFIRMED',
+] as const;
+
+export const organizationProfileEvidenceTypes = [
+  'SAFETY_OBSERVATION_EVIDENCE',
+  'INCIDENT_EVIDENCE',
+  'ACTION_EVIDENCE',
+  'OBLIGATION_EXECUTION_EVIDENCE',
+  'TECHNICAL_ASSESSMENT_EVIDENCE',
+  'GOVERNANCE_EVIDENCE',
+] as const;
+
+export const organizationProfileEvidenceReferenceInputSchema = z
+  .object({
+    type: z.enum(organizationProfileEvidenceTypes),
+    id: z.uuid(),
+  })
+  .strict();
+
+export const organizationProfileEvidenceReferenceSchema =
+  organizationProfileEvidenceReferenceInputSchema.extend({
+    label: z.string().trim().min(1).max(240),
+  });
+
+export const organizationProfileFactProvenanceSources = [
+  'DECLARED_BY_ORGANIZATION',
+  'DERIVED_DETERMINISTICALLY',
+  'EVIDENCE_BACKED',
+  'IMPORTED_REFERENCE',
+  'PROFESSIONAL_CONFIRMED',
+] as const;
+
+const organizationProfileFactBaseSchema = z
+  .object({
+    key: z.enum(organizationProfileFactKeys),
+    value: z.enum(['KNOWN_TRUE', 'KNOWN_FALSE', 'UNKNOWN']),
+    scope: z.enum(['ORGANIZATION', 'WORK_CENTER']),
+    workCenterId: z.uuid().optional(),
+    provenance: z
+      .object({
+        source: z.enum(organizationProfileFactProvenanceSources),
+        evidenceReference: organizationProfileEvidenceReferenceSchema.optional(),
+        actorUserId: z.uuid().optional(),
+        confirmedAt: z.iso.datetime().optional(),
+        note: z.string().trim().min(1).max(500).optional(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const organizationProfileFactSchema = organizationProfileFactBaseSchema.superRefine(
+  (fact, context) => {
+    if (fact.scope === 'WORK_CENTER' && !fact.workCenterId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['workCenterId'],
+        message: 'Work center scope requires an id',
+      });
+    }
+    if (fact.scope === 'ORGANIZATION' && fact.workCenterId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['workCenterId'],
+        message: 'Organization facts cannot reference a work center',
+      });
+    }
+    if (fact.provenance.source === 'EVIDENCE_BACKED' && !fact.provenance.evidenceReference) {
+      context.addIssue({
+        code: 'custom',
+        path: ['provenance', 'evidenceReference'],
+        message: 'Evidence-backed facts require a reference',
+      });
+    }
+    if (fact.provenance.source !== 'EVIDENCE_BACKED' && fact.provenance.evidenceReference) {
+      context.addIssue({
+        code: 'custom',
+        path: ['provenance', 'evidenceReference'],
+        message: 'Evidence references are exclusive to evidence-backed facts',
+      });
+    }
+    if (
+      fact.provenance.source === 'PROFESSIONAL_CONFIRMED' &&
+      (!fact.provenance.actorUserId || !fact.provenance.confirmedAt)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['provenance'],
+        message: 'Professional confirmation requires server-owned actor and timestamp',
+      });
+    }
+    if (
+      fact.provenance.source !== 'PROFESSIONAL_CONFIRMED' &&
+      (fact.provenance.actorUserId || fact.provenance.confirmedAt)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['provenance'],
+        message: 'Professional confirmation metadata is exclusive to professional facts',
+      });
+    }
+  },
+);
+
+export type OrganizationProfileFact = z.infer<typeof organizationProfileFactSchema>;
+
+export const organizationProfileFactInputSchema = organizationProfileFactBaseSchema
+  .extend({
+    provenance: organizationProfileFactBaseSchema.shape.provenance.extend({
+      evidenceReference: organizationProfileEvidenceReferenceInputSchema.optional(),
+      actorUserId: z.never().optional(),
+      confirmedAt: z.never().optional(),
+    }),
+  })
+  .superRefine((fact, context) => {
+    if (fact.scope === 'WORK_CENTER' && !fact.workCenterId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['workCenterId'],
+        message: 'Work center scope requires an id',
+      });
+    }
+    if (fact.scope === 'ORGANIZATION' && fact.workCenterId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['workCenterId'],
+        message: 'Organization facts cannot reference a work center',
+      });
+    }
+    if (fact.provenance.source === 'EVIDENCE_BACKED' && !fact.provenance.evidenceReference) {
+      context.addIssue({
+        code: 'custom',
+        path: ['provenance', 'evidenceReference'],
+        message: 'Evidence-backed facts require a reference',
+      });
+    }
+    if (fact.provenance.source !== 'EVIDENCE_BACKED' && fact.provenance.evidenceReference) {
+      context.addIssue({
+        code: 'custom',
+        path: ['provenance', 'evidenceReference'],
+        message: 'Evidence references are exclusive to evidence-backed facts',
+      });
+    }
+  });
+
+export type OrganizationProfileFactInput = z.infer<typeof organizationProfileFactInputSchema>;
+
+export const organizationSstProfileV2Schema = z
+  .object({
+    schemaVersion: z.literal('2.0.0'),
+    organization: organizationSstProfileV1Schema.shape.organization
+      .extend({
+        managementPriority: z.enum(['ROUTINE', 'FOCUSED', 'URGENT']).optional(),
+      })
+      .strict(),
+    operations: organizationSstProfileV1Schema.shape.operations,
+    contextFacts: z.array(organizationProfileFactSchema).max(250),
+  })
+  .strict()
+  .superRefine((profile, context) => {
+    const keys = profile.contextFacts.map(
+      (fact) => `${fact.scope}:${fact.workCenterId ?? ''}:${fact.key}`,
+    );
+    if (new Set(keys).size !== keys.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['contextFacts'],
+        message: 'Scoped fact keys must be unique',
+      });
+    }
+  });
+
+export const organizationSstProfileSchema = z.union([
+  organizationSstProfileV1Schema,
+  organizationSstProfileV2Schema,
+]);
 
 export type OrganizationSstProfile = z.infer<typeof organizationSstProfileSchema>;
 

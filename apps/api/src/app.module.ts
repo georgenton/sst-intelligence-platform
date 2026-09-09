@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AiModule } from './ai/ai.module';
 import { AdaptiveConfigurationModule } from './adaptive-configuration/adaptive-configuration.module';
+import { AdaptiveIntelligenceModule } from './adaptive-intelligence/adaptive-intelligence.module';
 import { ApplicabilityModule } from './applicability/applicability.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
@@ -17,6 +18,7 @@ import { HealthService } from './health.service';
 import { GovernanceModule } from './governance/governance.module';
 import { EvidencePackagesModule } from './evidence-packages/evidence-packages.module';
 import { InspectionsModule } from './inspections/inspections.module';
+import { ManagementIntelligenceModule } from './management-intelligence/management-intelligence.module';
 import { IncidentsModule } from './incidents/incidents.module';
 import { PpeModule } from './ppe/ppe.module';
 import { InspectionStandardsModule } from './inspection-standards/inspection-standards.module';
@@ -26,6 +28,7 @@ import { OrganizationsModule } from './organizations/organizations.module';
 import { OperationalExecutionModule } from './operational-execution/operational-execution.module';
 import { OperationalIntelligenceModule } from './operational-intelligence/operational-intelligence.module';
 import { OperationalPlansModule } from './operational-plans/operational-plans.module';
+import { OperationalSearchModule } from './operational-search/operational-search.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RegulatorySourceModule } from './regulatory-sources/regulatory-source.module';
 import { RegulatoryRiskLinkModule } from './regulatory-risk-links/regulatory-risk-link.module';
@@ -104,11 +107,13 @@ import { WorkersModule } from './workers/workers.module';
     OperationalExecutionModule,
     OperationalIntelligenceModule,
     OperationalPlansModule,
+    OperationalSearchModule,
     CatalogModule,
     ConsultantPortfolioModule,
     ConversationalOperationsModule,
     AiModule,
     AdaptiveConfigurationModule,
+    AdaptiveIntelligenceModule,
     ApplicabilityModule,
     RegulatorySourceModule,
     RegulatoryRiskLinkModule,
@@ -122,6 +127,7 @@ import { WorkersModule } from './workers/workers.module';
     InspectionResourcesModule,
     InspectionBasisModule,
     InspectionsModule,
+    ManagementIntelligenceModule,
     IncidentsModule,
     PpeModule,
     TechnicalRiskModule,

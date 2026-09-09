@@ -73,6 +73,13 @@ type ObservationForm = {
   observedAt: string;
   priority: Priority;
   assignedToUserId: string;
+  evidenceNote: string;
+  evidenceUrl: string;
+};
+type PendingObservationEvidence = {
+  organizationId: string;
+  observationId: string;
+  payload: { type: 'NOTE' | 'EXTERNAL_LINK'; note?: string; externalUrl?: string };
 };
 
 const WRITE_ROLES = new Set([
@@ -111,6 +118,9 @@ export function SafetyObservationRegistry() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const organizationId = organization.activeId;
+  const [pendingEvidence, setPendingEvidence] = useState<PendingObservationEvidence | null>(null);
+  const activePendingEvidence =
+    pendingEvidence?.organizationId === organizationId ? pendingEvidence : null;
   const canWrite = WRITE_ROLES.has(organization.currentRole ?? '');
   const observations = useQuery({
     queryKey: queryKeys.organization.safetyObservations(organizationId ?? 'inactive'),
@@ -154,11 +164,13 @@ export function SafetyObservationRegistry() {
       observedAt: new Date().toISOString().slice(0, 16),
       priority: 'MEDIUM',
       assignedToUserId: '',
+      evidenceNote: '',
+      evidenceUrl: '',
     },
   });
   const create = useMutation({
-    mutationFn: (values: ObservationForm) =>
-      auth.request<Observation>(
+    mutationFn: async (values: ObservationForm) => {
+      const observation = await auth.request<Observation>(
         '/safety-observations',
         {
           method: 'POST',
@@ -167,15 +179,69 @@ export function SafetyObservationRegistry() {
             workAreaId: values.workAreaId || undefined,
             assignedToUserId: values.assignedToUserId || undefined,
             observedAt: new Date(values.observedAt).toISOString(),
+            evidenceNote: undefined,
+            evidenceUrl: undefined,
           }),
         },
         organizationId!,
-      ),
-    onSuccess: async (observation) => {
+      );
+      const evidencePayload =
+        values.evidenceNote.trim() || values.evidenceUrl.trim()
+          ? {
+              type: (values.evidenceUrl.trim() ? 'EXTERNAL_LINK' : 'NOTE') as
+                'NOTE' | 'EXTERNAL_LINK',
+              note: values.evidenceNote.trim() || undefined,
+              externalUrl: values.evidenceUrl.trim() || undefined,
+            }
+          : null;
+      if (evidencePayload) {
+        try {
+          await auth.request(
+            `/safety-observations/${observation.id}/evidence`,
+            {
+              method: 'POST',
+              body: JSON.stringify(evidencePayload),
+            },
+            organizationId!,
+          );
+        } catch {
+          return { observation, pendingEvidence: evidencePayload };
+        }
+      }
+      return { observation, pendingEvidence: null };
+    },
+    onSuccess: async ({ observation, pendingEvidence: failedEvidence }) => {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.organization.scope(organizationId!),
       });
+      if (failedEvidence) {
+        setPendingEvidence({
+          organizationId: organizationId!,
+          observationId: observation.id,
+          payload: failedEvidence,
+        });
+        return;
+      }
       router.push(`/app/safety-observations/${observation.id}`);
+    },
+  });
+  const retryEvidence = useMutation({
+    mutationFn: async () => {
+      if (!activePendingEvidence) return;
+      await auth.request(
+        `/safety-observations/${activePendingEvidence.observationId}/evidence`,
+        {
+          method: 'POST',
+          body: JSON.stringify(activePendingEvidence.payload),
+        },
+        organizationId!,
+      );
+      return activePendingEvidence.observationId;
+    },
+    onSuccess: (observationId) => {
+      if (!observationId) return;
+      setPendingEvidence(null);
+      router.push(`/app/safety-observations/${observationId}`);
     },
   });
 
@@ -278,6 +344,23 @@ export function SafetyObservationRegistry() {
                 <input type="datetime-local" {...form.register('observedAt', { required: true })} />
               </label>
               <label>
+                Nota de evidencia (opcional)
+                <textarea
+                  rows={2}
+                  placeholder="Qué se observó o qué evidencia quedó registrada"
+                  {...form.register('evidenceNote')}
+                />
+              </label>
+              <label>
+                Enlace HTTPS de evidencia (opcional)
+                <input
+                  type="url"
+                  inputMode="url"
+                  placeholder="https://…"
+                  {...form.register('evidenceUrl')}
+                />
+              </label>
+              <label>
                 Prioridad de atención interna
                 <select {...form.register('priority')}>
                   <option value="LOW">Baja</option>
@@ -299,10 +382,23 @@ export function SafetyObservationRegistry() {
                     ))}
                 </select>
               </label>
-              <button type="submit" disabled={create.isPending}>
+              <button type="submit" disabled={create.isPending || Boolean(activePendingEvidence)}>
                 Registrar observación
               </button>
               {create.isError ? <p role="alert">{errorMessage(create.error)}</p> : null}
+              {activePendingEvidence ? (
+                <div role="alert" className="boundary-note">
+                  <p>Observación registrada; la evidencia no pudo guardarse.</p>
+                  <button
+                    type="button"
+                    disabled={retryEvidence.isPending}
+                    onClick={() => retryEvidence.mutate()}
+                  >
+                    Reintentar solo la evidencia
+                  </button>
+                  {retryEvidence.isError ? <p>{errorMessage(retryEvidence.error)}</p> : null}
+                </div>
+              ) : null}
             </form>
           ) : null}
         </WorkspaceSection>

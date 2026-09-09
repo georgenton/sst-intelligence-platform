@@ -158,6 +158,7 @@ const obligationInput = z.object({ obligationId: uuid });
 const createInspectionInput = z.object({
   workCenterId: uuid,
   riskMethodVersionId: uuid,
+  inspectionDepth: z.enum(['BASIC', 'TECHNICAL', 'SYSTEMIC']),
   inspectionDomain: z.enum([
     'ELECTRICAL',
     'FIRE_PROTECTION',

@@ -11,6 +11,7 @@ import '@/styles/technical-risk-experience.css';
 import '@/styles/applicability-experience.css';
 import '@/styles/workforce-safety.css';
 import '@/styles/conversational-operations.css';
+import '@/styles/adaptive-field-intelligence.css';
 import { Providers } from './providers';
 import { appearanceBootstrapScript } from '@/lib/appearance';
 
@@ -36,6 +37,7 @@ const appName = process.env.NEXT_PUBLIC_APP_NAME ?? process.env.APP_NAME ?? 'SST
 export const metadata: Metadata = {
   title: { default: appName, template: `%s | ${appName}` },
   description: 'Plataforma modular para organizar la gestión de Seguridad y Salud en el Trabajo.',
+  manifest: '/manifest.webmanifest',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

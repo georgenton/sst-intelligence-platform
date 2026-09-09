@@ -19,6 +19,7 @@ import {
   canVerifyFindings,
   canWriteInspections,
   filterSearchParams,
+  inspectionDepthLabel,
   statusMeta,
   type InspectionFilters,
 } from '@/lib/inspection-experience';
@@ -184,6 +185,8 @@ type Inspection = {
   findings?: Finding[];
   overdueActions?: number;
   riskMethodVersionId: string;
+  inspectionDepth?: 'BASIC' | 'TECHNICAL' | 'SYSTEMIC' | null;
+  inspectionDepthVersion?: string | null;
   riskMethodSnapshot?: Record<string, unknown>;
   riskMethodVersion: {
     id: string;
@@ -938,6 +941,7 @@ type InspectionForm = {
   description: string;
   scheduledFor: string;
   riskMethodVersionId: string;
+  inspectionDepth: 'BASIC' | 'TECHNICAL' | 'SYSTEMIC';
 };
 
 type ActiveInspectionBasis = {
@@ -972,6 +976,7 @@ export function NewInspection() {
       description: '',
       scheduledFor: '',
       riskMethodVersionId: '',
+      inspectionDepth: 'BASIC',
     },
   });
   const centerId = form.watch('workCenterId');
@@ -1310,6 +1315,38 @@ export function NewInspection() {
                 <label htmlFor="scheduled">Fecha programada (opcional)</label>
                 <input id="scheduled" type="datetime-local" {...form.register('scheduledFor')} />
               </div>
+              <fieldset className="risk-method-selection">
+                <legend>Profundidad de inspección</legend>
+                <p>
+                  Orienta el alcance profesional sin reemplazar la base, los recursos, la
+                  metodología de riesgo ni la aplicabilidad.
+                </p>
+                <div className="risk-method-card-grid">
+                  {(
+                    [
+                      ['BASIC', 'Básica', 'Verificación visible o de primera línea.'],
+                      ['TECHNICAL', 'Técnica', 'Revisión especializada con mayor profundidad.'],
+                      [
+                        'SYSTEMIC',
+                        'Sistémica',
+                        'Programas, recurrencia y controles transversales.',
+                      ],
+                    ] as const
+                  ).map(([value, label, description]) => (
+                    <label className="risk-method-card" key={value}>
+                      <input
+                        type="radio"
+                        value={value}
+                        {...form.register('inspectionDepth', { required: true })}
+                      />
+                      <span>
+                        <strong>{label}</strong>
+                        <span>{description}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
               <fieldset className="risk-method-selection">
                 <legend>Metodología de valoración</legend>
                 <p>
@@ -1741,6 +1778,10 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
             {query.data.inspector ? (
               <span>Inspector: {query.data.inspector.displayName}</span>
             ) : null}
+            <span>
+              Profundidad: {inspectionDepthLabel(query.data.inspectionDepth)}
+              {query.data.inspectionDepthVersion ? ` · v${query.data.inspectionDepthVersion}` : ''}
+            </span>
           </div>
           <InspectionDemoNotice
             compact

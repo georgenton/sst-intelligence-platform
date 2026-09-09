@@ -350,6 +350,12 @@ enum InspectionStatus {
   CANCELED
 }
 
+enum InspectionDepth {
+  BASIC
+  TECHNICAL
+  SYSTEMIC
+}
+
 enum InspectionDomain {
   ELECTRICAL
   FIRE_PROTECTION
@@ -436,6 +442,7 @@ enum OperationalPlanItemProvenanceType {
   FINDING
   CORRECTIVE_ACTION
   OBLIGATION_EXECUTION
+  GAP_ANALYSIS
 }
 
 enum InspectionResourceTaxonomyStatus {
@@ -1065,6 +1072,7 @@ model User {
   safetyObservationEvidence    SafetyObservationEvidence[]                   @relation("SafetyObservationEvidenceCreator")
   trainingNeedsCreated         TrainingNeed[]                                @relation("TrainingNeedCreator")
   trainingSessionsResponsible  TrainingSession[]                             @relation("TrainingSessionResponsible")
+  organizationGapAnalyses      OrganizationGapAnalysis[]                     @relation("OrganizationGapAnalysisCreator")
 }
 
 model RefreshSession {
@@ -1195,6 +1203,7 @@ model Organization {
   trainingNeeds                 TrainingNeed[]
   trainingAudiences             TrainingAudience[]
   incidentPpeIssues             IncidentPpeIssue[]
+  gapAnalyses                   OrganizationGapAnalysis[]
 }
 
 model WorkCenter {
@@ -2216,6 +2225,27 @@ model OperationalPlanItemExecution {
   @@index([organizationId, status, updatedAt])
 }
 
+model OrganizationGapAnalysis {
+  id               String                         @id @default(uuid()) @db.Uuid
+  organizationId   String                         @db.Uuid
+  version          Int
+  profileVersionId String?                        @db.Uuid
+  sourceType       String                         @db.VarChar(48)
+  sourceId         String                         @db.Uuid
+  inputHash        String                         @db.VarChar(71)
+  outputHash       String                         @db.VarChar(71)
+  items            Json
+  createdById      String                         @db.Uuid
+  createdAt        DateTime                       @default(now())
+  organization     Organization                   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  profileVersion   OrganizationSstProfileVersion? @relation(fields: [profileVersionId], references: [id], onDelete: Restrict)
+  createdBy        User                           @relation("OrganizationGapAnalysisCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, version])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, sourceType, sourceId])
+}
+
 model InspectionResourceTaxonomy {
   id               String                              @id @default(uuid()) @db.Uuid
   organizationId   String?                             @db.Uuid
@@ -2360,6 +2390,9 @@ model Inspection {
   resourceTaxonomyVersionId String?                                      @db.Uuid
   resourceMappingVersionId  String?                                      @db.Uuid
   resourceScopeSnapshot     Json?
+  inspectionDepth           InspectionDepth?
+  inspectionDepthVersion    String?                                      @db.VarChar(32)
+  inspectionDepthSnapshot   Json?
   findings                  InspectionFinding[]
   criterionResults          InspectionCriterionResult[]
   riskMethodVersion         RiskMethodVersion                            @relation(fields: [riskMethodVersionId], references: [id], onDelete: Restrict)
@@ -3051,6 +3084,7 @@ model OrganizationSstProfileVersion {
   assessments        ApplicabilityAssessment[]
   adaptiveSessions   AdaptiveConfigurationSession[]
   unifiedEvaluations UnifiedSstEvaluation[]
+  gapAnalyses        OrganizationGapAnalysis[]
 
   @@unique([organizationId, version])
   @@index([organizationId, createdAt])
