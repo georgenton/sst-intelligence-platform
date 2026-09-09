@@ -100,6 +100,19 @@ describe('evidence packages integration', () => {
     });
     const ownerApi = api(owner.token, orgA);
 
+    const references = await ownerApi
+      .get('/evidence-packages/references/GOVERNANCE_MEETING')
+      .expect(200);
+    expect(references.body).toEqual([
+      expect.objectContaining({ id: meetingA.id, label: 'Reunión canónica A' }),
+    ]);
+    expect(references.body).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: meetingB.id })]),
+    );
+    await api(viewer.token, orgA)
+      .get('/evidence-packages/references/GOVERNANCE_MEETING')
+      .expect(403);
+
     await api(viewer.token, orgA)
       .post('/evidence-packages')
       .send({ title: 'No autorizado', scope: 'No autorizado por rol' })

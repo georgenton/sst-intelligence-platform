@@ -18,6 +18,7 @@ type CanonicalReference = {
   provenance: Prisma.InputJsonValue;
   contentDigest: string | null;
 };
+type CanonicalReferenceOption = { id: string; label: string; detail: string };
 
 const packageInclude = {
   createdBy: { select: { id: true, displayName: true } },
@@ -37,6 +38,168 @@ export class EvidencePackagesService {
       include: packageInclude,
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async listCanonicalReferences(
+    organizationId: string,
+    type: EvidencePackageItemType,
+  ): Promise<CanonicalReferenceOption[]> {
+    switch (type) {
+      case 'INSPECTION':
+        return this.options(
+          await this.prisma.inspection.findMany({
+            where: { organizationId },
+            select: { id: true, title: true, status: true },
+            orderBy: { updatedAt: 'desc' },
+            take: 100,
+          }),
+        );
+      case 'FINDING':
+        return this.options(
+          await this.prisma.inspectionFinding.findMany({
+            where: { organizationId },
+            select: { id: true, title: true, status: true },
+            orderBy: { updatedAt: 'desc' },
+            take: 100,
+          }),
+        );
+      case 'CORRECTIVE_ACTION':
+        return this.options(
+          await this.prisma.correctiveAction.findMany({
+            where: { organizationId },
+            select: { id: true, title: true, status: true },
+            orderBy: { updatedAt: 'desc' },
+            take: 100,
+          }),
+        );
+      case 'ACTION_EVIDENCE':
+        return (
+          await this.prisma.actionEvidence.findMany({
+            where: { organizationId },
+            select: { id: true, type: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+            take: 100,
+          })
+        ).map((value) => ({
+          id: value.id,
+          label: `Evidencia ${value.type}`,
+          detail: value.createdAt.toLocaleDateString('es-EC'),
+        }));
+      case 'TECHNICAL_ASSESSMENT':
+        return this.options(
+          await this.prisma.technicalAssessment.findMany({
+            where: { organizationId },
+            select: { id: true, title: true, status: true },
+            orderBy: { updatedAt: 'desc' },
+            take: 100,
+          }),
+        );
+      case 'INCIDENT':
+        return this.options(
+          await this.prisma.incident.findMany({
+            where: { organizationId },
+            select: { id: true, title: true, status: true },
+            orderBy: { createdAt: 'desc' },
+            take: 100,
+          }),
+        );
+      case 'PPE_ISSUE':
+        return (
+          await this.prisma.ppeIssue.findMany({
+            where: { organizationId },
+            select: { id: true, status: true, ppeCatalogItem: { select: { name: true } } },
+            orderBy: { issuedAt: 'desc' },
+            take: 100,
+          })
+        ).map((value) => ({
+          id: value.id,
+          label: value.ppeCatalogItem.name,
+          detail: value.status,
+        }));
+      case 'TRAINING_COMPLETION':
+        return (
+          await this.prisma.workerTrainingCompletion.findMany({
+            where: { organizationId },
+            select: {
+              id: true,
+              completedAt: true,
+              trainingDefinition: { select: { title: true } },
+            },
+            orderBy: { completedAt: 'desc' },
+            take: 100,
+          })
+        ).map((value) => ({
+          id: value.id,
+          label: value.trainingDefinition.title,
+          detail: value.completedAt.toLocaleDateString('es-EC'),
+        }));
+      case 'WORK_PERMIT':
+        return (
+          await this.prisma.workPermit.findMany({
+            where: { organizationId },
+            select: { id: true, activity: true, status: true },
+            orderBy: { createdAt: 'desc' },
+            take: 100,
+          })
+        ).map((value) => ({ id: value.id, label: value.activity, detail: value.status }));
+      case 'OBLIGATION_EXECUTION':
+        return this.options(
+          await this.prisma.obligationExecution.findMany({
+            where: { organizationId },
+            select: { id: true, title: true, status: true },
+            orderBy: { createdAt: 'desc' },
+            take: 100,
+          }),
+        );
+      case 'GOVERNANCE_MEETING':
+        return this.options(
+          await this.prisma.governanceMeeting.findMany({
+            where: { organizationId },
+            select: { id: true, title: true, status: true },
+            orderBy: { scheduledAt: 'desc' },
+            take: 100,
+          }),
+        );
+      case 'GOVERNANCE_DECISION':
+        return (
+          await this.prisma.governanceDecision.findMany({
+            where: { organizationId },
+            select: { id: true, summary: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+            take: 100,
+          })
+        ).map((value) => ({
+          id: value.id,
+          label: value.summary,
+          detail: value.createdAt.toLocaleDateString('es-EC'),
+        }));
+      case 'REGULATORY_UNIT':
+        return (
+          await this.prisma.regulatoryUnit.findMany({
+            where: { reviewStatus: 'VERIFIED' },
+            select: { id: true, identifier: true, locator: true, reviewStatus: true },
+            orderBy: [{ identifier: 'asc' }, { locator: 'asc' }],
+            take: 100,
+          })
+        ).map((value) => ({
+          id: value.id,
+          label: `${value.identifier} · ${value.locator}`,
+          detail: value.reviewStatus,
+        }));
+      case 'INSPECTION_BASIS_VERSION':
+        return (
+          await this.prisma.inspectionBasisVersion.findMany({
+            where: { organizationId },
+            select: { id: true, version: true, status: true, inspectionDomain: true },
+            orderBy: { createdAt: 'desc' },
+            take: 100,
+          })
+        ).map((value) => ({
+          id: value.id,
+          label: `Base ${value.inspectionDomain} v${value.version}`,
+          detail: value.status,
+        }));
+    }
   }
 
   async get(organizationId: string, packageId: string) {
@@ -440,6 +603,10 @@ export class EvidencePackagesService {
       provenance: JSON.parse(JSON.stringify(provenance)) as Prisma.InputJsonValue,
       contentDigest,
     };
+  }
+
+  private options(values: Array<{ id: string; title: string; status: string }>) {
+    return values.map(({ id, title, status }) => ({ id, label: title, detail: status }));
   }
 
   private isUnique(error: unknown) {

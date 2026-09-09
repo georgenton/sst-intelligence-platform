@@ -80,6 +80,18 @@ test('authenticated shell navigation, command center and isolated organization s
   await navigateFromPrimaryNavigation(page, 'Cola de trabajo', '/app/work');
   await expect(page.getByRole('heading', { name: 'Cola de trabajo' })).toBeVisible();
 
+  for (const destination of [
+    ['Perfil y brechas', '/app/adaptive-intelligence'],
+    ['Plan operativo', '/app/plans'],
+    ['Inspecciones', '/app/inspections'],
+    ['Buscar', '/app/search'],
+    ['Inteligencia gerencial', '/app/management-intelligence'],
+    ['Paquetes de evidencia', '/app/evidence-packages'],
+  ] as const) {
+    await navigateFromPrimaryNavigation(page, destination[0], destination[1]);
+    await expect(page).toHaveURL(new RegExp(`${destination[1]}$`));
+  }
+
   await navigateFromPrimaryNavigation(page, 'Riesgo técnico', '/app/technical-risk');
   await expect(page).toHaveURL(/\/app\/technical-risk$/);
   await expect(page.getByRole('link', { name: 'Riesgo técnico', exact: true })).toHaveAttribute(

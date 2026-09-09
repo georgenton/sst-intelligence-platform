@@ -105,6 +105,8 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'governance', 'body', bodyId] as const,
     evidencePackages: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'evidence-packages', 'list'] as const,
+    evidencePackageReferences: (organizationId: string, type: string) =>
+      [...privateRoot, 'org', organizationId, 'evidence-packages', 'references', type] as const,
     evidencePackage: (organizationId: string, packageId: string) =>
       [...privateRoot, 'org', organizationId, 'evidence-packages', packageId] as const,
     operationalSignals: (organizationId: string) =>

@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseEnumPipe, Post, Req, UseGuards } from '@nestjs/common';
+import { EvidencePackageItemType } from '@prisma/client';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AccessTokenGuard } from '../auth/access-token.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -21,6 +22,16 @@ export class EvidencePackagesController {
   @Get()
   list(@OrganizationContext() organization: { id: string }) {
     return this.packages.list(organization.id);
+  }
+
+  @Get('references/:type')
+  @Roles(...EVIDENCE_PACKAGE_WRITE_ROLES)
+  @UseGuards(RolesGuard)
+  references(
+    @OrganizationContext() organization: { id: string },
+    @Param('type', new ParseEnumPipe(EvidencePackageItemType)) type: EvidencePackageItemType,
+  ) {
+    return this.packages.listCanonicalReferences(organization.id, type);
   }
 
   @Get(':packageId')

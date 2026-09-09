@@ -4,7 +4,7 @@ import { ApiClientError } from '@sst/api-client';
 import { Button, Card, StatusBadge } from '@sst/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { queryKeys } from '@/lib/query-keys';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
@@ -70,6 +70,7 @@ type EvidencePackage = {
   createdBy: { id: string; displayName: string };
   items: PackageItem[];
 };
+type CanonicalReferenceOption = { id: string; label: string; detail: string };
 
 const WRITE_ROLES = new Set([
   'ORG_OWNER',
@@ -130,6 +131,20 @@ export function EvidencePackagesWorkspace() {
   const itemForm = useForm<{ type: ItemType; sourceId: string }>({
     defaultValues: { type: 'INSPECTION', sourceId: '' },
   });
+  const selectedType = useWatch({ control: itemForm.control, name: 'type' });
+  const references = useQuery({
+    queryKey: queryKeys.organization.evidencePackageReferences(
+      organizationId ?? 'inactive',
+      selectedType,
+    ),
+    queryFn: ({ signal }) =>
+      auth.request<CanonicalReferenceOption[]>(
+        `/evidence-packages/references/${selectedType}`,
+        { signal },
+        organizationId!,
+      ),
+    enabled: Boolean(organizationId && canWrite && selected?.status === 'DRAFT'),
+  });
 
   async function refresh() {
     if (!organizationId) return;
@@ -166,7 +181,7 @@ export function EvidencePackagesWorkspace() {
   const addItem = itemForm.handleSubmit(async (body) => {
     if (!selected) return;
     await operation.mutateAsync({ path: `/evidence-packages/${selected.id}/items`, body });
-    itemForm.reset();
+    itemForm.reset({ type: 'INSPECTION', sourceId: '' });
   });
 
   return (
@@ -249,7 +264,11 @@ export function EvidencePackagesWorkspace() {
               <form className="stack-form" onSubmit={addItem}>
                 <label>
                   Tipo de registro
-                  <select {...itemForm.register('type')}>
+                  <select
+                    {...itemForm.register('type', {
+                      onChange: () => itemForm.setValue('sourceId', ''),
+                    })}
+                  >
                     {Object.entries(typeLabels).map(([value, label]) => (
                       <option key={value} value={value}>
                         {label}
@@ -258,12 +277,21 @@ export function EvidencePackagesWorkspace() {
                   </select>
                 </label>
                 <label>
-                  Identificador canónico
-                  <input
-                    {...itemForm.register('sourceId', { required: true })}
-                    placeholder="UUID del registro fuente"
-                  />
+                  Registro fuente
+                  <select {...itemForm.register('sourceId', { required: true })}>
+                    <option value="">Selecciona un registro</option>
+                    {references.data?.map((reference) => (
+                      <option key={reference.id} value={reference.id}>
+                        {reference.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
+                {references.isSuccess && !references.data.length ? (
+                  <p className="muted-copy" role="status">
+                    No hay registros disponibles de este tipo en la organización activa.
+                  </p>
+                ) : null}
                 <p className="muted-copy">
                   El servidor comprueba que el registro pertenece a la organización activa. Las
                   unidades normativas son referencias globales revisables.
@@ -280,7 +308,6 @@ export function EvidencePackagesWorkspace() {
                     <strong>{item.labelSnapshot}</strong>
                     <span>{typeLabels[item.type]}</span>
                   </div>
-                  <p>Fuente: {item.sourceId}</p>
                   <p>Versión o corte: {item.sourceVersion ?? 'Identidad canónica'}</p>
                   {capturedState(item.provenance) ? (
                     <p>Estado capturado: {capturedState(item.provenance)}</p>
@@ -340,8 +367,6 @@ export function EvidencePackagesWorkspace() {
                   {selected.manifest.items.map((item) => (
                     <li key={`${item.type}:${item.sourceId}`}>
                       <strong>{typeLabels[item.type]}</strong> · {item.label}
-                      <br />
-                      <small>{item.sourceId}</small>
                       {capturedState(item.provenance) ? (
                         <>
                           <br />
