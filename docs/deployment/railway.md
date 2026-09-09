@@ -41,3 +41,18 @@ El despliegue automático de producción `45afbe4d-3090-4b5a-99ef-9af924ca83d6` 
 aplicó `20260908120000_adaptive_field_intelligence_v2` y una comprobación posterior confirmó cero
 pendientes. Nest inició correctamente y `/api/v1/health` respondió HTTP 200. No se ejecutó seed de
 datos de clientes ni despliegue manual.
+
+## Registro de release PR45
+
+El despliegue automático `4910d399-0867-4a4a-96d7-27cb2bc8f3dc` corresponde al merge
+`37cfded6c6524abb089acab0c0b0e34bb6d9f071` del HEAD auditado
+`f610cfa1dcf221cff0ec1a75b36f4dfb3c7ac808`. El release encontró 33 migraciones y cero pendientes,
+completó `reference:sync`, inició Nest y `/api/v1/health` respondió HTTP 200. No se ejecutó seed de
+clientes, despliegue manual ni cambio de configuración.
+
+La comprobación productiva de solo lectura confirmó 15 fuentes regulatorias, 25 versiones, 1112
+unidades, 893 artículos, 5 Requirements candidatos, 5 RuleDrafts candidatos, 0 RuleVersions reales
+publicadas y 0 solicitudes externas de IA. Producción conserva
+`CONVERSATIONAL_AI_PROVIDER=DETERMINISTIC_LOCAL_V1`, IA externa deshabilitada y clave OpenAI
+ausente. El cierre técnico no recalculó GTC45 ni históricos y conserva 10 decisiones
+`PENDING_ANITA` sin atribuir aprobación profesional.

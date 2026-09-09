@@ -2,7 +2,7 @@
 
 ## Estado y límites
 
-Validación realizada sobre `main@6f2f04275715ce1ae55efcede80ca28cb857cff9` y la rama `feat/product-validation-demo-hardening-v1`. La prueba usa exclusivamente organizaciones sintéticas en base local/test o Preview. No publica reglas reales, no cambia fórmulas GTC45/5x5, no habilita IA externa y no usa datos de clientes.
+Validación técnica cerrada en producción mediante PR #45: HEAD auditado `f610cfa1dcf221cff0ec1a75b36f4dfb3c7ac808`, merge `37cfded6c6524abb089acab0c0b0e34bb6d9f071`. La prueba usa exclusivamente organizaciones sintéticas en base local/test o Preview. No publica reglas reales, no cambia fórmulas GTC45/5x5, no habilita IA externa y no usa datos de clientes.
 
 El producto conserva estas separaciones: Perfil describe hechos conocidos; Aplicabilidad propone configuración; Brecha describe una diferencia; Plan programa trabajo; Work Queue proyecta trabajo vigente; la API de dominio mantiene la autoridad. El asistente explica o propone, pero no decide ni escribe sin confirmación.
 
@@ -98,3 +98,15 @@ Para cada confusión usar la plantilla `docs/product/product-validation-finding-
 ## Resultado
 
 P0 abiertos: 0. P1 abiertos: 0. P2 documentados: 3. P3 documentados: 1. PENDING_ANITA: 10. La historia central es demostrable con producto real y datos sintéticos.
+
+## Cierre técnico de producción — PR45
+
+El código fue auditado sobre el HEAD exacto y el Quality Gate del PR pasó en el intento 3, sin
+cambiar el SHA, después de dos fallos externos de instalación de Chromium. El primer Quality Gate
+del merge en `main` pasó completo: 31 suites/75 pruebas de integración y 19/19 E2E en 15 lotes,
+workers=1, retries=0 y retried=0. Railway y Vercel desplegaron automáticamente el merge exacto;
+staging production permaneció en su track aislado.
+
+Este resultado cierra el hardening técnico y no la revisión profesional: los 10 puntos
+`PENDING_ANITA` siguen pendientes. No se atribuye aprobación a Anita ni se habilitan datos reales,
+IA externa o decisiones automáticas de cumplimiento, riesgo o causa raíz.

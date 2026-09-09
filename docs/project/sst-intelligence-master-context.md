@@ -1,7 +1,7 @@
 # SST Intelligence — master project context
 
-Status: canonical continuity document. Runtime implementation baseline: PR #43 merge
-`f834920664c7bcb3ade8ff07933e870e7809c13d`, verified in production on 2026-09-08. The subsequent
+Status: canonical continuity document. Runtime implementation baseline: PR #45 merge
+`37cfded6c6524abb089acab0c0b0e34bb6d9f071`, verified in production on 2026-09-09. The subsequent
 closure-documentation commit does not change runtime behavior.
 
 This document is the authoritative entry point for future engineering sessions. Detailed domain,
@@ -463,3 +463,24 @@ insurance scoring, ergonomía profunda sin fuente/licencia revisada, workflows p
 clínicos, expedientes médicos y Workforce AI externa. Business Continuity/Insurance permanece
 design-only; Ergonomics pendiente de metodología revisada; Psychosocial limitado a arquitectura y
 frontera de datos.
+
+## Hands-on Product Validation + Anita Demo V1 — production closed
+
+PR #45 integró el HEAD auditado `f610cfa1dcf221cff0ec1a75b36f4dfb3c7ac808` mediante merge commit
+`37cfded6c6524abb089acab0c0b0e34bb6d9f071`. El Quality Gate del PR pasó finalmente en el intento 3
+del mismo SHA después de dos fallos externos durante la instalación de Chromium; el primer gate de
+`main` pasó sin rerun con 24 archivos/324 pruebas de contracts, 14 suites/49 pruebas API, 108
+pruebas web, 31 suites/75 pruebas de integración y 19/19 E2E en 15 lotes, workers=1, retries=0 y
+retried=0.
+
+El recorrido técnico de validación queda **DONE**: Cola, Perfil, Aplicabilidad, Brechas, Plan,
+Inspecciones, Riesgo, Evidencia, búsqueda, Workforce y Asistente conservan sus agregados y límites.
+Evidence Packages usa catálogo humano buscable y paginado, sin exigir UUID, con paridad de roles,
+entitlements y aislamiento de organización para consultar, agregar y finalizar referencias. Los
+hallazgos abiertos son P0=0, P1=0, P2 documentados=3, P3 documentado=1 y PENDING_ANITA=10.
+
+Este cierre no atribuye validación profesional a Anita. Producción conserva
+`DETERMINISTIC_LOCAL_V1`, IA externa deshabilitada, cero solicitudes externas y la paridad
+regulatoria de 15 fuentes, 25 versiones, 1112 unidades, 893 artículos, 5 Requirements candidatos,
+5 RuleDrafts candidatos y 0 RuleVersions reales publicadas. No cambia GTC45, no recalcula
+históricos y no inicia el siguiente programa.

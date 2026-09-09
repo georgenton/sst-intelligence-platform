@@ -262,3 +262,17 @@ la atención canónica. Los criterios profesionales listados en el handoff conti
 ANITA**; QR público, anonymous reporting, native/offline, proveedores externos, vectores/embeddings,
 Business Continuity/Insurance, ergonomía profunda, Psychosocial/clinical y Workforce AI externa
 continúan **DEFERRED**. No se inició otro programa.
+
+### Hands-on Product Validation + Anita Demo V1 — production closed
+
+PR #45 cerró el endurecimiento técnico del recorrido de producto desde el HEAD auditado
+`f610cfa1dcf221cff0ec1a75b36f4dfb3c7ac808`, integrado mediante
+`37cfded6c6524abb089acab0c0b0e34bb6d9f071`. El gate del PR pasó en su intento 3 sobre el mismo SHA
+tras dos fallos externos de instalación de Chromium; el gate del merge en `main` pasó en intento 1
+con 31 suites/75 pruebas de integración y 19/19 E2E, workers=1, retries=0.
+
+La matriz técnica queda P0=0, P1=0, P2=3 y P3=1. Los 10 puntos profesionales permanecen
+**PENDING ANITA** y son el siguiente trabajo humano, no una autorización para inventar criterios.
+Evidence Packages conserva catálogo humano paginado, autoridad API, aislamiento por organización y
+paridad de entitlement. Producción sigue con proveedor local determinista, sin IA externa, sin
+cambio de GTC45 ni recálculo histórico. No se inicia otro programa desde este cierre.

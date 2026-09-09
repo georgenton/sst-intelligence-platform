@@ -225,3 +225,31 @@ Producción conserva `CONVERSATIONAL_AI_PROVIDER=DETERMINISTIC_LOCAL_V1`, `AI_EN
 893 artículos, 5 Requirements candidatos, 5 RuleDrafts candidatos y 0 RuleVersions regulatorias
 publicadas. No hubo backfill, recalculación histórica, cambio GTC45, Worker score, Protocol Engine,
 vector DB, full offline sync, anonymous intake ni proveedor de notificaciones.
+
+## Cierre productivo PR45 — 2026-09-09
+
+PR45 integró el HEAD auditado `f610cfa1dcf221cff0ec1a75b36f4dfb3c7ac808` mediante merge commit
+`37cfded6c6524abb089acab0c0b0e34bb6d9f071`. Su Quality Gate 34382574463 pasó en intento 3 sobre el
+mismo SHA; los intentos 1 y 2 fallaron durante la instalación externa de Chromium y no ejecutaron
+E2E, aunque todos los pasos técnicos anteriores llegaron a PASS. El Quality Gate de `main`
+34396835833 pasó en intento 1, sin rerun: 24 archivos/324 pruebas contracts, 14 suites/49 pruebas
+API, 108 pruebas web, 31 suites/75 pruebas de integración y 19/19 E2E en 15 lotes, workers=1,
+retries=0 y retried=0. También pasaron migraciones, validadores, build, reference sync e imagen
+runtime.
+
+Railway desplegó automáticamente `4910d399-0867-4a4a-96d7-27cb2bc8f3dc` desde el merge exacto,
+confirmó 33 migraciones y cero pendientes, inició Nest y respondió health HTTP 200. Vercel Demo
+desplegó automáticamente `dpl_t51LR6TczXgW7poApPkAsZ3dkGEd`, source=git, target=production,
+READY y con alias canónico. Staging production conservó
+`dpl_V1gVcJhNx4JCLEFdg2uTvFeZ67qd` sobre
+`codex/isolated-staging-environment-v1@5ed765d7387f51f53821296fbec8944b16e87a8b`.
+
+El smoke productivo fue de solo lectura: portada y ruta Evidence Packages respondieron, las rutas
+de aplicación sin sesión redirigieron a login y los endpoints protegidos devolvieron 401, no 5xx.
+La cobertura 19/19 del mismo runtime prueba el recorrido autenticado, catálogo paginado, roles,
+entitlements, aislamiento de organización e historia de paquetes sin requerir UUID en UI. No se
+crearon datos productivos para el smoke.
+
+Producción mantiene `CONVERSATIONAL_AI_PROVIDER=DETERMINISTIC_LOCAL_V1`, IA externa deshabilitada,
+clave OpenAI ausente y cero solicitudes externas. La revisión profesional conserva 10 puntos
+PENDING_ANITA; este cierre no atribuye su aprobación.
