@@ -33,7 +33,7 @@ El producto conserva estas separaciones: Perfil describe hechos conocidos; Aplic
 
 ### Hallazgo P1 corregido
 
-`P1-01`: Paquetes de evidencia exigía escribir un UUID y mostraba identificadores internos. Se reemplazó por un selector de registros con nombre, limitado en servidor a 100 resultados y filtrado por la organización activa. La API sigue validando la referencia canónica al agregarla; fuentes de otra organización no aparecen ni son aceptadas.
+`P1-01`: Paquetes de evidencia exigía escribir un UUID y mostraba identificadores internos. Se reemplazó por un selector humano buscable y paginado, con consultas acotadas en servidor y etiquetas que distinguen persona, fuente y fecha cuando corresponde. El catálogo, la incorporación y la finalización comparten una política finita por tipo: respetan organización activa, rol de autoría y el entitlement canónico del módulo antes de consultar la fuente. Las unidades regulatorias conservan la misma elegibilidad del resolvedor canónico; fuentes de otra organización no aparecen ni son aceptadas.
 
 ### P2/P3 documentados, no expandidos
 
@@ -79,7 +79,7 @@ El producto conserva estas separaciones: Perfil describe hechos conocidos; Aplic
 | Plan operativo                | Abrir un ítem                        | Procedencia y ejecución son distinguibles                   | Programación           | Confusión con Cola                    |
 | Inspecciones                  | Crear/abrir recorrido                | Base, alcance y profundidad son visibles                    | Inspección canónica    | Decisión no explicada                 |
 | Riesgo técnico                | Abrir evaluación                     | Método/versión/respuestas/resultado visibles                | Resultado determinista | Guidance faltante                     |
-| Paquetes de evidencia         | Agregar una referencia               | Se elige por nombre, sin conocer IDs                        | Procedencia humana     | Fuente difícil de localizar           |
+| Paquetes de evidencia         | Buscar y agregar una referencia      | Se elige por contexto humano, sin conocer IDs               | Procedencia humana     | Fuente difícil de localizar           |
 | Personas / EPP / Capacitación | Recorrer el mismo trabajador         | Relaciones coherentes, sin crear cuenta de acceso           | Worker ≠ User          | Dato inesperado                       |
 | Observaciones / Incidentes    | Abrir evidencia y seguimiento        | Estado y siguiente acción comprensibles                     | Evento operacional     | Recuperación de error                 |
 | Buscar                        | Buscar título conocido               | Resultado abre la fuente y respeta módulos                  | Índice/proyección      | Resultado irrelevante                 |
