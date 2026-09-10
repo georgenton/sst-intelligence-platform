@@ -66,6 +66,13 @@ const assessmentNotReady = () =>
     message: 'Completa la información requerida y evalúa antes de finalizar.',
   });
 
+const assessmentContextChanged = () =>
+  new ConflictException({
+    code: 'SST_ASSESSMENT_CONTEXT_CHANGED',
+    message:
+      'El perfil o la estructura activa de la organización cambió. Inicia una nueva evaluación.',
+  });
+
 const organizationReconciliationRequired = (reason: 'COUNTRY' | 'WORK_CENTER_TOPOLOGY') =>
   new ConflictException({
     code: 'SST_ASSESSMENT_ORGANIZATION_RECONCILIATION_REQUIRED',
@@ -76,8 +83,27 @@ const organizationReconciliationRequired = (reason: 'COUNTRY' | 'WORK_CENTER_TOP
     reason,
   });
 
+const profileReconciliationRequired = (conflictCategories: string[]) =>
+  new ConflictException({
+    code: 'SST_ASSESSMENT_PROFILE_RECONCILIATION_REQUIRED',
+    message:
+      'La evaluación pública difiere del perfil SST vigente. Revisa las categorías indicadas.',
+    conflictCategories: [...new Set(conflictCategories)].sort(),
+  });
+
 function normalizedIdentity(value: string) {
   return value.normalize('NFKC').trim().toLocaleLowerCase('es');
+}
+
+function organizationContextHash(context: { country: string; sector: string | null }) {
+  return sstAssessmentContentHash({
+    country: normalizedIdentity(context.country),
+    sector: context.sector ? normalizedIdentity(context.sector) : null,
+  });
+}
+
+function workCenterTopologyHash(centers: Array<{ id: string }>) {
+  return sstAssessmentContentHash(centers.map(({ id }) => id).sort());
 }
 
 export function reconcileLegacyOperation(
@@ -288,7 +314,7 @@ export class SstAssessmentService {
     if (session.sessionRevision !== expectedSessionRevision) throw staleSession();
     if (session.status !== 'DIAGNOSIS_READY') throw assessmentNotReady();
     const snapshot = snapshotFromRow(session);
-    const result = await this.computeResult(snapshot, this.pinnedVersions(session));
+    const result = await this.computeResult(snapshot, this.pinnedVersions(session), 'PUBLIC');
     const updated = await this.prisma.sstAssessmentSession.updateMany({
       where: {
         id: session.id,
@@ -443,6 +469,10 @@ export class SstAssessmentService {
         scopes: scopes as Prisma.InputJsonValue,
         facts: facts as Prisma.InputJsonValue,
         evaluatorVersions: evaluatorVersions as unknown as Prisma.InputJsonValue,
+        baseProfileVersionId: latestProfile?.id ?? null,
+        baseProfileHash: latestProfile ? sstAssessmentContentHash(latestProfile.snapshot) : null,
+        baseOrgContextHash: organizationContextHash(organization),
+        baseTopologyHash: workCenterTopologyHash(centers),
         ...(parentAssessmentId ? { parentAssessmentId } : {}),
       },
     });
@@ -561,7 +591,12 @@ export class SstAssessmentService {
     if (session.sessionRevision !== expectedSessionRevision) throw staleSession();
     if (session.status !== 'DIAGNOSIS_READY') throw assessmentNotReady();
     const snapshot = snapshotFromRow(session);
-    const result = await this.computeResult(snapshot, this.pinnedVersions(session));
+    await this.assertAuthenticatedBaseContext(session);
+    const result = await this.computeResult(
+      snapshot,
+      this.pinnedVersions(session),
+      'AUTHENTICATED',
+    );
     try {
       const profileVersionId = await this.prisma.$transaction(
         async (transaction) => {
@@ -574,6 +609,7 @@ export class SstAssessmentService {
             },
           });
           if (!current) throw staleSession();
+          await this.assertAuthenticatedBaseContext(current, transaction);
           const profile = await this.createOrReuseProfile(
             transaction,
             organizationId,
@@ -729,6 +765,7 @@ export class SstAssessmentService {
           organizationId,
           userId,
           mappedSnapshot,
+          'PUBLIC_CLAIM',
         );
         const updated = await transaction.sstAssessmentSession.updateMany({
           where: { id: sessionId, organizationId: null, status: 'FINALIZED' },
@@ -923,9 +960,16 @@ export class SstAssessmentService {
       });
     }
     const snapshot = snapshotFromRow(session);
-    const result = await this.computeResult(snapshot, this.pinnedVersions(session));
+    if (session.channel === 'AUTHENTICATED') {
+      await this.assertAuthenticatedBaseContext(session);
+    }
+    const channel = session.channel === 'AUTHENTICATED' ? 'AUTHENTICATED' : 'PUBLIC';
+    const result = await this.computeResult(snapshot, this.pinnedVersions(session), channel);
+    if (session.channel === 'AUTHENTICATED') {
+      await this.assertAuthenticatedBaseContext(session);
+    }
     const status = resolveSstAssessmentReadiness(snapshot, {
-      channel: session.channel === 'AUTHENTICATED' ? 'AUTHENTICATED' : 'PUBLIC',
+      channel,
       specialistQuestions: result.questions,
     });
     const updated = await this.prisma.sstAssessmentSession.updateMany({
@@ -952,6 +996,7 @@ export class SstAssessmentService {
   private async computeResult(
     snapshot: SstAssessmentSnapshot,
     pins: AssessmentSpecialistPins,
+    channel: 'PUBLIC' | 'AUTHENTICATED',
   ): Promise<SstAssessmentResult> {
     const specialist = await this.specialists.evaluate(snapshot, pins);
     const specialistsQuestions = [
@@ -959,9 +1004,11 @@ export class SstAssessmentService {
       ...specialist.regulatory.questions,
     ];
     const questions = planSstAssessmentQuestions(snapshot, {
+      channel,
       specialistQuestions: specialistsQuestions,
     });
     const progress = calculateSstAssessmentProgress(snapshot, {
+      channel,
       specialistQuestions: specialistsQuestions,
     });
     const items: SstAssessmentResult['items'] = [
@@ -1046,6 +1093,7 @@ export class SstAssessmentService {
     organizationId: string,
     userId: string,
     snapshot: SstAssessmentSnapshot,
+    mode: 'AUTHENTICATED_FINALIZE' | 'PUBLIC_CLAIM' = 'AUTHENTICATED_FINALIZE',
   ) {
     const [organization, workCenters, workAreaCount, positionCount, latest] = await Promise.all([
       transaction.organization.findUnique({
@@ -1085,6 +1133,93 @@ export class SstAssessmentService {
         fact,
       ]),
     );
+    if (mode === 'PUBLIC_CLAIM' && previous?.schemaVersion === '2.0.0') {
+      const conflicts: string[] = [];
+      const publicCountry = known('organization.country');
+      const publicSector = known('organization.sector');
+      const publicWorkerCount = known('organization.totalWorkerCount');
+      const publicWorkCenterCount = known('organization.workCenterCount');
+      if (
+        typeof publicCountry === 'string' &&
+        normalizedIdentity(publicCountry) !== normalizedIdentity(previous.organization.country)
+      ) {
+        conflicts.push('ORGANIZATION_COUNTRY');
+      }
+      if (
+        typeof publicSector === 'string' &&
+        previous.organization.sector &&
+        normalizedIdentity(publicSector) !== normalizedIdentity(previous.organization.sector)
+      ) {
+        conflicts.push('ORGANIZATION_SECTOR');
+      }
+      if (
+        typeof publicSector === 'string' &&
+        organization.sector &&
+        normalizedIdentity(publicSector) !== normalizedIdentity(organization.sector)
+      ) {
+        conflicts.push('ORGANIZATION_SECTOR');
+      }
+      if (
+        typeof publicWorkerCount === 'number' &&
+        previous.organization.workerCount !== undefined &&
+        publicWorkerCount !== previous.organization.workerCount
+      ) {
+        conflicts.push('ORGANIZATION_WORKER_COUNT');
+      }
+      if (
+        typeof publicWorkCenterCount === 'number' &&
+        publicWorkCenterCount !== previous.organization.workCenterCount
+      ) {
+        conflicts.push('WORK_CENTER_COUNT');
+      }
+      for (const fact of snapshot.facts) {
+        const key = contextMapping[fact.factKey];
+        const scope = snapshot.scopes.find(({ scopeKey }) => scopeKey === fact.scopeKey);
+        if (!key || !scope?.workCenterId) continue;
+        const existing = previousContextByIdentity.get(`WORK_CENTER:${scope.workCenterId}:${key}`);
+        if (!existing) continue;
+        const incomingValue =
+          fact.answerState === 'EXPLICIT_UNKNOWN'
+            ? 'UNKNOWN'
+            : fact.value === true
+              ? 'KNOWN_TRUE'
+              : 'KNOWN_FALSE';
+        if (incomingValue !== existing.value) conflicts.push(key);
+      }
+      for (const [factKey, operationKey, conflictCategory] of [
+        ['workCenter.hasChemicalProcesses', 'hasChemicalProcesses', 'CHEMICAL_PROCESS_PRESENT'],
+        [
+          'workCenter.hasHighEnergyOperations',
+          'hasHighEnergyOperations',
+          'HIGH_ENERGY_OPERATION_PRESENT',
+        ],
+      ] as const) {
+        const scopedFacts = snapshot.scopes
+          .filter(({ kind }) => kind === 'WORK_CENTER')
+          .map((scope) =>
+            snapshot.facts.find(
+              (fact) => fact.scopeKey === scope.scopeKey && fact.factKey === factKey,
+            ),
+          );
+        const incomingAggregate = scopedFacts.some(
+          (fact) => fact?.answerState === 'KNOWN' && fact.value === true,
+        )
+          ? true
+          : scopedFacts.length > 0 &&
+              scopedFacts.every((fact) => fact?.answerState === 'KNOWN' && fact.value === false)
+            ? false
+            : undefined;
+        const existingAggregate = previous.operations[operationKey];
+        if (
+          incomingAggregate !== undefined &&
+          existingAggregate !== undefined &&
+          incomingAggregate !== existingAggregate
+        ) {
+          conflicts.push(conflictCategory);
+        }
+      }
+      if (conflicts.length > 0) throw profileReconciliationRequired(conflicts);
+    }
     const assessmentContextFacts = snapshot.facts.flatMap((fact): OrganizationProfileFact[] => {
       const key = contextMapping[fact.factKey];
       const scope = snapshot.scopes.find(({ scopeKey }) => scopeKey === fact.scopeKey);
@@ -1097,7 +1232,7 @@ export class SstAssessmentService {
             : 'KNOWN_FALSE';
       const identity = `WORK_CENTER:${scope.workCenterId}:${key}`;
       const inherited = previousContextByIdentity.get(identity);
-      if (fact.provenance.source === 'PREVIOUS_ASSESSMENT' && inherited?.value === value) {
+      if (inherited?.value === value) {
         return [inherited];
       }
       return [
@@ -1209,6 +1344,51 @@ export class SstAssessmentService {
         createdById: userId,
       },
     });
+  }
+
+  private async assertAuthenticatedBaseContext(
+    session: {
+      organizationId: string | null;
+      channel: string;
+      baseProfileVersionId: string | null;
+      baseProfileHash: string | null;
+      baseOrgContextHash: string | null;
+      baseTopologyHash: string | null;
+    },
+    reader: Pick<
+      Prisma.TransactionClient,
+      'organization' | 'workCenter' | 'organizationSstProfileVersion'
+    > = this.prisma,
+  ) {
+    if (session.channel !== 'AUTHENTICATED' || !session.organizationId) return;
+    if (!session.baseOrgContextHash || !session.baseTopologyHash) throw assessmentContextChanged();
+    const [organization, centers, latestProfile] = await Promise.all([
+      reader.organization.findUnique({
+        where: { id: session.organizationId },
+        select: { country: true, sector: true },
+      }),
+      reader.workCenter.findMany({
+        where: { organizationId: session.organizationId, isActive: true },
+        select: { id: true },
+      }),
+      reader.organizationSstProfileVersion.findFirst({
+        where: { organizationId: session.organizationId },
+        select: { id: true, snapshot: true },
+        orderBy: { version: 'desc' },
+      }),
+    ]);
+    if (!organization) throw assessmentContextChanged();
+    const currentProfileHash = latestProfile
+      ? sstAssessmentContentHash(latestProfile.snapshot)
+      : null;
+    if (
+      organizationContextHash(organization) !== session.baseOrgContextHash ||
+      workCenterTopologyHash(centers) !== session.baseTopologyHash ||
+      (latestProfile?.id ?? null) !== session.baseProfileVersionId ||
+      currentProfileHash !== session.baseProfileHash
+    ) {
+      throw assessmentContextChanged();
+    }
   }
 
   private async requirePublicSession(sessionId: string, token?: string, allowClaimed = false) {

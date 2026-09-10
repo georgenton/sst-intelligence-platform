@@ -3781,6 +3781,10 @@ model SstAssessmentSession {
   semanticInputHash   String?                        @db.VarChar(71)
   semanticOutputHash  String?                        @db.VarChar(71)
   evaluatorVersions   Json?
+  baseProfileVersionId String?                       @db.Uuid
+  baseProfileHash     String?                        @db.VarChar(71)
+  baseOrgContextHash  String?                        @db.VarChar(71)
+  baseTopologyHash    String?                        @db.VarChar(71)
   claimScopeMappings  Json?
   profileVersionId    String?                        @db.Uuid
   adaptiveSessionId   String?                        @db.Uuid

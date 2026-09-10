@@ -18,6 +18,12 @@ export const SST_ASSESSMENT_COLLECTION_POLICIES = [
   'CONTEXT_RECOMMENDED',
   'COMMERCIAL_OPTIONAL',
 ] as const;
+export const SST_ASSESSMENT_RELEVANCE_POLICIES = [
+  'ALWAYS',
+  'AFTER_INSPECTION_PRACTICE',
+  'PHYSICAL_OR_HYBRID_WORK_CENTER',
+  'SPECIALIST_PROMOTED',
+] as const;
 export const SST_ASSESSMENT_ANSWER_STATES = ['KNOWN', 'EXPLICIT_UNKNOWN'] as const;
 export const SST_ASSESSMENT_SCOPE_KINDS = ['ORGANIZATION', 'WORK_CENTER'] as const;
 export const SST_ASSESSMENT_VALUE_TYPES = [
@@ -33,6 +39,7 @@ export type SstAssessmentAnswerState = (typeof SST_ASSESSMENT_ANSWER_STATES)[num
 export type SstAssessmentScopeKind = (typeof SST_ASSESSMENT_SCOPE_KINDS)[number];
 export type SstAssessmentValueType = (typeof SST_ASSESSMENT_VALUE_TYPES)[number];
 export type SstAssessmentCollectionPolicy = (typeof SST_ASSESSMENT_COLLECTION_POLICIES)[number];
+export type SstAssessmentRelevancePolicy = (typeof SST_ASSESSMENT_RELEVANCE_POLICIES)[number];
 export type SstAssessmentFactValue = boolean | number | string | string[];
 
 export const sstAssessmentProvenanceSchema = z
@@ -123,6 +130,9 @@ export type SstAssessmentFactDefinition = {
   sensitivity: 'LOW' | 'MEDIUM';
   authenticatedDerived: boolean;
   collectionPolicy: SstAssessmentCollectionPolicy;
+  relevancePolicy: SstAssessmentRelevancePolicy;
+  blocksReadiness: boolean;
+  allowEmpty: boolean;
   min?: number;
   max?: number;
   maxLength?: number;
@@ -186,6 +196,14 @@ const definition = (
       : SPECIALIST_REQUIRED_FACT_KEYS.has(factKey)
         ? 'SPECIALIST_REQUIRED'
         : 'CONTEXT_RECOMMENDED'),
+  relevancePolicy:
+    options.relevancePolicy ??
+    (SPECIALIST_REQUIRED_FACT_KEYS.has(factKey) ? 'SPECIALIST_PROMOTED' : 'ALWAYS'),
+  blocksReadiness:
+    options.blocksReadiness ??
+    (options.collectionPolicy === 'FOUNDATION_REQUIRED' ||
+      SPECIALIST_REQUIRED_FACT_KEYS.has(factKey)),
+  allowEmpty: options.allowEmpty ?? false,
   ...(options.min === undefined ? {} : { min: options.min }),
   ...(options.max === undefined ? {} : { max: options.max }),
   ...(options.maxLength === undefined ? {} : { maxLength: options.maxLength }),
@@ -311,6 +329,8 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
         ['WEEKLY_OR_MORE', 'Semanalmente o más'],
       ),
       collectionPolicy: 'CONDITIONAL',
+      relevancePolicy: 'AFTER_INSPECTION_PRACTICE',
+      blocksReadiness: false,
     },
   ),
   definition(
@@ -543,6 +563,8 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
         ['OTHER', 'Otra'],
       ),
       collectionPolicy: 'CONDITIONAL',
+      relevancePolicy: 'PHYSICAL_OR_HYBRID_WORK_CENTER',
+      blocksReadiness: true,
     },
   ),
   definition(
@@ -652,6 +674,7 @@ export const sstAssessmentQuestionSchema = z
     relatedRuleKeys: z.array(z.string()),
     relatedTargetKeys: z.array(z.string()),
     collectionPolicy: z.enum(SST_ASSESSMENT_COLLECTION_POLICIES),
+    relevancePolicy: z.enum(SST_ASSESSMENT_RELEVANCE_POLICIES),
     blocking: z.boolean(),
   })
   .strict();
@@ -851,6 +874,7 @@ export function validateSstAssessmentFact(
   if (
     definition.valueType === 'MULTI_CHOICE' &&
     (!Array.isArray(value) ||
+      (!definition.allowEmpty && value.length === 0) ||
       value.some(
         (item) =>
           typeof item !== 'string' || !definition.choices.some((choice) => choice.value === item),
@@ -902,6 +926,28 @@ export function planSstAssessmentQuestions(
     );
     return fact?.answerState === 'KNOWN' ? fact.value : undefined;
   };
+  const isRelevant = (scope: SstAssessmentScope, fact: SstAssessmentFactDefinition) => {
+    switch (fact.relevancePolicy) {
+      case 'ALWAYS':
+        return true;
+      case 'AFTER_INSPECTION_PRACTICE':
+        return (
+          knownOrganizationValue('organization.inspectionPractice') !== undefined &&
+          knownOrganizationValue('organization.inspectionPractice') !== 'NONE'
+        );
+      case 'PHYSICAL_OR_HYBRID_WORK_CENTER': {
+        const arrangement = snapshot.facts.find(
+          (item) =>
+            item.scopeKey === scope.scopeKey &&
+            item.factKey === 'workCenter.workArrangement' &&
+            item.answerState === 'KNOWN',
+        );
+        return arrangement?.answerState === 'KNOWN' && arrangement.value !== 'REMOTE';
+      }
+      case 'SPECIALIST_PROMOTED':
+        return promoted.has(`${scope.scopeKey}:${fact.factKey}`);
+    }
+  };
   return snapshot.scopes
     .flatMap((scope) =>
       catalog
@@ -913,31 +959,7 @@ export function planSstAssessmentQuestions(
     )
     .filter(({ scope, fact }) => !answered.has(`${scope.scopeKey}:${fact.factKey}`))
     .filter(({ fact }) => !(options.channel === 'AUTHENTICATED' && fact.authenticatedDerived))
-    .filter(({ scope, fact }) => {
-      if (fact.collectionPolicy === 'FOUNDATION_REQUIRED') return true;
-      if (fact.collectionPolicy === 'CONDITIONAL') {
-        if (fact.factKey === 'organization.inspectionFrequency') {
-          return (
-            knownOrganizationValue('organization.inspectionPractice') !== undefined &&
-            knownOrganizationValue('organization.inspectionPractice') !== 'NONE'
-          );
-        }
-        if (fact.factKey === 'workCenter.facilityTypes') {
-          const arrangement = snapshot.facts.find(
-            (item) =>
-              item.scopeKey === scope.scopeKey &&
-              item.factKey === 'workCenter.workArrangement' &&
-              item.answerState === 'KNOWN',
-          );
-          return arrangement?.answerState === 'KNOWN' && arrangement.value !== 'REMOTE';
-        }
-        return promoted.has(`${scope.scopeKey}:${fact.factKey}`);
-      }
-      if (fact.collectionPolicy === 'SPECIALIST_REQUIRED') {
-        return promoted.has(`${scope.scopeKey}:${fact.factKey}`);
-      }
-      return true;
-    })
+    .filter(({ scope, fact }) => isRelevant(scope, fact))
     .sort(
       (left, right) =>
         left.fact.order - right.fact.order ||
@@ -962,10 +984,8 @@ export function planSstAssessmentQuestions(
         relatedRuleKeys: specialist?.relatedRuleKeys ?? [],
         relatedTargetKeys: specialist?.relatedTargetKeys ?? [],
         collectionPolicy: fact.collectionPolicy,
-        blocking:
-          fact.collectionPolicy === 'FOUNDATION_REQUIRED' ||
-          fact.collectionPolicy === 'CONDITIONAL' ||
-          fact.collectionPolicy === 'SPECIALIST_REQUIRED',
+        relevancePolicy: fact.relevancePolicy,
+        blocking: fact.blocksReadiness,
       };
     });
 }
@@ -987,19 +1007,47 @@ export function calculateSstAssessmentProgress(
   const catalog = resolveSstAssessmentCatalog(snapshot.catalogVersion);
   const pending = planSstAssessmentQuestions(snapshot, options);
   const blockingPending = pending.filter(({ blocking }) => blocking);
-  const relevantIdentities = new Set([
-    ...blockingPending.map(({ scopeKey, factKey }) => `${scopeKey}:${factKey}`),
-    ...snapshot.facts.flatMap((fact) => {
-      const definition = catalog.find(({ factKey }) => factKey === fact.factKey);
-      if (!definition) return [];
-      const isRelevant =
-        definition.collectionPolicy === 'FOUNDATION_REQUIRED' ||
-        definition.collectionPolicy === 'CONDITIONAL' ||
-        (options.specialistQuestions ?? []).some(
-          (question) => question.scopeKey === fact.scopeKey && question.factKey === fact.factKey,
+  const plannedIdentities = new Set(
+    pending.map(({ scopeKey, factKey }) => `${scopeKey}:${factKey}`),
+  );
+  const promotedIdentities = new Set(
+    (options.specialistQuestions ?? []).map(({ scopeKey, factKey }) => `${scopeKey}:${factKey}`),
+  );
+  const knownOrganizationValue = (factKey: string) => {
+    const fact = snapshot.facts.find(
+      (item) => item.scopeKey === 'organization' && item.factKey === factKey,
+    );
+    return fact?.answerState === 'KNOWN' ? fact.value : undefined;
+  };
+  const isAnsweredFactRelevant = (fact: SstAssessmentFact) => {
+    const definition = catalog.find(({ factKey }) => factKey === fact.factKey);
+    if (!definition) return false;
+    switch (definition.relevancePolicy) {
+      case 'ALWAYS':
+        return true;
+      case 'AFTER_INSPECTION_PRACTICE':
+        return (
+          knownOrganizationValue('organization.inspectionPractice') !== undefined &&
+          knownOrganizationValue('organization.inspectionPractice') !== 'NONE'
         );
-      return isRelevant ? [`${fact.scopeKey}:${fact.factKey}`] : [];
-    }),
+      case 'PHYSICAL_OR_HYBRID_WORK_CENTER': {
+        const arrangement = snapshot.facts.find(
+          (candidate) =>
+            candidate.scopeKey === fact.scopeKey &&
+            candidate.factKey === 'workCenter.workArrangement' &&
+            candidate.answerState === 'KNOWN',
+        );
+        return arrangement?.answerState === 'KNOWN' && arrangement.value !== 'REMOTE';
+      }
+      case 'SPECIALIST_PROMOTED':
+        return promotedIdentities.has(`${fact.scopeKey}:${fact.factKey}`);
+    }
+  };
+  const relevantIdentities = new Set([
+    ...plannedIdentities,
+    ...snapshot.facts.flatMap((fact) =>
+      isAnsweredFactRelevant(fact) ? [`${fact.scopeKey}:${fact.factKey}`] : [],
+    ),
   ]);
   const questions = snapshot.scopes.flatMap((scope) =>
     catalog

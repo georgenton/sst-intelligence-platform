@@ -12,7 +12,7 @@ export const ADAPTIVE_LIMITS = {
   targetVersionsPerPack: 100,
   scopesPerEvaluation: 101,
   factsPerEvaluation: 2_000,
-  questionsPerRun: 100,
+  questionsPerRun: 2_000,
   answersPerRequest: 100,
   workCentersPerSession: 100,
   evaluationRunsPerSession: 100,
@@ -573,7 +573,11 @@ export function validateAdaptiveFactValue(
         throw new Error('Invalid choice');
       return value;
     case 'MULTI_CHOICE':
-      if (!Array.isArray(value) || value.some((item) => typeof item !== 'string'))
+      if (
+        !Array.isArray(value) ||
+        value.length === 0 ||
+        value.some((item) => typeof item !== 'string')
+      )
         throw new Error('Expected choices');
       if (value.some((item) => !fact.choices.includes(item as string)))
         throw new Error('Invalid choice');

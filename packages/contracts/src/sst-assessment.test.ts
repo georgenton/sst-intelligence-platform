@@ -137,6 +137,43 @@ describe('canonical SST assessment contract', () => {
     ).toThrow('Expected text');
   });
 
+  it('rejects empty known multi-choice values without conflating them with explicit unknown', () => {
+    const multiChoice = (factKey: string, value: string[]) =>
+      sstAssessmentFactSchema.parse({
+        factKey,
+        scopeKey: 'center:1',
+        answerState: 'KNOWN',
+        value,
+        provenance,
+      });
+    expect(() =>
+      validateSstAssessmentFact(multiChoice('workCenter.activityCategories', []), scopes),
+    ).toThrow('Invalid choices');
+    expect(() =>
+      validateSstAssessmentFact(multiChoice('workCenter.facilityTypes', []), scopes),
+    ).toThrow('Invalid choices');
+    expect(() =>
+      resolveSstAssessmentReadiness(snapshot([multiChoice('workCenter.activityCategories', [])])),
+    ).toThrow('Invalid choices');
+    expect(
+      validateSstAssessmentFact(
+        multiChoice('workCenter.activityCategories', ['WAREHOUSE', 'PRODUCTION']),
+        scopes,
+      ),
+    ).toMatchObject({ value: ['PRODUCTION', 'WAREHOUSE'] });
+    expect(
+      validateSstAssessmentFact(
+        sstAssessmentFactSchema.parse({
+          factKey: 'workCenter.activityCategories',
+          scopeKey: 'center:1',
+          answerState: 'EXPLICIT_UNKNOWN',
+          provenance,
+        }),
+        scopes,
+      ),
+    ).toMatchObject({ answerState: 'EXPLICIT_UNKNOWN' });
+  });
+
   it('resolves readiness only after foundation questions are answered', () => {
     const foundationFacts = [
       ['organization.country', 'organization', 'Ecuador'],
@@ -264,6 +301,39 @@ describe('canonical SST assessment contract', () => {
     ).toBe(true);
     expect(questions.every(({ blocking }) => !blocking)).toBe(true);
     expect(resolveSstAssessmentReadiness(snapshot(blockingAnswers))).toBe('DIAGNOSIS_READY');
+  });
+
+  it('makes conditional context relevant without turning it into a readiness blocker', () => {
+    const blockingAnswers = planSstAssessmentQuestions(snapshot())
+      .filter(({ blocking }) => blocking)
+      .map((question) =>
+        sstAssessmentFactSchema.parse({
+          factKey: question.factKey,
+          scopeKey: question.scopeKey,
+          answerState: 'EXPLICIT_UNKNOWN',
+          provenance,
+        }),
+      );
+    const ready = snapshot(blockingAnswers);
+    expect(resolveSstAssessmentReadiness(ready)).toBe('DIAGNOSIS_READY');
+    const inspectionPractice = sstAssessmentFactSchema.parse({
+      factKey: 'organization.inspectionPractice',
+      scopeKey: 'organization',
+      answerState: 'KNOWN',
+      value: 'CHECKLISTS',
+      provenance,
+    });
+    const branched = snapshot([...blockingAnswers, inspectionPractice]);
+    expect(planSstAssessmentQuestions(branched)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          factKey: 'organization.inspectionFrequency',
+          relevancePolicy: 'AFTER_INSPECTION_PRACTICE',
+          blocking: false,
+        }),
+      ]),
+    );
+    expect(resolveSstAssessmentReadiness(branched)).toBe('DIAGNOSIS_READY');
   });
 
   it('resolves stored V1 and fails closed for unsupported pinned versions', () => {
