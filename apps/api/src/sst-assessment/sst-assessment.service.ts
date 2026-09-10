@@ -675,59 +675,14 @@ export class SstAssessmentService {
       });
     }
     const snapshot = snapshotFromRow(session);
-    const centerScopes = snapshot.scopes.filter(({ kind }) => kind === 'WORK_CENTER');
-    const mappingKeys = new Set(input.scopeMappings.map(({ scopeKey }) => scopeKey));
-    const targetIds = new Set(input.scopeMappings.map(({ workCenterId }) => workCenterId));
-    if (
-      input.scopeMappings.length !== centerScopes.length ||
-      mappingKeys.size !== input.scopeMappings.length ||
-      targetIds.size !== input.scopeMappings.length ||
-      centerScopes.some(({ scopeKey }) => !mappingKeys.has(scopeKey))
-    ) {
-      throw new BadRequestException({
-        code: 'SST_ASSESSMENT_SCOPE_MAPPING_INVALID',
-        message: 'Cada alcance público debe vincularse una sola vez a un centro distinto.',
-      });
-    }
-    const [organization, activeCenters] = await Promise.all([
-      this.prisma.organization.findUnique({
-        where: { id: organizationId },
-        select: { country: true },
-      }),
-      this.prisma.workCenter.findMany({
-        where: { organizationId, isActive: true },
-        select: { id: true },
-      }),
-    ]);
-    const activeCenterIds = new Set(activeCenters.map(({ id }) => id));
-    if (!organization || [...targetIds].some((id) => !activeCenterIds.has(id))) {
-      throw new ForbiddenException({
-        code: 'SST_ASSESSMENT_SCOPE_MAPPING_FORBIDDEN',
-        message: 'Uno o más centros no pertenecen a la organización activa.',
-      });
-    }
-    const publicCountry = snapshot.facts.find(
-      (fact) =>
-        fact.scopeKey === 'organization' &&
-        fact.factKey === 'organization.country' &&
-        fact.answerState === 'KNOWN',
-    );
-    if (
-      publicCountry?.answerState !== 'KNOWN' ||
-      typeof publicCountry.value !== 'string' ||
-      normalizedIdentity(publicCountry.value) !== normalizedIdentity(organization.country)
-    ) {
-      throw organizationReconciliationRequired('COUNTRY');
-    }
-    if (
-      centerScopes.length !== activeCenters.length ||
-      targetIds.size !== activeCenters.length ||
-      activeCenters.some(({ id }) => !targetIds.has(id))
-    ) {
-      throw organizationReconciliationRequired('WORK_CENTER_TOPOLOGY');
-    }
     const normalizedMappings = [...input.scopeMappings].sort((left, right) =>
       left.scopeKey.localeCompare(right.scopeKey),
+    );
+    await this.reconcilePublicClaimContext(
+      this.prisma,
+      organizationId,
+      snapshot,
+      normalizedMappings,
     );
     if (session.organizationId) {
       if (
@@ -743,23 +698,18 @@ export class SstAssessmentService {
         message: 'La evaluación pública ya fue vinculada.',
       });
     }
-    const mappingByScope = new Map(
-      normalizedMappings.map(({ scopeKey, workCenterId }) => [scopeKey, workCenterId]),
-    );
-    const mappedSnapshot = normalizeSstAssessmentSnapshot({
-      ...snapshot,
-      scopes: snapshot.scopes.map((scope) =>
-        scope.kind === 'WORK_CENTER'
-          ? { ...scope, workCenterId: mappingByScope.get(scope.scopeKey)! }
-          : scope,
-      ),
-    });
     const profileVersionId = await this.prisma.$transaction(
       async (transaction) => {
         const current = await transaction.sstAssessmentSession.findFirst({
           where: { id: sessionId, organizationId: null, status: 'FINALIZED' },
         });
         if (!current) throw staleSession();
+        const mappedSnapshot = await this.reconcilePublicClaimContext(
+          transaction,
+          organizationId,
+          snapshotFromRow(current),
+          normalizedMappings,
+        );
         const profile = await this.createOrReuseProfile(
           transaction,
           organizationId,
@@ -796,6 +746,76 @@ export class SstAssessmentService {
       ...metadata,
     });
     return this.getAuthenticated(organizationId, sessionId);
+  }
+
+  private async reconcilePublicClaimContext(
+    reader: Pick<Prisma.TransactionClient, 'organization' | 'workCenter'>,
+    organizationId: string,
+    snapshot: SstAssessmentSnapshot,
+    scopeMappings: ClaimPublicAssessmentDto['scopeMappings'],
+  ) {
+    const centerScopes = snapshot.scopes.filter(({ kind }) => kind === 'WORK_CENTER');
+    const mappingKeys = new Set(scopeMappings.map(({ scopeKey }) => scopeKey));
+    const targetIds = new Set(scopeMappings.map(({ workCenterId }) => workCenterId));
+    if (
+      scopeMappings.length !== centerScopes.length ||
+      mappingKeys.size !== scopeMappings.length ||
+      targetIds.size !== scopeMappings.length ||
+      centerScopes.some(({ scopeKey }) => !mappingKeys.has(scopeKey))
+    ) {
+      throw new BadRequestException({
+        code: 'SST_ASSESSMENT_SCOPE_MAPPING_INVALID',
+        message: 'Cada alcance público debe vincularse una sola vez a un centro distinto.',
+      });
+    }
+    const [organization, activeCenters] = await Promise.all([
+      reader.organization.findUnique({
+        where: { id: organizationId },
+        select: { country: true },
+      }),
+      reader.workCenter.findMany({
+        where: { organizationId, isActive: true },
+        select: { id: true },
+      }),
+    ]);
+    const activeCenterIds = new Set(activeCenters.map(({ id }) => id));
+    if (!organization || [...targetIds].some((id) => !activeCenterIds.has(id))) {
+      throw new ForbiddenException({
+        code: 'SST_ASSESSMENT_SCOPE_MAPPING_FORBIDDEN',
+        message: 'Uno o más centros no pertenecen a la organización activa.',
+      });
+    }
+    const publicCountry = snapshot.facts.find(
+      (fact) =>
+        fact.scopeKey === 'organization' &&
+        fact.factKey === 'organization.country' &&
+        fact.answerState === 'KNOWN',
+    );
+    if (
+      publicCountry?.answerState !== 'KNOWN' ||
+      typeof publicCountry.value !== 'string' ||
+      normalizedIdentity(publicCountry.value) !== normalizedIdentity(organization.country)
+    ) {
+      throw organizationReconciliationRequired('COUNTRY');
+    }
+    if (
+      centerScopes.length !== activeCenters.length ||
+      targetIds.size !== activeCenters.length ||
+      activeCenters.some(({ id }) => !targetIds.has(id))
+    ) {
+      throw organizationReconciliationRequired('WORK_CENTER_TOPOLOGY');
+    }
+    const mappingByScope = new Map(
+      scopeMappings.map(({ scopeKey, workCenterId }) => [scopeKey, workCenterId]),
+    );
+    return normalizeSstAssessmentSnapshot({
+      ...snapshot,
+      scopes: snapshot.scopes.map((scope) =>
+        scope.kind === 'WORK_CENTER'
+          ? { ...scope, workCenterId: mappingByScope.get(scope.scopeKey)! }
+          : scope,
+      ),
+    });
   }
 
   private assessmentFactsFromProfile(
@@ -1133,7 +1153,7 @@ export class SstAssessmentService {
         fact,
       ]),
     );
-    if (mode === 'PUBLIC_CLAIM' && previous?.schemaVersion === '2.0.0') {
+    if (mode === 'PUBLIC_CLAIM' && previous) {
       const conflicts: string[] = [];
       const publicCountry = known('organization.country');
       const publicSector = known('organization.sector');
@@ -1167,24 +1187,34 @@ export class SstAssessmentService {
         conflicts.push('ORGANIZATION_WORKER_COUNT');
       }
       if (
+        totalWorkerCountFact?.answerState === 'EXPLICIT_UNKNOWN' &&
+        previous.organization.workerCount !== undefined
+      ) {
+        conflicts.push('ORGANIZATION_WORKER_COUNT');
+      }
+      if (
         typeof publicWorkCenterCount === 'number' &&
         publicWorkCenterCount !== previous.organization.workCenterCount
       ) {
         conflicts.push('WORK_CENTER_COUNT');
       }
-      for (const fact of snapshot.facts) {
-        const key = contextMapping[fact.factKey];
-        const scope = snapshot.scopes.find(({ scopeKey }) => scopeKey === fact.scopeKey);
-        if (!key || !scope?.workCenterId) continue;
-        const existing = previousContextByIdentity.get(`WORK_CENTER:${scope.workCenterId}:${key}`);
-        if (!existing) continue;
-        const incomingValue =
-          fact.answerState === 'EXPLICIT_UNKNOWN'
-            ? 'UNKNOWN'
-            : fact.value === true
-              ? 'KNOWN_TRUE'
-              : 'KNOWN_FALSE';
-        if (incomingValue !== existing.value) conflicts.push(key);
+      if (previous.schemaVersion === '2.0.0') {
+        for (const fact of snapshot.facts) {
+          const key = contextMapping[fact.factKey];
+          const scope = snapshot.scopes.find(({ scopeKey }) => scopeKey === fact.scopeKey);
+          if (!key || !scope?.workCenterId) continue;
+          const existing = previousContextByIdentity.get(
+            `WORK_CENTER:${scope.workCenterId}:${key}`,
+          );
+          if (!existing) continue;
+          const incomingValue =
+            fact.answerState === 'EXPLICIT_UNKNOWN'
+              ? 'UNKNOWN'
+              : fact.value === true
+                ? 'KNOWN_TRUE'
+                : 'KNOWN_FALSE';
+          if (incomingValue !== existing.value) conflicts.push(key);
+        }
       }
       for (const [factKey, operationKey, conflictCategory] of [
         ['workCenter.hasChemicalProcesses', 'hasChemicalProcesses', 'CHEMICAL_PROCESS_PRESENT'],
