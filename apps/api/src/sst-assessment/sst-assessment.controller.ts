@@ -103,8 +103,14 @@ export class SstAssessmentController {
     @OrganizationContext() organization: Organization,
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: CreateAuthenticatedAssessmentDto,
+    @Req() request: ApiRequest,
   ) {
-    return this.assessments.createAuthenticated(organization.id, user.id, body);
+    return this.assessments.createAuthenticated(
+      organization.id,
+      user.id,
+      body,
+      requestMetadata(request),
+    );
   }
 
   @Get('sessions/:sessionId')
@@ -123,10 +129,18 @@ export class SstAssessmentController {
   @UseGuards(AccessTokenGuard, OrganizationGuard, RolesGuard)
   submitAuthenticatedAnswers(
     @OrganizationContext() organization: Organization,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('sessionId') sessionId: string,
     @Body() body: SubmitSstAssessmentAnswersDto,
+    @Req() request: ApiRequest,
   ) {
-    return this.assessments.submitAuthenticatedAnswers(organization.id, sessionId, body);
+    return this.assessments.submitAuthenticatedAnswers(
+      organization.id,
+      user.id,
+      sessionId,
+      body,
+      requestMetadata(request),
+    );
   }
 
   @Post('sessions/:sessionId/evaluate')
@@ -135,13 +149,17 @@ export class SstAssessmentController {
   @UseGuards(AccessTokenGuard, OrganizationGuard, RolesGuard)
   evaluateAuthenticated(
     @OrganizationContext() organization: Organization,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('sessionId') sessionId: string,
     @Body() body: MutateSstAssessmentDto,
+    @Req() request: ApiRequest,
   ) {
     return this.assessments.evaluateAuthenticated(
       organization.id,
+      user.id,
       sessionId,
       body.expectedSessionRevision,
+      requestMetadata(request),
     );
   }
 

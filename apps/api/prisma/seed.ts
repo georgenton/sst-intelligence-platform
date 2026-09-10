@@ -11,12 +11,14 @@ import {
   type RegulatorySupersessionStatus,
 } from '@prisma/client';
 import {
-  DEMO_ADAPTIVE_RULE_PACK,
+  CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2,
+  DEMO_ADAPTIVE_RULE_PACK as DEMO_ADAPTIVE_RULE_PACK_V1,
   DEMO_APPLICABILITY_RULE_PACK,
   DEMO_TECHNICAL_RISK_METHOD,
   adaptivePackContentHash,
   normalizeAdaptiveGroupVersion,
   normalizeAdaptiveRuleVersion,
+  type AdaptiveRulePackContract,
 } from '@sst/contracts';
 import {
   MDT_2024_196_SOURCE_V2,
@@ -30,7 +32,9 @@ import { provisionRegulatoryReviewCorpus } from './regulatory-review-corpus-refe
 
 const prisma = new PrismaClient();
 
-async function provisionAdaptiveDemoReferenceData() {
+async function provisionAdaptiveDemoReferenceData(
+  DEMO_ADAPTIVE_RULE_PACK: AdaptiveRulePackContract,
+) {
   const factVersionIds = new Map<string, string>();
   for (const fact of DEMO_ADAPTIVE_RULE_PACK.factVersions) {
     const definition = await prisma.adaptiveFactDefinition.upsert({
@@ -144,6 +148,7 @@ async function provisionAdaptiveDemoReferenceData() {
 
   const ruleVersionIds = new Map<string, string>();
   for (const rule of DEMO_ADAPTIVE_RULE_PACK.rules) {
+    const draftRevision = Number(rule.version.split('.')[0]);
     const normalizedRule = normalizeAdaptiveRuleVersion(rule);
     const definition = await prisma.adaptiveRuleDefinition.upsert({
       where: { ruleKey: rule.ruleKey },
@@ -152,11 +157,13 @@ async function provisionAdaptiveDemoReferenceData() {
       select: { id: true },
     });
     const draft = await prisma.adaptiveRuleDraft.upsert({
-      where: { ruleDefinitionId_revision: { ruleDefinitionId: definition.id, revision: 1 } },
+      where: {
+        ruleDefinitionId_revision: { ruleDefinitionId: definition.id, revision: draftRevision },
+      },
       update: {},
       create: {
         ruleDefinitionId: definition.id,
-        revision: 1,
+        revision: draftRevision,
         status: 'READY_TO_PUBLISH',
         schema: normalizedRule as Prisma.InputJsonValue,
         isDemo: true,
@@ -167,7 +174,7 @@ async function provisionAdaptiveDemoReferenceData() {
       },
     });
     assertPublishedVersionMatches(
-      `RULE_DRAFT:${rule.ruleKey}:1`,
+      `RULE_DRAFT:${rule.ruleKey}:${draftRevision}`,
       {
         schema: draft.schema,
         isDemo: draft.isDemo,
@@ -389,7 +396,7 @@ async function provisionAdaptiveDemoReferenceData() {
   if (packVersion) {
     packVersionId = packVersion.id;
     assertPublishedVersionMatches(
-      `PACK:${DEMO_ADAPTIVE_RULE_PACK.packKey}:1.0.0`,
+      `PACK:${DEMO_ADAPTIVE_RULE_PACK.packKey}:${DEMO_ADAPTIVE_RULE_PACK.version}`,
       {
         engineSchemaVersion: packVersion.engineSchemaVersion,
         schema: packVersion.schema,
@@ -814,7 +821,8 @@ async function main() {
 
   await provisionRegulatoryReviewCorpus(prisma);
 
-  await provisionAdaptiveDemoReferenceData();
+  await provisionAdaptiveDemoReferenceData(DEMO_ADAPTIVE_RULE_PACK_V1);
+  await provisionAdaptiveDemoReferenceData(CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2);
 }
 
 main()

@@ -65,14 +65,18 @@ UUID and display label. Public and authenticated snapshots with equivalent facts
 identically.
 
 The canonical catalog is the single source for question text, help, topic, type, choices, purpose,
-order, unknown support and LOW/MEDIUM sensitivity. `activityCategories` and `facilityTypes` are
-multi-choice facts. They are retained without compression; the V1 adapter deliberately omits them
-from legacy singular fact keys instead of selecting one value or losing the remaining values.
+order, bounds, unknown support, LOW/MEDIUM sensitivity and finite collection policy.
+`activityCategories` and `facilityTypes` are multi-choice facts. They are retained without
+compression. The sealed Adaptive V1 pack remains immutable and reproducible; the additive Adaptive
+V2 pack evaluates the complete arrays with deterministic overlap predicates and never selects a
+primary value.
 
 An explicitly unknown fact is omitted from specialist inputs but remains in the canonical snapshot
-and suppresses the same question for that session. Unanswered facts remain eligible for the finite,
-deterministically ordered question planner. Progress counts answered facts and completed topics; it
-is not a compliance percentage.
+and suppresses the same question for that session. The deterministic planner asks foundation facts,
+relevant conditional facts and missing facts promoted by the specialists. Recommended context and
+commercially optional facts do not block diagnosis. Authenticated derived-only facts are exposed as
+required organization actions, never as questions that the answer endpoint rejects. Progress counts
+the relevant collection boundary; it is not a compliance percentage.
 
 ## Persistence and lifecycle
 
@@ -88,15 +92,24 @@ Migration 34 adds only `SstAssessmentSession` plus three lifecycle enums. The ro
 
 Every mutation uses the expected revision. A conditional write has one winner; stale requests
 receive `SST_ASSESSMENT_REVISION_CONFLICT` (HTTP 409). Finalized sessions reject fact mutations.
+A pure readiness resolver keeps sessions in `COLLECTING_INFORMATION` while required questions
+remain. Evaluation moves a session to `DIAGNOSIS_READY` only when that boundary is complete, and
+finalization accepts only that state; premature completion returns `SST_ASSESSMENT_NOT_READY`
+(HTTP 409).
 A reassessment is a new child row that copies still-applicable facts with explicit
 `PREVIOUS_ASSESSMENT` provenance; it never edits its parent. Explicitly unknown facts are eligible
 to be asked again in the new reassessment rather than silently becoming known.
 
-Authenticated finalization automatically creates a new immutable OrganizationSstProfileVersion
-only when the canonical profile differs from the latest version; otherwise it reuses the latest.
-Work Center operational facts are stored with their exact server WorkCenter UUID in V2
-`contextFacts`. The legacy organization-wide operations flags are left empty, preventing
-organization-to-all-center fan-out.
+Authenticated creation reuses the latest safe Profile V2 headcount and exact Work Center facts. It
+never treats the number of loaded Worker rows as total headcount and never fans legacy
+organization-wide operation flags across centers. Finalization merges into a semantically complete
+Profile V2 snapshot: unrelated declarations and provenance are preserved, changed scoped facts are
+replaced, and server-owned context is re-derived. A new immutable version is created only when that
+complete snapshot differs from the latest version.
+
+Persisted assessment schema and catalog versions are resolved through a finite V1 registry for
+normalization, planning, progress and answer validation. Unsupported versions fail closed with
+`SST_ASSESSMENT_VERSION_UNSUPPORTED`; historical data is never relabeled as a newer catalog.
 
 ## Public security and claim
 
@@ -109,7 +122,9 @@ Claim requires current authenticated organization context and a currently author
 Every public center must map exactly once to a distinct active WorkCenter in that organization.
 Claim is idempotent only for the same organization and exact mapping; another organization cannot
 steal it. Claim never starts a demo, enables a module, changes a plan, assigns an entitlement,
-rewrites the final snapshot or recalculates a result.
+rewrites the final snapshot or recalculates a result. It materializes or reuses the complete mapped
+Profile V2 as a derived continuity artifact and stores its `profileVersionId` on the claimed
+assessment.
 
 ## Authorization and setup state
 
@@ -128,9 +143,13 @@ this endpoint to build the guided UX.
 
 ## Authority, privacy and exclusions
 
-Adaptive output is marked `DEMO`; regulatory pilot output is marked `CANDIDATE`. Authority is
-derived on the server. Every result states that it is deterministic and orientative, does not
-accredit legal compliance and does not replace professional review.
+Adaptive output is marked `DEMO`; regulatory pilot output is marked `CANDIDATE`. Item authority is
+preserved and the result exposes `authoritiesPresent`, so mixed output is never mislabeled globally
+as DEMO. Authority is derived on the server. Every result states that it is deterministic and
+orientative, does not accredit legal compliance and does not replace professional review.
+
+Authenticated create, answer, evaluate and finalize mutations and public claim record canonical
+audit events with the authenticated actor. Actor identity remains outside semantic hashes.
 
 The intake accepts only LOW/MEDIUM organizational and operational context. It has no worker PII,
 medical or individual psychosocial data, incident narratives, evidence binaries, credentials or

@@ -5,7 +5,9 @@ import {
   SST_ASSESSMENT_SCHEMA_VERSION,
   calculateSstAssessmentProgress,
   normalizeSstAssessmentSnapshot,
+  parseSstAssessmentSnapshot,
   planSstAssessmentQuestions,
+  resolveSstAssessmentReadiness,
   sstAssessmentFactSchema,
   sstAssessmentSemanticHash,
   validateSstAssessmentFact,
@@ -73,6 +75,143 @@ describe('canonical SST assessment contract', () => {
           scopeKey === 'center:1' && factKey === 'workCenter.hasChemicalProcesses',
       ),
     ).toBe(false);
+  });
+
+  it('enforces canonical numeric and text catalog bounds', () => {
+    const known = (factKey: string, scopeKey: string, value: number | string) =>
+      sstAssessmentFactSchema.parse({
+        factKey,
+        scopeKey,
+        answerState: 'KNOWN',
+        value,
+        provenance,
+      });
+    expect(() =>
+      validateSstAssessmentFact(known('organization.totalWorkerCount', 'organization', 0), scopes),
+    ).toThrow('bounded integer');
+    expect(
+      validateSstAssessmentFact(known('organization.totalWorkerCount', 'organization', 48), scopes),
+    ).toMatchObject({ value: 48 });
+    expect(() =>
+      validateSstAssessmentFact(
+        known('organization.totalWorkerCount', 'organization', 10_000_001),
+        scopes,
+      ),
+    ).toThrow('bounded integer');
+    expect(() =>
+      validateSstAssessmentFact(known('organization.estimatedUsers', 'organization', 0), scopes),
+    ).toThrow('bounded integer');
+    expect(() =>
+      validateSstAssessmentFact(
+        known('organization.estimatedUsers', 'organization', 1_000_001),
+        scopes,
+      ),
+    ).toThrow('bounded integer');
+    expect(
+      validateSstAssessmentFact(
+        known('organization.additionalContext', 'organization', 'a'.repeat(2_000)),
+        scopes,
+      ),
+    ).toMatchObject({
+      value: 'a'.repeat(2_000),
+    });
+    expect(() =>
+      validateSstAssessmentFact(
+        known('organization.additionalContext', 'organization', 'a'.repeat(2_001)),
+        scopes,
+      ),
+    ).toThrow('Expected text');
+    expect(
+      validateSstAssessmentFact(
+        known('workCenter.activityDescription', 'center:1', 'a'.repeat(2_000)),
+        scopes,
+      ),
+    ).toMatchObject({
+      value: 'a'.repeat(2_000),
+    });
+    expect(() =>
+      validateSstAssessmentFact(
+        known('workCenter.activityDescription', 'center:1', 'a'.repeat(2_001)),
+        scopes,
+      ),
+    ).toThrow('Expected text');
+  });
+
+  it('resolves readiness only after foundation questions are answered', () => {
+    const foundationFacts = [
+      ['organization.country', 'organization', 'Ecuador'],
+      ['organization.totalWorkerCount', 'organization', 48],
+      ['organization.workCenterCount', 'organization', 2],
+      ['workCenter.workArrangement', 'center:1', 'PHYSICAL'],
+      ['workCenter.activityCategories', 'center:1', ['PRODUCTION']],
+      ['workCenter.facilityTypes', 'center:1', ['PLANT']],
+      ['workCenter.workArrangement', 'center:2', 'REMOTE'],
+      ['workCenter.activityCategories', 'center:2', ['ADMINISTRATIVE_SERVICES']],
+      ['workCenter.facilityTypes', 'center:2', ['OFFICE']],
+    ].map(([factKey, scopeKey, value]) =>
+      sstAssessmentFactSchema.parse({ factKey, scopeKey, answerState: 'KNOWN', value, provenance }),
+    );
+    expect(resolveSstAssessmentReadiness(snapshot())).toBe('COLLECTING_INFORMATION');
+    expect(resolveSstAssessmentReadiness(snapshot(foundationFacts))).toBe('DIAGNOSIS_READY');
+    const withUnknown = foundationFacts.map((fact) =>
+      fact.factKey === 'workCenter.facilityTypes' && fact.scopeKey === 'center:2'
+        ? sstAssessmentFactSchema.parse({
+            factKey: fact.factKey,
+            scopeKey: fact.scopeKey,
+            answerState: 'EXPLICIT_UNKNOWN',
+            provenance,
+          })
+        : fact,
+    );
+    expect(resolveSstAssessmentReadiness(snapshot(withUnknown))).toBe('DIAGNOSIS_READY');
+  });
+
+  it('asks only foundation and specialist-promoted facts, without derived authenticated dead ends', () => {
+    const initial = planSstAssessmentQuestions(snapshot(), { channel: 'AUTHENTICATED' });
+    expect(initial.some(({ factKey }) => factKey === 'organization.sector')).toBe(false);
+    expect(initial.some(({ factKey }) => factKey === 'organization.budgetRange')).toBe(false);
+    expect(initial.some(({ factKey }) => factKey === 'workCenter.hasChemicalProcesses')).toBe(
+      false,
+    );
+    const promoted = planSstAssessmentQuestions(snapshot(), {
+      channel: 'AUTHENTICATED',
+      specialistQuestions: [
+        {
+          scopeKey: 'center:1',
+          factKey: 'workCenter.hasChemicalProcesses',
+          whyAsked: 'Requerido por el especialista.',
+          relatedRuleKeys: ['CHEMICAL_PROCESS_RULE'],
+          relatedTargetKeys: ['CHEMICAL_PROCESS_CONTROLS'],
+        },
+        {
+          scopeKey: 'center:1',
+          factKey: 'workCenter.hasChemicalProcesses',
+          whyAsked: 'Duplicado.',
+        },
+      ],
+    });
+    expect(
+      promoted.filter(({ factKey }) => factKey === 'workCenter.hasChemicalProcesses'),
+    ).toHaveLength(1);
+    expect(promoted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          factKey: 'workCenter.hasChemicalProcesses',
+          relatedRuleKeys: ['CHEMICAL_PROCESS_RULE'],
+          relatedTargetKeys: ['CHEMICAL_PROCESS_CONTROLS'],
+        }),
+      ]),
+    );
+  });
+
+  it('resolves stored V1 and fails closed for unsupported pinned versions', () => {
+    expect(parseSstAssessmentSnapshot(snapshot()).catalogVersion).toBe('1.0.0');
+    expect(() => parseSstAssessmentSnapshot({ ...snapshot(), catalogVersion: '99.0.0' })).toThrow(
+      'SST_ASSESSMENT_VERSION_UNSUPPORTED:CATALOG:99.0.0',
+    );
+    expect(() => parseSstAssessmentSnapshot({ ...snapshot(), schemaVersion: '99.0.0' })).toThrow(
+      'SST_ASSESSMENT_VERSION_UNSUPPORTED:SCHEMA:99.0.0',
+    );
   });
 
   it('keeps work-center facts isolated and never fans organization values out', () => {
@@ -162,7 +301,7 @@ describe('canonical SST assessment contract', () => {
 
   it('reports progress by topic instead of a compliance percentage', () => {
     const progress = calculateSstAssessmentProgress(snapshot());
-    expect(progress.totalTopics).toBeGreaterThan(5);
+    expect(progress.totalTopics).toBeGreaterThan(1);
     expect(progress).not.toHaveProperty('percentage');
     expect(progress.topics.every(({ total }) => total > 0)).toBe(true);
   });

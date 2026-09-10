@@ -1,4 +1,5 @@
 import {
+  CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2,
   DEMO_ADAPTIVE_RULE_PACK,
   evaluateAdaptiveConfiguration,
   type SstAssessmentFact,
@@ -80,6 +81,79 @@ describe('canonical assessment specialist adapter', () => {
     );
     expect(adapted.some(({ factKey }) => factKey === 'workCenter.activityCategory')).toBe(false);
     expect(adapted.some(({ factKey }) => factKey === 'workCenter.facilityType')).toBe(false);
+  });
+
+  it('passes all plural facilities into the additive V2 specialist and resolves facility rules', () => {
+    const input = snapshot([
+      ...decisionFacts,
+      fact('workCenter.facilityTypes', 'center:1', ['PLANT', 'WAREHOUSE']),
+    ]);
+    const adapted = adaptAssessmentFactsToAdaptive(
+      input,
+      CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2,
+    );
+    expect(adapted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          factKey: 'workCenter.facilityTypes',
+          value: ['PLANT', 'WAREHOUSE'],
+        }),
+      ]),
+    );
+    const result = evaluateAdaptiveConfiguration({
+      pack: CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2,
+      scopes: input.scopes,
+      facts: adapted,
+    });
+    expect(result.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          scopeKey: 'center:1',
+          targetKey: 'EMERGENCY_PREPAREDNESS',
+        }),
+      ]),
+    );
+    expect(result.questions.some(({ factKey }) => factKey === 'workCenter.facilityType')).toBe(
+      false,
+    );
+  });
+
+  it('passes all plural activities into the additive V2 specialist without legacy questions', () => {
+    const input = snapshot([
+      ...decisionFacts,
+      fact('workCenter.activityCategories', 'center:1', ['PRODUCTION', 'ADMINISTRATIVE_SERVICES']),
+    ]);
+    const adapted = adaptAssessmentFactsToAdaptive(
+      input,
+      CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2,
+    );
+    expect(adapted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          factKey: 'workCenter.activityCategories',
+          value: ['PRODUCTION', 'ADMINISTRATIVE_SERVICES'],
+        }),
+      ]),
+    );
+    const result = evaluateAdaptiveConfiguration({
+      pack: CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2,
+      scopes: input.scopes,
+      facts: adapted,
+    });
+    expect(
+      result.ruleTraces
+        .flatMap(({ predicates }) => predicates)
+        .some(
+          ({ factKey, actual }) =>
+            factKey === 'workCenter.activityCategories' &&
+            Array.isArray(actual) &&
+            actual.includes('PRODUCTION') &&
+            actual.includes('ADMINISTRATIVE_SERVICES'),
+        ),
+    ).toBe(true);
+    expect(result.questions.some(({ factKey }) => factKey === 'workCenter.activityCategory')).toBe(
+      false,
+    );
   });
 
   it('keeps commercial context outside adaptive technical decisions', () => {

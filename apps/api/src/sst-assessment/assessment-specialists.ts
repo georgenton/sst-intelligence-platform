@@ -42,12 +42,6 @@ export function adaptAssessmentFactsToAdaptive(
   return knownFacts(snapshot.facts)
     .flatMap((fact): AdaptiveFactInput[] => {
       if (!supported.has(fact.factKey)) return [];
-      if (
-        fact.factKey === 'workCenter.activityCategories' ||
-        fact.factKey === 'workCenter.facilityTypes'
-      ) {
-        return [];
-      }
       return [
         {
           scopeKey: fact.scopeKey,

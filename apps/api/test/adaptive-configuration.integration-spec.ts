@@ -359,7 +359,7 @@ describe('adaptive configuration integration', () => {
       itemRuleVersionIds: historicalItem.ruleVersionProvenance,
       itemTrace: historicalItem.trace,
     };
-    const testVersion = '2.0.0';
+    const testVersion = '99.0.0';
     const packV1Contract = adaptiveRulePackSchema.parse(historicalPack.schema);
     const factV2 = await prisma.adaptiveFactVersion.create({
       data: {
@@ -397,7 +397,7 @@ describe('adaptive configuration integration', () => {
     const draftV2 = await prisma.adaptiveRuleDraft.create({
       data: {
         ruleDefinitionId: historicalRule.ruleDefinitionId,
-        revision: 2,
+        revision: 99,
         status: 'READY_TO_PUBLISH',
         schema: ruleV2Contract as Prisma.InputJsonValue,
         isDemo: true,

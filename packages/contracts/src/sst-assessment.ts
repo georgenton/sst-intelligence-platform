@@ -11,6 +11,13 @@ export const SST_ASSESSMENT_LIMITS = {
 } as const;
 
 export const SST_ASSESSMENT_AUTHORITIES = ['DEMO', 'CANDIDATE', 'PUBLISHED'] as const;
+export const SST_ASSESSMENT_COLLECTION_POLICIES = [
+  'FOUNDATION_REQUIRED',
+  'CONDITIONAL',
+  'SPECIALIST_REQUIRED',
+  'CONTEXT_RECOMMENDED',
+  'COMMERCIAL_OPTIONAL',
+] as const;
 export const SST_ASSESSMENT_ANSWER_STATES = ['KNOWN', 'EXPLICIT_UNKNOWN'] as const;
 export const SST_ASSESSMENT_SCOPE_KINDS = ['ORGANIZATION', 'WORK_CENTER'] as const;
 export const SST_ASSESSMENT_VALUE_TYPES = [
@@ -25,6 +32,7 @@ export type SstAssessmentAuthority = (typeof SST_ASSESSMENT_AUTHORITIES)[number]
 export type SstAssessmentAnswerState = (typeof SST_ASSESSMENT_ANSWER_STATES)[number];
 export type SstAssessmentScopeKind = (typeof SST_ASSESSMENT_SCOPE_KINDS)[number];
 export type SstAssessmentValueType = (typeof SST_ASSESSMENT_VALUE_TYPES)[number];
+export type SstAssessmentCollectionPolicy = (typeof SST_ASSESSMENT_COLLECTION_POLICIES)[number];
 export type SstAssessmentFactValue = boolean | number | string | string[];
 
 export const sstAssessmentProvenanceSchema = z
@@ -114,10 +122,33 @@ export type SstAssessmentFactDefinition = {
   order: number;
   sensitivity: 'LOW' | 'MEDIUM';
   authenticatedDerived: boolean;
+  collectionPolicy: SstAssessmentCollectionPolicy;
   min?: number;
   max?: number;
   maxLength?: number;
 };
+
+const COMMERCIAL_OPTIONAL_FACT_KEYS = new Set([
+  'organization.productObjectives',
+  'organization.implementationUrgency',
+  'organization.estimatedUsers',
+  'organization.budgetRange',
+  'organization.rolloutPreference',
+]);
+const SPECIALIST_REQUIRED_FACT_KEYS = new Set([
+  'workCenter.activityDescription',
+  'workCenter.hasDistinctOperationalZones',
+  'workCenter.hasChemicalProcesses',
+  'workCenter.hasHighEnergyOperations',
+  'workCenter.hasWorkAtHeight',
+  'workCenter.hasHotWork',
+  'workCenter.hasElectricalWorkOrExposure',
+  'workCenter.hasConfinedSpaces',
+  'workCenter.hasExternalWorkforce',
+  'workCenter.hasCriticalMachinery',
+  'workCenter.hasDriversOrTransport',
+  'workCenter.hasFireExposure',
+]);
 
 const definition = (
   factKey: string,
@@ -148,6 +179,16 @@ const definition = (
   sensitivity: options.sensitivity ?? 'MEDIUM',
   unknownAllowed: options.unknownAllowed ?? true,
   authenticatedDerived: options.authenticatedDerived ?? false,
+  collectionPolicy:
+    options.collectionPolicy ??
+    (COMMERCIAL_OPTIONAL_FACT_KEYS.has(factKey)
+      ? 'COMMERCIAL_OPTIONAL'
+      : SPECIALIST_REQUIRED_FACT_KEYS.has(factKey)
+        ? 'SPECIALIST_REQUIRED'
+        : 'CONTEXT_RECOMMENDED'),
+  ...(options.min === undefined ? {} : { min: options.min }),
+  ...(options.max === undefined ? {} : { max: options.max }),
+  ...(options.maxLength === undefined ? {} : { maxLength: options.maxLength }),
 });
 
 const choices = (...values: Array<[string, string]>) =>
@@ -161,7 +202,7 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     'SHORT_TEXT',
     '¿En qué país opera la organización?',
     10,
-    { authenticatedDerived: true },
+    { authenticatedDerived: true, collectionPolicy: 'FOUNDATION_REQUIRED' },
   ),
   definition(
     'organization.sector',
@@ -187,7 +228,7 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     'INTEGER',
     '¿Cuántas personas trabajan en total?',
     40,
-    { min: 1, max: 10_000_000 },
+    { min: 1, max: 10_000_000, collectionPolicy: 'FOUNDATION_REQUIRED' },
   ),
   definition(
     'organization.workCenterCount',
@@ -196,7 +237,12 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     'INTEGER',
     '¿Cuántos centros de trabajo tiene la organización?',
     50,
-    { authenticatedDerived: true, min: 1, max: SST_ASSESSMENT_LIMITS.workCenters },
+    {
+      authenticatedDerived: true,
+      min: 1,
+      max: SST_ASSESSMENT_LIMITS.workCenters,
+      collectionPolicy: 'FOUNDATION_REQUIRED',
+    },
   ),
   definition(
     'organization.strategicProtectionPriorities',
@@ -264,6 +310,7 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
         ['MONTHLY', 'Mensualmente'],
         ['WEEKLY_OR_MORE', 'Semanalmente o más'],
       ),
+      collectionPolicy: 'CONDITIONAL',
     },
   ),
   definition(
@@ -429,6 +476,7 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
       helpText:
         'No incluyas datos personales, médicos, investigaciones privilegiadas ni credenciales.',
       maxLength: 2_000,
+      collectionPolicy: 'CONTEXT_RECOMMENDED',
     },
   ),
   definition(
@@ -438,7 +486,7 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     'INTEGER',
     '¿Cuántas personas trabajan habitualmente en este centro?',
     1000,
-    { min: 1, max: 10_000_000 },
+    { min: 1, max: 10_000_000, collectionPolicy: 'CONTEXT_RECOMMENDED' },
   ),
   definition(
     'workCenter.activityDescription',
@@ -447,7 +495,7 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     'SHORT_TEXT',
     '¿Qué actividades se realizan en este centro?',
     1010,
-    { maxLength: 2_000 },
+    { maxLength: 2_000, collectionPolicy: 'SPECIALIST_REQUIRED' },
   ),
   definition(
     'workCenter.workArrangement',
@@ -456,7 +504,10 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     'SINGLE_CHOICE',
     '¿Cuál es la modalidad predominante de trabajo?',
     1020,
-    { choices: choices(['PHYSICAL', 'Presencial'], ['REMOTE', 'Remota'], ['HYBRID', 'Híbrida']) },
+    {
+      choices: choices(['PHYSICAL', 'Presencial'], ['REMOTE', 'Remota'], ['HYBRID', 'Híbrida']),
+      collectionPolicy: 'FOUNDATION_REQUIRED',
+    },
   ),
   definition(
     'workCenter.activityCategories',
@@ -473,6 +524,7 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
         ['CONSTRUCTION_ASSEMBLY', 'Construcción o montaje'],
         ['OTHER', 'Otra'],
       ),
+      collectionPolicy: 'FOUNDATION_REQUIRED',
     },
   ),
   definition(
@@ -490,6 +542,7 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
         ['CONSTRUCTION_SITE', 'Sitio de construcción'],
         ['OTHER', 'Otra'],
       ),
+      collectionPolicy: 'FOUNDATION_REQUIRED',
     },
   ),
   definition(
@@ -615,7 +668,7 @@ export type SstAssessmentProgress = {
 
 export type SstAssessmentResult = {
   schemaVersion: typeof SST_ASSESSMENT_SCHEMA_VERSION;
-  authority: SstAssessmentAuthority;
+  authoritiesPresent: SstAssessmentAuthority[];
   summary: { title: string; disclaimer: string };
   progress: SstAssessmentProgress;
   questions: SstAssessmentQuestion[];
@@ -645,6 +698,44 @@ export type SstAssessmentResult = {
   semanticOutputHash: string;
 };
 
+export class SstAssessmentVersionUnsupportedError extends Error {
+  readonly code = 'SST_ASSESSMENT_VERSION_UNSUPPORTED';
+
+  constructor(
+    readonly versionKind: 'SCHEMA' | 'CATALOG',
+    readonly version: string,
+  ) {
+    super(`SST_ASSESSMENT_VERSION_UNSUPPORTED:${versionKind}:${version}`);
+  }
+}
+
+export function resolveSstAssessmentSchema(version: string) {
+  if (version !== SST_ASSESSMENT_SCHEMA_VERSION) {
+    throw new SstAssessmentVersionUnsupportedError('SCHEMA', version);
+  }
+  return sstAssessmentSnapshotSchema;
+}
+
+export function resolveSstAssessmentCatalog(
+  version: string,
+): readonly SstAssessmentFactDefinition[] {
+  if (version !== SST_ASSESSMENT_CATALOG_VERSION) {
+    throw new SstAssessmentVersionUnsupportedError('CATALOG', version);
+  }
+  return SST_ASSESSMENT_FACT_CATALOG;
+}
+
+export function parseSstAssessmentSnapshot(input: unknown): SstAssessmentSnapshot {
+  if (!input || Array.isArray(input) || typeof input !== 'object') {
+    throw new Error('Invalid assessment snapshot');
+  }
+  const candidate = input as Record<string, unknown>;
+  if (typeof candidate.schemaVersion !== 'string') throw new Error('Missing assessment schema');
+  if (typeof candidate.catalogVersion !== 'string') throw new Error('Missing assessment catalog');
+  resolveSstAssessmentCatalog(candidate.catalogVersion);
+  return resolveSstAssessmentSchema(candidate.schemaVersion).parse(candidate);
+}
+
 function canonicalString(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalString).join(',')}]`;
   if (value && typeof value === 'object') {
@@ -664,7 +755,8 @@ export function sstAssessmentContentHash(value: unknown): string {
 export function normalizeSstAssessmentSnapshot(
   input: SstAssessmentSnapshot,
 ): SstAssessmentSnapshot {
-  const parsed = sstAssessmentSnapshotSchema.parse(input);
+  const parsed = parseSstAssessmentSnapshot(input);
+  const catalog = resolveSstAssessmentCatalog(parsed.catalogVersion);
   const scopes = [...parsed.scopes].sort(
     (left, right) => left.order - right.order || left.scopeKey.localeCompare(right.scopeKey),
   );
@@ -676,7 +768,7 @@ export function normalizeSstAssessmentSnapshot(
   }
   const identities = new Set<string>();
   const facts = parsed.facts
-    .map((fact) => validateSstAssessmentFact(fact, scopes))
+    .map((fact) => validateSstAssessmentFact(fact, scopes, catalog))
     .sort(
       (left, right) =>
         left.scopeKey.localeCompare(right.scopeKey) || left.factKey.localeCompare(right.factKey),
@@ -717,9 +809,10 @@ export function sstAssessmentSemanticHash(snapshot: SstAssessmentSnapshot): stri
 export function validateSstAssessmentFact(
   factInput: SstAssessmentFact,
   scopes: SstAssessmentScope[],
+  catalog: readonly SstAssessmentFactDefinition[] = SST_ASSESSMENT_FACT_CATALOG,
 ): SstAssessmentFact {
   const fact = sstAssessmentFactSchema.parse(factInput);
-  const definition = SST_ASSESSMENT_FACT_CATALOG.find((item) => item.factKey === fact.factKey);
+  const definition = catalog.find((item) => item.factKey === fact.factKey);
   if (!definition) throw new Error(`Unknown assessment fact: ${fact.factKey}`);
   const scope = scopes.find((item) => item.scopeKey === fact.scopeKey);
   if (!scope) throw new Error(`Unknown assessment scope: ${fact.scopeKey}`);
@@ -771,50 +864,132 @@ export function validateSstAssessmentFact(
 
 export function planSstAssessmentQuestions(
   snapshotInput: SstAssessmentSnapshot,
+  options: {
+    channel?: 'PUBLIC' | 'AUTHENTICATED';
+    specialistQuestions?: Array<{
+      scopeKey: string;
+      factKey: string;
+      whyAsked?: string;
+      relatedRuleKeys?: string[];
+      relatedTargetKeys?: string[];
+    }>;
+  } = {},
 ): SstAssessmentQuestion[] {
   const snapshot = normalizeSstAssessmentSnapshot(snapshotInput);
+  const catalog = resolveSstAssessmentCatalog(snapshot.catalogVersion);
   const answered = new Set(snapshot.facts.map((fact) => `${fact.scopeKey}:${fact.factKey}`));
+  const promoted = new Map<string, NonNullable<typeof options.specialistQuestions>[number]>();
+  for (const question of options.specialistQuestions ?? []) {
+    const identity = `${question.scopeKey}:${question.factKey}`;
+    const current = promoted.get(identity);
+    promoted.set(identity, {
+      ...current,
+      ...question,
+      whyAsked: current?.whyAsked ?? question.whyAsked,
+      relatedRuleKeys: [
+        ...new Set([...(current?.relatedRuleKeys ?? []), ...(question.relatedRuleKeys ?? [])]),
+      ].sort(),
+      relatedTargetKeys: [
+        ...new Set([...(current?.relatedTargetKeys ?? []), ...(question.relatedTargetKeys ?? [])]),
+      ].sort(),
+    });
+  }
+  const knownOrganizationValue = (factKey: string) => {
+    const fact = snapshot.facts.find(
+      (item) => item.scopeKey === 'organization' && item.factKey === factKey,
+    );
+    return fact?.answerState === 'KNOWN' ? fact.value : undefined;
+  };
   return snapshot.scopes
     .flatMap((scope) =>
-      SST_ASSESSMENT_FACT_CATALOG.filter((fact) => fact.scopeKind === scope.kind).map((fact) => ({
-        scope,
-        fact,
-      })),
+      catalog
+        .filter((fact) => fact.scopeKind === scope.kind)
+        .map((fact) => ({
+          scope,
+          fact,
+        })),
     )
     .filter(({ scope, fact }) => !answered.has(`${scope.scopeKey}:${fact.factKey}`))
+    .filter(({ fact }) => !(options.channel === 'AUTHENTICATED' && fact.authenticatedDerived))
+    .filter(({ scope, fact }) => {
+      if (fact.collectionPolicy === 'FOUNDATION_REQUIRED') return true;
+      if (fact.collectionPolicy === 'CONDITIONAL') {
+        return (
+          fact.factKey === 'organization.inspectionFrequency' &&
+          knownOrganizationValue('organization.inspectionPractice') !== undefined &&
+          knownOrganizationValue('organization.inspectionPractice') !== 'NONE'
+        );
+      }
+      if (fact.collectionPolicy === 'SPECIALIST_REQUIRED') {
+        return promoted.has(`${scope.scopeKey}:${fact.factKey}`);
+      }
+      return promoted.has(`${scope.scopeKey}:${fact.factKey}`);
+    })
     .sort(
       (left, right) =>
         left.fact.order - right.fact.order ||
         left.scope.order - right.scope.order ||
         left.fact.factKey.localeCompare(right.fact.factKey),
     )
-    .map(({ scope, fact }) => ({
-      questionId: `${scope.scopeKey}:${fact.factKey}`,
-      factKey: fact.factKey,
-      scopeKey: scope.scopeKey,
-      topic: fact.topic,
-      valueType: fact.valueType,
-      unknownAllowed: fact.unknownAllowed,
-      questionText: fact.questionText,
-      helpText: fact.helpText,
-      choices: fact.choices,
-      purpose: fact.purpose,
-      order: fact.order,
-      sensitivity: fact.sensitivity,
-      relatedRuleKeys: [],
-      relatedTargetKeys: [],
-    }));
+    .map(({ scope, fact }) => {
+      const specialist = promoted.get(`${scope.scopeKey}:${fact.factKey}`);
+      return {
+        questionId: `${scope.scopeKey}:${fact.factKey}`,
+        factKey: fact.factKey,
+        scopeKey: scope.scopeKey,
+        topic: fact.topic,
+        valueType: fact.valueType,
+        unknownAllowed: fact.unknownAllowed,
+        questionText: fact.questionText,
+        helpText: fact.helpText,
+        choices: fact.choices,
+        purpose: specialist?.whyAsked ?? fact.purpose,
+        order: fact.order,
+        sensitivity: fact.sensitivity,
+        relatedRuleKeys: specialist?.relatedRuleKeys ?? [],
+        relatedTargetKeys: specialist?.relatedTargetKeys ?? [],
+      };
+    });
+}
+
+export function resolveSstAssessmentReadiness(
+  snapshot: SstAssessmentSnapshot,
+  options: Parameters<typeof planSstAssessmentQuestions>[1] = {},
+): 'COLLECTING_INFORMATION' | 'DIAGNOSIS_READY' {
+  return planSstAssessmentQuestions(snapshot, options).length === 0
+    ? 'DIAGNOSIS_READY'
+    : 'COLLECTING_INFORMATION';
 }
 
 export function calculateSstAssessmentProgress(
   snapshotInput: SstAssessmentSnapshot,
+  options: Parameters<typeof planSstAssessmentQuestions>[1] = {},
 ): SstAssessmentProgress {
   const snapshot = normalizeSstAssessmentSnapshot(snapshotInput);
+  const catalog = resolveSstAssessmentCatalog(snapshot.catalogVersion);
+  const pending = planSstAssessmentQuestions(snapshot, options);
+  const relevantIdentities = new Set([
+    ...pending.map(({ scopeKey, factKey }) => `${scopeKey}:${factKey}`),
+    ...snapshot.facts.flatMap((fact) => {
+      const definition = catalog.find(({ factKey }) => factKey === fact.factKey);
+      if (!definition) return [];
+      const isRelevant =
+        definition.collectionPolicy === 'FOUNDATION_REQUIRED' ||
+        (options.specialistQuestions ?? []).some(
+          (question) => question.scopeKey === fact.scopeKey && question.factKey === fact.factKey,
+        );
+      return isRelevant ? [`${fact.scopeKey}:${fact.factKey}`] : [];
+    }),
+  ]);
   const questions = snapshot.scopes.flatMap((scope) =>
-    SST_ASSESSMENT_FACT_CATALOG.filter((fact) => fact.scopeKind === scope.kind).map((fact) => ({
-      scope,
-      fact,
-    })),
+    catalog
+      .filter(
+        (fact) =>
+          fact.scopeKind === scope.kind &&
+          relevantIdentities.has(`${scope.scopeKey}:${fact.factKey}`) &&
+          !(options.channel === 'AUTHENTICATED' && fact.authenticatedDerived),
+      )
+      .map((fact) => ({ scope, fact })),
   );
   const answered = new Set(snapshot.facts.map((fact) => `${fact.scopeKey}:${fact.factKey}`));
   const topicMap = new Map<string, { answered: number; total: number }>();
@@ -835,9 +1010,7 @@ export function calculateSstAssessmentProgress(
     explicitUnknownCount: snapshot.facts.filter(
       ({ answerState }) => answerState === 'EXPLICIT_UNKNOWN',
     ).length,
-    pendingQuestionCount: questions.filter(
-      ({ scope, fact }) => !answered.has(`${scope.scopeKey}:${fact.factKey}`),
-    ).length,
+    pendingQuestionCount: pending.length,
     totalFacts: questions.length,
     completedTopics: topics.filter((topic) => topic.complete).length,
     totalTopics: topics.length,
