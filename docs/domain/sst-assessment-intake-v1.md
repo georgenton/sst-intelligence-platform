@@ -46,12 +46,21 @@ Creation establishes all valid scopes first. Answers for absent scopes, wrong sc
 fact keys, invalid choices/types, duplicate identities and attempts to overwrite server-derived
 authenticated facts are rejected.
 
-Questions are generated from a bounded policy: foundation facts, applicable conditional facts and
-missing facts promoted by a specialist. Context recommendations and commercial options remain
-available catalog facts but do not block diagnosis. Questions are sorted by catalog order, logical
-scope order and key. A `(scopeKey, factKey)` appears at most once even when several rules require it;
-their rule/target metadata is combined. An explicit “No lo sé” answer remains in the snapshot and
-is not asked again in the same session.
+Questions are generated as one prioritized backlog with explicit `collectionPolicy` and `blocking`
+metadata. Foundation facts, applicable conditional facts and missing facts promoted by a specialist
+are blocking. Context recommendations and commercial options are returned by the canonical API as
+discoverable, non-blocking questions. PR47 selects a focused conversational slice; the core does not
+force all context or commercial facts before diagnosis and does not imply that a UI should render the
+whole backlog at once. Questions are sorted by catalog order, logical scope order and key. A
+`(scopeKey, factKey)` appears at most once even when several rules require it; their rule/target
+metadata is combined. An explicit “No lo sé” answer remains in the snapshot and is not asked again
+in the same session.
+
+`facilityTypes` is conditional: it is blocking for physical and hybrid centers but not for a remote
+center unless a specialist later requires it. Public `workCenterCount` is intentionally established
+before the server session is created (option A for PR47). The guided UI must make that scope step easy
+to edit or restart before creation; V1 does not resize an established session and never silently
+deletes center-scoped answers.
 
 Authenticated server-derived facts are excluded from the answerable list. If the optional
 organization sector is absent, the response includes `ORGANIZATION_SECTOR_REQUIRED` as a canonical
@@ -73,7 +82,11 @@ channel-specific provenance. Equivalent public and authenticated facts therefore
 semantic hash independent of row order.
 
 Provenance remains in the stored snapshot as one of public declaration, organization declaration,
-organization record or previous assessment. Specialist traces preserve pack identity, version and
+organization record or previous assessment. When a known Profile V2 fact is inherited unchanged,
+profile materialization preserves its complete professional, evidence or imported provenance; an
+explicit new answer creates declaration provenance and never alters the historical profile. Profile
+`UNKNOWN` is historical uncertainty, not an answer in a new reassessment, so it is eligible to be
+asked again. Specialist traces preserve pack identity, version and
 content hash; engine input/output hashes; predicate-level fact traces; rule and target keys; missing
 facts; authority; and the professional-review boundary.
 
@@ -102,3 +115,8 @@ Authenticated:
 
 Create operations never accept ProfileVersion IDs, rule-pack IDs, evaluator hashes, authority,
 organization IDs, module IDs or plan IDs from the request body.
+
+Claim compares normalized public country and the complete public center topology with the target
+organization. A mismatch fails closed with
+`SST_ASSESSMENT_ORGANIZATION_RECONCILIATION_REQUIRED`; it never changes organization country,
+sector or Work Centers and never creates a profile with a divergent center count.

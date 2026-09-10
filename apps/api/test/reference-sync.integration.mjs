@@ -6,6 +6,10 @@ import process from 'node:process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, URL } from 'node:url';
 import { PrismaClient } from '@prisma/client';
+import {
+  CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2,
+  DEMO_ADAPTIVE_RULE_PACK,
+} from '@sst/contracts';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required');
@@ -84,6 +88,17 @@ async function referenceSnapshot(prisma) {
     inspectionResources,
     inspectionResourceMappingVersions,
     inspectionResourceMappings,
+    adaptivePackDefinitions,
+    adaptivePackVersions,
+    adaptiveFactDefinitions,
+    adaptiveFactVersions,
+    adaptiveTargetDefinitions,
+    adaptiveTargetVersions,
+    adaptiveRuleDefinitions,
+    adaptiveRuleDrafts,
+    adaptiveRuleVersions,
+    adaptiveGroupDefinitions,
+    adaptiveGroupVersions,
   ] = await Promise.all([
     prisma.methodologySource.findMany({ orderBy: { id: 'asc' } }),
     prisma.methodologySourceVersion.findMany({ orderBy: { id: 'asc' } }),
@@ -129,6 +144,37 @@ async function referenceSnapshot(prisma) {
     prisma.inspectionResourceCriterionMapping.findMany({
       orderBy: [{ mappingVersionId: 'asc' }, { resourceId: 'asc' }, { displayOrder: 'asc' }],
     }),
+    prisma.adaptiveRulePackDefinition.findMany({ orderBy: { packKey: 'asc' } }),
+    prisma.adaptiveRulePackVersion.findMany({
+      include: { facts: true, targets: true, rules: true, groups: true },
+      orderBy: { version: 'asc' },
+    }),
+    prisma.adaptiveFactDefinition.findMany({ orderBy: { factKey: 'asc' } }),
+    prisma.adaptiveFactVersion.findMany({ orderBy: [{ version: 'asc' }, { id: 'asc' }] }),
+    prisma.adaptiveConfigurationTargetDefinition.findMany({ orderBy: { targetKey: 'asc' } }),
+    prisma.adaptiveConfigurationTargetVersion.findMany({
+      orderBy: [{ version: 'asc' }, { id: 'asc' }],
+    }),
+    prisma.adaptiveRuleDefinition.findMany({
+      where: { versions: { some: { regulatory: false } } },
+      orderBy: { ruleKey: 'asc' },
+    }),
+    prisma.adaptiveRuleDraft.findMany({
+      where: { regulatory: false },
+      orderBy: [{ revision: 'asc' }, { id: 'asc' }],
+    }),
+    prisma.adaptiveRuleVersion.findMany({
+      where: { regulatory: false },
+      orderBy: [{ version: 'asc' }, { id: 'asc' }],
+    }),
+    prisma.adaptiveRuleGroupDefinition.findMany({
+      where: { versions: { some: { regulatory: false } } },
+      orderBy: { groupKey: 'asc' },
+    }),
+    prisma.adaptiveRuleGroupVersion.findMany({
+      include: { groupRules: { orderBy: { sortOrder: 'asc' } } },
+      orderBy: [{ version: 'asc' }, { id: 'asc' }],
+    }),
   ]);
   return {
     sources,
@@ -160,6 +206,17 @@ async function referenceSnapshot(prisma) {
     inspectionResources,
     inspectionResourceMappingVersions,
     inspectionResourceMappings,
+    adaptivePackDefinitions,
+    adaptivePackVersions,
+    adaptiveFactDefinitions,
+    adaptiveFactVersions,
+    adaptiveTargetDefinitions,
+    adaptiveTargetVersions,
+    adaptiveRuleDefinitions,
+    adaptiveRuleDrafts,
+    adaptiveRuleVersions,
+    adaptiveGroupDefinitions,
+    adaptiveGroupVersions,
   };
 }
 
@@ -266,6 +323,49 @@ function assertExpectedReferences(snapshot) {
   assert.equal(snapshot.inspectionResources.length, 21);
   assert.equal(snapshot.inspectionResourceMappingVersions.length, 4);
   assert.equal(snapshot.inspectionResourceMappings.length, 231);
+  assert.equal(snapshot.adaptivePackDefinitions.length, 1);
+  assert.equal(snapshot.adaptivePackVersions.length, 2);
+  assert.deepEqual(
+    snapshot.adaptivePackVersions.map(({ version }) => version),
+    ['1.0.0', '2.0.0'],
+  );
+  const expectedFactKeys = new Set([
+    ...DEMO_ADAPTIVE_RULE_PACK.factVersions.map(({ factKey }) => factKey),
+    ...CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2.factVersions.map(({ factKey }) => factKey),
+  ]);
+  const expectedTargetKeys = new Set(
+    DEMO_ADAPTIVE_RULE_PACK.targetVersions.map(({ targetKey }) => targetKey),
+  );
+  const expectedRuleKeys = new Set(DEMO_ADAPTIVE_RULE_PACK.rules.map(({ ruleKey }) => ruleKey));
+  const expectedGroupKeys = new Set(DEMO_ADAPTIVE_RULE_PACK.groups.map(({ groupKey }) => groupKey));
+  assert.equal(snapshot.adaptiveFactDefinitions.length, expectedFactKeys.size);
+  assert.equal(
+    snapshot.adaptiveFactVersions.length,
+    DEMO_ADAPTIVE_RULE_PACK.factVersions.length +
+      CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2.factVersions.length,
+  );
+  assert.equal(snapshot.adaptiveTargetDefinitions.length, expectedTargetKeys.size);
+  assert.equal(snapshot.adaptiveTargetVersions.length, expectedTargetKeys.size * 2);
+  assert.equal(snapshot.adaptiveRuleDefinitions.length, expectedRuleKeys.size);
+  assert.equal(snapshot.adaptiveRuleDrafts.length, expectedRuleKeys.size * 2);
+  assert.equal(snapshot.adaptiveRuleVersions.length, expectedRuleKeys.size * 2);
+  assert.equal(snapshot.adaptiveGroupDefinitions.length, expectedGroupKeys.size);
+  assert.equal(snapshot.adaptiveGroupVersions.length, expectedGroupKeys.size * 2);
+  assert.equal(
+    snapshot.adaptivePackVersions.every(
+      ({ sealedAt, publishedAt, contentHash }) =>
+        sealedAt && publishedAt && contentHash.startsWith('sha256:'),
+    ),
+    true,
+  );
+  assert.deepEqual(
+    snapshot.adaptivePackVersions.find(({ version }) => version === '1.0.0')?.schema,
+    DEMO_ADAPTIVE_RULE_PACK,
+  );
+  assert.deepEqual(
+    snapshot.adaptivePackVersions.find(({ version }) => version === '2.0.0')?.schema,
+    CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2,
+  );
   assert.equal(snapshot.inspectionResourceTaxonomies[0].organizationId, null);
   assert.equal(snapshot.inspectionResourceTaxonomies[0].code, 'DEMO_ELECTRICAL_RESOURCE_SCOPE_V1');
   assert.deepEqual(
@@ -588,6 +688,110 @@ async function verifyReadiness(scopedDatabaseUrl) {
   }
 }
 
+async function verifyCanonicalAssessmentV2(scopedDatabaseUrl, prisma) {
+  const port = 47_000 + Math.floor(Math.random() * 1_000);
+  const child = spawn(process.execPath, ['dist/main.js'], {
+    cwd: apiDirectory,
+    env: { ...process.env, DATABASE_URL: scopedDatabaseUrl, PORT: String(port) },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+  child.stdout.on('data', (chunk) => (output += chunk.toString()));
+  child.stderr.on('data', (chunk) => (output += chunk.toString()));
+  const request = (path, init) => globalThis.fetch(`http://127.0.0.1:${port}${path}`, init);
+  try {
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      if (child.exitCode !== null) throw new Error(`API exited before readiness:\n${output}`);
+      try {
+        const health = await request('/api/v1/health');
+        if (health.status === 200) break;
+      } catch {
+        // The process is still compiling/starting.
+      }
+      await delay(125);
+    }
+    const created = await request('/api/v1/sst-assessment/public/sessions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workCenterCount: 1 }),
+    });
+    if (created.status !== 201)
+      throw new Error(`Assessment create failed: ${await created.text()}`);
+    const session = await created.json();
+    const stored = await prisma.sstAssessmentSession.findUniqueOrThrow({
+      where: { id: session.id },
+    });
+    assert.equal(stored.evaluatorVersions.adaptive.version, '2.0.0');
+    const saved = await request(`/api/v1/sst-assessment/public/sessions/${session.id}/answers`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-assessment-token': session.publicToken,
+      },
+      body: JSON.stringify({
+        expectedSessionRevision: 0,
+        answers: [
+          {
+            factKey: 'organization.country',
+            scopeKey: 'organization',
+            answerState: 'KNOWN',
+            value: 'Ecuador',
+          },
+          {
+            factKey: 'organization.totalWorkerCount',
+            scopeKey: 'organization',
+            answerState: 'KNOWN',
+            value: 20,
+          },
+          {
+            factKey: 'workCenter.workArrangement',
+            scopeKey: 'center:1',
+            answerState: 'KNOWN',
+            value: 'PHYSICAL',
+          },
+          {
+            factKey: 'workCenter.activityCategories',
+            scopeKey: 'center:1',
+            answerState: 'KNOWN',
+            value: ['PRODUCTION', 'ADMINISTRATIVE_SERVICES', 'OTHER'],
+          },
+          {
+            factKey: 'workCenter.facilityTypes',
+            scopeKey: 'center:1',
+            answerState: 'KNOWN',
+            value: ['PLANT', 'OFFICE'],
+          },
+        ],
+      }),
+    });
+    if (saved.status !== 201) throw new Error(`Assessment answers failed: ${await saved.text()}`);
+    const savedBody = await saved.json();
+    const evaluated = await request(
+      `/api/v1/sst-assessment/public/sessions/${session.id}/evaluate`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-assessment-token': session.publicToken,
+        },
+        body: JSON.stringify({ expectedSessionRevision: savedBody.sessionRevision }),
+      },
+    );
+    if (evaluated.status !== 201) {
+      throw new Error(`Assessment evaluation failed: ${await evaluated.text()}`);
+    }
+    const evaluation = await evaluated.json();
+    assert.equal(evaluation.result.specialistTraces[0].packVersion, '2.0.0');
+    const serialized = JSON.stringify(evaluation.result);
+    assert.match(serialized, /workCenter\.activityCategories/);
+    assert.match(serialized, /workCenter\.facilityTypes/);
+    assert.match(serialized, /ARRAY_OVERLAPS/);
+  } finally {
+    if (child.exitCode === null) child.kill('SIGTERM');
+    if (child.exitCode === null) await once(child, 'exit');
+  }
+}
+
 const evidence = {
   freshDatabaseWithoutGeneralSeed: false,
   productionLikeSync: false,
@@ -596,6 +800,7 @@ const evidence = {
   customerDataUnchanged: false,
   historicalMethodUuidUnchanged: false,
   readiness: false,
+  canonicalAssessmentV2WithoutSeed: false,
 };
 
 try {
@@ -624,6 +829,8 @@ try {
 
     await verifyReadiness(fresh.url);
     evidence.readiness = true;
+    await verifyCanonicalAssessmentV2(fresh.url, fresh.prisma);
+    evidence.canonicalAssessmentV2WithoutSeed = true;
 
     runPackageScript('reference:sync', fresh.url);
     const secondSnapshot = await referenceSnapshot(fresh.prisma);
@@ -708,6 +915,21 @@ try {
       inspectionOutput,
       /INSPECTION_STANDARD_REFERENCE_DRIFT:DEMO_ELECTRICAL_STANDARD_A:A-PANEL-CLOSURE/,
     );
+    await drift.prisma.inspectionStandardCriterion.update({
+      where: { id: '57300000-0000-4000-8000-000000000001' },
+      data: {
+        title: 'Los cerramientos de tableros permanecen completos y cerrados durante la operación.',
+      },
+    });
+    await drift.prisma.adaptiveRulePackDefinition.update({
+      where: { packKey: 'DEMO_ADAPTIVE_SST_CONFIGURATION' },
+      data: { name: 'Disposable Adaptive definition drift' },
+    });
+    const adaptiveDriftOutput = runPackageScript('reference:sync', drift.url, false);
+    assert.match(
+      adaptiveDriftOutput,
+      /ADAPTIVE_ASSESSMENT_REFERENCE_DRIFT:PACK_DEFINITION:DEMO_ADAPTIVE_SST_CONFIGURATION/,
+    );
     evidence.driftProtection = true;
   } finally {
     await drift.prisma.$disconnect();
@@ -721,6 +943,7 @@ try {
     customerDataUnchanged: true,
     historicalMethodUuidUnchanged: true,
     readiness: true,
+    canonicalAssessmentV2WithoutSeed: true,
   });
   globalThis.console.log(JSON.stringify({ status: 'ok', evidence }));
 } finally {

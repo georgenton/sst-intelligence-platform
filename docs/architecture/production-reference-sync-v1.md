@@ -18,8 +18,8 @@ provenance, guidance and contexts were absent.
 
 There was no shared production reference synchronizer. Existing global Technical Risk and
 Applicability records, and the approved Regulatory Source catalog, are already materialized by
-their respective migrations. Adaptive demo/reference material remains part of the general seed.
-This repair does not duplicate or expand those lifecycles.
+their respective migrations. Canonical Adaptive assessment V1/V2 is production-required reference
+data and is synchronized here rather than relying on the general seed.
 
 ## Release lifecycle
 
@@ -55,6 +55,13 @@ It materializes the approved `DEMO_5X5`, `GUIDED_5X5` and `GTC45_2010` identitie
 create or update users, memberships, organizations, work centers, demo activations, inspections,
 findings, actions, assessments or Solution Finder sessions. Regulatory sync does not publish a
 rule/pack and creates no customer operational data.
+
+The global synchronization additionally owns sealed Adaptive assessment V1 and the additive plural
+fact V2. It validates definitions, drafts, immutable versions, relationships and pack content hashes
+and fails closed on drift. It does not create Adaptive sessions or any organization/user/customer
+rows. The production-like gate runs migrate deploy plus reference sync without seed, starts Nest,
+creates a canonical public assessment and proves the specialist selects V2 with plural overlap
+semantics.
 
 ## Atomicity, idempotency and drift
 

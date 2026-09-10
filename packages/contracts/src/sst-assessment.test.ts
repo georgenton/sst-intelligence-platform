@@ -166,10 +166,23 @@ describe('canonical SST assessment contract', () => {
     expect(resolveSstAssessmentReadiness(snapshot(withUnknown))).toBe('DIAGNOSIS_READY');
   });
 
-  it('asks only foundation and specialist-promoted facts, without derived authenticated dead ends', () => {
+  it('classifies blocking, context and commercial questions without derived authenticated dead ends', () => {
     const initial = planSstAssessmentQuestions(snapshot(), { channel: 'AUTHENTICATED' });
     expect(initial.some(({ factKey }) => factKey === 'organization.sector')).toBe(false);
-    expect(initial.some(({ factKey }) => factKey === 'organization.budgetRange')).toBe(false);
+    expect(initial).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          factKey: 'organization.managementSystem',
+          collectionPolicy: 'CONTEXT_RECOMMENDED',
+          blocking: false,
+        }),
+        expect.objectContaining({
+          factKey: 'organization.budgetRange',
+          collectionPolicy: 'COMMERCIAL_OPTIONAL',
+          blocking: false,
+        }),
+      ]),
+    );
     expect(initial.some(({ factKey }) => factKey === 'workCenter.hasChemicalProcesses')).toBe(
       false,
     );
@@ -197,11 +210,60 @@ describe('canonical SST assessment contract', () => {
       expect.arrayContaining([
         expect.objectContaining({
           factKey: 'workCenter.hasChemicalProcesses',
+          blocking: true,
           relatedRuleKeys: ['CHEMICAL_PROCESS_RULE'],
           relatedTargetKeys: ['CHEMICAL_PROCESS_CONTROLS'],
         }),
       ]),
     );
+  });
+
+  it('does not block a remote center on a physical facility type question', () => {
+    const remoteFacts = [
+      ['organization.country', 'organization', 'Ecuador'],
+      ['organization.totalWorkerCount', 'organization', 12],
+      ['organization.workCenterCount', 'organization', 2],
+      ['workCenter.workArrangement', 'center:1', 'REMOTE'],
+      ['workCenter.activityCategories', 'center:1', ['ADMINISTRATIVE_SERVICES']],
+      ['workCenter.workArrangement', 'center:2', 'PHYSICAL'],
+      ['workCenter.activityCategories', 'center:2', ['PRODUCTION']],
+      ['workCenter.facilityTypes', 'center:2', ['PLANT']],
+    ].map(([factKey, scopeKey, value]) =>
+      sstAssessmentFactSchema.parse({ factKey, scopeKey, answerState: 'KNOWN', value, provenance }),
+    );
+    const questions = planSstAssessmentQuestions(snapshot(remoteFacts));
+    expect(questions).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          scopeKey: 'center:1',
+          factKey: 'workCenter.facilityTypes',
+        }),
+      ]),
+    );
+    expect(resolveSstAssessmentReadiness(snapshot(remoteFacts))).toBe('DIAGNOSIS_READY');
+  });
+
+  it('keeps unanswered context and commercial questions discoverable without blocking readiness', () => {
+    const blockingAnswers = planSstAssessmentQuestions(snapshot())
+      .filter(({ blocking }) => blocking)
+      .filter(({ factKey }) => factKey !== 'workCenter.facilityTypes')
+      .map((question) =>
+        sstAssessmentFactSchema.parse({
+          factKey: question.factKey,
+          scopeKey: question.scopeKey,
+          answerState: 'EXPLICIT_UNKNOWN',
+          provenance,
+        }),
+      );
+    const questions = planSstAssessmentQuestions(snapshot(blockingAnswers));
+    expect(
+      questions.some(({ collectionPolicy }) => collectionPolicy === 'CONTEXT_RECOMMENDED'),
+    ).toBe(true);
+    expect(
+      questions.some(({ collectionPolicy }) => collectionPolicy === 'COMMERCIAL_OPTIONAL'),
+    ).toBe(true);
+    expect(questions.every(({ blocking }) => !blocking)).toBe(true);
+    expect(resolveSstAssessmentReadiness(snapshot(blockingAnswers))).toBe('DIAGNOSIS_READY');
   });
 
   it('resolves stored V1 and fails closed for unsupported pinned versions', () => {

@@ -66,6 +66,47 @@ const assessmentNotReady = () =>
     message: 'Completa la información requerida y evalúa antes de finalizar.',
   });
 
+const organizationReconciliationRequired = (reason: 'COUNTRY' | 'WORK_CENTER_TOPOLOGY') =>
+  new ConflictException({
+    code: 'SST_ASSESSMENT_ORGANIZATION_RECONCILIATION_REQUIRED',
+    message:
+      reason === 'COUNTRY'
+        ? 'El país de la evaluación no coincide con la organización seleccionada.'
+        : 'Los centros de la evaluación no coinciden con la topología activa de la organización.',
+    reason,
+  });
+
+function normalizedIdentity(value: string) {
+  return value.normalize('NFKC').trim().toLocaleLowerCase('es');
+}
+
+export function reconcileLegacyOperation(
+  previous: boolean | undefined,
+  activeWorkCenterIds: string[],
+  facts: OrganizationProfileFact[],
+  key: 'CHEMICAL_PROCESS_PRESENT' | 'HIGH_ENERGY_OPERATION_PRESENT',
+) {
+  const relevant = new Map(
+    facts
+      .filter(
+        (fact) =>
+          fact.scope === 'WORK_CENTER' &&
+          fact.key === key &&
+          fact.workCenterId &&
+          activeWorkCenterIds.includes(fact.workCenterId),
+      )
+      .map((fact) => [fact.workCenterId!, fact.value] as const),
+  );
+  if ([...relevant.values()].some((value) => value === 'KNOWN_TRUE')) return true;
+  if (
+    activeWorkCenterIds.length > 0 &&
+    activeWorkCenterIds.every((id) => relevant.get(id) === 'KNOWN_FALSE')
+  ) {
+    return false;
+  }
+  return previous;
+}
+
 function publicScopes(count: number): SstAssessmentScope[] {
   return [
     { scopeKey: 'organization', kind: 'ORGANIZATION', order: 0, displayName: 'Organización' },
@@ -612,14 +653,42 @@ export class SstAssessmentService {
         message: 'Cada alcance público debe vincularse una sola vez a un centro distinto.',
       });
     }
-    const centers = await this.prisma.workCenter.count({
-      where: { organizationId, id: { in: [...targetIds] }, isActive: true },
-    });
-    if (centers !== targetIds.size) {
+    const [organization, activeCenters] = await Promise.all([
+      this.prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { country: true },
+      }),
+      this.prisma.workCenter.findMany({
+        where: { organizationId, isActive: true },
+        select: { id: true },
+      }),
+    ]);
+    const activeCenterIds = new Set(activeCenters.map(({ id }) => id));
+    if (!organization || [...targetIds].some((id) => !activeCenterIds.has(id))) {
       throw new ForbiddenException({
         code: 'SST_ASSESSMENT_SCOPE_MAPPING_FORBIDDEN',
         message: 'Uno o más centros no pertenecen a la organización activa.',
       });
+    }
+    const publicCountry = snapshot.facts.find(
+      (fact) =>
+        fact.scopeKey === 'organization' &&
+        fact.factKey === 'organization.country' &&
+        fact.answerState === 'KNOWN',
+    );
+    if (
+      publicCountry?.answerState !== 'KNOWN' ||
+      typeof publicCountry.value !== 'string' ||
+      normalizedIdentity(publicCountry.value) !== normalizedIdentity(organization.country)
+    ) {
+      throw organizationReconciliationRequired('COUNTRY');
+    }
+    if (
+      centerScopes.length !== activeCenters.length ||
+      targetIds.size !== activeCenters.length ||
+      activeCenters.some(({ id }) => !targetIds.has(id))
+    ) {
+      throw organizationReconciliationRequired('WORK_CENTER_TOPOLOGY');
     }
     const normalizedMappings = [...input.scopeMappings].sort((left, right) =>
       left.scopeKey.localeCompare(right.scopeKey),
@@ -713,13 +782,20 @@ export class SstAssessmentService {
       const scopeKey = profileFact.workCenterId
         ? scopeByWorkCenterId.get(profileFact.workCenterId)
         : undefined;
-      if (!factKey || profileFact.scope !== 'WORK_CENTER' || !scopeKey) return [];
+      if (
+        !factKey ||
+        profileFact.scope !== 'WORK_CENTER' ||
+        !scopeKey ||
+        profileFact.value === 'UNKNOWN'
+      ) {
+        return [];
+      }
       return [
         sstAssessmentFactSchema.parse({
           factKey,
           scopeKey,
-          answerState: profileFact.value === 'UNKNOWN' ? 'EXPLICIT_UNKNOWN' : 'KNOWN',
-          ...(profileFact.value === 'UNKNOWN' ? {} : { value: profileFact.value === 'KNOWN_TRUE' }),
+          answerState: 'KNOWN',
+          value: profileFact.value === 'KNOWN_TRUE',
           provenance: {
             source: 'PREVIOUS_ASSESSMENT',
             ...(profileVersionId ? { sourceReference: profileVersionId } : {}),
@@ -1002,19 +1078,32 @@ export class SstAssessmentService {
       'workCenter.hasHighEnergyOperations': 'HIGH_ENERGY_OPERATION_PRESENT',
       'workCenter.hasExternalWorkforce': 'CONTRACTOR_OR_EXTERNAL_PERSONNEL_PRESENT',
     };
+    const previousContextFacts = previous?.schemaVersion === '2.0.0' ? previous.contextFacts : [];
+    const previousContextByIdentity = new Map<string, OrganizationProfileFact>(
+      previousContextFacts.map((fact): [string, OrganizationProfileFact] => [
+        `${fact.scope}:${fact.workCenterId ?? ''}:${fact.key}`,
+        fact,
+      ]),
+    );
     const assessmentContextFacts = snapshot.facts.flatMap((fact): OrganizationProfileFact[] => {
       const key = contextMapping[fact.factKey];
       const scope = snapshot.scopes.find(({ scopeKey }) => scopeKey === fact.scopeKey);
       if (!key || !scope?.workCenterId) return [];
+      const value =
+        fact.answerState === 'EXPLICIT_UNKNOWN'
+          ? 'UNKNOWN'
+          : fact.value === true
+            ? 'KNOWN_TRUE'
+            : 'KNOWN_FALSE';
+      const identity = `WORK_CENTER:${scope.workCenterId}:${key}`;
+      const inherited = previousContextByIdentity.get(identity);
+      if (fact.provenance.source === 'PREVIOUS_ASSESSMENT' && inherited?.value === value) {
+        return [inherited];
+      }
       return [
         {
           key,
-          value:
-            fact.answerState === 'EXPLICIT_UNKNOWN'
-              ? 'UNKNOWN'
-              : fact.value === true
-                ? 'KNOWN_TRUE'
-                : 'KNOWN_FALSE',
+          value,
           scope: 'WORK_CENTER',
           workCenterId: scope.workCenterId,
           provenance: { source: 'DECLARED_BY_ORGANIZATION' },
@@ -1073,14 +1162,27 @@ export class SstAssessmentService {
         `${right.scope}:${right.workCenterId ?? ''}:${right.key}`,
       ),
     );
+    const activeWorkCenterIds = workCenters.map(({ id }) => id);
+    const hasChemicalProcesses = reconcileLegacyOperation(
+      previous?.operations.hasChemicalProcesses,
+      activeWorkCenterIds,
+      contextFacts,
+      'CHEMICAL_PROCESS_PRESENT',
+    );
+    const hasHighEnergyOperations = reconcileLegacyOperation(
+      previous?.operations.hasHighEnergyOperations,
+      activeWorkCenterIds,
+      contextFacts,
+      'HIGH_ENERGY_OPERATION_PRESENT',
+    );
     const profile = organizationSstProfileSchema.parse({
       schemaVersion: '2.0.0',
       organization: {
-        country: (known('organization.country') as string | undefined) ?? organization.country,
-        ...(((known('organization.sector') as string | undefined) ?? organization.sector)
-          ? { sector: (known('organization.sector') as string | undefined) ?? organization.sector }
+        country: organization.country,
+        ...((organization.sector ?? (known('organization.sector') as string | undefined))
+          ? { sector: organization.sector ?? (known('organization.sector') as string) }
           : {}),
-        workCenterCount: snapshot.scopes.filter(({ kind }) => kind === 'WORK_CENTER').length,
+        workCenterCount: workCenters.length,
         ...(typeof known('organization.totalWorkerCount') === 'number'
           ? { workerCount: known('organization.totalWorkerCount') }
           : !totalWorkerCountFact && previous?.organization.workerCount
@@ -1090,7 +1192,10 @@ export class SstAssessmentService {
           ? { managementPriority: previous.organization.managementPriority }
           : {}),
       },
-      operations: previous?.operations ?? {},
+      operations: {
+        ...(hasChemicalProcesses === undefined ? {} : { hasChemicalProcesses }),
+        ...(hasHighEnergyOperations === undefined ? {} : { hasHighEnergyOperations }),
+      },
       contextFacts,
     });
     if (latest && sstAssessmentContentHash(latest.snapshot) === sstAssessmentContentHash(profile)) {

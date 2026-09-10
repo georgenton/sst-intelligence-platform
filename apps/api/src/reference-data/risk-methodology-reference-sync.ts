@@ -18,6 +18,7 @@ import { syncCatalogReferences } from './catalog-reference-sync';
 import { syncInspectionStandardReferences } from './inspection-standard-reference-sync';
 import { syncInspectionResourceReferences } from './inspection-resource-reference-sync';
 import { syncRegulatoryEvidenceReferences } from './regulatory-evidence-reference-sync';
+import { syncAdaptiveAssessmentReferences } from './adaptive-assessment-reference-sync';
 
 type JsonValue = Prisma.InputJsonValue;
 
@@ -462,12 +463,14 @@ export function syncGlobalReferenceData(prisma: PrismaClient) {
       const regulatory = await syncRegulatoryEvidenceReferences(transaction);
       const inspectionStandards = await syncInspectionStandardReferences(transaction);
       const inspectionResources = await syncInspectionResourceReferences(transaction);
+      const adaptiveAssessment = await syncAdaptiveAssessmentReferences(transaction);
       return {
         catalog,
         riskMethodology: await referenceCounts(transaction),
         regulatory,
         inspectionStandards,
         inspectionResources,
+        adaptiveAssessment,
       };
     },
     {

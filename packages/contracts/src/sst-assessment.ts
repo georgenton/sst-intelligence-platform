@@ -542,7 +542,7 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
         ['CONSTRUCTION_SITE', 'Sitio de construcción'],
         ['OTHER', 'Otra'],
       ),
-      collectionPolicy: 'FOUNDATION_REQUIRED',
+      collectionPolicy: 'CONDITIONAL',
     },
   ),
   definition(
@@ -651,6 +651,8 @@ export const sstAssessmentQuestionSchema = z
     sensitivity: z.enum(['LOW', 'MEDIUM']),
     relatedRuleKeys: z.array(z.string()),
     relatedTargetKeys: z.array(z.string()),
+    collectionPolicy: z.enum(SST_ASSESSMENT_COLLECTION_POLICIES),
+    blocking: z.boolean(),
   })
   .strict();
 export type SstAssessmentQuestion = z.infer<typeof sstAssessmentQuestionSchema>;
@@ -914,16 +916,27 @@ export function planSstAssessmentQuestions(
     .filter(({ scope, fact }) => {
       if (fact.collectionPolicy === 'FOUNDATION_REQUIRED') return true;
       if (fact.collectionPolicy === 'CONDITIONAL') {
-        return (
-          fact.factKey === 'organization.inspectionFrequency' &&
-          knownOrganizationValue('organization.inspectionPractice') !== undefined &&
-          knownOrganizationValue('organization.inspectionPractice') !== 'NONE'
-        );
+        if (fact.factKey === 'organization.inspectionFrequency') {
+          return (
+            knownOrganizationValue('organization.inspectionPractice') !== undefined &&
+            knownOrganizationValue('organization.inspectionPractice') !== 'NONE'
+          );
+        }
+        if (fact.factKey === 'workCenter.facilityTypes') {
+          const arrangement = snapshot.facts.find(
+            (item) =>
+              item.scopeKey === scope.scopeKey &&
+              item.factKey === 'workCenter.workArrangement' &&
+              item.answerState === 'KNOWN',
+          );
+          return arrangement?.answerState === 'KNOWN' && arrangement.value !== 'REMOTE';
+        }
+        return promoted.has(`${scope.scopeKey}:${fact.factKey}`);
       }
       if (fact.collectionPolicy === 'SPECIALIST_REQUIRED') {
         return promoted.has(`${scope.scopeKey}:${fact.factKey}`);
       }
-      return promoted.has(`${scope.scopeKey}:${fact.factKey}`);
+      return true;
     })
     .sort(
       (left, right) =>
@@ -948,6 +961,11 @@ export function planSstAssessmentQuestions(
         sensitivity: fact.sensitivity,
         relatedRuleKeys: specialist?.relatedRuleKeys ?? [],
         relatedTargetKeys: specialist?.relatedTargetKeys ?? [],
+        collectionPolicy: fact.collectionPolicy,
+        blocking:
+          fact.collectionPolicy === 'FOUNDATION_REQUIRED' ||
+          fact.collectionPolicy === 'CONDITIONAL' ||
+          fact.collectionPolicy === 'SPECIALIST_REQUIRED',
       };
     });
 }
@@ -956,9 +974,9 @@ export function resolveSstAssessmentReadiness(
   snapshot: SstAssessmentSnapshot,
   options: Parameters<typeof planSstAssessmentQuestions>[1] = {},
 ): 'COLLECTING_INFORMATION' | 'DIAGNOSIS_READY' {
-  return planSstAssessmentQuestions(snapshot, options).length === 0
-    ? 'DIAGNOSIS_READY'
-    : 'COLLECTING_INFORMATION';
+  return planSstAssessmentQuestions(snapshot, options).some(({ blocking }) => blocking)
+    ? 'COLLECTING_INFORMATION'
+    : 'DIAGNOSIS_READY';
 }
 
 export function calculateSstAssessmentProgress(
@@ -968,13 +986,15 @@ export function calculateSstAssessmentProgress(
   const snapshot = normalizeSstAssessmentSnapshot(snapshotInput);
   const catalog = resolveSstAssessmentCatalog(snapshot.catalogVersion);
   const pending = planSstAssessmentQuestions(snapshot, options);
+  const blockingPending = pending.filter(({ blocking }) => blocking);
   const relevantIdentities = new Set([
-    ...pending.map(({ scopeKey, factKey }) => `${scopeKey}:${factKey}`),
+    ...blockingPending.map(({ scopeKey, factKey }) => `${scopeKey}:${factKey}`),
     ...snapshot.facts.flatMap((fact) => {
       const definition = catalog.find(({ factKey }) => factKey === fact.factKey);
       if (!definition) return [];
       const isRelevant =
         definition.collectionPolicy === 'FOUNDATION_REQUIRED' ||
+        definition.collectionPolicy === 'CONDITIONAL' ||
         (options.specialistQuestions ?? []).some(
           (question) => question.scopeKey === fact.scopeKey && question.factKey === fact.factKey,
         );
@@ -1010,7 +1030,7 @@ export function calculateSstAssessmentProgress(
     explicitUnknownCount: snapshot.facts.filter(
       ({ answerState }) => answerState === 'EXPLICIT_UNKNOWN',
     ).length,
-    pendingQuestionCount: pending.length,
+    pendingQuestionCount: blockingPending.length,
     totalFacts: questions.length,
     completedTopics: topics.filter((topic) => topic.complete).length,
     totalTopics: topics.length,

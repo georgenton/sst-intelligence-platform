@@ -72,9 +72,11 @@ V2 pack evaluates the complete arrays with deterministic overlap predicates and 
 primary value.
 
 An explicitly unknown fact is omitted from specialist inputs but remains in the canonical snapshot
-and suppresses the same question for that session. The deterministic planner asks foundation facts,
-relevant conditional facts and missing facts promoted by the specialists. Recommended context and
-commercially optional facts do not block diagnosis. Authenticated derived-only facts are exposed as
+and suppresses the same question for that session. The deterministic planner returns foundation
+facts, relevant conditional facts, missing facts promoted by specialists, recommended context and
+commercially optional facts with explicit blocking/policy metadata. Only the first three categories
+can block diagnosis. Commercial and contextual facts remain discoverable for PR47/PR48, while
+commercial answers are excluded from technical and regulatory specialist decisions. Authenticated derived-only facts are exposed as
 required organization actions, never as questions that the answer endpoint rejects. Progress counts
 the relevant collection boundary; it is not a compliance percentage.
 
@@ -104,7 +106,10 @@ Authenticated creation reuses the latest safe Profile V2 headcount and exact Wor
 never treats the number of loaded Worker rows as total headcount and never fans legacy
 organization-wide operation flags across centers. Finalization merges into a semantically complete
 Profile V2 snapshot: unrelated declarations and provenance are preserved, changed scoped facts are
-replaced, and server-owned context is re-derived. A new immutable version is created only when that
+replaced with new declaration provenance, unchanged strong provenance is retained, legacy aggregate
+operations are reconciled only from sufficiently complete scoped knowledge, and server-owned context
+is re-derived. The bounded Profile V2 context ceiling is 2,000 facts, aligned with the assessment
+ceiling and sufficient for all mapped facts at 100 centers. A new immutable version is created only when that
 complete snapshot differs from the latest version.
 
 Persisted assessment schema and catalog versions are resolved through a finite V1 registry for
@@ -120,11 +125,18 @@ authenticated claim request body; they are never query-string parameters.
 
 Claim requires current authenticated organization context and a currently authorized write role.
 Every public center must map exactly once to a distinct active WorkCenter in that organization.
+Normalized country and the complete active Work Center topology must also match; otherwise claim
+fails with `SST_ASSESSMENT_ORGANIZATION_RECONCILIATION_REQUIRED` for a future guided reconciliation.
 Claim is idempotent only for the same organization and exact mapping; another organization cannot
 steal it. Claim never starts a demo, enables a module, changes a plan, assigns an entitlement,
 rewrites the final snapshot or recalculates a result. It materializes or reuses the complete mapped
 Profile V2 as a derived continuity artifact and stores its `profileVersionId` on the claimed
 assessment.
+
+The production-safe global `reference:sync` provisions and drift-checks both sealed Adaptive V1 and
+canonical Adaptive V2. It is idempotent, creates no tenant/customer rows, and is the same primitive
+used indirectly by the general seed. Railway `production:release` therefore selects V2 on a fresh
+migrated database without relying on `prisma db seed`.
 
 ## Authorization and setup state
 

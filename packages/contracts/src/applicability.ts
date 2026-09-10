@@ -194,6 +194,11 @@ export const organizationProfileFactInputSchema = organizationProfileFactBaseSch
 
 export type OrganizationProfileFactInput = z.infer<typeof organizationProfileFactInputSchema>;
 
+// A canonical assessment supports 100 work centers and may preserve several scoped facts per
+// center. Keep the profile ceiling aligned with that bounded topology instead of failing only
+// when a valid assessment is finalized.
+export const ORGANIZATION_PROFILE_CONTEXT_FACT_LIMIT = 2_000;
+
 export const organizationSstProfileV2Schema = z
   .object({
     schemaVersion: z.literal('2.0.0'),
@@ -203,7 +208,9 @@ export const organizationSstProfileV2Schema = z
       })
       .strict(),
     operations: organizationSstProfileV1Schema.shape.operations,
-    contextFacts: z.array(organizationProfileFactSchema).max(250),
+    contextFacts: z
+      .array(organizationProfileFactSchema)
+      .max(ORGANIZATION_PROFILE_CONTEXT_FACT_LIMIT),
   })
   .strict()
   .superRefine((profile, context) => {
