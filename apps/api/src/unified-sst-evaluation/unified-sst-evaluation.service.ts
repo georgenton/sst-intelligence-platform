@@ -1,40 +1,12 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import {
-  buildRegulatoryPilotShadowPack,
-  evaluateAdaptiveConfiguration,
-  organizationSstProfileSchema,
-  validateRegulatoryPilotManifest,
-  type RegulatoryPilotManifestBundle,
-} from '@sst/contracts';
+import { evaluateAdaptiveConfiguration, organizationSstProfileSchema } from '@sst/contracts';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  assertRegulatoryRuntimeResources,
-  REGULATORY_PILOT_DIRECTORY,
-} from '../reference-data/regulatory-resource-path';
 import type { AddUnifiedOrganizationEvidenceDto, ReviewRegulatoryInterpretationDto } from './dto';
-
-function regulatoryCountryCode(country: string) {
-  const normalized = country.trim().toUpperCase();
-  return normalized === 'ECUADOR' || normalized === 'EC' ? 'EC' : country.trim();
-}
-
-function loadPilot() {
-  assertRegulatoryRuntimeResources();
-  const directory = REGULATORY_PILOT_DIRECTORY;
-  const read = (file: string) =>
-    JSON.parse(readFileSync(resolve(directory, file), 'utf8')) as unknown;
-  return validateRegulatoryPilotManifest({
-    index: read('manifest.json'),
-    source: read('source.json'),
-    provisions: read('provisions.json'),
-    requirements: read('requirements.json'),
-    ruleDrafts: read('rule-drafts.json'),
-    shadowPack: read('shadow-pack.json'),
-  } as RegulatoryPilotManifestBundle);
-}
+import {
+  loadRegulatoryCandidatePack,
+  normalizeRegulatoryCountryCode,
+} from './regulatory-candidate-evaluator';
 
 const workspaceInclude = {
   ruleDefinition: { select: { ruleKey: true } },
@@ -143,14 +115,13 @@ export class UnifiedSstEvaluationService {
     ]);
     if (!profile || !organization) throw new NotFoundException('Perfil SST no encontrado.');
     const snapshot = organizationSstProfileSchema.parse(profile.snapshot);
-    const pilot = loadPilot();
-    const pack = buildRegulatoryPilotShadowPack(pilot);
+    const pack = loadRegulatoryCandidatePack();
     const facts = [
       {
         scopeKey: 'organization',
         factKey: 'organization.country',
         source: 'ORGANIZATION_PROFILE',
-        value: regulatoryCountryCode(snapshot.organization.country),
+        value: normalizeRegulatoryCountryCode(snapshot.organization.country),
       },
       ...(snapshot.organization.workerCount === undefined
         ? []

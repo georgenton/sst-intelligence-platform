@@ -35,6 +35,7 @@ import { RegulatoryRiskLinkModule } from './regulatory-risk-links/regulatory-ris
 import { RiskMethodologyModule } from './risk-methodology/risk-methodology.module';
 import { SafetyObservationsModule } from './safety-observations/safety-observations.module';
 import { SolutionFinderModule } from './solution-finder/solution-finder.module';
+import { SstAssessmentModule } from './sst-assessment/sst-assessment.module';
 import { TechnicalRiskModule } from './technical-risk/technical-risk.module';
 import { TrainingModule } from './training/training.module';
 import { UnifiedSstEvaluationModule } from './unified-sst-evaluation/unified-sst-evaluation.module';
@@ -120,6 +121,7 @@ import { WorkersModule } from './workers/workers.module';
     RiskMethodologyModule,
     SafetyObservationsModule,
     SolutionFinderModule,
+    SstAssessmentModule,
     DashboardModule,
     GovernanceModule,
     EvidencePackagesModule,
