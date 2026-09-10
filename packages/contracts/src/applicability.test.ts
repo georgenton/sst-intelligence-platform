@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   APPLICABILITY_STATES,
   DEMO_APPLICABILITY_RULE_PACK,
+  ORGANIZATION_PROFILE_CONTEXT_FACT_LIMIT,
   applicabilityRulePackSchema,
   evaluateApplicability,
+  organizationSstProfileV2Schema,
   type ApplicabilityRulePack,
   type ApplicabilityState,
   type OrganizationSstProfile,
@@ -345,5 +347,30 @@ describe('deterministic applicability evaluation', () => {
     expect(evaluateApplicability(completeProfile, DEMO_APPLICABILITY_RULE_PACK)).toEqual(
       evaluateApplicability(completeProfile, DEMO_APPLICABILITY_RULE_PACK),
     );
+  });
+
+  it('bounds Profile V2 capacity above the complete 100-center assessment mapping', () => {
+    const contextFacts = Array.from({ length: 100 }, (_, index) =>
+      [
+        'CHEMICAL_PROCESS_PRESENT',
+        'HIGH_ENERGY_OPERATION_PRESENT',
+        'CONTRACTOR_OR_EXTERNAL_PERSONNEL_PRESENT',
+      ].map((key) => ({
+        key,
+        value: 'KNOWN_FALSE',
+        scope: 'WORK_CENTER',
+        workCenterId: `${String(index + 1).padStart(8, '0')}-0000-4000-8000-000000000000`,
+        provenance: { source: 'DECLARED_BY_ORGANIZATION' },
+      })),
+    ).flat();
+    expect(ORGANIZATION_PROFILE_CONTEXT_FACT_LIMIT).toBeGreaterThanOrEqual(contextFacts.length);
+    expect(
+      organizationSstProfileV2Schema.parse({
+        schemaVersion: '2.0.0',
+        organization: { country: 'Ecuador', workCenterCount: 100 },
+        operations: {},
+        contextFacts,
+      }).contextFacts,
+    ).toHaveLength(300);
   });
 });

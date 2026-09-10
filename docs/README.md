@@ -7,6 +7,9 @@ validation reports remain in `.artifacts/` and are not source documentation.
 
 - [Master project context](project/sst-intelligence-master-context.md)
 - [Master roadmap](project/sst-intelligence-roadmap.md)
+- [Unified SST Assessment Core V1](architecture/unified-sst-assessment-core-v1.md)
+- [SST Assessment canonical intake V1](domain/sst-assessment-intake-v1.md)
+- [Unified SST Assessment migration 34](deployment/unified-sst-assessment-core-v1-migration.md)
 - [Operational Execution Program V1](product/operational-execution-program-v1.md)
 - [Workspace UX V2](architecture/workspace-ux-v2.md)
 - [Obligation Execution V1](domain/obligation-execution-v1.md)

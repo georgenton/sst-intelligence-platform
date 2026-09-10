@@ -974,6 +974,23 @@ enum OperationalSignalAttention {
   PRIORITY_REVIEW
 }
 
+enum SstAssessmentChannel {
+  PUBLIC
+  AUTHENTICATED
+}
+
+enum SstAssessmentKind {
+  INITIAL_ASSESSMENT
+  REASSESSMENT
+}
+
+enum SstAssessmentStatus {
+  COLLECTING_INFORMATION
+  DIAGNOSIS_READY
+  FINALIZED
+  EXPIRED
+}
+
 model User {
   id                           String                                        @id @default(uuid()) @db.Uuid
   email                        String                                        @unique
@@ -1073,6 +1090,8 @@ model User {
   trainingNeedsCreated         TrainingNeed[]                                @relation("TrainingNeedCreator")
   trainingSessionsResponsible  TrainingSession[]                             @relation("TrainingSessionResponsible")
   organizationGapAnalyses      OrganizationGapAnalysis[]                     @relation("OrganizationGapAnalysisCreator")
+  sstAssessmentsCreated        SstAssessmentSession[]                        @relation("SstAssessmentCreator")
+  sstAssessmentsClaimed        SstAssessmentSession[]                        @relation("SstAssessmentClaimant")
 }
 
 model RefreshSession {
@@ -1204,6 +1223,7 @@ model Organization {
   trainingAudiences             TrainingAudience[]
   incidentPpeIssues             IncidentPpeIssue[]
   gapAnalyses                   OrganizationGapAnalysis[]
+  sstAssessmentSessions         SstAssessmentSession[]
 }
 
 model WorkCenter {
@@ -3085,6 +3105,7 @@ model OrganizationSstProfileVersion {
   adaptiveSessions   AdaptiveConfigurationSession[]
   unifiedEvaluations UnifiedSstEvaluation[]
   gapAnalyses        OrganizationGapAnalysis[]
+  sstAssessments     SstAssessmentSession[]
 
   @@unique([organizationId, version])
   @@index([organizationId, createdAt])
@@ -3371,6 +3392,7 @@ model UnifiedSstEvaluation {
   profileVersion   OrganizationSstProfileVersion @relation(fields: [profileVersionId], references: [id], onDelete: Restrict)
   createdBy        User                          @relation("UnifiedEvaluationCreator", fields: [createdById], references: [id], onDelete: Restrict)
   items            UnifiedSstEvaluationItem[]
+  sstAssessments   SstAssessmentSession[]
 
   @@index([organizationId, createdAt])
   @@index([organizationId, status])
@@ -3734,9 +3756,61 @@ model AdaptiveConfigurationSession {
   answers           AdaptiveFactAnswer[]
   runs              AdaptiveEvaluationRun[]
   proposals         AdaptiveConfigurationProposal[]
+  sstAssessments    SstAssessmentSession[]
 
   @@index([organizationId, createdAt])
   @@index([organizationId, status])
+}
+
+model SstAssessmentSession {
+  id                  String                         @id @default(uuid()) @db.Uuid
+  organizationId      String?                        @db.Uuid
+  createdById         String?                        @db.Uuid
+  claimedById         String?                        @db.Uuid
+  publicTokenHash     String?                        @unique @db.VarChar(71)
+  channel             SstAssessmentChannel
+  kind                SstAssessmentKind              @default(INITIAL_ASSESSMENT)
+  status              SstAssessmentStatus            @default(COLLECTING_INFORMATION)
+  sessionRevision     Int                            @default(0)
+  schemaVersion       String                         @db.VarChar(32)
+  catalogVersion      String                         @db.VarChar(32)
+  scopes              Json
+  facts               Json
+  latestResult        Json?
+  finalSnapshot       Json?
+  semanticInputHash   String?                        @db.VarChar(71)
+  semanticOutputHash  String?                        @db.VarChar(71)
+  evaluatorVersions   Json?
+  baseProfileVersionId String?                       @db.Uuid
+  baseProfileHash     String?                        @db.VarChar(71)
+  baseOrgContextHash  String?                        @db.VarChar(71)
+  baseTopologyHash    String?                        @db.VarChar(71)
+  claimScopeMappings  Json?
+  profileVersionId    String?                        @db.Uuid
+  adaptiveSessionId   String?                        @db.Uuid
+  unifiedEvaluationId String?                        @db.Uuid
+  parentAssessmentId  String?                        @db.Uuid
+  expiresAt           DateTime?
+  claimedAt           DateTime?
+  finalizedAt         DateTime?
+  createdAt           DateTime                       @default(now())
+  updatedAt           DateTime                       @updatedAt
+  organization        Organization?                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  createdBy           User?                          @relation("SstAssessmentCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  claimedBy           User?                          @relation("SstAssessmentClaimant", fields: [claimedById], references: [id], onDelete: Restrict)
+  profileVersion      OrganizationSstProfileVersion? @relation(fields: [profileVersionId], references: [id], onDelete: Restrict)
+  adaptiveSession     AdaptiveConfigurationSession?  @relation(fields: [adaptiveSessionId], references: [id], onDelete: Restrict)
+  unifiedEvaluation   UnifiedSstEvaluation?          @relation(fields: [unifiedEvaluationId], references: [id], onDelete: Restrict)
+  parentAssessment    SstAssessmentSession?          @relation("SstAssessmentReassessment", fields: [parentAssessmentId], references: [id], onDelete: Restrict)
+  reassessments       SstAssessmentSession[]         @relation("SstAssessmentReassessment")
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+  @@index([expiresAt])
+  @@index([parentAssessmentId])
+  @@index([profileVersionId])
+  @@index([adaptiveSessionId])
+  @@index([unifiedEvaluationId])
 }
 
 model AdaptiveSessionScope {

@@ -9,6 +9,19 @@ architecture, security, deployment and source-review documents remain authoritat
 bounded areas. The [master roadmap](sst-intelligence-roadmap.md) is the sole cross-product priority
 roadmap.
 
+## PR46 Unified Assessment Core + Canonical Intake V1 — implementation pending external audit
+
+PR46 introduces one canonical, channel-neutral SST assessment contract and facade over the existing
+Adaptive Configuration and regulatory-candidate specialists. It distinguishes unanswered,
+`KNOWN false` and `EXPLICIT_UNKNOWN`, preserves per-Work-Center scope, produces reproducible
+semantic hashes, supports public-token and authenticated lifecycles, explicit public claim,
+reassessment and a backend-derived setup state. See
+[Unified SST Assessment Core V1](../architecture/unified-sst-assessment-core-v1.md) and
+[canonical intake V1](../domain/sst-assessment-intake-v1.md).
+
+This is not yet production baseline: the Draft PR requires external audit. It adds no visual guided
+flow, recommendation, module activation, Plan generation, external AI or commercial entitlement.
+
 ## Production baseline — Post-Anita convergence V1
 
 PR #42 adds a bounded Plan Operativo V0, synthetic

@@ -11,6 +11,13 @@ cross-module intelligence.
 
 ## Priority tracks
 
+### Foundation U — Unified Assessment Core + Canonical Intake V1 — PR46 external audit pending
+
+One canonical public/authenticated intake and orchestration facade is implemented in Draft PR46.
+It reuses the current deterministic specialists, preserves scoped facts and creates no new rule
+engine. PR47 guided UX, PR48 diagnosis-to-modules/plan and PR49 bounded LLM explanation remain
+separate future gates and must not start until PR46 closes.
+
 ### A — Anita professional review
 
 Parallel professional track covering the pending decisions listed in the

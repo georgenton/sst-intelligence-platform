@@ -131,6 +131,13 @@ describe('adaptive deterministic engine', () => {
     expect(validateAdaptiveFactValue(integer, 0)).toBe(0);
     expect(() => validateAdaptiveFactValue(integer, null)).toThrow('Unanswered');
     expect(() => validateAdaptiveFactValue(integer, '6')).toThrow('Expected integer');
+    const activities = DEMO_ADAPTIVE_RULE_PACK.factVersions.find(
+      ({ factKey }) => factKey === 'organization.strategicProtectionPriorities',
+    )!;
+    expect(() => validateAdaptiveFactValue(activities, [])).toThrow('Expected choices');
+    expect(validateAdaptiveFactValue(activities, ['PEOPLE_AND_HEALTH'])).toEqual([
+      'PEOPLE_AND_HEALTH',
+    ]);
   });
 
   it('implements decision-relevant ALL/ANY truth behavior', () => {
@@ -929,35 +936,45 @@ describe('adaptive deterministic engine', () => {
       }),
     ).toThrow('ADAPTIVE_LIMIT_EXCEEDED:factsPerEvaluation');
 
-    const questionPack = structuredClone(DEMO_ADAPTIVE_RULE_PACK);
-    const questionFacts = ['workCenter.hasWorkAtHeight', 'workCenter.hasConfinedSpaces'];
-    questionPack.rules = questionFacts.map((factKey, index) => ({
-      ...limitRuleTemplate,
-      ruleKey: `QUESTION_LIMIT_RULE_${index}`,
-      groupKey: 'QUESTION_LIMIT_GROUP',
-      scopeMode: 'EACH_WORK_CENTER' as const,
-      condition: {
-        kind: 'PREDICATE' as const,
-        factKey,
-        factScope: 'CURRENT_SCOPE' as const,
-        operator: 'BOOLEAN_IS' as const,
-        value: true,
-      },
-    }));
-    questionPack.groups = [
-      {
-        ...limitGroupTemplate,
+    const questionPack = (factCount: number) => {
+      const pack = structuredClone(DEMO_ADAPTIVE_RULE_PACK);
+      const questionFacts = Array.from(
+        { length: factCount },
+        (_, index) => `question.limitFact${index}`,
+      );
+      pack.factVersions = [
+        ...pack.factVersions,
+        ...questionFacts.map((factKey) => ({ ...limitFactTemplate, factKey })),
+      ];
+      pack.rules = questionFacts.map((factKey, index) => ({
+        ...limitRuleTemplate,
+        ruleKey: `QUESTION_LIMIT_RULE_${index}`,
         groupKey: 'QUESTION_LIMIT_GROUP',
-        scopeMode: 'EACH_WORK_CENTER',
-        activation: {
-          kind: 'PREDICATE',
-          factKey: 'organization.country',
-          factScope: 'ORGANIZATION',
-          operator: 'EXISTS',
+        scopeMode: 'EACH_WORK_CENTER' as const,
+        condition: {
+          kind: 'PREDICATE' as const,
+          factKey,
+          factScope: 'CURRENT_SCOPE' as const,
+          operator: 'BOOLEAN_IS' as const,
+          value: true,
         },
-        ruleKeys: questionPack.rules.map(({ ruleKey }) => ruleKey),
-      },
-    ];
+      }));
+      pack.groups = [
+        {
+          ...limitGroupTemplate,
+          groupKey: 'QUESTION_LIMIT_GROUP',
+          scopeMode: 'EACH_WORK_CENTER',
+          activation: {
+            kind: 'PREDICATE',
+            factKey: 'organization.country',
+            factScope: 'ORGANIZATION',
+            operator: 'EXISTS',
+          },
+          ruleKeys: pack.rules.map(({ ruleKey }) => ruleKey),
+        },
+      ];
+      return pack;
+    };
     const centers = (count: number): AdaptiveScopeInput[] => [
       organization,
       ...Array.from({ length: count }, (_, index) => ({
@@ -969,15 +986,15 @@ describe('adaptive deterministic engine', () => {
     ];
     expect(
       evaluateAdaptiveConfiguration({
-        pack: questionPack,
-        scopes: centers(ADAPTIVE_LIMITS.questionsPerRun / 2),
+        pack: questionPack(20),
+        scopes: centers(100),
         facts: [baseFacts[0]],
       }).questions,
     ).toHaveLength(ADAPTIVE_LIMITS.questionsPerRun);
     expect(() =>
       evaluateAdaptiveConfiguration({
-        pack: questionPack,
-        scopes: centers(ADAPTIVE_LIMITS.questionsPerRun / 2 + 1),
+        pack: questionPack(21),
+        scopes: centers(100),
         facts: [baseFacts[0]],
       }),
     ).toThrow('ADAPTIVE_LIMIT_EXCEEDED:questionsPerRun');

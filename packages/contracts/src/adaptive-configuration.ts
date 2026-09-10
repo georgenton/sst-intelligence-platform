@@ -12,7 +12,7 @@ export const ADAPTIVE_LIMITS = {
   targetVersionsPerPack: 100,
   scopesPerEvaluation: 101,
   factsPerEvaluation: 2_000,
-  questionsPerRun: 100,
+  questionsPerRun: 2_000,
   answersPerRequest: 100,
   workCentersPerSession: 100,
   evaluationRunsPerSession: 100,
@@ -176,6 +176,7 @@ const adaptivePredicateSchema = z
       'NUMBER_LTE',
       'BOOLEAN_IS',
       'EXISTS',
+      'ARRAY_OVERLAPS',
     ]),
     value: z
       .union([z.boolean(), z.number().finite(), z.string(), z.array(z.string()).min(1)])
@@ -572,7 +573,11 @@ export function validateAdaptiveFactValue(
         throw new Error('Invalid choice');
       return value;
     case 'MULTI_CHOICE':
-      if (!Array.isArray(value) || value.some((item) => typeof item !== 'string'))
+      if (
+        !Array.isArray(value) ||
+        value.length === 0 ||
+        value.some((item) => typeof item !== 'string')
+      )
         throw new Error('Expected choices');
       if (value.some((item) => !fact.choices.includes(item as string)))
         throw new Error('Invalid choice');
@@ -623,6 +628,12 @@ function evaluatePredicate(
       break;
     case 'NOT_IN':
       matches = Array.isArray(predicate.value) && !predicate.value.includes(actual as never);
+      break;
+    case 'ARRAY_OVERLAPS':
+      matches =
+        Array.isArray(actual) &&
+        Array.isArray(predicate.value) &&
+        actual.some((item) => (predicate.value as string[]).includes(item));
       break;
     case 'NUMBER_GTE':
       matches =
@@ -1511,6 +1522,89 @@ export const DEMO_ADAPTIVE_RULE_PACK: AdaptiveRulePackContract = validateAdaptiv
   groups: DEMO_ADAPTIVE_GROUPS,
   rules: DEMO_ADAPTIVE_RULES,
 });
+
+function pluralAssessmentExpression(expression: AdaptiveExpression): AdaptiveExpression {
+  if (expression.kind === 'GROUP') {
+    return { ...expression, clauses: expression.clauses.map(pluralAssessmentExpression) };
+  }
+  if (expression.factKey === 'workCenter.facilityType') {
+    return {
+      ...expression,
+      factKey: 'workCenter.facilityTypes',
+      operator: 'ARRAY_OVERLAPS',
+      value: ['OFFICE', 'PLANT', 'WAREHOUSE', 'CONSTRUCTION_SITE', 'OTHER'],
+    };
+  }
+  if (expression.factKey === 'workCenter.activityCategory') {
+    const expected = expression.value === 'OTHER_AMBIGUOUS' ? 'OTHER' : expression.value;
+    return {
+      ...expression,
+      factKey: 'workCenter.activityCategories',
+      operator: 'ARRAY_OVERLAPS',
+      value: typeof expected === 'string' ? [expected] : expected,
+    };
+  }
+  return { ...expression };
+}
+
+const pluralAssessmentFacts: AdaptiveFactVersionContract[] = [
+  fact(
+    'workCenter.activityCategories',
+    'ACTIVITY',
+    'WORK_CENTER',
+    'MULTI_CHOICE',
+    '¿Qué categorías de actividad existen en este centro?',
+    {
+      choices: [
+        'ADMINISTRATIVE_SERVICES',
+        'PRODUCTION',
+        'WAREHOUSE',
+        'CONSTRUCTION_ASSEMBLY',
+        'OTHER',
+      ],
+      priority: 21,
+    },
+  ),
+  fact(
+    'workCenter.facilityTypes',
+    'INFRASTRUCTURE',
+    'WORK_CENTER',
+    'MULTI_CHOICE',
+    '¿Qué tipos de instalación componen este centro?',
+    {
+      choices: ['OFFICE', 'PLANT', 'WAREHOUSE', 'CONSTRUCTION_SITE', 'OTHER'],
+      priority: 30,
+    },
+  ),
+].map((item) => ({ ...item, version: '2.0.0' }));
+
+export const CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2: AdaptiveRulePackContract =
+  validateAdaptivePack({
+    ...DEMO_ADAPTIVE_RULE_PACK,
+    version: '2.0.0',
+    name: 'Configuración SST adaptativa DEMO V2',
+    factVersions: [
+      ...DEMO_ADAPTIVE_FACT_VERSIONS.filter(
+        ({ factKey }) =>
+          factKey !== 'workCenter.activityCategory' && factKey !== 'workCenter.facilityType',
+      ).map((item) => ({ ...item, version: '2.0.0' })),
+      ...pluralAssessmentFacts,
+    ],
+    targetVersions: DEMO_ADAPTIVE_TARGET_VERSIONS.map((item) => ({
+      ...item,
+      version: '2.0.0',
+    })),
+    rules: DEMO_ADAPTIVE_RULES.map((item) => ({
+      ...item,
+      version: '2.0.0',
+      condition: pluralAssessmentExpression(item.condition),
+    })),
+    groups: DEMO_ADAPTIVE_GROUPS.map((item) => ({
+      ...item,
+      version: '2.0.0',
+      activation: pluralAssessmentExpression(item.activation),
+    })),
+  });
 
 export function assertAdaptiveRulePublication(input: {
   isDemo: boolean;

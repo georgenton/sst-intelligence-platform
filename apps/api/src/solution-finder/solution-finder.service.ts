@@ -1,4 +1,3 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import {
@@ -13,6 +12,10 @@ import { ExplanationService } from '../ai/explanation.service';
 import { AuditService, type AuditEvent } from '../audit/audit.service';
 import { EntitlementService } from '../catalog/entitlement.service';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  createPublicSessionToken,
+  publicSessionTokenMatches,
+} from '../common/public-session-token';
 
 type Context = Pick<AuditEvent, 'requestId' | 'ip' | 'userAgent'>;
 
@@ -25,15 +28,9 @@ export class SolutionFinderService {
     private readonly entitlements: EntitlementService,
   ) {}
 
-  private tokenHash(token: string) {
-    return createHash('sha256').update(token).digest('hex');
-  }
-
   private assertToken(expectedHash: string, token: string | undefined) {
     if (!token) throw new ForbiddenException('El token de reanudación es obligatorio.');
-    const actual = Buffer.from(this.tokenHash(token), 'hex');
-    const expected = Buffer.from(expectedHash, 'hex');
-    if (actual.length !== expected.length || !timingSafeEqual(actual, expected))
+    if (!publicSessionTokenMatches(expectedHash, token))
       throw new ForbiddenException('El token de reanudación no es válido.');
   }
 
@@ -48,11 +45,11 @@ export class SolutionFinderService {
       where: { key: 'solution-finder', active: true },
       orderBy: { createdAt: 'desc' },
     });
-    const token = randomBytes(32).toString('base64url');
+    const { token, hash } = createPublicSessionToken();
     const session = await this.prisma.guidedFlowSession.create({
       data: {
         definitionId: definition.id,
-        publicTokenHash: this.tokenHash(token),
+        publicTokenHash: hash,
         expiresAt: new Date(Date.now() + 30 * 86_400_000),
       },
       select: { id: true, status: true, currentStep: true, expiresAt: true },
