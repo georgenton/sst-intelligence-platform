@@ -1,11 +1,12 @@
-import type { SstAssessmentResult } from '@sst/contracts';
+import type { SstAssessmentResult, SstAssessmentScope } from '@sst/contracts';
 import Link from 'next/link';
 import {
   groupAssessmentResults,
   resultStateLabel,
   safeResultExplanation,
-  assessmentFactLabel,
   assessmentTechnicalDetailsPolicy,
+  professionalFoundation,
+  resultNextStep,
 } from '@/lib/sst-assessment-presentation';
 import { sstAssessmentClaimReturnPath } from '@/lib/auth-return-path';
 
@@ -15,12 +16,14 @@ export function AssessmentResults({
   channel,
   continuation,
   onReassess,
+  scopes,
 }: {
   result: SstAssessmentResult;
   sessionId: string;
   channel: 'PUBLIC' | 'AUTHENTICATED';
   continuation?: 'public' | 'authenticated';
   onReassess?: () => void;
+  scopes: readonly SstAssessmentScope[];
 }) {
   const claimPath = sstAssessmentClaimReturnPath(sessionId);
   const technicalDetails = assessmentTechnicalDetailsPolicy(channel);
@@ -35,57 +38,71 @@ export function AssessmentResults({
         <section className="assessment-result-group" key={group.key}>
           <h3>{group.title}</h3>
           <div>
-            {group.items.map((item) => (
-              <article key={`${item.scopeKey}:${item.targetKey}`}>
-                <span className="status-badge">{resultStateLabel(item)}</span>
-                <h4>{item.title}</h4>
-                <p>{safeResultExplanation(item)}</p>
-                <p>
-                  <strong>Siguiente paso:</strong> revisa este criterio con el responsable SST antes
-                  de tomar una decisión.
-                </p>
-                <details>
-                  <summary>Ver fundamento profesional</summary>
-                  <dl>
-                    <div>
-                      <dt>Alcance</dt>
-                      <dd>{item.scopeKey === 'organization' ? 'Empresa' : 'Centro de trabajo'}</dd>
-                    </div>
-                    <div>
-                      <dt>Autoridad</dt>
-                      <dd>
-                        {item.authority === 'DEMO'
-                          ? 'Criterio demostrativo'
-                          : item.authority === 'CANDIDATE'
-                            ? 'Criterio regulatorio en revisión'
-                            : 'Criterio publicado'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Revisión</dt>
-                      <dd>
-                        {item.professionalReviewRequired
-                          ? 'Revisión profesional requerida'
-                          : 'Revisión recomendada'}
-                      </dd>
-                    </div>
-                    {item.missingFactKeys.length ? (
+            {group.items.map((item) => {
+              const foundation = professionalFoundation(item, scopes);
+              return (
+                <article key={`${item.scopeKey}:${item.targetKey}`}>
+                  <span className="status-badge">{resultStateLabel(item)}</span>
+                  <h4>{item.title}</h4>
+                  <p>{safeResultExplanation(item)}</p>
+                  <p>
+                    <strong>Siguiente paso:</strong> {resultNextStep(item)}
+                  </p>
+                  <details>
+                    <summary>Ver fundamento profesional</summary>
+                    <dl>
+                      {foundation.dataUsed.length ? (
+                        <div>
+                          <dt>Datos utilizados</dt>
+                          <dd>
+                            <ul className="assessment-foundation-data">
+                              {foundation.dataUsed.map((datum) => (
+                                <li key={datum.identity}>
+                                  <strong>{datum.label}</strong> — {datum.value}
+                                </li>
+                              ))}
+                            </ul>
+                          </dd>
+                        </div>
+                      ) : null}
                       <div>
-                        <dt>Información pendiente</dt>
-                        <dd>{item.missingFactKeys.map(assessmentFactLabel).join('; ')}</dd>
+                        <dt>Criterio evaluado</dt>
+                        <dd>{foundation.criterion}</dd>
                       </div>
-                    ) : null}
-                  </dl>
-                </details>
-                {technicalDetails.available ? (
-                  <details className="assessment-technical-details">
-                    <summary>Detalles técnicos</summary>
-                    <p>Clave de resultado: {item.targetKey}</p>
-                    <p>Reglas: {item.ruleKeys.join(', ') || 'Sin reglas expuestas'}</p>
+                      <div>
+                        <dt>Resultado</dt>
+                        <dd>{foundation.result}</dd>
+                      </div>
+                      <div>
+                        <dt>Alcance</dt>
+                        <dd>{foundation.scope}</dd>
+                      </div>
+                      <div>
+                        <dt>Autoridad</dt>
+                        <dd>{foundation.authority}</dd>
+                      </div>
+                      <div>
+                        <dt>Revisión profesional</dt>
+                        <dd>{foundation.review}</dd>
+                      </div>
+                      {foundation.pendingInformation.length ? (
+                        <div>
+                          <dt>Información pendiente</dt>
+                          <dd>{foundation.pendingInformation.join('; ')}</dd>
+                        </div>
+                      ) : null}
+                    </dl>
                   </details>
-                ) : null}
-              </article>
-            ))}
+                  {technicalDetails.available ? (
+                    <details className="assessment-technical-details">
+                      <summary>Detalles técnicos</summary>
+                      <p>Clave de resultado: {item.targetKey}</p>
+                      <p>Reglas: {item.ruleKeys.join(', ') || 'Sin reglas expuestas'}</p>
+                    </details>
+                  ) : null}
+                </article>
+              );
+            })}
           </div>
         </section>
       ))}

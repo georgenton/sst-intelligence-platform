@@ -515,24 +515,26 @@ export class SstAssessmentService {
   }
 
   async setupState(organizationId: string) {
-    const [finalized, inProgress, legacySignals] = await Promise.all([
-      this.prisma.sstAssessmentSession.findFirst({
-        where: { organizationId, status: 'FINALIZED' },
-        select: { id: true, finalizedAt: true },
-        orderBy: { finalizedAt: 'desc' },
+    const [sessions, profiles, legacySignals] = await Promise.all([
+      this.prisma.sstAssessmentSession.findMany({
+        where: { organizationId },
+        select: {
+          id: true,
+          status: true,
+          updatedAt: true,
+          finalizedAt: true,
+          baseProfileVersionId: true,
+          profileVersionId: true,
+        },
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       }),
-      this.prisma.sstAssessmentSession.findFirst({
-        where: { organizationId, status: { in: ['COLLECTING_INFORMATION', 'DIAGNOSIS_READY'] } },
-        select: { id: true, status: true, updatedAt: true },
-        orderBy: { updatedAt: 'desc' },
+      this.prisma.organizationSstProfileVersion.findMany({
+        where: { organizationId },
+        select: { id: true },
       }),
       Promise.all([
         this.prisma.organization.findFirst({
           where: { id: organizationId, status: 'DEMO' },
-          select: { id: true },
-        }),
-        this.prisma.organizationSstProfileVersion.findFirst({
-          where: { organizationId },
           select: { id: true },
         }),
         this.prisma.adaptiveConfigurationSession.findFirst({
@@ -561,21 +563,32 @@ export class SstAssessmentService {
         }),
       ]),
     ]);
+    const canonicalProfileIds = new Set(
+      sessions.flatMap(({ baseProfileVersionId, profileVersionId }) =>
+        profileVersionId && profileVersionId !== baseProfileVersionId ? [profileVersionId] : [],
+      ),
+    );
+    const hasPreExistingProfile = profiles.some(({ id }) => !canonicalProfileIds.has(id));
+    const hasLegacyBaseline = hasPreExistingProfile || legacySignals.some(Boolean);
+    const inProgress = sessions.find(({ status }) =>
+      ['COLLECTING_INFORMATION', 'DIAGNOSIS_READY'].includes(status),
+    );
+    const finalized = sessions.find(({ status }) => status === 'FINALIZED');
     return inProgress
       ? {
           state: 'ASSESSMENT_IN_PROGRESS',
-          hardGate: true,
+          hardGate: !hasLegacyBaseline,
           assessmentId: inProgress.id,
           status: inProgress.status,
         }
       : finalized
         ? {
             state: 'DIAGNOSIS_READY',
-            hardGate: true,
+            hardGate: !hasLegacyBaseline,
             assessmentId: finalized.id,
             finalizedAt: finalized.finalizedAt,
           }
-        : legacySignals.some(Boolean)
+        : hasLegacyBaseline
           ? { state: 'LEGACY_CONFIGURED', hardGate: false, assessmentId: null }
           : { state: 'NEEDS_ASSESSMENT', hardGate: true, assessmentId: null };
   }
@@ -746,6 +759,10 @@ export class SstAssessmentService {
           where: { id: sessionId, organizationId: null, status: 'FINALIZED' },
         });
         if (!current) throw staleSession();
+        const preExistingProfile = await transaction.organizationSstProfileVersion.findFirst({
+          where: { organizationId },
+          orderBy: { version: 'desc' },
+        });
         const mappedSnapshot = await this.reconcilePublicClaimContext(
           transaction,
           organizationId,
@@ -766,6 +783,10 @@ export class SstAssessmentService {
             claimedById: userId,
             claimScopeMappings: normalizedMappings as unknown as Prisma.InputJsonValue,
             profileVersionId: profile.id,
+            baseProfileVersionId: preExistingProfile?.id ?? null,
+            baseProfileHash: preExistingProfile
+              ? sstAssessmentContentHash(preExistingProfile.snapshot)
+              : null,
             claimedAt: new Date(),
             sessionRevision: { increment: 1 },
           },

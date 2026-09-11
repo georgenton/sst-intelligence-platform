@@ -1226,7 +1226,7 @@ h2 {
 }
 .assessment-why summary,
 .assessment-technical-details summary,
-.assessment-context summary {
+.assessment-context-dialog summary {
   cursor: pointer;
   color: var(--brand-dark);
   font-weight: 750;
@@ -1323,8 +1323,55 @@ h2 {
   background: var(--surface-card);
   box-shadow: var(--shadow-card);
 }
-.assessment-context > summary {
+.assessment-context > h2 {
+  margin: 0;
   font-size: 18px;
+}
+.assessment-context-mobile {
+  display: none;
+}
+.assessment-context-mobile__trigger {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--border-interactive);
+  border-radius: 14px;
+  background: var(--surface-card);
+  color: var(--brand-dark);
+  cursor: pointer;
+  font-weight: 800;
+}
+.assessment-context-dialog {
+  width: min(560px, calc(100% - 24px));
+  max-height: min(78vh, 720px);
+  margin: auto auto 12px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 22px 22px 12px 12px;
+  padding: 20px;
+  background: var(--surface-card);
+  color: var(--ink);
+  box-shadow: var(--shadow-card);
+}
+.assessment-context-dialog::backdrop {
+  background: color-mix(in srgb, var(--ink) 48%, transparent);
+}
+.assessment-context-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.assessment-context-dialog__header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.assessment-context-dialog__header button {
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--brand-dark);
+  cursor: pointer;
+  font-weight: 800;
 }
 .assessment-context__facts,
 .assessment-review__summary,
@@ -1406,6 +1453,15 @@ h2 {
 }
 .assessment-result-group dd {
   margin: 0;
+}
+.assessment-foundation-data {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+.assessment-foundation-data strong {
+  color: var(--ink);
 }
 .assessment-technical-details {
   margin-top: 16px;
@@ -1539,13 +1595,13 @@ h2 {
     grid-template-columns: 1fr;
   }
   .assessment-shell__aside {
-    position: sticky;
-    z-index: 5;
-    bottom: 12px;
-    order: -1;
+    position: static;
   }
-  .assessment-context {
-    max-height: min(54vh, 440px);
+  .assessment-context--desktop {
+    display: none;
+  }
+  .assessment-context-mobile {
+    display: block;
   }
   .assessment-choice-grid--boolean,
   .assessment-scope-picker {
@@ -1597,5 +1653,8 @@ h2 {
     animation: none;
     transition: none;
     transform: none;
+  }
+  .assessment-context-dialog {
+    scroll-behavior: auto;
   }
 }

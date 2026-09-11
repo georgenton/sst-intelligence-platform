@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { queryKeys } from '@/lib/query-keys';
 import { assessmentErrorMessage } from '@/lib/sst-assessment-presentation';
@@ -77,8 +78,8 @@ export function AuthenticatedAssessmentHub({ sessionId: routeSessionId }: { sess
   const auth = useAuth();
   const organization = useOrganization();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const organizationId = organization.activeId;
-  const [selectedSessionId, setSelectedSessionId] = useState(routeSessionId ?? null);
   const [sector, setSector] = useState('');
   const [newCenterName, setNewCenterName] = useState('');
   const [newCenterCity, setNewCenterCity] = useState('');
@@ -126,8 +127,7 @@ export function AuthenticatedAssessmentHub({ sessionId: routeSessionId }: { sess
       ),
     enabled: Boolean(organizationId),
   });
-  const effectiveSessionId =
-    selectedSessionId ?? routeSessionId ?? setup.data?.assessmentId ?? null;
+  const effectiveSessionId = routeSessionId ?? setup.data?.assessmentId ?? null;
   const transport = useMemo(
     () =>
       organizationId && effectiveSessionId
@@ -170,7 +170,7 @@ export function AuthenticatedAssessmentHub({ sessionId: routeSessionId }: { sess
         queryKeys.organization.sstAssessmentSession(organizationId!, created.id),
         created,
       );
-      setSelectedSessionId(created.id);
+      router.replace(`/app/evaluation/${created.id}`);
       await refreshSetup();
     },
   });
@@ -290,7 +290,7 @@ export function AuthenticatedAssessmentHub({ sessionId: routeSessionId }: { sess
                 type="button"
                 key={item.id}
                 aria-current={item.id === session.data.id ? 'true' : undefined}
-                onClick={() => setSelectedSessionId(item.id)}
+                onClick={() => router.replace(`/app/evaluation/${item.id}`)}
               >
                 <span>{item.kind === 'REASSESSMENT' ? 'Reevaluación' : 'Evaluación inicial'}</span>
                 <strong>
@@ -431,7 +431,11 @@ export function AuthenticatedAssessmentHub({ sessionId: routeSessionId }: { sess
         <section className="assessment-history">
           <h2>Historial</h2>
           {history.data.map((item) => (
-            <button type="button" key={item.id} onClick={() => setSelectedSessionId(item.id)}>
+            <button
+              type="button"
+              key={item.id}
+              onClick={() => router.replace(`/app/evaluation/${item.id}`)}
+            >
               <span>{item.kind === 'REASSESSMENT' ? 'Reevaluación' : 'Evaluación inicial'}</span>
               <strong>{item.status === 'FINALIZED' ? 'Diagnóstico finalizado' : 'En curso'}</strong>
             </button>

@@ -4,6 +4,7 @@ export type AssessmentSessionRecord = {
   publicToken: string;
   expiresAt: string | null;
   targetOrganizationId?: string;
+  targetOrganizationMode?: 'EXISTING' | 'NEW';
 };
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -55,11 +56,27 @@ export function rememberAssessmentTargetOrganization(
   storage: StorageLike,
   sessionId: string,
   organizationId: string,
+  mode: 'EXISTING' | 'NEW',
 ) {
   const current = loadPublicAssessmentSession(storage, sessionId);
   return current
-    ? storePublicAssessmentSession(storage, { ...current, targetOrganizationId: organizationId })
+    ? storePublicAssessmentSession(storage, {
+        ...current,
+        targetOrganizationId: organizationId,
+        targetOrganizationMode: mode,
+      })
     : false;
+}
+
+export function forgetAssessmentTargetOrganization(storage: StorageLike, sessionId: string) {
+  const current = loadPublicAssessmentSession(storage, sessionId);
+  if (!current) return false;
+  return storePublicAssessmentSession(storage, {
+    version: current.version,
+    sessionId: current.sessionId,
+    publicToken: current.publicToken,
+    expiresAt: current.expiresAt,
+  });
 }
 
 export function clearPublicAssessmentSession(storage: StorageLike, sessionId: string) {

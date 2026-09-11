@@ -810,9 +810,74 @@ describe('canonical SST assessment integration', () => {
         organizationId,
         version: 1,
         createdById: owner.id,
-        snapshot: { schemaVersion: '1.0.0', legacyConfigured: true },
+        snapshot: {
+          schemaVersion: '1.0.0',
+          organization: {
+            country: 'Ecuador',
+            sector: 'Servicios',
+            workCenterCount: 1,
+            workerCount: 24,
+          },
+          operations: { hasChemicalProcesses: false, hasHighEnergyOperations: false },
+        },
       },
     });
+
+    await authenticated(owner.token, organizationId)
+      .get('/setup-state')
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body).toEqual({
+          state: 'LEGACY_CONFIGURED',
+          hardGate: false,
+          assessmentId: null,
+        }),
+      );
+
+    const created = await authenticated(owner.token, organizationId)
+      .post('/sessions')
+      .send({})
+      .expect(201);
+    const sessionId = created.body.id as string;
+    await authenticated(owner.token, organizationId)
+      .get('/setup-state')
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          state: 'ASSESSMENT_IN_PROGRESS',
+          hardGate: false,
+          assessmentId: sessionId,
+        }),
+      );
+
+    const saved = await authenticated(owner.token, organizationId)
+      .post(`/sessions/${sessionId}/answers`)
+      .send({ expectedSessionRevision: 0, answers: readyAnswers(1) })
+      .expect(201);
+    const evaluated = await authenticated(owner.token, organizationId)
+      .post(`/sessions/${sessionId}/evaluate`)
+      .send({ expectedSessionRevision: saved.body.sessionRevision })
+      .expect(201);
+    await authenticated(owner.token, organizationId)
+      .post(`/sessions/${sessionId}/finalize`)
+      .send({ expectedSessionRevision: evaluated.body.sessionRevision })
+      .expect(201);
+    await authenticated(owner.token, organizationId)
+      .get('/setup-state')
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          state: 'DIAGNOSIS_READY',
+          hardGate: false,
+          assessmentId: sessionId,
+        }),
+      );
+  });
+
+  it('preserves access for an Operational Plan-only legacy baseline', async () => {
+    const owner = await user('assessment-legacy-plan-owner');
+    const organizationId = await organization(owner.token, 'Assessment legacy plan');
+    await prisma.operationalPlan.create({ data: { organizationId, createdById: owner.id } });
 
     await authenticated(owner.token, organizationId)
       .get('/setup-state')
@@ -1509,9 +1574,21 @@ describe('canonical SST assessment integration', () => {
       operations: { hasChemicalProcesses: false, hasHighEnergyOperations: false },
     });
     expect(
-      (await prisma.sstAssessmentSession.findUniqueOrThrow({ where: { id: compatible.id } }))
-        .finalSnapshot,
-    ).toEqual(compatible.finalSnapshot);
+      await prisma.sstAssessmentSession.findUniqueOrThrow({ where: { id: compatible.id } }),
+    ).toMatchObject({
+      baseProfileVersionId: legacy.id,
+      finalSnapshot: compatible.finalSnapshot,
+    });
+    await authenticated(owner.token, organizationId)
+      .get('/setup-state')
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          state: 'DIAGNOSIS_READY',
+          hardGate: false,
+          assessmentId: compatible.id,
+        }),
+      );
   });
 
   it('reconciles public claims against Profile V2 without overwriting conflicts or strong provenance', async () => {

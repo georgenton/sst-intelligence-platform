@@ -1,5 +1,6 @@
 import {
   type SstAssessmentFact,
+  type SstAssessmentProgress,
   type SstAssessmentQuestion,
   type SstAssessmentResult,
   type SstAssessmentScope,
@@ -69,6 +70,30 @@ export function orderAssessmentQuestions(questions: readonly SstAssessmentQuesti
 
 export function assessmentTopicLabel(topic: string) {
   return topicLabels[topic] ?? 'Información';
+}
+
+export function aggregateAssessmentProgress(progress: SstAssessmentProgress, activeTopic?: string) {
+  const groups = new Map<
+    string,
+    { label: string; answered: number; total: number; complete: boolean; active: boolean }
+  >();
+  for (const topic of progress.topics) {
+    const label = assessmentTopicLabel(topic.topic);
+    const current = groups.get(label);
+    groups.set(label, {
+      label,
+      answered: (current?.answered ?? 0) + topic.answered,
+      total: (current?.total ?? 0) + topic.total,
+      complete: (current?.complete ?? true) && topic.complete,
+      active: (current?.active ?? false) || assessmentTopicLabel(activeTopic ?? '') === label,
+    });
+  }
+  const topics = [...groups.values()];
+  return {
+    completedTopics: topics.filter(({ complete }) => complete).length,
+    totalTopics: topics.length,
+    topics,
+  };
 }
 
 export function assessmentFactLabel(factKey: string) {
@@ -193,4 +218,71 @@ export function safeResultExplanation(item: SstAssessmentResult['items'][number]
     return `Necesitamos completar esta información para determinar si la revisión aplica: ${labels}.`;
   }
   return item.explanation;
+}
+
+function observedValue(factKey: string, value: unknown) {
+  const definition = definitions.get(factKey);
+  if (value === null || value === undefined) return 'Información no disponible';
+  if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+  if (Array.isArray(value))
+    return value
+      .map(
+        (item) =>
+          definition?.choices.find(({ value: choice }) => choice === String(item))?.label ??
+          'Opción confirmada',
+      )
+      .join(', ');
+  if (typeof value === 'string')
+    return definition?.choices.length
+      ? (definition.choices.find(({ value: choice }) => choice === value)?.label ??
+          'Opción confirmada')
+      : value;
+  if (typeof value === 'number') return new Intl.NumberFormat('es-EC').format(value);
+  return 'Información confirmada';
+}
+
+export function professionalFoundation(
+  item: SstAssessmentResult['items'][number],
+  scopes: readonly SstAssessmentScope[],
+) {
+  const used = new Map<string, { identity: string; label: string; value: string }>();
+  for (const trace of item.traces) {
+    for (const predicate of trace.predicates) {
+      if (predicate.actual === null) continue;
+      const factIdentity = `${predicate.factScope}:${predicate.factKey}`;
+      used.set(factIdentity, {
+        identity: used.get(factIdentity)?.identity ?? `dato-${used.size + 1}`,
+        label: assessmentFactLabel(predicate.factKey),
+        value: observedValue(predicate.factKey, predicate.actual),
+      });
+    }
+  }
+  return {
+    dataUsed: [...used.values()],
+    criterion: safeResultExplanation(item),
+    result: resultStateLabel(item),
+    scope:
+      item.scopeKey === 'organization'
+        ? 'Empresa'
+        : (scopes.find(({ scopeKey }) => scopeKey === item.scopeKey)?.displayName ??
+          'Centro de trabajo'),
+    authority:
+      item.authority === 'DEMO'
+        ? 'Criterio demostrativo'
+        : item.authority === 'CANDIDATE'
+          ? 'Criterio regulatorio en revisión'
+          : 'Criterio publicado',
+    review: item.professionalReviewRequired
+      ? 'Revisión profesional requerida'
+      : 'Revisión profesional no requerida para este resultado',
+    pendingInformation: item.missingFactKeys.map(assessmentFactLabel),
+  };
+}
+
+export function resultNextStep(item: SstAssessmentResult['items'][number]) {
+  if (item.professionalReviewRequired)
+    return 'Requiere revisión profesional antes de cerrar la decisión.';
+  if (item.state === 'NEEDS_INFORMATION')
+    return 'Completa la información pendiente para resolver este criterio.';
+  return 'Puedes incorporar esta recomendación en la siguiente etapa de configuración.';
 }

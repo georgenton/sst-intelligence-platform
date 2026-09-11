@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   assessmentClaimPath,
   clearPublicAssessmentSession,
+  forgetAssessmentTargetOrganization,
   loadPublicAssessmentSession,
   rememberAssessmentTargetOrganization,
   storePublicAssessmentSession,
@@ -45,12 +46,18 @@ test('preserves recovery across a target-company failure and clears it after ter
     expiresAt: null,
   });
   assert.equal(
-    rememberAssessmentTargetOrganization(storage, 'assessment-b', 'organization-a'),
+    rememberAssessmentTargetOrganization(storage, 'assessment-b', 'organization-a', 'NEW'),
     true,
   );
   assert.equal(
     loadPublicAssessmentSession(storage, 'assessment-b')?.targetOrganizationId,
     'organization-a',
+  );
+  assert.equal(loadPublicAssessmentSession(storage, 'assessment-b')?.targetOrganizationMode, 'NEW');
+  assert.equal(forgetAssessmentTargetOrganization(storage, 'assessment-b'), true);
+  assert.equal(
+    loadPublicAssessmentSession(storage, 'assessment-b')?.targetOrganizationId,
+    undefined,
   );
   clearPublicAssessmentSession(storage, 'assessment-b');
   assert.equal(loadPublicAssessmentSession(storage, 'assessment-b'), null);

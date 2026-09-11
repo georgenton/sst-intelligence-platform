@@ -2,11 +2,20 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useReducer, useState } from 'react';
 import { queryKeys } from '@/lib/query-keys';
+import {
+  canMutateCentersForClaim,
+  canCreateClaimCompany,
+  claimCompanyActivity,
+  claimDestinationTarget,
+  initialClaimDestination,
+  reduceClaimDestination,
+} from '@/lib/sst-assessment-claim';
 import { assessmentErrorMessage, assessmentFactValue } from '@/lib/sst-assessment-presentation';
 import {
   clearPublicAssessmentSession,
+  forgetAssessmentTargetOrganization,
   loadPublicAssessmentSession,
   rememberAssessmentTargetOrganization,
 } from '@/lib/sst-assessment-session-storage';
@@ -48,8 +57,8 @@ function ClaimCenterConfiguration({
     <section className="assessment-preflight-card">
       <h2>Configura los centros de trabajo</h2>
       <p>
-        La evaluación contiene {count} {count === 1 ? 'centro' : 'centros'}. Crearemos o
-        actualizaremos exactamente esa topología antes del vínculo.
+        La evaluación contiene {count} {count === 1 ? 'centro' : 'centros'}. Configuraremos la
+        empresa nueva con esa topología antes del vínculo.
       </p>
       {drafts.map((draft, index) => (
         <div className="assessment-inline-form" key={index}>
@@ -101,7 +110,10 @@ export function AssessmentClaim() {
   const search = useSearchParams();
   const sessionId = search.get('assessment');
   const [record, setRecord] = useState<ReturnType<typeof loadPublicAssessmentSession>>();
-  const [targetId, setTargetId] = useState<string | null>(null);
+  const [destination, dispatchDestination] = useReducer(
+    reduceClaimDestination,
+    initialClaimDestination,
+  );
   const [companyName, setCompanyName] = useState('');
   const [companySector, setCompanySector] = useState('');
   const [mappings, setMappings] = useState<Record<string, string>>({});
@@ -110,7 +122,14 @@ export function AssessmentClaim() {
   useEffect(() => {
     const loaded = loadPublicAssessmentSession(window.localStorage, sessionId);
     setRecord(loaded);
-    setTargetId(loaded?.targetOrganizationId ?? null);
+    if (loaded?.targetOrganizationId && loaded.targetOrganizationMode === 'NEW') {
+      dispatchDestination({ type: 'company-created', organizationId: loaded.targetOrganizationId });
+    } else if (loaded?.targetOrganizationId && loaded.targetOrganizationMode === 'EXISTING') {
+      dispatchDestination({
+        type: 'choose-existing',
+        organizationId: loaded.targetOrganizationId,
+      });
+    }
   }, [sessionId]);
   const transport = useMemo(
     () => (record ? createPublicAssessmentTransport(record.sessionId, record.publicToken) : null),
@@ -122,7 +141,7 @@ export function AssessmentClaim() {
     enabled: Boolean(transport),
     retry: false,
   });
-  const target = targetId ?? organization.activeId;
+  const target = claimDestinationTarget(destination);
   const details = useQuery({
     queryKey: queryKeys.organization.details(target ?? 'inactive'),
     queryFn: ({ signal }) =>
@@ -138,15 +157,24 @@ export function AssessmentClaim() {
   const createCompany = useMutation({
     mutationFn: async () => {
       const country = knownString(assessment.data!, 'organization.country');
-      const sector = companySector.trim() || knownString(assessment.data!, 'organization.sector');
+      const sector = claimCompanyActivity(
+        knownString(assessment.data!, 'organization.sector'),
+        companySector,
+      );
+      if (!sector) throw new Error('La actividad principal es necesaria para crear la empresa.');
       return auth.request<{ id: string }>('/organizations', {
         method: 'POST',
-        body: JSON.stringify({ name: companyName, country, sector: sector || undefined }),
+        body: JSON.stringify({ name: companyName, country, sector }),
       });
     },
     onSuccess: async (created) => {
-      rememberAssessmentTargetOrganization(window.localStorage, record!.sessionId, created.id);
-      setTargetId(created.id);
+      rememberAssessmentTargetOrganization(
+        window.localStorage,
+        record!.sessionId,
+        created.id,
+        'NEW',
+      );
+      dispatchDestination({ type: 'company-created', organizationId: created.id });
       setCentersConfirmed(false);
       await queryClient.invalidateQueries({
         queryKey: queryKeys.user.organizations(auth.user!.id),
@@ -156,6 +184,8 @@ export function AssessmentClaim() {
   });
   const configureCenters = useMutation({
     mutationFn: async (drafts: CenterDraft[]) => {
+      if (!canMutateCentersForClaim(destination))
+        throw new Error('Los centros existentes no se modifican durante el vínculo.');
       const existing = (centers.data ?? []).filter(({ isActive }) => isActive);
       if (existing.length > drafts.length)
         throw new Error(
@@ -255,10 +285,11 @@ export function AssessmentClaim() {
   const centerScopes = session.snapshot.scopes.filter(({ kind }) => kind === 'WORK_CENTER');
   const activeCenters = centers.data?.filter(({ isActive }) => isActive) ?? [];
   const selectedTarget = organization.organizations.find(({ id }) => id === target);
-  const companyRequired = !target;
+  const assessmentSector = knownString(session, 'organization.sector');
   const topologyReady = Boolean(
     target && centers.isSuccess && activeCenters.length === centerScopes.length,
   );
+  const mappingReady = topologyReady && (destination.mode === 'EXISTING' || centersConfirmed);
   const allMapped =
     centerScopes.every(({ scopeKey }) => mappings[scopeKey]) &&
     new Set(Object.values(mappings)).size === centerScopes.length;
@@ -277,7 +308,7 @@ export function AssessmentClaim() {
           {centerScopes.length === 1 ? 'centro evaluado' : 'centros evaluados'}.
         </p>
       </section>
-      {companyRequired ? (
+      {destination.mode === 'UNDECIDED' ? (
         <section className="assessment-preflight-card">
           <h2>Elige dónde guardarlo</h2>
           {organization.organizations.map((item) => (
@@ -286,46 +317,82 @@ export function AssessmentClaim() {
               type="button"
               key={item.id}
               onClick={() => {
-                setTargetId(item.id);
+                dispatchDestination({ type: 'choose-existing', organizationId: item.id });
                 setCentersConfirmed(false);
                 rememberAssessmentTargetOrganization(
                   window.localStorage,
                   record.sessionId,
                   item.id,
+                  'EXISTING',
                 );
                 void organization.setActiveId(item.id);
               }}
             >
               <strong>{item.name}</strong>
-              <span>Vincular a esta empresa</span>
+              <span>
+                {item.id === organization.activeId ? 'Empresa activa · ' : ''}Vincular a esta
+                empresa
+              </span>
             </button>
           ))}
+          <button
+            className="assessment-company-option"
+            type="button"
+            onClick={() => {
+              dispatchDestination({ type: 'choose-new' });
+              setMappings({});
+            }}
+          >
+            <strong>Crear nueva empresa</strong>
+            <span>Guardar el diagnóstico en una empresa nueva</span>
+          </button>
+        </section>
+      ) : null}
+      {destination.mode === 'NEW' && !destination.createdOrganizationId ? (
+        <section className="assessment-preflight-card">
+          <h2>Crea la empresa</h2>
           <div className="assessment-inline-form">
             <label>
               <span>Nombre de empresa</span>
               <input value={companyName} onChange={(event) => setCompanyName(event.target.value)} />
             </label>
-            <label>
-              <span>Actividad principal</span>
-              <input
-                value={companySector}
-                placeholder={
-                  knownString(session, 'organization.sector') || 'Ej. manufactura de alimentos'
-                }
-                onChange={(event) => setCompanySector(event.target.value)}
-              />
-            </label>
+            {assessmentSector ? (
+              <p>
+                <span>Actividad principal</span>
+                <strong>{assessmentSector}</strong>
+              </p>
+            ) : (
+              <label>
+                <span>Actividad principal</span>
+                <input
+                  value={companySector}
+                  placeholder="Ej. manufactura de alimentos"
+                  onChange={(event) => setCompanySector(event.target.value)}
+                />
+              </label>
+            )}
           </div>
           <button
             className="button"
             type="button"
-            disabled={companyName.trim().length < 2 || createCompany.isPending}
+            disabled={
+              !canCreateClaimCompany(companyName, assessmentSector, companySector) ||
+              createCompany.isPending
+            }
             onClick={() => createCompany.mutate()}
           >
             {createCompany.isPending ? 'Creando empresa…' : 'Crear empresa'}
           </button>
+          <button
+            className="assessment-skip"
+            type="button"
+            onClick={() => dispatchDestination({ type: 'reset' })}
+          >
+            Volver a elegir destino
+          </button>
         </section>
-      ) : (
+      ) : null}
+      {target ? (
         <section className="assessment-preflight-card">
           <h2>Empresa de destino</h2>
           <p>
@@ -335,15 +402,18 @@ export function AssessmentClaim() {
             className="assessment-skip"
             type="button"
             onClick={() => {
-              setTargetId(null);
+              if (destination.mode === 'EXISTING')
+                forgetAssessmentTargetOrganization(window.localStorage, record.sessionId);
+              dispatchDestination({ type: 'reset' });
               setMappings({});
+              setCentersConfirmed(false);
             }}
           >
             Elegir otra empresa
           </button>
         </section>
-      )}
-      {target && centers.isSuccess && !centersConfirmed ? (
+      ) : null}
+      {target && destination.mode === 'NEW' && centers.isSuccess && !centersConfirmed ? (
         <ClaimCenterConfiguration
           count={centerScopes.length}
           centers={activeCenters}
@@ -351,7 +421,35 @@ export function AssessmentClaim() {
           onSave={(drafts) => configureCenters.mutate(drafts)}
         />
       ) : null}
-      {topologyReady && centersConfirmed ? (
+      {target && destination.mode === 'EXISTING' && centers.isSuccess && !topologyReady ? (
+        <section className="assessment-preflight-card" role="status">
+          <h2>Revisa el alcance de los centros</h2>
+          <p>
+            Esta evaluación incluye {centerScopes.length}{' '}
+            {centerScopes.length === 1 ? 'centro' : 'centros'}, pero{' '}
+            {selectedTarget?.name ?? 'tu empresa'} tiene {activeCenters.length}{' '}
+            {activeCenters.length === 1 ? 'centro activo' : 'centros activos'}. No modificaremos sus
+            centros para forzar el vínculo.
+          </p>
+          <div className="assessment-actions">
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => router.push('/app/organizations')}
+            >
+              Revisar mi empresa
+            </button>
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => router.push('/app/evaluation')}
+            >
+              Iniciar una evaluación con el alcance actual
+            </button>
+          </div>
+        </section>
+      ) : null}
+      {mappingReady ? (
         <section className="assessment-preflight-card">
           <h2>Confirma la correspondencia</h2>
           <p>Cada centro evaluado debe vincularse una sola vez a un centro activo de la empresa.</p>

@@ -1,5 +1,5 @@
 import type { SstAssessmentProgress } from '@sst/contracts';
-import { assessmentTopicLabel } from '@/lib/sst-assessment-presentation';
+import { aggregateAssessmentProgress } from '@/lib/sst-assessment-presentation';
 
 export function AssessmentProgress({
   progress,
@@ -8,28 +8,24 @@ export function AssessmentProgress({
   progress: SstAssessmentProgress;
   activeTopic?: string;
 }) {
-  const topics = progress.topics.map((topic) => ({
-    ...topic,
-    label: assessmentTopicLabel(topic.topic),
-  }));
-  const unique = [...new Map(topics.map((topic) => [topic.label, topic])).values()];
+  const humanProgress = aggregateAssessmentProgress(progress, activeTopic);
   return (
     <section className="assessment-progress" aria-label="Progreso por temas">
       <div className="assessment-progress__summary">
         <strong>
-          {progress.completedTopics} de {progress.totalTopics} temas con información suficiente
+          {humanProgress.completedTopics} de {humanProgress.totalTopics} temas con información
+          suficiente
         </strong>
         <span>El progreso describe información, no cumplimiento.</span>
       </div>
       <ol>
-        {unique.map((topic) => {
-          const active = assessmentTopicLabel(activeTopic ?? '') === topic.label;
+        {humanProgress.topics.map((topic) => {
           return (
             <li
               key={topic.label}
-              data-state={topic.complete ? 'complete' : active ? 'active' : 'pending'}
+              data-state={topic.complete ? 'complete' : topic.active ? 'active' : 'pending'}
             >
-              <span aria-hidden="true">{topic.complete ? '✓' : active ? '●' : '○'}</span>
+              <span aria-hidden="true">{topic.complete ? '✓' : topic.active ? '●' : '○'}</span>
               {topic.label}
             </li>
           );

@@ -126,6 +126,7 @@ export function AppShell({ children }: PropsWithChildren) {
     setContextNotice(null);
     setTransitionTarget(reconciliation.organizationId);
     void isolateOrganizationTransition(queryClient, activeId, reconciliation.organizationId, () => {
+      if (pathname.startsWith('/app/evaluation/')) router.replace('/app/evaluation');
       setActiveIdState(reconciliation.organizationId);
       if (reconciliation.organizationId)
         storeActiveOrganization(
@@ -136,7 +137,16 @@ export function AppShell({ children }: PropsWithChildren) {
         );
       else clearStoredActiveOrganization(window.localStorage, userId);
     }).catch(() => setTransitionTarget(undefined));
-  }, [activeId, contextUserId, organizations.data, queryClient, transitionTarget, userId]);
+  }, [
+    activeId,
+    contextUserId,
+    organizations.data,
+    pathname,
+    queryClient,
+    router,
+    transitionTarget,
+    userId,
+  ]);
 
   useEffect(() => {
     if (transitionTarget === undefined || activeId !== transitionTarget) return;
@@ -160,6 +170,7 @@ export function AppShell({ children }: PropsWithChildren) {
     setTransitionTarget(id);
     try {
       await isolateOrganizationTransition(queryClient, activeId, id, () => {
+        if (pathname.startsWith('/app/evaluation/')) router.replace('/app/evaluation');
         storeActiveOrganization(window.localStorage, userId, id, validIds);
         setActiveIdState(id);
         setContextNotice(notice ?? null);

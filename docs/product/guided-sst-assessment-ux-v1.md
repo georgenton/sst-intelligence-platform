@@ -21,7 +21,8 @@ assessment catalog.
 Progress groups canonical topics into human areas such as Empresa, Centros, Operación, Gestión,
 Personas, Prioridades and Implementación. It describes collected information and never claims a
 compliance percentage. A responsive “Lo que ya sabemos” panel displays only confirmed or explicitly
-unknown facts and allows corrections through the canonical answer/evaluate cycle.
+unknown facts. It allows corrections through the canonical answer/evaluate cycle before finalization;
+finalized snapshots are read-only and expose **Reevaluar empresa** instead.
 
 Topic boundaries provide review checkpoints. Once required information is complete, the user sees
 “Esto es lo que entendimos” and explicitly confirms finalization. No assessment is finalized merely
@@ -38,9 +39,14 @@ public bearer token is stored only in a versioned, bounded browser recovery reco
 `x-assessment-token` header. It is never placed in a URL, query string, analytics or logs.
 
 Authentication return paths carry only the public assessment ID. The claim screen recovers the
-token locally, asks the user to choose or create a company, configures the exact center topology and
-requires visible one-to-one mapping. A recoverable failure keeps the record. Successful claim or a
-terminal expired session clears it.
+token locally and requires an explicit destination choice, even when an organization is already
+active. The user can choose another existing company or create a new one and return to the chooser.
+A recoverable failure keeps the record. Successful claim or a terminal expired session clears it.
+
+For a new company, claim configures the exact center topology and requires visible one-to-one
+mapping. Activity is required when the assessment did not already establish it. For an existing
+company, active Work Centers are authoritative: claim is mapping-only and never renames or creates
+centers. A topology mismatch presents bounded reconciliation actions without attempting the claim.
 
 Company creation follows the existing organization API. Its automatically created “Centro
 principal” becomes center 1; only the remaining centers are created. A stored target organization
@@ -55,10 +61,10 @@ Completing commercial configuration for a new multi-center organization is an ex
 ## Setup shell and authoritative gate
 
 AppShell resolves organization-scoped `setup-state` before mounting private navigation or page
-children. `NEEDS_ASSESSMENT`, `ASSESSMENT_IN_PROGRESS` and `DIAGNOSIS_READY` are hard gates during
-PR47. The setup shell contains only assessment, company, help, organization switch and logout
-controls. A user with no organization runs the same public/unbound assessment before creating a
-company.
+children. For a new empty organization, `NEEDS_ASSESSMENT`, `ASSESSMENT_IN_PROGRESS` and
+`DIAGNOSIS_READY` are hard gates during PR47. The setup shell contains only assessment, the real
+company route, help, organization switch and logout controls. A user with no organization runs the
+same public/unbound assessment before creating a company.
 
 Legacy compatibility is conservative. An organization without a canonical assessment is
 `LEGACY_CONFIGURED` when it has substantive SST history in at least one of these existing models:
@@ -68,7 +74,9 @@ the automatic main Work Center are not sufficient. Organizations already activat
 historical demo onboarding (`status=DEMO`) are also preserved as legacy configured. This explicit
 compatibility signal avoids blocking prior demo work; it does not configure a new organization.
 `LEGACY_CONFIGURED` is not hard gated and keeps the current application available with a human CTA
-for the new evaluation.
+for the new evaluation. That compatibility remains in force while a voluntary canonical assessment
+is in progress and after its diagnosis is finalized. The canonical assessment state and ID remain
+visible; hard-gate eligibility is derived independently from the substantive pre-existing baseline.
 
 For an authenticated assessment, organization sector and active Work Center topology are resolved
 before session creation. Once created, topology is not silently edited. A backend context-change
@@ -77,8 +85,11 @@ conflict asks the user to create an updated assessment rather than merging state
 ## Results and authority
 
 The diagnosis groups items by attention instead of producing a score. Each item has a human
-summary, a collapsed professional basis and, only for authenticated users, collapsed technical
-details. `NEEDS_INFORMATION` language names missing information without asserting it as true.
+summary, semantic next-step copy, a collapsed professional basis and, only for authenticated users,
+collapsed technical details. The professional layer translates trace facts and observed values into
+human labels, criterion, result, scope, authority, review and missing information without exposing
+raw operators or rule identifiers. `NEEDS_INFORMATION` language names missing information without
+asserting it as true.
 
 DEMO output is labeled as demonstration priority, never legal obligation. CANDIDATE output is a
 regulatory criterion under review, never a legal fact or non-compliance claim. Sources are shown
@@ -89,8 +100,9 @@ or module selection.
 
 Question controls use fieldset/legend semantics, keyboard-operable buttons, visible focus, Spanish
 validation, `aria-live` save state and comfortable touch targets. Desktop uses a wide interview
-column with sticky context. Mobile becomes a single column with an accessible collapsible context
-surface. Motion is limited to 150–250 ms state transitions and is removed under
+column with sticky context. Mobile keeps the focal question first and exposes context through a
+closed-by-default accessible dialog with Escape handling and focus return. Motion is limited to
+150–250 ms state transitions and is removed under
 `prefers-reduced-motion: reduce`.
 
 Skeletons cover session/setup/result loading. Saving and evaluating keep confirmed context visible.
@@ -101,7 +113,10 @@ use bounded Spanish explanations without raw error payloads.
 
 Finalized organizations expose **Reevaluar empresa**. It creates a new `REASSESSMENT` with the last
 finalized assessment as parent; previous known facts are reused by the core and prior snapshots are
-never edited.
+never edited. The created assessment owns `/app/evaluation/{id}`, so reload resumes that same
+in-progress reassessment. Switching organizations first replaces an assessment-specific route with
+`/app/evaluation`, preventing a session from the previous tenant from being requested in the new
+context.
 
 PR47 intentionally ends at `DIAGNOSIS_READY`. It does not create `SETUP_COMPLETED`, recommend or
 activate modules, change entitlements/subscriptions, generate Operational Plans or call an external

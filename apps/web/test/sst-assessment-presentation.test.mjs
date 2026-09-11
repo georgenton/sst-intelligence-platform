@@ -8,10 +8,13 @@ import {
   assessmentFactValue,
   assessmentTechnicalDetailsPolicy,
   assessmentTopicLabel,
+  aggregateAssessmentProgress,
   canSkipAssessmentQuestion,
   explicitBooleanChoices,
   groupAssessmentResults,
   orderAssessmentQuestions,
+  professionalFoundation,
+  resultNextStep,
   resultStateLabel,
   safeResultExplanation,
   visibleFactSummaries,
@@ -192,4 +195,106 @@ test('claim navigation serializes only session identity and never the public tok
   const path = assessmentClaimPath('assessment-123');
   assert.equal(path, '/app/setup/claim?assessment=assessment-123');
   assert.doesNotMatch(path, /token|secret|bearer/i);
+});
+
+test('aggregates raw progress into the same human groups rendered by the UI', () => {
+  const progress = {
+    answeredFacts: 3,
+    resolvedFactCount: 3,
+    explicitUnknownCount: 0,
+    pendingQuestionCount: 1,
+    totalFacts: 4,
+    completedTopics: 2,
+    totalTopics: 3,
+    topics: [
+      { topic: 'Exposiciones operativas', answered: 1, total: 1, complete: true },
+      { topic: 'Trabajos críticos', answered: 1, total: 2, complete: false },
+      { topic: 'Gestión SST', answered: 1, total: 1, complete: true },
+    ],
+  };
+  const partial = aggregateAssessmentProgress(progress, 'Trabajos críticos');
+  assert.equal(partial.totalTopics, partial.topics.length);
+  assert.equal(partial.totalTopics, 2);
+  assert.equal(partial.completedTopics, 1);
+  assert.deepEqual(partial.topics[0], {
+    label: 'Operación',
+    answered: 2,
+    total: 3,
+    complete: false,
+    active: true,
+  });
+
+  const complete = aggregateAssessmentProgress({
+    ...progress,
+    topics: progress.topics.map((topic) => ({ ...topic, complete: true })),
+  });
+  assert.equal(complete.completedTopics, 2);
+  assert.equal(complete.topics[0].complete, true);
+});
+
+test('builds a human professional foundation without raw DSL or invented legal sources', () => {
+  const item = {
+    scopeKey: 'center:1',
+    targetKey: 'DEMO_TARGET',
+    title: 'Trabajo crítico',
+    state: 'RECOMMENDED',
+    explanation: 'Conviene revisar las condiciones declaradas.',
+    authority: 'DEMO',
+    ruleKeys: ['DEMO_RULE_123'],
+    missingFactKeys: [],
+    professionalReviewRequired: false,
+    traces: [
+      {
+        groupKey: 'DEMO_GROUP',
+        ruleKey: 'DEMO_RULE_123',
+        ruleVersion: '1.0.0',
+        scopeKey: 'center:1',
+        result: 'TRUE',
+        targetKey: 'DEMO_TARGET',
+        state: 'RECOMMENDED',
+        minimumDepth: 'ORIENTATIVE',
+        predicates: [
+          {
+            factKey: 'workCenter.hasWorkAtHeight',
+            factScope: 'CURRENT_SCOPE',
+            operator: 'BOOLEAN_IS',
+            expected: true,
+            actual: true,
+            result: 'TRUE',
+          },
+          {
+            factKey: 'workCenter.facilityTypes',
+            factScope: 'CURRENT_SCOPE',
+            operator: 'ARRAY_OVERLAPS',
+            expected: ['PLANT'],
+            actual: ['PLANT', 'OFFICE'],
+            result: 'TRUE',
+          },
+        ],
+      },
+    ],
+  };
+  const foundation = professionalFoundation(item, [
+    { scopeKey: 'center:1', kind: 'WORK_CENTER', order: 1, displayName: 'Planta Norte' },
+  ]);
+  assert.equal(foundation.scope, 'Planta Norte');
+  assert.deepEqual(
+    foundation.dataUsed.map(({ value }) => value),
+    ['Sí', 'Planta, Oficina'],
+  );
+  const rendered = JSON.stringify(foundation);
+  assert.doesNotMatch(rendered, /workCenter|BOOLEAN_IS|ARRAY_OVERLAPS|DEMO_RULE_123/);
+  assert.doesNotMatch(rendered, /ISO|artículo|norma/i);
+  assert.equal(
+    resultNextStep(item),
+    'Puedes incorporar esta recomendación en la siguiente etapa de configuración.',
+  );
+  assert.equal(
+    resultNextStep({ ...item, state: 'NEEDS_INFORMATION' }),
+    'Completa la información pendiente para resolver este criterio.',
+  );
+  assert.equal(
+    resultNextStep({ ...item, professionalReviewRequired: true }),
+    'Requiere revisión profesional antes de cerrar la decisión.',
+  );
 });

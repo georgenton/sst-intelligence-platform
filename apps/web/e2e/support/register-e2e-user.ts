@@ -58,7 +58,14 @@ export async function activateE2eUserSession(
 ) {
   const cookie = refreshCookie(registration.setCookie);
   await addApiCookie(page.context(), cookie);
+  const refreshed = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url().endsWith('/api/v1/auth/refresh') &&
+      response.status() === 201,
+  );
   await page.goto(destination);
+  await refreshed;
 }
 
 async function addApiCookie(context: BrowserContext, cookie: { name: string; value: string }) {

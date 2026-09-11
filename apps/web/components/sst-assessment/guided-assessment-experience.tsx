@@ -98,6 +98,7 @@ export function GuidedSstAssessmentExperience({
     <AssessmentContextPanel
       facts={session.snapshot.facts}
       scopes={session.snapshot.scopes}
+      readOnly={session.status === 'FINALIZED'}
       onEdit={(question) => {
         setCheckpointTopic(null);
         setEditing(question);
@@ -117,6 +118,7 @@ export function GuidedSstAssessmentExperience({
           channel={transport.channel}
           continuation={continuation}
           onReassess={onReassess}
+          scopes={session.snapshot.scopes}
         />
       </AssessmentShell>
     );

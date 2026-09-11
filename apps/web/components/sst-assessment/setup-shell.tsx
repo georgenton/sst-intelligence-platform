@@ -33,7 +33,7 @@ export function SetupShell({
         </Link>
         <nav aria-label="Configuración inicial">
           <Link href="/app/evaluation">Evaluación SST</Link>
-          {activeId ? <Link href="/app/setup/claim">Empresa</Link> : null}
+          {activeId ? <Link href="/app/organizations">Empresa</Link> : null}
           <Link href="/">Ayuda</Link>
         </nav>
         {organizations.length ? (
