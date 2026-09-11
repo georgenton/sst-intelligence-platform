@@ -307,13 +307,17 @@ test('two and three center public assessments provision real FREE setup topology
     const setup = await readE2eAssessmentSetup(organizationId);
     expect(setup.planKeys).toEqual(['FREE']);
     expect(setup.moduleKeys).toEqual(['CORE']);
-    expect(setup.centers.map(({ name }) => name).sort()).toEqual([...centerNames].sort());
+    expect(setup.centers.map((center: { name: string }) => center.name).sort()).toEqual(
+      [...centerNames].sort(),
+    );
     expect(setup.profiles).toHaveLength(1);
     expect(setup.profiles[0]?.snapshot).toMatchObject({
       schemaVersion: '2.0.0',
       organization: { workCenterCount: centerCount },
     });
-    const session = setup.sessions.find(({ status }) => status === 'FINALIZED');
+    const session = setup.sessions.find(
+      (candidate: { status: string }) => candidate.status === 'FINALIZED',
+    );
     expect(session).toBeTruthy();
     const setupResponse = await request.get(
       'http://127.0.0.1:3101/api/v1/sst-assessment/setup-state',

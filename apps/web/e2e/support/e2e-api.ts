@@ -119,8 +119,10 @@ export async function readE2eAssessmentSetup(organizationId: string) {
     ]);
     return {
       organization,
-      planKeys: subscriptions.map(({ plan }) => plan.key),
-      moduleKeys: modules.map(({ module }) => module.key),
+      planKeys: subscriptions.map(
+        (subscription: { plan: { key: string } }) => subscription.plan.key,
+      ),
+      moduleKeys: modules.map((entry: { module: { key: string } }) => entry.module.key),
       centers,
       profiles,
       sessions,
