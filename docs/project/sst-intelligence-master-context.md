@@ -9,9 +9,22 @@ architecture, security, deployment and source-review documents remain authoritat
 bounded areas. The [master roadmap](sst-intelligence-roadmap.md) is the sole cross-product priority
 roadmap.
 
-## PR46 Unified Assessment Core + Canonical Intake V1 — implementation pending external audit
+## PR47 Guided SST Assessment UX V1 — implementation pending external audit
 
-PR46 introduces one canonical, channel-neutral SST assessment contract and facade over the existing
+PR46 is merged and its canonical assessment core is the only primary intake authority. PR47 adds
+the shared public/authenticated guided interview, explicit Work Center scope, browser-safe public
+continuity, company creation and center mapping at claim, executive diagnosis, reassessment entry,
+and an AppShell setup gate with conservative legacy compatibility. See
+[Guided SST Assessment UX V1](../product/guided-sst-assessment-ux-v1.md).
+
+This does not complete onboarding. `DIAGNOSIS_READY` remains hard-gated until PR48 configures the
+workspace. PR47 creates no `SETUP_COMPLETED`, module recommendation/activation, entitlement change,
+Operational Plan or external-AI request. The existing production Adaptive V2 reference-sync drift
+remains a separate release blocker and is not concealed by this frontend increment.
+
+## PR46 Unified Assessment Core + Canonical Intake V1 — merged
+
+PR46 introduced one canonical, channel-neutral SST assessment contract and facade over the existing
 Adaptive Configuration and regulatory-candidate specialists. It distinguishes unanswered,
 `KNOWN false` and `EXPLICIT_UNKNOWN`, preserves per-Work-Center scope, produces reproducible
 semantic hashes, supports public-token and authenticated lifecycles, explicit public claim,
