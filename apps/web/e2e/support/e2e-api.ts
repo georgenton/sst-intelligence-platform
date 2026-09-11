@@ -62,3 +62,70 @@ export async function markE2eOrganizationLegacyConfigured(
     await prisma.$disconnect();
   }
 }
+
+export async function createE2eOrganizationProfile(
+  organizationId: string,
+  createdById: string,
+  workerCount: number,
+) {
+  const prisma = new PrismaClient();
+  try {
+    const organization = await prisma.organization.findUniqueOrThrow({
+      where: { id: organizationId },
+      include: { workCenters: { where: { isActive: true } } },
+    });
+    return await prisma.organizationSstProfileVersion.create({
+      data: {
+        organizationId,
+        createdById,
+        version: 1,
+        snapshot: {
+          schemaVersion: '2.0.0',
+          organization: {
+            country: organization.country,
+            ...(organization.sector ? { sector: organization.sector } : {}),
+            workCenterCount: organization.workCenters.length,
+            workerCount,
+          },
+          operations: {},
+          contextFacts: [],
+        },
+      },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+export async function readE2eAssessmentSetup(organizationId: string) {
+  const prisma = new PrismaClient();
+  try {
+    const [organization, subscriptions, modules, centers, profiles, sessions] = await Promise.all([
+      prisma.organization.findUniqueOrThrow({ where: { id: organizationId } }),
+      prisma.subscription.findMany({
+        where: { organizationId, status: 'ACTIVE' },
+        include: { plan: true },
+      }),
+      prisma.organizationModule.findMany({
+        where: { organizationId, status: 'ACTIVE' },
+        include: { module: true },
+      }),
+      prisma.workCenter.findMany({ where: { organizationId }, orderBy: { name: 'asc' } }),
+      prisma.organizationSstProfileVersion.findMany({
+        where: { organizationId },
+        orderBy: { version: 'asc' },
+      }),
+      prisma.sstAssessmentSession.findMany({ where: { organizationId } }),
+    ]);
+    return {
+      organization,
+      planKeys: subscriptions.map(({ plan }) => plan.key),
+      moduleKeys: modules.map(({ module }) => module.key),
+      centers,
+      profiles,
+      sessions,
+    };
+  } finally {
+    await prisma.$disconnect();
+  }
+}

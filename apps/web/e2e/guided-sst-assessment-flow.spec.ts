@@ -1,8 +1,10 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import {
+  createE2eOrganizationProfile,
   createE2eOrganization,
   markE2eOrganizationLegacyConfigured,
-  setE2eOrganizationPlan,
+  parseRegistration,
+  readE2eAssessmentSetup,
 } from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
@@ -20,7 +22,7 @@ async function waitForAssessmentMotion(page: Page) {
     });
 }
 
-async function startPublicAssessment(page: Page, centerCount: 1 | 2) {
+async function startPublicAssessment(page: Page, centerCount: 1 | 2 | 3) {
   await page.goto('/evaluacion-sst');
   await page
     .getByRole('button', { name: `${centerCount} ${centerCount === 1 ? 'centro' : 'centros'}` })
@@ -151,14 +153,24 @@ async function configureAndClaim(
     const createdOrganization = (await (await createdOrganizationResponse).json()) as {
       id: string;
     };
-    if (centerNames.length > 1) await setE2eOrganizationPlan(createdOrganization.id, 'GROWTH');
     await expect(
       page.getByRole('heading', { name: 'Configura los centros de trabajo' }),
     ).toBeVisible();
     for (let index = 0; index < centerNames.length; index += 1) {
       await page.getByLabel(`Centro ${index + 1}`).fill(centerNames[index]!);
     }
+    const claimResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/claim-new-organization') &&
+        response.status() === 201,
+    );
     await page.getByRole('button', { name: 'Guardar centros y continuar' }).click();
+    await claimResponse;
+    await expect(page).toHaveURL(/\/app\/evaluation\/[0-9a-f-]+$/);
+    await expect(page.getByText('Diagnóstico listo', { exact: true })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toHaveCount(0);
+    return createdOrganization.id;
   } else {
     await page
       .locator('.assessment-company-option')
@@ -184,6 +196,7 @@ async function configureAndClaim(
   await expect(page).toHaveURL(/\/app\/evaluation\/[0-9a-f-]+$/);
   await expect(page.getByText('Diagnóstico listo', { exact: true })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toHaveCount(0);
+  return null;
 }
 
 test('public guided assessment resumes, registers, claims and starts an immutable reassessment', async ({
@@ -263,27 +276,61 @@ test('public guided assessment resumes, registers, claims and starts an immutabl
   ).toBeVisible();
 });
 
-test('multi-center public assessment creates a new company with visible center configuration and mapping', async ({
+test('two and three center public assessments provision real FREE setup topology without paid capacity', async ({
   page,
+  request,
 }, testInfo) => {
-  test.setTimeout(300_000);
+  test.setTimeout(600_000);
   const suffix = Date.now();
-  await startPublicAssessment(page, 2);
-  await finalizePublicAssessment(page);
-  const registration = await registerE2eUser({
-    displayName: 'Owner Multicentro E2E',
-    email: `guided-multi-${suffix}@example.test`,
-    password: 'guided-multicenter-password-123',
-  });
-  expect(registration.statusCode, registration.body).toBe(201);
-  const next = await claimReturnPath(page);
-  await activateE2eUserSession(page, registration, next);
-  await configureAndClaim(
-    page,
-    `Empresa multicentro ${suffix}`,
-    ['Planta Principal', 'Bodega Sur'],
-    testInfo,
-  );
+  for (const centerCount of [2, 3] as const) {
+    await startPublicAssessment(page, centerCount);
+    await finalizePublicAssessment(page);
+    const registration = await registerE2eUser({
+      displayName: `Owner ${centerCount} centros E2E`,
+      email: `guided-multi-${centerCount}-${suffix}@example.test`,
+      password: 'guided-multicenter-password-123',
+    });
+    expect(registration.statusCode, registration.body).toBe(201);
+    const next = await claimReturnPath(page);
+    await activateE2eUserSession(page, registration, next);
+    const centerNames = Array.from(
+      { length: centerCount },
+      (_, index) => `Centro ${centerCount}-${index + 1} ${suffix}`,
+    );
+    const organizationId = await configureAndClaim(
+      page,
+      `Empresa ${centerCount} centros ${suffix}`,
+      centerNames,
+      centerCount === 2 ? testInfo : undefined,
+    );
+    if (!organizationId) throw new Error('NEW_ORGANIZATION_ID_MISSING');
+    const setup = await readE2eAssessmentSetup(organizationId);
+    expect(setup.planKeys).toEqual(['FREE']);
+    expect(setup.moduleKeys).toEqual(['CORE']);
+    expect(setup.centers.map(({ name }) => name).sort()).toEqual([...centerNames].sort());
+    expect(setup.profiles).toHaveLength(1);
+    expect(setup.profiles[0]?.snapshot).toMatchObject({
+      schemaVersion: '2.0.0',
+      organization: { workCenterCount: centerCount },
+    });
+    const session = setup.sessions.find(({ status }) => status === 'FINALIZED');
+    expect(session).toBeTruthy();
+    const setupResponse = await request.get(
+      'http://127.0.0.1:3101/api/v1/sst-assessment/setup-state',
+      {
+        headers: {
+          authorization: `Bearer ${parseRegistration(registration).accessToken}`,
+          'x-organization-id': organizationId,
+        },
+      },
+    );
+    expect(setupResponse.status()).toBe(200);
+    expect(await setupResponse.json()).toMatchObject({
+      state: 'DIAGNOSIS_READY',
+      hardGate: true,
+      assessmentId: session?.id,
+    });
+  }
 });
 
 test('a user without organizations sees setup shell and private children never request data', async ({
@@ -345,7 +392,6 @@ test('a substantive legacy organization keeps normal app access during and after
     password: 'guided-legacy-password-123',
   });
   const prepared = await createE2eOrganization(request, registration, `Empresa legacy ${suffix}`);
-  await setE2eOrganizationPlan(prepared.organization.id, 'STARTER');
   await markE2eOrganizationLegacyConfigured(prepared.organization.id, prepared.session.user.id);
   await activateE2eUserSession(page, registration);
   await page.evaluate(
@@ -518,6 +564,52 @@ test('claim destination can change organizations and existing topology remains m
   await expect(page.getByRole('heading', { name: 'Crea la empresa' })).toBeVisible();
 });
 
+test('existing profile reconciliation stays human, explicit and mutation-free', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(360_000);
+  const suffix = Date.now();
+  await startPublicAssessment(page, 1);
+  await finalizePublicAssessment(page);
+  const claimPath = await claimReturnPath(page);
+  const registration = await registerE2eUser({
+    displayName: 'Owner Reconciliation E2E',
+    email: `guided-reconciliation-${suffix}@example.test`,
+    password: 'guided-reconciliation-password-123',
+  });
+  const prepared = await createE2eOrganization(
+    request,
+    registration,
+    `Empresa reconciliación ${suffix}`,
+  );
+  await createE2eOrganizationProfile(prepared.organization.id, prepared.session.user.id, 99);
+  const before = await readE2eAssessmentSetup(prepared.organization.id);
+  await activateE2eUserSession(page, registration, claimPath);
+  await page
+    .locator('.assessment-company-option')
+    .filter({ hasText: prepared.organization.name })
+    .click();
+  await page
+    .locator('.assessment-preflight-card select')
+    .selectOption({ label: 'Centro principal' });
+  await page.getByRole('button', { name: 'Confirmar y vincular diagnóstico' }).click();
+
+  const reconciliation = page
+    .locator('.assessment-preflight-card')
+    .filter({ hasText: 'Necesitamos revisar una diferencia antes de vincular' });
+  await expect(reconciliation).toBeVisible();
+  await expect(reconciliation.getByText('Número total de personas trabajadoras')).toBeVisible();
+  const after = await readE2eAssessmentSetup(prepared.organization.id);
+  expect(after.organization).toEqual(before.organization);
+  expect(after.centers).toEqual(before.centers);
+  expect(after.profiles).toEqual(before.profiles);
+  expect(after.sessions).toEqual(before.sessions);
+
+  await reconciliation.getByRole('button', { name: 'Elegir otra empresa' }).click();
+  await expect(page.getByRole('heading', { name: 'Elige dónde guardarlo' })).toBeVisible();
+});
+
 test('mobile guided question has no horizontal overflow and keeps its context accessible', async ({
   page,
 }, testInfo) => {
@@ -549,5 +641,20 @@ test('mobile guided question has no horizontal overflow and keeps its context ac
   await dialog.getByRole('button', { name: 'Cerrar contexto' }).click();
   await expect(dialog).not.toBeVisible();
   await expect(contextTrigger).toBeFocused();
+  await answerCurrentQuestion(page);
+  const checkpoint = page.getByRole('button', { name: 'Todo correcto, continuar' });
+  if (await checkpoint.isVisible()) await checkpoint.click();
+  await expect(question).toBeVisible();
+  const editableQuestionId = await question.getAttribute('data-question-id');
+  if (!editableQuestionId) throw new Error('EDITABLE_QUESTION_ID_MISSING');
+  await answerCurrentQuestion(page);
+  await contextTrigger.click();
+  await dialog.getByRole('button', { name: 'Corregir' }).first().click();
+  await expect(dialog).not.toBeVisible();
+  const editedQuestion = page.locator(`[data-question-id="${editableQuestionId}"]`);
+  await expect(editedQuestion).toBeVisible();
+  await expect
+    .poll(() => editedQuestion.evaluate((element) => element.contains(document.activeElement)))
+    .toBe(true);
   await answerCurrentQuestion(page);
 });

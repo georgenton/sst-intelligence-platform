@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiClientError } from '@sst/api-client';
+import { reconcileSstAssessmentConditionalFacts } from '@sst/contracts';
 import {
   assessmentChoiceLabel,
   assessmentErrorMessage,
   assessmentFactLabel,
   assessmentFactValue,
+  assessmentReconciliationDetails,
   assessmentTechnicalDetailsPolicy,
   assessmentTopicLabel,
   aggregateAssessmentProgress,
@@ -96,6 +98,37 @@ test('humanizes choices, multi-choice values, unknowns, facts and topics without
     visible.map(({ value }) => value),
     ['No'],
   );
+});
+
+test('does not present facility facts after work arrangement changes to remote', () => {
+  const facts = reconcileSstAssessmentConditionalFacts({
+    schemaVersion: '1.0.0',
+    catalogVersion: '1.0.0',
+    scopes: [
+      { scopeKey: 'organization', kind: 'ORGANIZATION', order: 0, displayName: 'Empresa' },
+      { scopeKey: 'center:1', kind: 'WORK_CENTER', order: 1, displayName: 'Centro remoto' },
+    ],
+    facts: [
+      {
+        factKey: 'workCenter.workArrangement',
+        scopeKey: 'center:1',
+        answerState: 'KNOWN',
+        value: 'REMOTE',
+        provenance: { source: 'PUBLIC_DECLARATION' },
+      },
+      {
+        factKey: 'workCenter.facilityTypes',
+        scopeKey: 'center:1',
+        answerState: 'KNOWN',
+        value: ['PLANT'],
+        provenance: { source: 'PUBLIC_DECLARATION' },
+      },
+    ],
+  }).facts;
+  const visible = visibleFactSummaries(facts, [
+    { scopeKey: 'center:1', kind: 'WORK_CENTER', order: 1, displayName: 'Centro remoto' },
+  ]);
+  assert.doesNotMatch(JSON.stringify(visible), /Planta|facilityTypes/);
 });
 
 test('prioritizes blocking questions before contextual and commercial questions', () => {
@@ -191,6 +224,46 @@ test('keeps technical trace restricted and error codes translated', () => {
   );
 });
 
+test('presents only bounded human reconciliation categories', () => {
+  const profile = assessmentReconciliationDetails(
+    new ApiClientError(409, {
+      code: 'SST_ASSESSMENT_PROFILE_RECONCILIATION_REQUIRED',
+      message: 'raw',
+      details: {
+        conflictCategories: [
+          'ORGANIZATION_WORKER_COUNT',
+          'ORGANIZATION_SECTOR',
+          'CHEMICAL_PROCESS_PRESENT',
+          'HIGH_ENERGY_OPERATION_PRESENT',
+          'CONTRACTOR_OR_EXTERNAL_PERSONNEL_PRESENT',
+          'INTERNAL_FUTURE_ENUM',
+        ],
+      },
+      traceId: 'trace',
+    }),
+  );
+  assert.deepEqual(profile?.categories, [
+    'Número total de personas trabajadoras',
+    'Actividad principal',
+    'Procesos con sustancias químicas',
+    'Operaciones con fuentes de alta energía',
+    'Personal externo o contratistas',
+    'Otra diferencia de contexto',
+  ]);
+  assert.doesNotMatch(JSON.stringify(profile), /INTERNAL_FUTURE_ENUM/);
+  assert.deepEqual(
+    assessmentReconciliationDetails(
+      new ApiClientError(409, {
+        code: 'SST_ASSESSMENT_ORGANIZATION_RECONCILIATION_REQUIRED',
+        message: 'raw',
+        details: { reason: 'COUNTRY' },
+        traceId: 'trace',
+      }),
+    )?.categories,
+    ['País de la empresa'],
+  );
+});
+
 test('claim navigation serializes only session identity and never the public token', () => {
   const path = assessmentClaimPath('assessment-123');
   assert.equal(path, '/app/setup/claim?assessment=assessment-123');
@@ -230,6 +303,32 @@ test('aggregates raw progress into the same human groups rendered by the UI', ()
   });
   assert.equal(complete.completedTopics, 2);
   assert.equal(complete.topics[0].complete, true);
+});
+
+test('orders human progress topics canonically regardless of backend insertion order', () => {
+  const topics = [
+    { topic: 'Contexto adicional', answered: 1, total: 1, complete: true },
+    { topic: 'Personas y operación', answered: 1, total: 1, complete: true },
+    { topic: 'Gestión SST', answered: 1, total: 1, complete: true },
+    { topic: 'Centro de trabajo', answered: 1, total: 1, complete: true },
+    { topic: 'Perfil organizacional', answered: 1, total: 1, complete: true },
+    { topic: 'Prioridades', answered: 1, total: 1, complete: true },
+    { topic: 'Trabajos críticos', answered: 1, total: 1, complete: true },
+  ];
+  const progress = aggregateAssessmentProgress({
+    answeredFacts: topics.length,
+    resolvedFactCount: topics.length,
+    explicitUnknownCount: 0,
+    pendingQuestionCount: 0,
+    totalFacts: topics.length,
+    completedTopics: topics.length,
+    totalTopics: topics.length,
+    topics,
+  });
+  assert.deepEqual(
+    progress.topics.map(({ label }) => label),
+    ['Empresa', 'Centros', 'Operación', 'Gestión', 'Personas', 'Prioridades', 'Implementación'],
+  );
 });
 
 test('builds a human professional foundation without raw DSL or invented legal sources', () => {

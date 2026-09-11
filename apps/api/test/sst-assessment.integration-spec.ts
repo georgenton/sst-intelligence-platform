@@ -7,6 +7,7 @@ import { Prisma } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { SstAssessmentService } from '../src/sst-assessment/sst-assessment.service';
 
 describe('canonical SST assessment integration', () => {
   let app: INestApplication;
@@ -234,17 +235,21 @@ describe('canonical SST assessment integration', () => {
     transform: (answers: ReturnType<typeof readyAnswers>) => ReturnType<typeof readyAnswers> = (
       answers,
     ) => answers,
+    workCenterCount = 1,
   ) {
     const created = await request(app.getHttpServer())
       .post('/api/v1/sst-assessment/public/sessions')
-      .send({ workCenterCount: 1 })
+      .send({ workCenterCount })
       .expect(201);
     const saved = await publicSession(
       'post',
       `${created.body.id as string}/answers`,
       created.body.publicToken as string,
     )
-      .send({ expectedSessionRevision: 0, answers: transform(readyAnswers(1, true)) })
+      .send({
+        expectedSessionRevision: 0,
+        answers: transform(readyAnswers(workCenterCount, true)),
+      })
       .expect(201);
     const evaluated = await publicSession(
       'post',
@@ -516,6 +521,84 @@ describe('canonical SST assessment integration', () => {
       .expect(201);
     expect(evaluated.body.status).toBe('COLLECTING_INFORMATION');
     expect(evaluated.body.questions.length).toBeGreaterThan(0);
+  });
+
+  it('reconciles now-irrelevant conditional facts before persisting a mutable snapshot', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/sst-assessment/public/sessions')
+      .send({ workCenterCount: 1 })
+      .expect(201);
+    const initial = await publicSession(
+      'post',
+      `${created.body.id as string}/answers`,
+      created.body.publicToken as string,
+    )
+      .send({
+        expectedSessionRevision: 0,
+        answers: [
+          {
+            factKey: 'workCenter.workArrangement',
+            scopeKey: 'center:1',
+            answerState: 'KNOWN',
+            value: 'PHYSICAL',
+          },
+          {
+            factKey: 'workCenter.facilityTypes',
+            scopeKey: 'center:1',
+            answerState: 'KNOWN',
+            value: ['PLANT'],
+          },
+          {
+            factKey: 'organization.inspectionPractice',
+            scopeKey: 'organization',
+            answerState: 'KNOWN',
+            value: 'CHECKLISTS',
+          },
+          {
+            factKey: 'organization.inspectionFrequency',
+            scopeKey: 'organization',
+            answerState: 'KNOWN',
+            value: 'MONTHLY',
+          },
+        ],
+      })
+      .expect(201);
+    expect(initial.body.snapshot.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ factKey: 'workCenter.facilityTypes', value: ['PLANT'] }),
+        expect.objectContaining({ factKey: 'organization.inspectionFrequency', value: 'MONTHLY' }),
+      ]),
+    );
+
+    const corrected = await publicSession(
+      'post',
+      `${created.body.id as string}/answers`,
+      created.body.publicToken as string,
+    )
+      .send({
+        expectedSessionRevision: initial.body.sessionRevision,
+        answers: [
+          {
+            factKey: 'workCenter.workArrangement',
+            scopeKey: 'center:1',
+            answerState: 'KNOWN',
+            value: 'REMOTE',
+          },
+          {
+            factKey: 'organization.inspectionPractice',
+            scopeKey: 'organization',
+            answerState: 'KNOWN',
+            value: 'NONE',
+          },
+        ],
+      })
+      .expect(201);
+    expect(corrected.body.snapshot.facts).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ factKey: 'workCenter.facilityTypes' }),
+        expect.objectContaining({ factKey: 'organization.inspectionFrequency' }),
+      ]),
+    );
   });
 
   it('keeps authenticated-derived questions out of persisted results while preserving required actions', async () => {
@@ -1339,6 +1422,180 @@ describe('canonical SST assessment integration', () => {
     ).not.toBeNull();
   });
 
+  it('atomically provisions declared multi-center topology for a pristine FREE setup organization', async () => {
+    for (const centerCount of [2, 3]) {
+      const owner = await user(`assessment-free-${centerCount}-center-owner`);
+      const organizationId = await organization(
+        owner.token,
+        `Assessment FREE ${centerCount} centers`,
+      );
+      const subscriptionBefore = await prisma.subscription.findFirstOrThrow({
+        where: { organizationId, status: 'ACTIVE' },
+        include: { plan: true },
+      });
+      expect(subscriptionBefore.plan.key).toBe('FREE');
+      const assessment = await completePublicAssessment(undefined, centerCount);
+      const centers = Array.from({ length: centerCount }, (_, index) => ({
+        scopeKey: `center:${index + 1}`,
+        name: `Centro declarado ${centerCount}-${index + 1} ${suffix}`,
+        city: index === 0 ? 'Quito' : undefined,
+      }));
+
+      const claimed = await authenticated(owner.token, organizationId)
+        .post(`/public/sessions/${assessment.id}/claim-new-organization`)
+        .send({ publicToken: assessment.token, centers })
+        .expect(201);
+
+      expect(claimed.body).toMatchObject({
+        id: assessment.id,
+        status: 'FINALIZED',
+        profileVersionId: expect.any(String),
+      });
+      const [subscriptionAfter, modules, storedCenters, profile, setup, audit] = await Promise.all([
+        prisma.subscription.findFirstOrThrow({
+          where: { organizationId, status: 'ACTIVE' },
+          include: { plan: true },
+        }),
+        prisma.organizationModule.findMany({
+          where: { organizationId, status: 'ACTIVE' },
+          include: { module: true },
+        }),
+        prisma.workCenter.findMany({ where: { organizationId }, orderBy: { name: 'asc' } }),
+        prisma.organizationSstProfileVersion.findUniqueOrThrow({
+          where: { id: claimed.body.profileVersionId as string },
+        }),
+        authenticated(owner.token, organizationId).get('/setup-state').expect(200),
+        prisma.auditLog.findFirst({
+          where: {
+            organizationId,
+            actorUserId: owner.id,
+            action: 'SST_SETUP_TOPOLOGY_PROVISIONED',
+            entityId: assessment.id,
+          },
+        }),
+      ]);
+      expect(subscriptionAfter).toMatchObject({
+        id: subscriptionBefore.id,
+        planId: subscriptionBefore.planId,
+        plan: { key: 'FREE' },
+      });
+      expect(modules.map(({ module }) => module.key)).toEqual(['CORE']);
+      expect(storedCenters.map(({ name }) => name).sort()).toEqual(
+        centers.map(({ name }) => name).sort(),
+      );
+      expect(profile.snapshot).toMatchObject({
+        schemaVersion: '2.0.0',
+        organization: { workCenterCount: centerCount },
+      });
+      expect(setup.body).toMatchObject({
+        state: 'DIAGNOSIS_READY',
+        hardGate: true,
+        assessmentId: assessment.id,
+      });
+      expect(audit?.metadata).toMatchObject({
+        assessmentId: assessment.id,
+        organizationId,
+        centerCount,
+      });
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/organizations/${organizationId}/work-centers`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .set('x-organization-id', organizationId)
+        .send({ name: `Operational center over limit ${suffix}` })
+        .expect(403)
+        .expect(({ body }) => {
+          expect(body.code).toBe('LIMIT_REACHED');
+          expect(body.details).toMatchObject({
+            featureKey: 'organization.max_work_centers',
+            limit: 1,
+          });
+        });
+    }
+  });
+
+  it('rolls back setup topology failures and rejects non-pristine existing organizations', async () => {
+    const owner = await user('assessment-setup-atomic-owner');
+    const organizationId = await organization(owner.token, 'Assessment setup atomic');
+    const assessment = await completePublicAssessment(undefined, 2);
+
+    await authenticated(owner.token, organizationId)
+      .post(`/public/sessions/${assessment.id}/claim-new-organization`)
+      .send({
+        publicToken: assessment.token,
+        centers: [
+          { scopeKey: 'center:1', name: '   ' },
+          { scopeKey: 'center:2', name: `Centro válido ${suffix}` },
+        ],
+      })
+      .expect(400);
+    await authenticated(owner.token, organizationId)
+      .post(`/public/sessions/${assessment.id}/claim-new-organization`)
+      .send({
+        publicToken: assessment.token,
+        centers: [
+          { scopeKey: 'center:1', name: `Centro duplicado ${suffix}` },
+          { scopeKey: 'center:2', name: `Centro duplicado ${suffix}` },
+        ],
+      })
+      .expect(400);
+    expect(await prisma.workCenter.findMany({ where: { organizationId } })).toEqual([
+      expect.objectContaining({ name: 'Centro principal' }),
+    ]);
+    expect(await prisma.organizationSstProfileVersion.count({ where: { organizationId } })).toBe(0);
+    expect(
+      await prisma.sstAssessmentSession.findUniqueOrThrow({ where: { id: assessment.id } }),
+    ).toMatchObject({ organizationId: null, claimedById: null, profileVersionId: null });
+
+    const assessmentService = app.get(SstAssessmentService);
+    const profileFailure = jest
+      .spyOn(
+        assessmentService as unknown as {
+          createOrReuseProfile: (...args: unknown[]) => Promise<unknown>;
+        },
+        'createOrReuseProfile',
+      )
+      .mockRejectedValueOnce(new Error('TEST_PROFILE_FAILURE_AFTER_TOPOLOGY'));
+    try {
+      await authenticated(owner.token, organizationId)
+        .post(`/public/sessions/${assessment.id}/claim-new-organization`)
+        .send({
+          publicToken: assessment.token,
+          centers: [
+            { scopeKey: 'center:1', name: `Centro transaccional 1 ${suffix}` },
+            { scopeKey: 'center:2', name: `Centro transaccional 2 ${suffix}` },
+          ],
+        })
+        .expect(500);
+    } finally {
+      profileFailure.mockRestore();
+    }
+    expect(await prisma.workCenter.findMany({ where: { organizationId } })).toEqual([
+      expect.objectContaining({ name: 'Centro principal' }),
+    ]);
+    expect(await prisma.organizationSstProfileVersion.count({ where: { organizationId } })).toBe(0);
+    expect(
+      await prisma.sstAssessmentSession.findUniqueOrThrow({ where: { id: assessment.id } }),
+    ).toMatchObject({ organizationId: null, claimedById: null, profileVersionId: null });
+
+    await prisma.operationalPlan.create({ data: { organizationId, createdById: owner.id } });
+    const existingAssessment = await completePublicAssessment();
+    await authenticated(owner.token, organizationId)
+      .post(`/public/sessions/${existingAssessment.id}/claim-new-organization`)
+      .send({
+        publicToken: existingAssessment.token,
+        centers: [{ scopeKey: 'center:1', name: `Centro existente ${suffix}` }],
+      })
+      .expect(409)
+      .expect(({ body }) => {
+        expect(body.code).toBe('SST_ASSESSMENT_NEW_ORGANIZATION_SETUP_REQUIRED');
+        expect(body.details).toEqual({ reason: 'ORGANIZATION_NOT_PRISTINE' });
+      });
+    expect(await prisma.workCenter.findMany({ where: { organizationId } })).toEqual([
+      expect.objectContaining({ name: 'Centro principal' }),
+    ]);
+  });
+
   it('fails public claim closed when country or active-center topology needs reconciliation', async () => {
     const owner = await user('assessment-claim-reconciliation-owner');
     const organizationId = await organization(owner.token, 'Assessment claim reconciliation');
@@ -1386,7 +1643,8 @@ describe('canonical SST assessment integration', () => {
       .expect(409)
       .expect(({ body }) => {
         expect(body.code).toBe('SST_ASSESSMENT_ORGANIZATION_RECONCILIATION_REQUIRED');
-        expect(body.reason).toBe('COUNTRY');
+        expect(body.details).toEqual({ reason: 'COUNTRY' });
+        expect(body).not.toHaveProperty('reason');
       });
 
     await prisma.workCenter.createMany({
@@ -1405,7 +1663,8 @@ describe('canonical SST assessment integration', () => {
       .expect(409)
       .expect(({ body }) => {
         expect(body.code).toBe('SST_ASSESSMENT_ORGANIZATION_RECONCILIATION_REQUIRED');
-        expect(body.reason).toBe('WORK_CENTER_TOPOLOGY');
+        expect(body.details).toEqual({ reason: 'WORK_CENTER_TOPOLOGY' });
+        expect(body).not.toHaveProperty('reason');
       });
     expect(await prisma.organizationSstProfileVersion.count({ where: { organizationId } })).toBe(0);
   });
@@ -1438,7 +1697,7 @@ describe('canonical SST assessment integration', () => {
         .expect(409)
         .expect(({ body }) => {
           expect(body.code).toBe('SST_ASSESSMENT_ORGANIZATION_RECONCILIATION_REQUIRED');
-          expect(body.reason).toBe('WORK_CENTER_TOPOLOGY');
+          expect(body.details).toEqual({ reason: 'WORK_CENTER_TOPOLOGY' });
         });
     } finally {
       topologyTransaction.mockRestore();
@@ -1469,7 +1728,7 @@ describe('canonical SST assessment integration', () => {
         .expect(409)
         .expect(({ body }) => {
           expect(body.code).toBe('SST_ASSESSMENT_ORGANIZATION_RECONCILIATION_REQUIRED');
-          expect(body.reason).toBe('COUNTRY');
+          expect(body.details).toEqual({ reason: 'COUNTRY' });
         });
     } finally {
       countryTransaction.mockRestore();
@@ -1546,7 +1805,8 @@ describe('canonical SST assessment integration', () => {
         .expect(409)
         .expect(({ body }) => {
           expect(body.code).toBe('SST_ASSESSMENT_PROFILE_RECONCILIATION_REQUIRED');
-          expect(body.conflictCategories).toEqual([category]);
+          expect(body.details.conflictCategories).toEqual([category]);
+          expect(body).not.toHaveProperty('conflictCategories');
         });
       expect(
         await prisma.sstAssessmentSession.findUniqueOrThrow({ where: { id: assessment.id } }),
@@ -1704,7 +1964,7 @@ describe('canonical SST assessment integration', () => {
       .expect(409)
       .expect(({ body }) => {
         expect(body.code).toBe('SST_ASSESSMENT_PROFILE_RECONCILIATION_REQUIRED');
-        expect(body.conflictCategories).toEqual(['ORGANIZATION_WORKER_COUNT']);
+        expect(body.details.conflictCategories).toEqual(['ORGANIZATION_WORKER_COUNT']);
       });
 
     const technicalConflict = await completePublic((answers) =>
@@ -1718,7 +1978,7 @@ describe('canonical SST assessment integration', () => {
       .expect(409)
       .expect(({ body }) => {
         expect(body.code).toBe('SST_ASSESSMENT_PROFILE_RECONCILIATION_REQUIRED');
-        expect(body.conflictCategories).toEqual(['CHEMICAL_PROCESS_PRESENT']);
+        expect(body.details.conflictCategories).toEqual(['CHEMICAL_PROCESS_PRESENT']);
       });
     expect(await prisma.organizationSstProfileVersion.count({ where: { organizationId } })).toBe(2);
   });

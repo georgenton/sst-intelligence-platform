@@ -34,6 +34,31 @@ const topicLabels: Record<string, string> = {
   'Contexto adicional': 'Implementación',
 };
 
+const humanTopicOrder = [
+  'Empresa',
+  'Centros',
+  'Operación',
+  'Gestión',
+  'Personas',
+  'Prioridades',
+  'Implementación',
+] as const;
+const humanTopicPriority = new Map<string, number>(
+  humanTopicOrder.map((label, index) => [label, index]),
+);
+
+const reconciliationCategoryLabels: Record<string, string> = {
+  COUNTRY: 'País de la empresa',
+  ORGANIZATION_COUNTRY: 'País de la empresa',
+  WORK_CENTER_TOPOLOGY: 'Centros de trabajo',
+  WORK_CENTER_COUNT: 'Centros de trabajo',
+  ORGANIZATION_WORKER_COUNT: 'Número total de personas trabajadoras',
+  ORGANIZATION_SECTOR: 'Actividad principal',
+  CHEMICAL_PROCESS_PRESENT: 'Procesos con sustancias químicas',
+  HIGH_ENERGY_OPERATION_PRESENT: 'Operaciones con fuentes de alta energía',
+  CONTRACTOR_OR_EXTERNAL_PERSONNEL_PRESENT: 'Personal externo o contratistas',
+};
+
 const policyPriority: Record<SstAssessmentQuestion['collectionPolicy'], number> = {
   FOUNDATION_REQUIRED: 0,
   CONDITIONAL: 1,
@@ -88,11 +113,48 @@ export function aggregateAssessmentProgress(progress: SstAssessmentProgress, act
       active: (current?.active ?? false) || assessmentTopicLabel(activeTopic ?? '') === label,
     });
   }
-  const topics = [...groups.values()];
+  const topics = [...groups.values()].sort(
+    (left, right) =>
+      (humanTopicPriority.get(left.label) ?? humanTopicOrder.length) -
+        (humanTopicPriority.get(right.label) ?? humanTopicOrder.length) ||
+      left.label.localeCompare(right.label, 'es'),
+  );
   return {
     completedTopics: topics.filter(({ complete }) => complete).length,
     totalTopics: topics.length,
     topics,
+  };
+}
+
+export function assessmentReconciliationDetails(error: unknown) {
+  if (!(error instanceof ApiClientError)) return null;
+  const { code, details } = error.payload;
+  if (
+    code !== 'SST_ASSESSMENT_ORGANIZATION_RECONCILIATION_REQUIRED' &&
+    code !== 'SST_ASSESSMENT_PROFILE_RECONCILIATION_REQUIRED'
+  ) {
+    return null;
+  }
+  if (!details || Array.isArray(details) || typeof details !== 'object') return null;
+  const value = details as Record<string, unknown>;
+  const categories =
+    code === 'SST_ASSESSMENT_ORGANIZATION_RECONCILIATION_REQUIRED'
+      ? [value.reason]
+      : Array.isArray(value.conflictCategories)
+        ? value.conflictCategories
+        : [];
+  const labels = [
+    ...new Set(
+      categories.map((category) =>
+        typeof category === 'string'
+          ? (reconciliationCategoryLabels[category] ?? 'Otra diferencia de contexto')
+          : 'Otra diferencia de contexto',
+      ),
+    ),
+  ];
+  return {
+    code,
+    categories: labels.length > 0 ? labels : ['Otra diferencia de contexto'],
   };
 }
 

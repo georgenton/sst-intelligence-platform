@@ -43,20 +43,27 @@ token locally and requires an explicit destination choice, even when an organiza
 active. The user can choose another existing company or create a new one and return to the chooser.
 A recoverable failure keeps the record. Successful claim or a terminal expired session clears it.
 
-For a new company, claim configures the exact center topology and requires visible one-to-one
-mapping. Activity is required when the assessment did not already establish it. For an existing
-company, active Work Centers are authoritative: claim is mapping-only and never renames or creates
-centers. A topology mismatch presents bounded reconciliation actions without attempting the claim.
+For a new company, claim sends the named center drafts to an assessment-owned setup endpoint. That
+endpoint provisions the exact declared topology, builds the scope mapping and claims the finalized
+assessment atomically. Activity is required when the assessment did not already establish it. For
+an existing company, active Work Centers are authoritative: claim is mapping-only and never renames
+or creates centers. A topology or Profile V2 mismatch presents bounded reconciliation actions
+without changing either source automatically.
 
-Company creation follows the existing organization API. Its automatically created “Centro
-principal” becomes center 1; only the remaining centers are created. A stored target organization
-ID lets the user resume after partial creation without creating a duplicate company. Names are not
-used as idempotency keys.
+Company creation follows the existing organization API. Only while that FREE organization remains
+pristine and hard-gated, the bounded setup transaction may rename its bootstrap Work Center and
+create the remaining declared centers. Scope keys, not names, are authoritative. The transaction
+rechecks owner membership, unclaimed finalization, country, empty canonical/operational history,
+FREE subscription, CORE-only activation and bootstrap topology before it writes. Failure rolls back
+topology, profile and claim together.
 
-Existing commercial capacity remains authoritative. A newly created FREE organization can map its
-single allowed center. A multi-center public diagnosis can be claimed to an existing organization
-whose current plan already permits that topology; PR47 does not select, upgrade or invent a plan.
-Completing commercial configuration for a new multi-center organization is an explicit PR48 gap.
+This exception records factual setup topology; it does not grant licensed operational capacity.
+The normal Work Center endpoint still enforces `organization.max_work_centers`, and PR47 never
+changes Subscription, PlanFeature, Demo or OrganizationModule state. Consequently a hard-gated
+FREE organization may temporarily declare more centers than it can operate commercially. PR48 must
+reconcile declared topology with the chosen commercial capacity before releasing the future
+`SETUP_COMPLETED`/normal workspace gate. It must not delete or falsify declared centers to satisfy a
+plan limit.
 
 ## Setup shell and authoritative gate
 
@@ -101,8 +108,9 @@ or module selection.
 Question controls use fieldset/legend semantics, keyboard-operable buttons, visible focus, Spanish
 validation, `aria-live` save state and comfortable touch targets. Desktop uses a wide interview
 column with sticky context. Mobile keeps the focal question first and exposes context through a
-closed-by-default accessible dialog with Escape handling and focus return. Motion is limited to
-150–250 ms state transitions and is removed under
+closed-by-default accessible dialog. Close and Escape return focus to its trigger; **Corregir**
+closes the dialog and moves focus to the edited question instead. Motion is limited to 150–250 ms
+state transitions and is removed under
 `prefers-reduced-motion: reduce`.
 
 Skeletons cover session/setup/result loading. Saving and evaluating keep confirmed context visible.
@@ -121,4 +129,5 @@ context.
 PR47 intentionally ends at `DIAGNOSIS_READY`. It does not create `SETUP_COMPLETED`, recommend or
 activate modules, change entitlements/subscriptions, generate Operational Plans or call an external
 LLM. PR48 must consume the canonical diagnosis to complete configuration and any explicitly
-authorized plan workflow.
+authorized plan workflow. In particular, PR48 owns the explicit decision that reconciles factual
+multi-center setup topology with licensed Work Center capacity before removing the hard gate.

@@ -171,6 +171,7 @@ export function GuidedSstAssessmentExperience({
         <AssessmentQuestionCard
           question={displayedQuestion}
           disabled={busy}
+          focusOnMount={Boolean(editing)}
           onAnswer={(value) => void answer(value)}
           onSkip={() => setSkipped((current) => [...current, displayedQuestion.questionId])}
         />

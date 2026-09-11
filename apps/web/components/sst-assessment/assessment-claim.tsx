@@ -5,14 +5,17 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useReducer, useState } from 'react';
 import { queryKeys } from '@/lib/query-keys';
 import {
-  canMutateCentersForClaim,
   canCreateClaimCompany,
   claimCompanyActivity,
   claimDestinationTarget,
   initialClaimDestination,
   reduceClaimDestination,
 } from '@/lib/sst-assessment-claim';
-import { assessmentErrorMessage, assessmentFactValue } from '@/lib/sst-assessment-presentation';
+import {
+  assessmentErrorMessage,
+  assessmentFactValue,
+  assessmentReconciliationDetails,
+} from '@/lib/sst-assessment-presentation';
 import {
   clearPublicAssessmentSession,
   forgetAssessmentTargetOrganization,
@@ -117,7 +120,6 @@ export function AssessmentClaim() {
   const [companyName, setCompanyName] = useState('');
   const [companySector, setCompanySector] = useState('');
   const [mappings, setMappings] = useState<Record<string, string>>({});
-  const [centersConfirmed, setCentersConfirmed] = useState(false);
 
   useEffect(() => {
     const loaded = loadPublicAssessmentSession(window.localStorage, sessionId);
@@ -175,58 +177,52 @@ export function AssessmentClaim() {
         'NEW',
       );
       dispatchDestination({ type: 'company-created', organizationId: created.id });
-      setCentersConfirmed(false);
       await queryClient.invalidateQueries({
         queryKey: queryKeys.user.organizations(auth.user!.id),
       });
       await organization.setActiveId(created.id, 'Empresa creada. Continuemos con sus centros.');
     },
   });
-  const configureCenters = useMutation({
-    mutationFn: async (drafts: CenterDraft[]) => {
-      if (!canMutateCentersForClaim(destination))
-        throw new Error('Los centros existentes no se modifican durante el vínculo.');
-      const existing = (centers.data ?? []).filter(({ isActive }) => isActive);
-      if (existing.length > drafts.length)
-        throw new Error(
-          'La empresa tiene más centros activos que esta evaluación. Inicia una evaluación con el alcance correcto.',
-        );
-      await Promise.all(
-        existing.map((center, index) =>
-          auth.request(
-            `/organizations/${target}/work-centers/${center.id}`,
-            {
-              method: 'PATCH',
-              body: JSON.stringify({
-                name: drafts[index]!.name,
-                city: drafts[index]!.city || undefined,
-                isActive: true,
-              }),
-            },
-            target!,
-          ),
-        ),
-      );
-      for (let index = existing.length; index < drafts.length; index += 1) {
-        await auth.request(
-          `/organizations/${target}/work-centers`,
-          {
-            method: 'POST',
-            body: JSON.stringify({
+  async function completeClaim(claimed: AssessmentSession) {
+    clearPublicAssessmentSession(window.localStorage, record!.sessionId);
+    queryClient.removeQueries({
+      queryKey: queryKeys.public.sstAssessment.session(record!.sessionId),
+    });
+    queryClient.setQueryData(
+      queryKeys.organization.sstAssessmentSession(target!, claimed.id),
+      claimed,
+    );
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.workCenters(target!),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.sstAssessmentSetup(target!),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.sstAssessmentHistory(target!),
+      }),
+    ]);
+    router.replace(`/app/evaluation/${claimed.id}`);
+  }
+  const claimNewOrganization = useMutation({
+    mutationFn: (drafts: CenterDraft[]) =>
+      auth.request<AssessmentSession>(
+        `/sst-assessment/public/sessions/${record!.sessionId}/claim-new-organization`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            publicToken: record!.publicToken,
+            centers: centerScopes.map((scope, index) => ({
+              scopeKey: scope.scopeKey,
               name: drafts[index]!.name,
               city: drafts[index]!.city || undefined,
-            }),
-          },
-          target!,
-        );
-      }
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.organization.workCenters(target!),
-      });
-      setCentersConfirmed(true);
-    },
+            })),
+          }),
+        },
+        target!,
+      ),
+    onSuccess: completeClaim,
   });
   const claim = useMutation({
     mutationFn: () =>
@@ -244,25 +240,7 @@ export function AssessmentClaim() {
         },
         target!,
       ),
-    onSuccess: async (claimed) => {
-      clearPublicAssessmentSession(window.localStorage, record!.sessionId);
-      queryClient.removeQueries({
-        queryKey: queryKeys.public.sstAssessment.session(record!.sessionId),
-      });
-      queryClient.setQueryData(
-        queryKeys.organization.sstAssessmentSession(target!, claimed.id),
-        claimed,
-      );
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.organization.sstAssessmentSetup(target!),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.organization.sstAssessmentHistory(target!),
-        }),
-      ]);
-      router.replace(`/app/evaluation/${claimed.id}`);
-    },
+    onSuccess: completeClaim,
   });
 
   if (record === undefined || assessment.isLoading) return <AssessmentSkeleton />;
@@ -289,12 +267,13 @@ export function AssessmentClaim() {
   const topologyReady = Boolean(
     target && centers.isSuccess && activeCenters.length === centerScopes.length,
   );
-  const mappingReady = topologyReady && (destination.mode === 'EXISTING' || centersConfirmed);
+  const mappingReady = topologyReady && destination.mode === 'EXISTING';
   const allMapped =
     centerScopes.every(({ scopeKey }) => mappings[scopeKey]) &&
     new Set(Object.values(mappings)).size === centerScopes.length;
-  const mutationError = createCompany.error ?? configureCenters.error ?? claim.error;
-  const message = mutationError ? assessmentErrorMessage(mutationError) : '';
+  const mutationError = createCompany.error ?? claimNewOrganization.error ?? claim.error;
+  const reconciliation = assessmentReconciliationDetails(mutationError);
+  const message = mutationError && !reconciliation ? assessmentErrorMessage(mutationError) : '';
 
   return (
     <AssessmentShell
@@ -318,7 +297,6 @@ export function AssessmentClaim() {
               key={item.id}
               onClick={() => {
                 dispatchDestination({ type: 'choose-existing', organizationId: item.id });
-                setCentersConfirmed(false);
                 rememberAssessmentTargetOrganization(
                   window.localStorage,
                   record.sessionId,
@@ -402,23 +380,24 @@ export function AssessmentClaim() {
             className="assessment-skip"
             type="button"
             onClick={() => {
-              if (destination.mode === 'EXISTING')
-                forgetAssessmentTargetOrganization(window.localStorage, record.sessionId);
+              forgetAssessmentTargetOrganization(window.localStorage, record.sessionId);
               dispatchDestination({ type: 'reset' });
               setMappings({});
-              setCentersConfirmed(false);
+              createCompany.reset();
+              claimNewOrganization.reset();
+              claim.reset();
             }}
           >
             Elegir otra empresa
           </button>
         </section>
       ) : null}
-      {target && destination.mode === 'NEW' && centers.isSuccess && !centersConfirmed ? (
+      {target && destination.mode === 'NEW' && centers.isSuccess ? (
         <ClaimCenterConfiguration
           count={centerScopes.length}
           centers={activeCenters}
-          busy={configureCenters.isPending}
-          onSave={(drafts) => configureCenters.mutate(drafts)}
+          busy={claimNewOrganization.isPending}
+          onSave={(drafts) => claimNewOrganization.mutate(drafts)}
         />
       ) : null}
       {target && destination.mode === 'EXISTING' && centers.isSuccess && !topologyReady ? (
@@ -480,6 +459,53 @@ export function AssessmentClaim() {
           >
             {claim.isPending ? 'Vinculando diagnóstico…' : 'Confirmar y vincular diagnóstico'}
           </button>
+        </section>
+      ) : null}
+      {reconciliation && target ? (
+        <section className="assessment-preflight-card" role="alert">
+          <h2>Necesitamos revisar una diferencia antes de vincular</h2>
+          <p>
+            Tu diagnóstico y la información actual de esta empresa no coinciden en algunos puntos.
+            No cambiaremos ninguno automáticamente.
+          </p>
+          <ul>
+            {reconciliation.categories.map((category) => (
+              <li key={category}>{category}</li>
+            ))}
+          </ul>
+          <div className="assessment-actions">
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => {
+                forgetAssessmentTargetOrganization(window.localStorage, record.sessionId);
+                dispatchDestination({ type: 'reset' });
+                setMappings({});
+                createCompany.reset();
+                claimNewOrganization.reset();
+                claim.reset();
+              }}
+            >
+              Elegir otra empresa
+            </button>
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => router.push('/app/organizations')}
+            >
+              Revisar empresa
+            </button>
+            <button
+              className="button secondary"
+              type="button"
+              onClick={() => {
+                forgetAssessmentTargetOrganization(window.localStorage, record.sessionId);
+                router.push('/app/evaluation');
+              }}
+            >
+              Evaluar esta empresa con su información actual
+            </button>
+          </div>
         </section>
       ) : null}
       {message ? (

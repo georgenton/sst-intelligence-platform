@@ -7,6 +7,7 @@ import {
   normalizeSstAssessmentSnapshot,
   parseSstAssessmentSnapshot,
   planSstAssessmentQuestions,
+  reconcileSstAssessmentConditionalFacts,
   resolveSstAssessmentReadiness,
   sstAssessmentFactSchema,
   sstAssessmentSemanticHash,
@@ -334,6 +335,47 @@ describe('canonical SST assessment contract', () => {
       ]),
     );
     expect(resolveSstAssessmentReadiness(branched)).toBe('DIAGNOSIS_READY');
+  });
+
+  it('removes only current finite conditional facts when their controlling answer changes', () => {
+    const known = (factKey: string, scopeKey: string, value: string | string[]) =>
+      sstAssessmentFactSchema.parse({
+        factKey,
+        scopeKey,
+        answerState: 'KNOWN',
+        value,
+        provenance,
+      });
+    const physical = snapshot([
+      known('workCenter.workArrangement', 'center:1', 'PHYSICAL'),
+      known('workCenter.facilityTypes', 'center:1', ['PLANT']),
+      known('organization.inspectionPractice', 'organization', 'CHECKLISTS'),
+      known('organization.inspectionFrequency', 'organization', 'MONTHLY'),
+    ]);
+    expect(reconcileSstAssessmentConditionalFacts(physical).facts).toHaveLength(4);
+
+    const corrected = reconcileSstAssessmentConditionalFacts({
+      ...physical,
+      facts: physical.facts.map((fact) =>
+        fact.factKey === 'workCenter.workArrangement'
+          ? known('workCenter.workArrangement', 'center:1', 'REMOTE')
+          : fact.factKey === 'organization.inspectionPractice'
+            ? known('organization.inspectionPractice', 'organization', 'NONE')
+            : fact,
+      ),
+    });
+    expect(corrected.facts).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ factKey: 'workCenter.facilityTypes', scopeKey: 'center:1' }),
+        expect.objectContaining({ factKey: 'organization.inspectionFrequency' }),
+      ]),
+    );
+    expect(corrected.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ factKey: 'workCenter.workArrangement', value: 'REMOTE' }),
+        expect.objectContaining({ factKey: 'organization.inspectionPractice', value: 'NONE' }),
+      ]),
+    );
   });
 
   it('resolves stored V1 and fails closed for unsupported pinned versions', () => {

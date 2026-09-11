@@ -298,6 +298,36 @@ export function normalizeSstAssessmentSnapshot(
   return { ...parsed, scopes, facts };
 }
 
+export function reconcileSstAssessmentConditionalFacts(
+  input: SstAssessmentSnapshot,
+): SstAssessmentSnapshot {
+  const snapshot = normalizeSstAssessmentSnapshot(input);
+  const factsByIdentity = new Map(
+    snapshot.facts.map((fact) => [`${fact.scopeKey}:${fact.factKey}`, fact] as const),
+  );
+  const knownValue = (scopeKey: string, factKey: string) => {
+    const fact = factsByIdentity.get(`${scopeKey}:${factKey}`);
+    return fact?.answerState === 'KNOWN' ? fact.value : undefined;
+  };
+  const knownInspectionPractices = new Set(['INFORMAL', 'CHECKLISTS', 'MANAGED']);
+
+  return {
+    ...snapshot,
+    facts: snapshot.facts.filter((fact) => {
+      if (fact.factKey === 'workCenter.facilityTypes') {
+        const arrangement = knownValue(fact.scopeKey, 'workCenter.workArrangement');
+        return arrangement === 'PHYSICAL' || arrangement === 'HYBRID';
+      }
+      if (fact.factKey === 'organization.inspectionFrequency') {
+        return knownInspectionPractices.has(
+          String(knownValue('organization', 'organization.inspectionPractice') ?? ''),
+        );
+      }
+      return true;
+    }),
+  };
+}
+
 export function sstAssessmentSemanticHash(snapshot: SstAssessmentSnapshot): string {
   const normalized = normalizeSstAssessmentSnapshot(snapshot);
   return sstAssessmentContentHash({

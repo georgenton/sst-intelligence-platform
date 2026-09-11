@@ -93,7 +93,15 @@ export function AssessmentContextPanel({
               Cerrar
             </button>
           </div>
-          <ContextFacts facts={facts} scopes={scopes} readOnly={readOnly} onEdit={onEdit} />
+          <ContextFacts
+            facts={facts}
+            scopes={scopes}
+            readOnly={readOnly}
+            onEdit={(question) => {
+              dialogRef.current?.close();
+              onEdit(question);
+            }}
+          />
         </dialog>
       </div>
     </>
