@@ -802,6 +802,54 @@ describe('canonical SST assessment integration', () => {
     ).toEqual(richSnapshot);
   });
 
+  it('preserves access for organizations with substantive legacy SST context', async () => {
+    const owner = await user('assessment-legacy-owner');
+    const organizationId = await organization(owner.token, 'Assessment legacy context');
+    await prisma.organizationSstProfileVersion.create({
+      data: {
+        organizationId,
+        version: 1,
+        createdById: owner.id,
+        snapshot: { schemaVersion: '1.0.0', legacyConfigured: true },
+      },
+    });
+
+    await authenticated(owner.token, organizationId)
+      .get('/setup-state')
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body).toEqual({
+          state: 'LEGACY_CONFIGURED',
+          hardGate: false,
+          assessmentId: null,
+        }),
+      );
+  });
+
+  it('preserves access for organizations activated by the legacy demo onboarding', async () => {
+    const owner = await user('assessment-legacy-demo-owner');
+    const organizationId = await organization(owner.token, 'Assessment legacy demo');
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        status: 'DEMO',
+        demoStartedAt: new Date(),
+        demoExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1_000),
+      },
+    });
+
+    await authenticated(owner.token, organizationId)
+      .get('/setup-state')
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body).toEqual({
+          state: 'LEGACY_CONFIGURED',
+          hardGate: false,
+          assessmentId: null,
+        }),
+      );
+  });
+
   it('enforces current tenant/role boundaries, scoped profile facts and immutable finalized history', async () => {
     const owner = await user('assessment-boundary-owner');
     const outsider = await user('assessment-boundary-outsider');
@@ -816,11 +864,23 @@ describe('canonical SST assessment integration', () => {
     await authenticated(owner.token, orgA)
       .get('/setup-state')
       .expect(200)
-      .expect(({ body }) => expect(body.state).toBe('NEEDS_ASSESSMENT'));
+      .expect(({ body }) =>
+        expect(body).toMatchObject({ state: 'NEEDS_ASSESSMENT', hardGate: true }),
+      );
 
     await authenticated(viewer.token, orgA).post('/sessions').send({}).expect(403);
     const created = await authenticated(owner.token, orgA).post('/sessions').send({}).expect(201);
     const id = created.body.id as string;
+    await authenticated(owner.token, orgA)
+      .get('/setup-state')
+      .expect(200)
+      .expect(({ body }) =>
+        expect(body).toMatchObject({
+          state: 'ASSESSMENT_IN_PROGRESS',
+          hardGate: true,
+          assessmentId: id,
+        }),
+      );
     await authenticated(owner.token, orgB).get(`/sessions/${id}`).expect(403);
     await authenticated(outsider.token, orgB).get(`/sessions/${id}`).expect(404);
     await authenticated(viewer.token, orgA).get(`/sessions/${id}`).expect(200);
@@ -903,7 +963,9 @@ describe('canonical SST assessment integration', () => {
     await authenticated(owner.token, orgA)
       .get('/setup-state')
       .expect(200)
-      .expect(({ body }) => expect(body.state).toBe('DIAGNOSIS_READY'));
+      .expect(({ body }) =>
+        expect(body).toMatchObject({ state: 'DIAGNOSIS_READY', hardGate: true }),
+      );
 
     const reassessment = await authenticated(owner.token, orgA)
       .post('/sessions')

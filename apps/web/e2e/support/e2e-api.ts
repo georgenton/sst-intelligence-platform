@@ -1,4 +1,5 @@
 import type { APIRequestContext } from '@playwright/test';
+import { PrismaClient } from '@prisma/client';
 
 type Registration = { body: string; statusCode: number | undefined };
 
@@ -32,4 +33,32 @@ export async function createE2eOrganization(
       'x-organization-id': organization.id,
     },
   };
+}
+
+export async function setE2eOrganizationPlan(
+  organizationId: string,
+  planKey: 'STARTER' | 'GROWTH',
+) {
+  const prisma = new PrismaClient();
+  try {
+    const plan = await prisma.plan.findUniqueOrThrow({ where: { key: planKey } });
+    await prisma.subscription.updateMany({
+      where: { organizationId, status: 'ACTIVE' },
+      data: { planId: plan.id },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+export async function markE2eOrganizationLegacyConfigured(
+  organizationId: string,
+  createdById: string,
+) {
+  const prisma = new PrismaClient();
+  try {
+    await prisma.operationalPlan.create({ data: { organizationId, createdById } });
+  } finally {
+    await prisma.$disconnect();
+  }
 }

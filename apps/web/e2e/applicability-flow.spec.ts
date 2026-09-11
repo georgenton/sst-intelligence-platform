@@ -1,7 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { createE2eOrganization, markE2eOrganizationLegacyConfigured } from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
-test('perfil versionado, evaluación explícita y trace de aplicabilidad', async ({ page }) => {
+test('perfil versionado, evaluación explícita y trace de aplicabilidad', async ({
+  page,
+  request,
+}) => {
   test.setTimeout(90_000);
   const suffix = Date.now();
   const email = `applicability-e2e-${suffix}@example.test`;
@@ -14,13 +18,16 @@ test('perfil versionado, evaluación explícita y trace de aplicabilidad', async
   });
   expect(registration.statusCode, registration.body).toBe(201);
 
-  await activateE2eUserSession(page, registration, '/app/organizations');
-  await page.getByLabel('Nombre de empresa').fill(`Aplicabilidad Demo ${suffix}`);
-  await page.getByLabel('Sector').fill('Tecnología');
-  await page.getByRole('button', { name: 'Crear organización' }).click();
-  await expect(page.getByText('Organización creada correctamente.')).toBeVisible();
+  const context = await createE2eOrganization(
+    request,
+    registration,
+    `Aplicabilidad Demo ${suffix}`,
+  );
+  await markE2eOrganizationLegacyConfigured(context.organization.id, context.session.user.id);
+  await activateE2eUserSession(page, registration, '/app');
 
-  await page.getByRole('link', { name: 'Configuración SST', exact: true }).click();
+  await page.getByRole('link', { name: 'Biblioteca normativa', exact: true }).click();
+  await page.getByRole('link', { name: 'Volver a Configuración SST', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Aplicabilidad y configuración SST' }),
   ).toBeVisible();
@@ -108,11 +115,11 @@ test('perfil versionado, evaluación explícita y trace de aplicabilidad', async
   ).toBeVisible();
   await expect(page.getByText('DEMO_APPLICABILITY', { exact: true })).toBeHidden();
 
-  await page.goto('/app/evaluation');
+  await page.goto('/app/applicability/unified');
   await expect(page.getByRole('heading', { name: 'Evaluación SST' })).toBeVisible();
   await page.getByLabel('Versión del perfil').selectOption({ label: 'Versión 1' });
   await Promise.all([
-    page.waitForURL(/\/app\/evaluation\/[0-9a-f-]+$/),
+    page.waitForURL(/\/app\/applicability\/unified\/[0-9a-f-]+$/),
     page.getByRole('button', { name: 'Ejecutar Evaluación SST' }).click(),
   ]);
   await expect(page.getByRole('heading', { name: 'Prioridades y fundamento' })).toBeVisible();

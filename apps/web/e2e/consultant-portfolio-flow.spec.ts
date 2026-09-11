@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createE2eOrganization, parseRegistration } from './support/e2e-api';
+import {
+  createE2eOrganization,
+  markE2eOrganizationLegacyConfigured,
+  parseRegistration,
+} from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 import { navigateToReadyPortfolio } from './support/portfolio-readiness';
 
@@ -52,6 +56,9 @@ test('portafolio aísla tenants y entitlements, explica fuentes y ancla la escri
     outsiderRegistration,
     `Empresa Oculta Portfolio ${suffix}`,
   );
+  for (const context of [orgA, orgB, orgC]) {
+    await markE2eOrganizationLegacyConfigured(context.organization.id, context.session.user.id);
+  }
 
   for (const [context, role] of [
     [orgA, 'CONSULTANT'],
