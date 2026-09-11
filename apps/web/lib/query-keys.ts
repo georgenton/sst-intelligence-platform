@@ -5,6 +5,11 @@ const privateRoot = ['private'] as const;
 export const queryKeys = {
   public: {
     all: publicRoot,
+    sstAssessment: {
+      all: [...publicRoot, 'sst-assessment'] as const,
+      session: (sessionId: string) =>
+        [...publicRoot, 'sst-assessment', 'session', sessionId] as const,
+    },
     solutionFinder: {
       all: [...publicRoot, 'solution-finder'] as const,
       session: (sessionId: string) =>
@@ -61,6 +66,12 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'work-permits', permitId] as const,
     details: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'organization'] as const,
+    sstAssessmentSetup: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'sst-assessment', 'setup'] as const,
+    sstAssessmentHistory: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'sst-assessment', 'history'] as const,
+    sstAssessmentSession: (organizationId: string, sessionId: string) =>
+      [...privateRoot, 'org', organizationId, 'sst-assessment', 'session', sessionId] as const,
     workCenters: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'work-centers'] as const,
     members: (organizationId: string) =>

@@ -34,7 +34,10 @@ export function DemoView() {
           representan una evaluación técnica ejecutada.
         </p>
         <div>
-          <Link className="button" href={entitlements.demoActive ? '/app/modules' : '/diagnostico'}>
+          <Link
+            className="button"
+            href={entitlements.demoActive ? '/app/modules' : '/app/evaluation'}
+          >
             {entitlements.demoActive ? 'Ver módulos demo' : 'Iniciar diagnóstico'}
           </Link>
         </div>

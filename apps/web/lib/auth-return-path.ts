@@ -4,3 +4,7 @@ export function safeAuthReturnPath(value: string | null) {
     value === '/app' || value.startsWith('/app/') || value.startsWith('/app?');
   return value === '/invite/accept' || applicationPath ? value : '/app';
 }
+
+export function sstAssessmentClaimReturnPath(sessionId: string) {
+  return `/app/setup/claim?assessment=${encodeURIComponent(sessionId)}`;
+}

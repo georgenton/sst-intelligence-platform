@@ -515,7 +515,7 @@ export class SstAssessmentService {
   }
 
   async setupState(organizationId: string) {
-    const [finalized, inProgress] = await Promise.all([
+    const [finalized, inProgress, legacySignals] = await Promise.all([
       this.prisma.sstAssessmentSession.findFirst({
         where: { organizationId, status: 'FINALIZED' },
         select: { id: true, finalizedAt: true },
@@ -526,16 +526,58 @@ export class SstAssessmentService {
         select: { id: true, status: true, updatedAt: true },
         orderBy: { updatedAt: 'desc' },
       }),
+      Promise.all([
+        this.prisma.organization.findFirst({
+          where: { id: organizationId, status: 'DEMO' },
+          select: { id: true },
+        }),
+        this.prisma.organizationSstProfileVersion.findFirst({
+          where: { organizationId },
+          select: { id: true },
+        }),
+        this.prisma.adaptiveConfigurationSession.findFirst({
+          where: { organizationId },
+          select: { id: true },
+        }),
+        this.prisma.unifiedSstEvaluation.findFirst({
+          where: { organizationId },
+          select: { id: true },
+        }),
+        this.prisma.applicabilityAssessment.findFirst({
+          where: { organizationId },
+          select: { id: true },
+        }),
+        this.prisma.operationalPlan.findFirst({
+          where: { organizationId },
+          select: { id: true },
+        }),
+        this.prisma.inspection.findFirst({
+          where: { organizationId },
+          select: { id: true },
+        }),
+        this.prisma.technicalAssessment.findFirst({
+          where: { organizationId },
+          select: { id: true },
+        }),
+      ]),
     ]);
     return inProgress
-      ? { state: 'ASSESSMENT_IN_PROGRESS', assessmentId: inProgress.id, status: inProgress.status }
+      ? {
+          state: 'ASSESSMENT_IN_PROGRESS',
+          hardGate: true,
+          assessmentId: inProgress.id,
+          status: inProgress.status,
+        }
       : finalized
         ? {
             state: 'DIAGNOSIS_READY',
+            hardGate: true,
             assessmentId: finalized.id,
             finalizedAt: finalized.finalizedAt,
           }
-        : { state: 'NEEDS_ASSESSMENT', assessmentId: null };
+        : legacySignals.some(Boolean)
+          ? { state: 'LEGACY_CONFIGURED', hardGate: false, assessmentId: null }
+          : { state: 'NEEDS_ASSESSMENT', hardGate: true, assessmentId: null };
   }
 
   async submitAuthenticatedAnswers(

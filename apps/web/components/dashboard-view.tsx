@@ -243,8 +243,8 @@ export function DashboardView() {
                   El trabajo operativo permanece primero. Completar la configuración mejora el
                   contexto de futuras señales y recomendaciones.
                 </p>
-                <Link className="button secondary" href="/app/applicability">
-                  Continuar configuración SST
+                <Link className="button secondary" href="/app/evaluation">
+                  Realizar Evaluación SST
                 </Link>
               </Card>
             ) : null}
@@ -256,8 +256,8 @@ export function DashboardView() {
               Necesitamos conocer algunos datos de tu organización antes de mostrar señales y
               recomendaciones con contexto suficiente.
             </p>
-            <Link className="button" href="/app/applicability">
-              Comenzar configuración SST
+            <Link className="button" href="/app/evaluation">
+              Comenzar Evaluación SST
             </Link>
           </Card>
         ) : attentionPresentation.primary === 'configuration-loading' ? (

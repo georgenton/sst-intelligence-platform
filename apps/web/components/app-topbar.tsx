@@ -50,8 +50,8 @@ export function AppTopbar({
       </label>
       <AppearanceControls />
       <div className="app-topbar__actions">
-        <Link className="button secondary" href="/app/organizations">
-          Organizaciones
+        <Link className="button secondary" href="/app/setup/new-company">
+          Agregar empresa
         </Link>
         <button className="button secondary" type="button" onClick={onLogout}>
           Salir
