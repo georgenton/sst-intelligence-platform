@@ -21,6 +21,7 @@ import {
   resolveSstAssessmentCatalog,
   resolveSstAssessmentReadiness,
   sstAssessmentContentHash,
+  sstAssessmentClaimScopeMappingsSchema,
   sstAssessmentFactSchema,
   sstAssessmentScopeSchema,
   sstAssessmentSemanticHash,
@@ -28,6 +29,7 @@ import {
   type OrganizationProfileFact,
   type OrganizationSstProfile,
   type SstAssessmentFact,
+  type SstAssessmentClaimScopeMapping,
   type SstAssessmentResult,
   type SstAssessmentScope,
   type SstAssessmentSnapshot,
@@ -100,6 +102,29 @@ const newOrganizationSetupRequired = (reason: string) =>
     message: 'Esta organización ya no cumple las condiciones del aprovisionamiento inicial.',
     details: { reason },
   });
+
+const assessmentAlreadyClaimed = () =>
+  new ConflictException({
+    code: 'SST_ASSESSMENT_ALREADY_CLAIMED',
+    message: 'La evaluación pública ya fue vinculada.',
+  });
+
+function persistedClaimScopeMappings(value: Prisma.JsonValue | null) {
+  const parsed = sstAssessmentClaimScopeMappingsSchema.safeParse(value);
+  return parsed.success ? parsed.data : [];
+}
+
+function decisionClaimScopeMappings(value: Prisma.JsonValue | null) {
+  return persistedClaimScopeMappings(value)
+    .map(({ scopeKey, workCenterId }) => ({ scopeKey, workCenterId }))
+    .sort((left, right) => left.scopeKey.localeCompare(right.scopeKey));
+}
+
+function persistedClaimDecisionHash(value: Prisma.JsonValue) {
+  if (!value || Array.isArray(value) || typeof value !== 'object') return null;
+  const decisionHash = (value as Prisma.JsonObject).claimDecisionHash;
+  return typeof decisionHash === 'string' ? decisionHash : null;
+}
 
 function normalizedIdentity(value: string) {
   return value.normalize('NFKC').trim().toLocaleLowerCase('es');
@@ -191,6 +216,7 @@ function assessmentResponse(row: {
   catalogVersion: string;
   scopes: Prisma.JsonValue;
   facts: Prisma.JsonValue;
+  claimScopeMappings: Prisma.JsonValue | null;
   latestResult: Prisma.JsonValue | null;
   finalSnapshot: Prisma.JsonValue | null;
   semanticInputHash: string | null;
@@ -225,6 +251,7 @@ function assessmentResponse(row: {
     status: row.status,
     sessionRevision: row.sessionRevision,
     snapshot,
+    claimScopeMappings: persistedClaimScopeMappings(row.claimScopeMappings),
     questions: storedQuestions ?? planSstAssessmentQuestions(snapshot, { channel }),
     progress: storedProgress ?? calculateSstAssessmentProgress(snapshot, { channel }),
     requiredActions:
@@ -426,9 +453,7 @@ export class SstAssessmentService {
           scope.workCenterId ? [[scope.workCenterId, scope.scopeKey] as const] : [],
         ),
       );
-      const claimedMappings = Array.isArray(parent.claimScopeMappings)
-        ? (parent.claimScopeMappings as Array<{ scopeKey: string; workCenterId: string }>)
-        : [];
+      const claimedMappings = decisionClaimScopeMappings(parent.claimScopeMappings);
       const priorWorkCenterByScope = new Map([
         ...prior.scopes.flatMap((scope) =>
           scope.workCenterId ? [[scope.scopeKey, scope.workCenterId] as const] : [],
@@ -753,17 +778,14 @@ export class SstAssessmentService {
       if (
         session.organizationId === organizationId &&
         session.claimedById === userId &&
-        sstAssessmentContentHash(session.claimScopeMappings) ===
+        sstAssessmentContentHash(decisionClaimScopeMappings(session.claimScopeMappings)) ===
           sstAssessmentContentHash(normalizedMappings)
       ) {
         return this.getAuthenticated(organizationId, sessionId);
       }
-      throw new ConflictException({
-        code: 'SST_ASSESSMENT_ALREADY_CLAIMED',
-        message: 'La evaluación pública ya fue vinculada.',
-      });
+      throw assessmentAlreadyClaimed();
     }
-    const profileVersionId = await this.prisma.$transaction(
+    const claimResult = await this.prisma.$transaction(
       async (transaction) => {
         const current = await transaction.sstAssessmentSession.findFirst({
           where: { id: sessionId, organizationId: null, status: 'FINALIZED' },
@@ -773,7 +795,7 @@ export class SstAssessmentService {
           where: { organizationId },
           orderBy: { version: 'desc' },
         });
-        const mappedSnapshot = await this.reconcilePublicClaimContext(
+        const reconciliation = await this.reconcilePublicClaimContext(
           transaction,
           organizationId,
           snapshotFromRow(current),
@@ -783,7 +805,7 @@ export class SstAssessmentService {
           transaction,
           organizationId,
           userId,
-          mappedSnapshot,
+          reconciliation.snapshot,
           'PUBLIC_CLAIM',
         );
         const updated = await transaction.sstAssessmentSession.updateMany({
@@ -791,7 +813,8 @@ export class SstAssessmentService {
           data: {
             organizationId,
             claimedById: userId,
-            claimScopeMappings: normalizedMappings as unknown as Prisma.InputJsonValue,
+            claimScopeMappings:
+              reconciliation.claimScopeMappings as unknown as Prisma.InputJsonValue,
             profileVersionId: profile.id,
             baseProfileVersionId: preExistingProfile?.id ?? null,
             baseProfileHash: preExistingProfile
@@ -802,7 +825,7 @@ export class SstAssessmentService {
           },
         });
         if (updated.count !== 1) throw staleSession();
-        return profile.id;
+        return { profileVersionId: profile.id, scopeMappings: reconciliation.claimScopeMappings };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -813,8 +836,8 @@ export class SstAssessmentService {
       entityType: 'SstAssessmentSession',
       entityId: sessionId,
       metadata: {
-        scopeMappings: normalizedMappings,
-        profileVersionId,
+        scopeMappings: claimResult.scopeMappings,
+        profileVersionId: claimResult.profileVersionId,
       } as unknown as Prisma.InputJsonValue,
       ...metadata,
     });
@@ -835,6 +858,15 @@ export class SstAssessmentService {
     }));
     const scopeKeys = new Set(centerDrafts.map(({ scopeKey }) => scopeKey));
     const centerNames = new Set(centerDrafts.map(({ name }) => normalizedIdentity(name)));
+    const claimDecisionHash = sstAssessmentContentHash(
+      centerDrafts
+        .map(({ scopeKey, name, city }) => ({
+          scopeKey,
+          name: normalizedIdentity(name),
+          city: city ? normalizedIdentity(city) : null,
+        }))
+        .sort((left, right) => left.scopeKey.localeCompare(right.scopeKey)),
+    );
     if (
       centerDrafts.some(({ scopeKey, name }) => scopeKey.length === 0 || name.length === 0) ||
       scopeKeys.size !== centerDrafts.length ||
@@ -863,12 +895,31 @@ export class SstAssessmentService {
             !current?.publicTokenHash ||
             current.channel !== 'PUBLIC' ||
             current.status !== 'FINALIZED' ||
-            current.organizationId !== null ||
-            current.claimedById !== null ||
             !publicSessionTokenMatches(current.publicTokenHash, input.publicToken) ||
             (current.expiresAt !== null && current.expiresAt <= new Date())
           ) {
             throw invalidToken();
+          }
+          if (current.organizationId !== null || current.claimedById !== null) {
+            const setupAudit = await transaction.auditLog.findFirst({
+              where: {
+                organizationId,
+                actorUserId: userId,
+                action: 'SST_SETUP_TOPOLOGY_PROVISIONED',
+                entityType: 'SstAssessmentSession',
+                entityId: sessionId,
+              },
+              select: { metadata: true },
+            });
+            if (
+              current.organizationId === organizationId &&
+              current.claimedById === userId &&
+              setupAudit &&
+              persistedClaimDecisionHash(setupAudit.metadata) === claimDecisionHash
+            ) {
+              return;
+            }
+            throw assessmentAlreadyClaimed();
           }
           const snapshot = snapshotFromRow(current);
           const centerScopes = snapshot.scopes
@@ -981,7 +1032,7 @@ export class SstAssessmentService {
             provisioned.push({ scopeKey: scope.scopeKey, workCenterId: center.id });
           }
 
-          const mappedSnapshot = await this.reconcilePublicClaimContext(
+          const reconciliation = await this.reconcilePublicClaimContext(
             transaction,
             organizationId,
             snapshot,
@@ -991,7 +1042,7 @@ export class SstAssessmentService {
             transaction,
             organizationId,
             userId,
-            mappedSnapshot,
+            reconciliation.snapshot,
             'PUBLIC_CLAIM',
           );
           const updated = await transaction.sstAssessmentSession.updateMany({
@@ -999,7 +1050,8 @@ export class SstAssessmentService {
             data: {
               organizationId,
               claimedById: userId,
-              claimScopeMappings: provisioned as unknown as Prisma.InputJsonValue,
+              claimScopeMappings:
+                reconciliation.claimScopeMappings as unknown as Prisma.InputJsonValue,
               profileVersionId: profile.id,
               claimedAt: new Date(),
               sessionRevision: { increment: 1 },
@@ -1018,6 +1070,7 @@ export class SstAssessmentService {
                   assessmentId: sessionId,
                   organizationId,
                   centerCount: provisioned.length,
+                  claimDecisionHash,
                 },
                 ...metadata,
               },
@@ -1027,7 +1080,10 @@ export class SstAssessmentService {
                 action: 'PUBLIC_SST_ASSESSMENT_CLAIMED',
                 entityType: 'SstAssessmentSession',
                 entityId: sessionId,
-                metadata: { scopeMappings: provisioned, profileVersionId: profile.id },
+                metadata: {
+                  scopeMappings: reconciliation.claimScopeMappings,
+                  profileVersionId: profile.id,
+                },
                 ...metadata,
               },
             ],
@@ -1074,7 +1130,7 @@ export class SstAssessmentService {
       }),
       reader.workCenter.findMany({
         where: { organizationId, isActive: true },
-        select: { id: true },
+        select: { id: true, name: true },
       }),
     ]);
     const activeCenterIds = new Set(activeCenters.map(({ id }) => id));
@@ -1107,14 +1163,25 @@ export class SstAssessmentService {
     const mappingByScope = new Map(
       scopeMappings.map(({ scopeKey, workCenterId }) => [scopeKey, workCenterId]),
     );
-    return normalizeSstAssessmentSnapshot({
-      ...snapshot,
-      scopes: snapshot.scopes.map((scope) =>
-        scope.kind === 'WORK_CENTER'
-          ? { ...scope, workCenterId: mappingByScope.get(scope.scopeKey)! }
-          : scope,
-      ),
-    });
+    const centerNamesById = new Map(activeCenters.map(({ id, name }) => [id, name]));
+    const claimScopeMappings: SstAssessmentClaimScopeMapping[] = scopeMappings
+      .map(({ scopeKey, workCenterId }) => ({
+        scopeKey,
+        workCenterId,
+        displayNameAtClaim: centerNamesById.get(workCenterId)!,
+      }))
+      .sort((left, right) => left.scopeKey.localeCompare(right.scopeKey));
+    return {
+      snapshot: normalizeSstAssessmentSnapshot({
+        ...snapshot,
+        scopes: snapshot.scopes.map((scope) =>
+          scope.kind === 'WORK_CENTER'
+            ? { ...scope, workCenterId: mappingByScope.get(scope.scopeKey)! }
+            : scope,
+        ),
+      }),
+      claimScopeMappings,
+    };
   }
 
   private assessmentFactsFromProfile(

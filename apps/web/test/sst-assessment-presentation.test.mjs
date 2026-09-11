@@ -16,6 +16,7 @@ import {
   groupAssessmentResults,
   orderAssessmentQuestions,
   professionalFoundation,
+  resolveAssessmentPresentationScopes,
   resultNextStep,
   resultStateLabel,
   safeResultExplanation,
@@ -42,6 +43,35 @@ const question = (overrides = {}) => ({
   relevancePolicy: 'ALWAYS',
   blocking: false,
   ...overrides,
+});
+
+test('resolves claim-time work center labels as an immutable presentation copy', () => {
+  const originalScopes = [
+    {
+      scopeKey: 'organization',
+      kind: 'ORGANIZATION',
+      order: 0,
+      displayName: 'Organización',
+    },
+    { scopeKey: 'center:1', kind: 'WORK_CENTER', order: 1, displayName: 'Centro 1' },
+    { scopeKey: 'center:2', kind: 'WORK_CENTER', order: 2, displayName: 'Centro 2' },
+  ];
+  const resolved = resolveAssessmentPresentationScopes(originalScopes, [
+    {
+      scopeKey: 'center:1',
+      workCenterId: '00000000-0000-4000-8000-000000000001',
+      displayNameAtClaim: 'Planta Norte',
+    },
+    {
+      scopeKey: 'center:2',
+      workCenterId: '00000000-0000-4000-8000-000000000002',
+      displayNameAtClaim: 'Bodega Sur',
+    },
+  ]);
+  assert.equal(resolved[1].displayName, 'Planta Norte');
+  assert.equal(resolved[2].displayName, 'Bodega Sur');
+  assert.equal(originalScopes[1].displayName, 'Centro 1');
+  assert.notEqual(resolved, originalScopes);
 });
 
 test('boolean answers are always explicit and unchecked never means false', () => {

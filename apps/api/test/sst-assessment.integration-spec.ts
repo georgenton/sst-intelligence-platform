@@ -1384,8 +1384,16 @@ describe('canonical SST assessment integration', () => {
       organizationId: orgA,
       claimedById: ownerA.id,
       profileVersionId: expect.any(String),
+      claimScopeMappings: [
+        {
+          scopeKey: 'center:1',
+          workCenterId: centerA.id,
+          displayNameAtClaim: centerA.name,
+        },
+      ],
     });
     expect(claimedAgain.body.profileVersionId).toBe(stored.profileVersionId);
+    expect(claimedAgain.body.claimScopeMappings).toEqual(stored.claimScopeMappings);
     expect(
       await prisma.organizationSstProfileVersion.count({ where: { organizationId: orgA } }),
     ).toBe(1);
@@ -1435,6 +1443,9 @@ describe('canonical SST assessment integration', () => {
       });
       expect(subscriptionBefore.plan.key).toBe('FREE');
       const assessment = await completePublicAssessment(undefined, centerCount);
+      const publicSessionBeforeClaim = await prisma.sstAssessmentSession.findUniqueOrThrow({
+        where: { id: assessment.id },
+      });
       const centers = Array.from({ length: centerCount }, (_, index) => ({
         scopeKey: `center:${index + 1}`,
         name: `Centro declarado ${centerCount}-${index + 1} ${suffix}`,
@@ -1497,6 +1508,98 @@ describe('canonical SST assessment integration', () => {
         organizationId,
         centerCount,
       });
+      expect(claimed.body.claimScopeMappings).toEqual(
+        centers.map((center) => ({
+          scopeKey: center.scopeKey,
+          workCenterId: storedCenters.find(({ name }) => name === center.name)!.id,
+          displayNameAtClaim: center.name,
+        })),
+      );
+
+      const firstClaimState = await prisma.sstAssessmentSession.findUniqueOrThrow({
+        where: { id: assessment.id },
+      });
+      const firstCenterIds = storedCenters.map(({ id }) => id).sort();
+      const claimedAgain = await authenticated(owner.token, organizationId)
+        .post(`/public/sessions/${assessment.id}/claim-new-organization`)
+        .send({ publicToken: assessment.token, centers })
+        .expect(201);
+      const [retriedSession, retriedCenters, profileCount, topologyAuditCount, claimAuditCount] =
+        await Promise.all([
+          prisma.sstAssessmentSession.findUniqueOrThrow({ where: { id: assessment.id } }),
+          prisma.workCenter.findMany({ where: { organizationId }, orderBy: { name: 'asc' } }),
+          prisma.organizationSstProfileVersion.count({ where: { organizationId } }),
+          prisma.auditLog.count({
+            where: {
+              organizationId,
+              actorUserId: owner.id,
+              action: 'SST_SETUP_TOPOLOGY_PROVISIONED',
+              entityId: assessment.id,
+            },
+          }),
+          prisma.auditLog.count({
+            where: {
+              organizationId,
+              actorUserId: owner.id,
+              action: 'PUBLIC_SST_ASSESSMENT_CLAIMED',
+              entityId: assessment.id,
+            },
+          }),
+        ]);
+      expect(claimedAgain.body).toMatchObject({
+        id: assessment.id,
+        profileVersionId: firstClaimState.profileVersionId,
+        sessionRevision: firstClaimState.sessionRevision,
+        claimScopeMappings: firstClaimState.claimScopeMappings,
+      });
+      expect(retriedCenters.map(({ id }) => id).sort()).toEqual(firstCenterIds);
+      expect(retriedSession.organizationId).toBe(organizationId);
+      expect(retriedSession.profileVersionId).toBe(firstClaimState.profileVersionId);
+      expect(retriedSession.sessionRevision).toBe(firstClaimState.sessionRevision);
+      expect(profileCount).toBe(1);
+      expect(topologyAuditCount).toBe(1);
+      expect(claimAuditCount).toBe(1);
+      expect(retriedSession.finalSnapshot).toEqual(publicSessionBeforeClaim.finalSnapshot);
+      expect(retriedSession.semanticInputHash).toBe(publicSessionBeforeClaim.semanticInputHash);
+      expect(retriedSession.semanticOutputHash).toBe(publicSessionBeforeClaim.semanticOutputHash);
+
+      await authenticated(owner.token, organizationId)
+        .post(`/public/sessions/${assessment.id}/claim-new-organization`)
+        .send({
+          publicToken: assessment.token,
+          centers: centers.map((center, index) =>
+            index === 0 ? { ...center, name: `${center.name} alterado` } : center,
+          ),
+        })
+        .expect(409)
+        .expect(({ body }) => {
+          expect(body.code).toBe('SST_ASSESSMENT_ALREADY_CLAIMED');
+        });
+      expect(
+        await prisma.workCenter.findMany({ where: { organizationId }, orderBy: { name: 'asc' } }),
+      ).toEqual(retriedCenters);
+      expect(await prisma.organizationSstProfileVersion.count({ where: { organizationId } })).toBe(
+        1,
+      );
+
+      const historicalMapping = (
+        claimed.body.claimScopeMappings as Array<{
+          workCenterId: string;
+          displayNameAtClaim: string;
+        }>
+      )[0]!;
+      await prisma.workCenter.update({
+        where: { id: historicalMapping.workCenterId },
+        data: { name: `${historicalMapping.displayNameAtClaim} renovado` },
+      });
+      await authenticated(owner.token, organizationId)
+        .get(`/sessions/${assessment.id}`)
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body.claimScopeMappings[0].displayNameAtClaim).toBe(
+            historicalMapping.displayNameAtClaim,
+          );
+        });
 
       await request(app.getHttpServer())
         .post(`/api/v1/organizations/${organizationId}/work-centers`)

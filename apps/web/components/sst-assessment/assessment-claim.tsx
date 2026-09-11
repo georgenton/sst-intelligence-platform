@@ -1,8 +1,9 @@
 'use client';
 
+import { ApiClientError } from '@sst/api-client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { queryKeys } from '@/lib/query-keys';
 import {
   canCreateClaimCompany,
@@ -144,6 +145,55 @@ export function AssessmentClaim() {
     retry: false,
   });
   const target = claimDestinationTarget(destination);
+  const completeClaim = useCallback(
+    async (claimed: AssessmentSession, targetOrganizationId = target) => {
+      if (!record || !targetOrganizationId) return;
+      clearPublicAssessmentSession(window.localStorage, record.sessionId);
+      queryClient.removeQueries({
+        queryKey: queryKeys.public.sstAssessment.session(record.sessionId),
+      });
+      queryClient.setQueryData(
+        queryKeys.organization.sstAssessmentSession(targetOrganizationId, claimed.id),
+        claimed,
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.workCenters(targetOrganizationId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.sstAssessmentSetup(targetOrganizationId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.organization.sstAssessmentHistory(targetOrganizationId),
+        }),
+      ]);
+      router.replace(`/app/evaluation/${claimed.id}`);
+    },
+    [queryClient, record, router, target],
+  );
+  const ambiguousClaim =
+    assessment.error instanceof ApiClientError &&
+    assessment.error.payload.code === 'SST_ASSESSMENT_TOKEN_INVALID';
+  const recoverClaim = Boolean(
+    ambiguousClaim && record?.targetOrganizationId && target && auth.user && !auth.loading,
+  );
+  const recoveredClaim = useQuery({
+    queryKey: queryKeys.organization.sstAssessmentSession(
+      target ?? 'inactive',
+      record?.sessionId ?? 'none',
+    ),
+    queryFn: ({ signal }) =>
+      auth.request<AssessmentSession>(
+        `/sst-assessment/sessions/${record!.sessionId}`,
+        { signal },
+        target!,
+      ),
+    enabled: recoverClaim,
+    retry: false,
+  });
+  useEffect(() => {
+    if (recoveredClaim.data && target) void completeClaim(recoveredClaim.data, target);
+  }, [completeClaim, recoveredClaim.data, target]);
   const details = useQuery({
     queryKey: queryKeys.organization.details(target ?? 'inactive'),
     queryFn: ({ signal }) =>
@@ -183,28 +233,6 @@ export function AssessmentClaim() {
       await organization.setActiveId(created.id, 'Empresa creada. Continuemos con sus centros.');
     },
   });
-  async function completeClaim(claimed: AssessmentSession) {
-    clearPublicAssessmentSession(window.localStorage, record!.sessionId);
-    queryClient.removeQueries({
-      queryKey: queryKeys.public.sstAssessment.session(record!.sessionId),
-    });
-    queryClient.setQueryData(
-      queryKeys.organization.sstAssessmentSession(target!, claimed.id),
-      claimed,
-    );
-    await Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.organization.workCenters(target!),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.organization.sstAssessmentSetup(target!),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.organization.sstAssessmentHistory(target!),
-      }),
-    ]);
-    router.replace(`/app/evaluation/${claimed.id}`);
-  }
   const claimNewOrganization = useMutation({
     mutationFn: (drafts: CenterDraft[]) =>
       auth.request<AssessmentSession>(
@@ -222,7 +250,7 @@ export function AssessmentClaim() {
         },
         target!,
       ),
-    onSuccess: completeClaim,
+    onSuccess: (claimed) => completeClaim(claimed),
   });
   const claim = useMutation({
     mutationFn: () =>
@@ -240,10 +268,11 @@ export function AssessmentClaim() {
         },
         target!,
       ),
-    onSuccess: completeClaim,
+    onSuccess: (claimed) => completeClaim(claimed),
   });
 
-  if (record === undefined || assessment.isLoading) return <AssessmentSkeleton />;
+  if (record === undefined || assessment.isLoading || (recoverClaim && !recoveredClaim.isError))
+    return <AssessmentSkeleton />;
   if (!sessionId || !record || assessment.isError || !assessment.data)
     return (
       <AssessmentShell

@@ -1,4 +1,5 @@
 import type {
+  SstAssessmentClaimScopeMapping,
   SstAssessmentFact,
   SstAssessmentProgress,
   SstAssessmentQuestion,
@@ -17,6 +18,7 @@ export type AssessmentSession = {
   status: AssessmentStatus;
   sessionRevision: number;
   snapshot: SstAssessmentSnapshot;
+  claimScopeMappings: SstAssessmentClaimScopeMapping[];
   questions: SstAssessmentQuestion[];
   progress: SstAssessmentProgress;
   requiredActions: Array<{ code: string; message: string }>;

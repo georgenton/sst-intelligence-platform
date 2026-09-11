@@ -6,6 +6,7 @@ import {
   assessmentErrorMessage,
   assessmentTopicLabel,
   orderAssessmentQuestions,
+  resolveAssessmentPresentationScopes,
 } from '@/lib/sst-assessment-presentation';
 import type {
   AssessmentAnswer,
@@ -39,6 +40,10 @@ export function GuidedSstAssessmentExperience({
   const [collectingOptionalContext, setCollectingOptionalContext] = useState(false);
   const [skipped, setSkipped] = useState<string[]>([]);
   const [checkpointTopic, setCheckpointTopic] = useState<string | null>(null);
+  const presentationScopes = useMemo(
+    () => resolveAssessmentPresentationScopes(session.snapshot.scopes, session.claimScopeMappings),
+    [session.claimScopeMappings, session.snapshot.scopes],
+  );
   const questions = useMemo(
     () =>
       orderAssessmentQuestions(session.questions).filter(
@@ -97,7 +102,7 @@ export function GuidedSstAssessmentExperience({
   const aside = (
     <AssessmentContextPanel
       facts={session.snapshot.facts}
-      scopes={session.snapshot.scopes}
+      scopes={presentationScopes}
       readOnly={session.status === 'FINALIZED'}
       onEdit={(question) => {
         setCheckpointTopic(null);
@@ -118,7 +123,7 @@ export function GuidedSstAssessmentExperience({
           channel={transport.channel}
           continuation={continuation}
           onReassess={onReassess}
-          scopes={session.snapshot.scopes}
+          scopes={presentationScopes}
         />
       </AssessmentShell>
     );
@@ -133,7 +138,7 @@ export function GuidedSstAssessmentExperience({
         <AssessmentProgress progress={session.progress} />
         <AssessmentReview
           facts={session.snapshot.facts}
-          scopes={session.snapshot.scopes}
+          scopes={presentationScopes}
           busy={busy}
           hasOptionalContext={optionalQuestions.length > 0}
           onConfirm={() => void finalize()}

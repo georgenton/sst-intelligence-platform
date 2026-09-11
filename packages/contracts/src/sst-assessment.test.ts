@@ -9,6 +9,7 @@ import {
   planSstAssessmentQuestions,
   reconcileSstAssessmentConditionalFacts,
   resolveSstAssessmentReadiness,
+  sstAssessmentClaimScopeMappingsSchema,
   sstAssessmentFactSchema,
   sstAssessmentSemanticHash,
   validateSstAssessmentFact,
@@ -38,6 +39,32 @@ function snapshot(facts: SstAssessmentSnapshot['facts'] = []): SstAssessmentSnap
 const provenance = { source: 'PUBLIC_DECLARATION' as const };
 
 describe('canonical SST assessment contract', () => {
+  it('accepts only bounded claim-time presentation mappings', () => {
+    const mappings = sstAssessmentClaimScopeMappingsSchema.parse([
+      {
+        scopeKey: 'center:1',
+        workCenterId: '00000000-0000-4000-8000-000000000001',
+        displayNameAtClaim: 'Planta Norte',
+      },
+    ]);
+    expect(mappings).toEqual([
+      expect.objectContaining({
+        scopeKey: 'center:1',
+        displayNameAtClaim: 'Planta Norte',
+      }),
+    ]);
+    expect(() =>
+      sstAssessmentClaimScopeMappingsSchema.parse([
+        {
+          scopeKey: 'center:1',
+          workCenterId: '00000000-0000-4000-8000-000000000001',
+          displayNameAtClaim: 'Planta Norte',
+          rawPersistence: true,
+        },
+      ]),
+    ).toThrow();
+  });
+
   it('keeps unanswered, known false and explicitly unknown as three different states', () => {
     const falseFact = sstAssessmentFactSchema.parse({
       factKey: 'workCenter.hasChemicalProcesses',

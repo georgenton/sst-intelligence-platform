@@ -78,6 +78,18 @@ export const sstAssessmentScopeSchema = z
   });
 export type SstAssessmentScope = z.infer<typeof sstAssessmentScopeSchema>;
 
+export const sstAssessmentClaimScopeMappingSchema = z
+  .object({
+    scopeKey: z.string().regex(/^center:[1-9][0-9]{0,2}$/),
+    workCenterId: z.string().uuid(),
+    displayNameAtClaim: z.string().trim().min(1).max(160).optional(),
+  })
+  .strict();
+export const sstAssessmentClaimScopeMappingsSchema = z
+  .array(sstAssessmentClaimScopeMappingSchema)
+  .max(SST_ASSESSMENT_LIMITS.workCenters);
+export type SstAssessmentClaimScopeMapping = z.infer<typeof sstAssessmentClaimScopeMappingSchema>;
+
 const knownAssessmentFactSchema = z
   .object({
     factKey: z.string().regex(/^[a-z][a-zA-Z0-9]*(?:\.[a-z][a-zA-Z0-9]*)+$/),

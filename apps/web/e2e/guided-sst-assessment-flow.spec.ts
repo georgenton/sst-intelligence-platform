@@ -134,6 +134,7 @@ async function configureAndClaim(
   organizationName: string | null,
   centerNames: string[],
   testInfo?: TestInfo,
+  simulateLostClaimResponse = false,
 ) {
   await expect(
     page.getByRole('heading', { name: 'Guarda este diagnóstico en tu empresa' }),
@@ -159,15 +160,46 @@ async function configureAndClaim(
     for (let index = 0; index < centerNames.length; index += 1) {
       await page.getByLabel(`Centro ${index + 1}`).fill(centerNames[index]!);
     }
-    const claimResponse = page.waitForResponse(
-      (response) =>
-        response.request().method() === 'POST' &&
-        response.url().endsWith('/claim-new-organization') &&
-        response.status() === 201,
-    );
+    let claimResponse: Promise<number>;
+    if (simulateLostClaimResponse) {
+      let resolveClaimResponse!: (status: number) => void;
+      claimResponse = new Promise((resolve) => {
+        resolveClaimResponse = resolve;
+      });
+      await page.route(
+        '**/claim-new-organization',
+        async (route) => {
+          const response = await route.fetch();
+          resolveClaimResponse(response.status());
+          await route.abort('failed');
+        },
+        { times: 1 },
+      );
+    } else {
+      claimResponse = page
+        .waitForResponse(
+          (response) =>
+            response.request().method() === 'POST' &&
+            response.url().endsWith('/claim-new-organization'),
+        )
+        .then((response) => response.status());
+    }
     await page.getByRole('button', { name: 'Guardar centros y continuar' }).click();
-    await claimResponse;
+    expect(await claimResponse).toBe(201);
+    if (simulateLostClaimResponse) await page.reload();
     await expect(page).toHaveURL(/\/app\/evaluation\/[0-9a-f-]+$/);
+    if (simulateLostClaimResponse) {
+      const claimedSessionId = page.url().split('/').at(-1)!;
+      expect(
+        await page.evaluate((id) => {
+          return {
+            active: window.localStorage.getItem('sst-assessment-session:active'),
+            record: window.localStorage.getItem(`sst-assessment-session:${id}`),
+          };
+        }, claimedSessionId),
+      ).toEqual({ active: null, record: null });
+      expect(page.url()).not.toContain('token');
+    }
     await expect(page.getByText('Diagnóstico listo', { exact: true })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toHaveCount(0);
     return createdOrganization.id;
@@ -293,15 +325,19 @@ test('two and three center public assessments provision real FREE setup topology
     expect(registration.statusCode, registration.body).toBe(201);
     const next = await claimReturnPath(page);
     await activateE2eUserSession(page, registration, next);
-    const centerNames = Array.from(
-      { length: centerCount },
-      (_, index) => `Centro ${centerCount}-${index + 1} ${suffix}`,
-    );
+    const centerNames =
+      centerCount === 2
+        ? ['Planta Principal', 'Bodega Sur']
+        : Array.from(
+            { length: centerCount },
+            (_, index) => `Centro ${centerCount}-${index + 1} ${suffix}`,
+          );
     const organizationId = await configureAndClaim(
       page,
       `Empresa ${centerCount} centros ${suffix}`,
       centerNames,
       centerCount === 2 ? testInfo : undefined,
+      centerCount === 2,
     );
     if (!organizationId) throw new Error('NEW_ORGANIZATION_ID_MISSING');
     const setup = await readE2eAssessmentSetup(organizationId);
@@ -334,6 +370,51 @@ test('two and three center public assessments provision real FREE setup topology
       hardGate: true,
       assessmentId: session?.id,
     });
+    if (centerCount === 2) {
+      await page.locator('.assessment-result-group details').evaluateAll((details) => {
+        details.forEach((detail) => {
+          (detail as HTMLDetailsElement).open = true;
+        });
+      });
+      const context = page.locator('.assessment-context--desktop');
+      await expect(context.getByText('Planta Principal', { exact: true }).first()).toBeVisible();
+      await expect(context.getByText('Bodega Sur', { exact: true }).first()).toBeVisible();
+      expect(
+        await page
+          .locator('.assessment-result-group details dd')
+          .filter({ hasText: 'Planta Principal' })
+          .count(),
+      ).toBeGreaterThan(0);
+      await expect(page.getByText('center:1', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('center:2', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('Centro 1', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('Centro 2', { exact: true })).toHaveCount(0);
+
+      const historicalCenter = setup.centers.find(
+        (center: { name: string }) => center.name === 'Planta Principal',
+      );
+      if (!historicalCenter) throw new Error('HISTORICAL_WORK_CENTER_MISSING');
+      const renamed = await request.patch(
+        `http://127.0.0.1:3101/api/v1/organizations/${organizationId}/work-centers/${historicalCenter.id}`,
+        {
+          headers: {
+            authorization: `Bearer ${parseRegistration(registration).accessToken}`,
+            'x-organization-id': organizationId,
+          },
+          data: { name: 'Planta Principal Renovada' },
+        },
+      );
+      expect(renamed.status(), await renamed.text()).toBe(200);
+      await page.reload();
+      await expect(page.getByText('Diagnóstico listo', { exact: true })).toBeVisible();
+      await expect(
+        page
+          .locator('.assessment-context--desktop')
+          .getByText('Planta Principal', { exact: true })
+          .first(),
+      ).toBeVisible();
+      await expect(page.getByText('Planta Principal Renovada', { exact: true })).toHaveCount(0);
+    }
   }
 });
 

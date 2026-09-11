@@ -1,4 +1,5 @@
 import {
+  type SstAssessmentClaimScopeMapping,
   type SstAssessmentFact,
   type SstAssessmentProgress,
   type SstAssessmentQuestion,
@@ -9,6 +10,22 @@ import { SST_ASSESSMENT_FACT_CATALOG } from '@sst/contracts/sst-assessment-catal
 import { ApiClientError } from '@sst/api-client';
 
 const definitions = new Map(SST_ASSESSMENT_FACT_CATALOG.map((item) => [item.factKey, item]));
+
+export function resolveAssessmentPresentationScopes(
+  scopes: readonly SstAssessmentScope[],
+  claimScopeMappings: readonly SstAssessmentClaimScopeMapping[] = [],
+) {
+  const claimByScope = new Map(claimScopeMappings.map((mapping) => [mapping.scopeKey, mapping]));
+  return scopes.map((scope): SstAssessmentScope => {
+    const claimed = claimByScope.get(scope.scopeKey);
+    if (scope.kind !== 'WORK_CENTER' || !claimed?.displayNameAtClaim) return scope;
+    return {
+      ...scope,
+      workCenterId: claimed.workCenterId,
+      displayName: claimed.displayNameAtClaim,
+    };
+  });
+}
 
 const topicLabels: Record<string, string> = {
   'Perfil organizacional': 'Empresa',
