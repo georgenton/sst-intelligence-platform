@@ -994,7 +994,7 @@ const fact = (
   ...(options.maxLength === undefined ? {} : { maxLength: options.maxLength }),
 });
 
-export const DEMO_ADAPTIVE_FACT_VERSIONS: AdaptiveFactVersionContract[] = [
+export const DEMO_ADAPTIVE_FACT_VERSIONS_V1: AdaptiveFactVersionContract[] = [
   fact(
     'organization.country',
     'ORGANIZATION_PROFILE',
@@ -1017,7 +1017,7 @@ export const DEMO_ADAPTIVE_FACT_VERSIONS: AdaptiveFactVersionContract[] = [
     'ORGANIZATION',
     'INTEGER',
     '¿Cuántas personas trabajan en total?',
-    { collectionMode: 'DERIVED_OR_USER', min: 1, max: 10_000_000, priority: 3 },
+    { collectionMode: 'DERIVED_ONLY', min: 1, max: 10_000_000, priority: 3 },
   ),
   fact(
     'organization.workCenterCount',
@@ -1154,6 +1154,9 @@ export const DEMO_ADAPTIVE_FACT_VERSIONS: AdaptiveFactVersionContract[] = [
     { priority: 53 },
   ),
 ];
+
+// Backward-compatible public name. Its value is the immutable historical V1 contract.
+export const DEMO_ADAPTIVE_FACT_VERSIONS = DEMO_ADAPTIVE_FACT_VERSIONS_V1;
 
 const target = (
   targetKey: string,
@@ -1578,32 +1581,111 @@ const pluralAssessmentFacts: AdaptiveFactVersionContract[] = [
   ),
 ].map((item) => ({ ...item, version: '2.0.0' }));
 
+function assessmentFactV2(
+  factKey: string,
+  collectionMode: AdaptiveFactVersionContract['collectionMode'],
+): AdaptiveFactVersionContract {
+  const historical = DEMO_ADAPTIVE_FACT_VERSIONS_V1.find((item) => item.factKey === factKey);
+  if (!historical) throw new Error(`Missing historical Adaptive fact: ${factKey}`);
+  return { ...historical, version: '2.0.0', collectionMode };
+}
+
+export const CANONICAL_ASSESSMENT_ADAPTIVE_FACT_VERSIONS_V2: AdaptiveFactVersionContract[] = [
+  assessmentFactV2('organization.country', 'DERIVED_ONLY'),
+  assessmentFactV2('organization.sector', 'DERIVED_ONLY'),
+  assessmentFactV2('organization.totalWorkerCount', 'DERIVED_OR_USER'),
+  assessmentFactV2('organization.workCenterCount', 'DERIVED_ONLY'),
+  assessmentFactV2('organization.strategicProtectionPriorities', 'CONTEXT_ONLY'),
+  assessmentFactV2('workCenter.workerCount', 'DERIVED_OR_USER'),
+  ...pluralAssessmentFacts,
+  assessmentFactV2('workCenter.activityDescription', 'USER_ASKABLE'),
+  assessmentFactV2('workCenter.workArrangement', 'USER_ASKABLE'),
+  assessmentFactV2('workCenter.hasDistinctOperationalZones', 'USER_ASKABLE'),
+  assessmentFactV2('workCenter.hasChemicalProcesses', 'DERIVED_OR_USER'),
+  assessmentFactV2('workCenter.hasHighEnergyOperations', 'DERIVED_OR_USER'),
+  assessmentFactV2('workCenter.hasWorkAtHeight', 'USER_ASKABLE'),
+  assessmentFactV2('workCenter.hasConfinedSpaces', 'USER_ASKABLE'),
+  assessmentFactV2('workCenter.hasExternalWorkforce', 'USER_ASKABLE'),
+  assessmentFactV2('workCenter.hasCriticalMachinery', 'USER_ASKABLE'),
+];
+
+function assessmentTargetV2(targetKey: string): AdaptiveTargetVersionContract {
+  const historical = DEMO_ADAPTIVE_TARGET_VERSIONS.find((item) => item.targetKey === targetKey);
+  if (!historical) throw new Error(`Missing historical Adaptive target: ${targetKey}`);
+  return { ...historical, version: '2.0.0' };
+}
+
+const canonicalAssessmentTargetsV2: AdaptiveTargetVersionContract[] = [
+  assessmentTargetV2('SST_MANAGEMENT_BASELINE'),
+  assessmentTargetV2('EMERGENCY_PREPAREDNESS'),
+  assessmentTargetV2('REMOTE_WORK_REVIEW'),
+  assessmentTargetV2('CHEMICAL_PROCESS_CONTROLS'),
+  assessmentTargetV2('HIGH_ENERGY_PROFESSIONAL_REVIEW'),
+  assessmentTargetV2('MULTI_CENTER_COORDINATION'),
+  assessmentTargetV2('HIGH_RISK_WORK_CONTROLS'),
+  assessmentTargetV2('EXTERNAL_WORKFORCE_COORDINATION'),
+  assessmentTargetV2('TECHNICAL_INSPECTION_PLANNING'),
+];
+
+function assessmentRuleV2(ruleKey: string): AdaptiveRuleVersionContract {
+  const historical = DEMO_ADAPTIVE_RULES.find((item) => item.ruleKey === ruleKey);
+  if (!historical) throw new Error(`Missing historical Adaptive rule: ${ruleKey}`);
+  return {
+    ...historical,
+    version: '2.0.0',
+    condition: pluralAssessmentExpression(historical.condition),
+  };
+}
+
+const canonicalAssessmentRulesV2: AdaptiveRuleVersionContract[] = [
+  assessmentRuleV2('GENERAL_MANAGEMENT_BASELINE'),
+  assessmentRuleV2('PHYSICAL_EMERGENCY_REVIEW'),
+  assessmentRuleV2('PHYSICAL_TECHNICAL_INSPECTION'),
+  assessmentRuleV2('REMOTE_WELLBEING_REVIEW'),
+  assessmentRuleV2('MULTI_CENTER_COORDINATION_RULE'),
+  assessmentRuleV2('CHEMICAL_PROCESS_RULE'),
+  assessmentRuleV2('HIGH_ENERGY_RULE'),
+  assessmentRuleV2('CONSTRUCTION_HEIGHT_RULE'),
+  assessmentRuleV2('CONSTRUCTION_CONFINED_RULE'),
+  assessmentRuleV2('CONSTRUCTION_MACHINERY_RULE'),
+  assessmentRuleV2('EXTERNAL_WORKFORCE_RULE'),
+  assessmentRuleV2('AMBIGUOUS_ACTIVITY_CLARIFICATION'),
+];
+
+function assessmentGroupV2(groupKey: string): AdaptiveRuleGroupVersionContract {
+  const historical = DEMO_ADAPTIVE_GROUPS.find((item) => item.groupKey === groupKey);
+  if (!historical) throw new Error(`Missing historical Adaptive group: ${groupKey}`);
+  return {
+    ...historical,
+    version: '2.0.0',
+    activation: pluralAssessmentExpression(historical.activation),
+  };
+}
+
+const canonicalAssessmentGroupsV2: AdaptiveRuleGroupVersionContract[] = [
+  assessmentGroupV2('GENERAL'),
+  assessmentGroupV2('PHYSICAL_WORKPLACE'),
+  assessmentGroupV2('REMOTE_HYBRID'),
+  assessmentGroupV2('MULTI_CENTER'),
+  assessmentGroupV2('CHEMICAL_PROCESS'),
+  assessmentGroupV2('HIGH_ENERGY'),
+  assessmentGroupV2('CONSTRUCTION_HIGH_RISK'),
+  assessmentGroupV2('EXTERNAL_WORKFORCE'),
+];
+
 export const CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2: AdaptiveRulePackContract =
   validateAdaptivePack({
-    ...DEMO_ADAPTIVE_RULE_PACK,
+    packKey: 'DEMO_ADAPTIVE_SST_CONFIGURATION',
     version: '2.0.0',
+    engineSchemaVersion: ADAPTIVE_ENGINE_VERSION,
     name: 'Configuración SST adaptativa DEMO V2',
-    factVersions: [
-      ...DEMO_ADAPTIVE_FACT_VERSIONS.filter(
-        ({ factKey }) =>
-          factKey !== 'workCenter.activityCategory' && factKey !== 'workCenter.facilityType',
-      ).map((item) => ({ ...item, version: '2.0.0' })),
-      ...pluralAssessmentFacts,
-    ],
-    targetVersions: DEMO_ADAPTIVE_TARGET_VERSIONS.map((item) => ({
-      ...item,
-      version: '2.0.0',
-    })),
-    rules: DEMO_ADAPTIVE_RULES.map((item) => ({
-      ...item,
-      version: '2.0.0',
-      condition: pluralAssessmentExpression(item.condition),
-    })),
-    groups: DEMO_ADAPTIVE_GROUPS.map((item) => ({
-      ...item,
-      version: '2.0.0',
-      activation: pluralAssessmentExpression(item.activation),
-    })),
+    isDemo: true,
+    regulatory: false,
+    disclaimer: ADAPTIVE_DEMO_DISCLAIMER,
+    factVersions: CANONICAL_ASSESSMENT_ADAPTIVE_FACT_VERSIONS_V2,
+    targetVersions: canonicalAssessmentTargetsV2,
+    rules: canonicalAssessmentRulesV2,
+    groups: canonicalAssessmentGroupsV2,
   });
 
 export function assertAdaptiveRulePublication(input: {

@@ -3,6 +3,7 @@ import {
   ADAPTIVE_LIMITS,
   ADAPTIVE_DEMO_DISCLAIMER,
   AdaptiveLimitExceededError,
+  CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2,
   DEMO_ADAPTIVE_RULE_PACK,
   adaptiveContentHash,
   adaptivePackContentHash,
@@ -124,6 +125,17 @@ function limitPack(
 }
 
 describe('adaptive deterministic engine', () => {
+  it('keeps historical V1 collection semantics isolated from current V2', () => {
+    const collectionMode = (pack: AdaptiveRulePackContract) =>
+      pack.factVersions.find(({ factKey }) => factKey === 'organization.totalWorkerCount')
+        ?.collectionMode;
+
+    expect(collectionMode(DEMO_ADAPTIVE_RULE_PACK)).toBe('DERIVED_ONLY');
+    expect(collectionMode(CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2)).toBe('DERIVED_OR_USER');
+    expect(DEMO_ADAPTIVE_RULE_PACK.version).toBe('1.0.0');
+    expect(CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2.version).toBe('2.0.0');
+  });
+
   it('validates typed facts without treating unknown as false or zero', () => {
     const integer = DEMO_ADAPTIVE_RULE_PACK.factVersions.find(
       ({ factKey }) => factKey === 'workCenter.workerCount',

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
   ADAPTIVE_ENGINE_VERSION,
-  DEMO_ADAPTIVE_FACT_VERSIONS,
+  CANONICAL_ASSESSMENT_ADAPTIVE_FACT_VERSIONS_V2,
   adaptiveContentHash,
   adaptiveRuleGroupVersionSchema,
   adaptiveRuleVersionSchema,
@@ -181,7 +181,7 @@ function requireUnique(values: string[], label: string) {
 export function buildRegulatoryPilotShadowPack(
   manifest: RegulatoryPilotManifestBundle,
 ): AdaptiveRulePackContract {
-  const facts = DEMO_ADAPTIVE_FACT_VERSIONS.filter(({ factKey }) =>
+  const facts = CANONICAL_ASSESSMENT_ADAPTIVE_FACT_VERSIONS_V2.filter(({ factKey }) =>
     manifest.shadowPack.factKeys.includes(factKey as (typeof manifest.shadowPack.factKeys)[number]),
   );
   const pack: AdaptiveRulePackContract = {

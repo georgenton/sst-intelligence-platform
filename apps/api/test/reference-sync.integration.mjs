@@ -10,6 +10,11 @@ import {
   CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2,
   DEMO_ADAPTIVE_RULE_PACK,
 } from '@sst/contracts';
+import {
+  HISTORICAL_ADAPTIVE_V1_PRODUCTION_HASH,
+  LEGACY_PRODUCTION_ADAPTIVE_V1_FIXTURE,
+  createHistoricalAdaptiveV1ProductionFixture,
+} from './fixtures/historical-adaptive-v1-production.mjs';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required');
@@ -227,6 +232,43 @@ async function existingGlobalReferenceSnapshot(prisma) {
     prisma.applicabilityRulePackVersion.findMany({ orderBy: { id: 'asc' } }),
   ]);
   return { technicalDefinitions, technicalVersions, applicabilityPacks };
+}
+
+async function historicalAdaptiveV1Snapshot(prisma) {
+  const {
+    pack: [, packVersionId],
+  } = LEGACY_PRODUCTION_ADAPTIVE_V1_FIXTURE;
+  return prisma.adaptiveRulePackVersion.findUniqueOrThrow({
+    where: { id: packVersionId },
+    include: {
+      packDefinition: true,
+      facts: {
+        include: { factVersion: { include: { factDefinition: true } } },
+        orderBy: { factVersionId: 'asc' },
+      },
+      targets: {
+        include: { targetVersion: { include: { targetDefinition: true } } },
+        orderBy: { targetVersionId: 'asc' },
+      },
+      rules: {
+        include: {
+          ruleVersion: { include: { ruleDefinition: true, sourceDraft: true } },
+        },
+        orderBy: { ruleVersionId: 'asc' },
+      },
+      groups: {
+        include: {
+          groupVersion: {
+            include: {
+              groupDefinition: true,
+              groupRules: { orderBy: { sortOrder: 'asc' } },
+            },
+          },
+        },
+        orderBy: { groupVersionId: 'asc' },
+      },
+    },
+  });
 }
 
 async function operationalCounts(prisma) {
@@ -801,6 +843,12 @@ const evidence = {
   historicalMethodUuidUnchanged: false,
   readiness: false,
   canonicalAssessmentV2WithoutSeed: false,
+  historicalAdaptiveV1ProductionFixture: false,
+  historicalAdaptiveV1UnchangedAfterRelease: false,
+  historicalAdaptiveV1UnchangedAfterRepeatedRelease: false,
+  historicalAdaptiveV1SemanticMutationRejected: false,
+  adaptiveV2CurrentSemantics: false,
+  productionLikeOperationalCountsUnchanged: false,
 };
 
 try {
@@ -844,6 +892,12 @@ try {
   const productionLike = await createDisposableSchema('production_like');
   try {
     runPackageScript('prisma:deploy', productionLike.url);
+    const historicalAdaptiveV1 = await createHistoricalAdaptiveV1ProductionFixture(
+      productionLike.prisma,
+    );
+    assert.equal(historicalAdaptiveV1.contentHash, HISTORICAL_ADAPTIVE_V1_PRODUCTION_HASH);
+    const adaptiveV1Before = await historicalAdaptiveV1Snapshot(productionLike.prisma);
+    evidence.historicalAdaptiveV1ProductionFixture = true;
     const legacyWorkPermitFeature = await productionLike.prisma.featureDefinition.create({
       data: { key: 'module.work_permits', description: 'Módulo de permisos', valueType: 'BOOLEAN' },
     });
@@ -861,12 +915,28 @@ try {
     const existingGlobalReferences = await existingGlobalReferenceSnapshot(productionLike.prisma);
     const fixtureIds = await createHistoricalCustomerFixture(productionLike.prisma);
     const customerBefore = await customerSnapshot(productionLike.prisma, fixtureIds);
+    const operationalBefore = await operationalCounts(productionLike.prisma);
     assert.equal((await referenceSnapshot(productionLike.prisma)).versions.length, 1);
 
-    runPackageScript('reference:sync', productionLike.url);
+    runPackageScript('production:release', productionLike.url);
     const synchronized = await referenceSnapshot(productionLike.prisma);
     assertExpectedReferences(synchronized);
+    assert.deepEqual(await historicalAdaptiveV1Snapshot(productionLike.prisma), adaptiveV1Before);
+    assert.equal(adaptiveV1Before.contentHash, HISTORICAL_ADAPTIVE_V1_PRODUCTION_HASH);
+    evidence.historicalAdaptiveV1UnchangedAfterRelease = true;
+    const adaptiveV2 = synchronized.adaptivePackVersions.find(({ version }) => version === '2.0.0');
+    assert.ok(adaptiveV2?.publishedAt);
+    assert.ok(adaptiveV2.sealedAt);
+    assert.deepEqual(adaptiveV2.schema, CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2);
+    const adaptiveV2WorkerCount = CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2.factVersions.find(
+      ({ factKey }) => factKey === 'organization.totalWorkerCount',
+    );
+    assert.equal(adaptiveV2WorkerCount?.version, '2.0.0');
+    assert.equal(adaptiveV2WorkerCount?.collectionMode, 'DERIVED_OR_USER');
+    evidence.adaptiveV2CurrentSemantics = true;
     assert.deepEqual(await customerSnapshot(productionLike.prisma, fixtureIds), customerBefore);
+    assert.deepEqual(await operationalCounts(productionLike.prisma), operationalBefore);
+    evidence.productionLikeOperationalCountsUnchanged = true;
     assert.deepEqual(
       await existingGlobalReferenceSnapshot(productionLike.prisma),
       existingGlobalReferences,
@@ -879,6 +949,13 @@ try {
     evidence.productionLikeSync = true;
     evidence.customerDataUnchanged = true;
     evidence.historicalMethodUuidUnchanged = true;
+
+    runPackageScript('production:release', productionLike.url);
+    assert.deepEqual(await historicalAdaptiveV1Snapshot(productionLike.prisma), adaptiveV1Before);
+    assert.deepEqual(await referenceSnapshot(productionLike.prisma), synchronized);
+    assert.deepEqual(await customerSnapshot(productionLike.prisma, fixtureIds), customerBefore);
+    assert.deepEqual(await operationalCounts(productionLike.prisma), operationalBefore);
+    evidence.historicalAdaptiveV1UnchangedAfterRepeatedRelease = true;
   } finally {
     await productionLike.prisma.$disconnect();
   }
@@ -935,6 +1012,26 @@ try {
     await drift.prisma.$disconnect();
   }
 
+  const adaptiveSemanticDrift = await createDisposableSchema('adaptive_v1_semantic_drift');
+  try {
+    runPackageScript('prisma:deploy', adaptiveSemanticDrift.url);
+    await createHistoricalAdaptiveV1ProductionFixture(adaptiveSemanticDrift.prisma);
+    await adaptiveSemanticDrift.prisma.adaptiveFactVersion.update({
+      where: {
+        id: LEGACY_PRODUCTION_ADAPTIVE_V1_FIXTURE.facts['organization.totalWorkerCount'][1],
+      },
+      data: { questionText: 'Mutated historical worker-count question' },
+    });
+    const output = runPackageScript('reference:sync', adaptiveSemanticDrift.url, false);
+    assert.match(
+      output,
+      /PUBLISHED_VERSION_DRIFT:ADAPTIVE_FACT:organization\.totalWorkerCount:1\.0\.0/,
+    );
+    evidence.historicalAdaptiveV1SemanticMutationRejected = true;
+  } finally {
+    await adaptiveSemanticDrift.prisma.$disconnect();
+  }
+
   assert.deepEqual(evidence, {
     freshDatabaseWithoutGeneralSeed: true,
     productionLikeSync: true,
@@ -944,6 +1041,12 @@ try {
     historicalMethodUuidUnchanged: true,
     readiness: true,
     canonicalAssessmentV2WithoutSeed: true,
+    historicalAdaptiveV1ProductionFixture: true,
+    historicalAdaptiveV1UnchangedAfterRelease: true,
+    historicalAdaptiveV1UnchangedAfterRepeatedRelease: true,
+    historicalAdaptiveV1SemanticMutationRejected: true,
+    adaptiveV2CurrentSemantics: true,
+    productionLikeOperationalCountsUnchanged: true,
   });
   globalThis.console.log(JSON.stringify({ status: 'ok', evidence }));
 } finally {

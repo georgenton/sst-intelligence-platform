@@ -63,6 +63,18 @@ rows. The production-like gate runs migrate deploy plus reference sync without s
 creates a canonical public assessment and proves the specialist selects V2 with plural overlap
 semantics.
 
+Published Adaptive reference versions are immutable. Historical V1 preserves
+`organization.totalWorkerCount@1.0.0` as `DERIVED_ONLY`, matching the originally sealed production
+row and pack hash. Modern V2 defines `organization.totalWorkerCount@2.0.0` independently as
+`DERIVED_OR_USER`, so the canonical guided assessment can ask when the value cannot be derived.
+Future semantic changes require a new fact and pack version; they must never redefine a published
+version in place.
+
+The production-like release regression starts from the verified persisted V1 identities, content,
+hash and relationships, then runs the current release twice without the general seed. This protects
+real upgrade compatibility and idempotency in addition to the fresh-database path. A deliberate
+semantic mutation of that historical fixture must still fail with `PUBLISHED_VERSION_DRIFT`.
+
 ## Atomicity, idempotency and drift
 
 The operation validates manifest schemas and hashes before writes, acquires a PostgreSQL
