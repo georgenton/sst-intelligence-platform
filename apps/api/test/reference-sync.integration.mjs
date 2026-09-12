@@ -1012,15 +1012,11 @@ try {
     await drift.prisma.$disconnect();
   }
 
-  const adaptiveSemanticDrift = await createDisposableSchema('adaptive_v1_semantic_drift');
+  const adaptiveSemanticDrift = await createDisposableSchema('adaptive_v1');
   try {
     runPackageScript('prisma:deploy', adaptiveSemanticDrift.url);
-    await createHistoricalAdaptiveV1ProductionFixture(adaptiveSemanticDrift.prisma);
-    await adaptiveSemanticDrift.prisma.adaptiveFactVersion.update({
-      where: {
-        id: LEGACY_PRODUCTION_ADAPTIVE_V1_FIXTURE.facts['organization.totalWorkerCount'][1],
-      },
-      data: { questionText: 'Mutated historical worker-count question' },
+    await createHistoricalAdaptiveV1ProductionFixture(adaptiveSemanticDrift.prisma, {
+      workerCountQuestionText: 'Mutated historical worker-count question',
     });
     const output = runPackageScript('reference:sync', adaptiveSemanticDrift.url, false);
     assert.match(

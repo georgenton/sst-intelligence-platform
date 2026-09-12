@@ -207,7 +207,10 @@ export const LEGACY_PRODUCTION_ADAPTIVE_V1_FIXTURE = {
 
 const publishedAt = new Date('2026-08-21T16:11:13.858Z');
 
-export async function createHistoricalAdaptiveV1ProductionFixture(prisma) {
+export async function createHistoricalAdaptiveV1ProductionFixture(
+  prisma,
+  { workerCountQuestionText } = {},
+) {
   const identities = LEGACY_PRODUCTION_ADAPTIVE_V1_FIXTURE;
   const workerFact = DEMO_ADAPTIVE_RULE_PACK.factVersions.find(
     ({ factKey }) => factKey === 'organization.totalWorkerCount',
@@ -230,7 +233,10 @@ export async function createHistoricalAdaptiveV1ProductionFixture(prisma) {
         factDefinitionId: definitionId,
         version: fact.version,
         valueType: fact.valueType,
-        questionText: fact.questionText,
+        questionText:
+          fact.factKey === 'organization.totalWorkerCount' && workerCountQuestionText
+            ? workerCountQuestionText
+            : fact.questionText,
         helpText: fact.helpText,
         unknownAllowed: fact.unknownAllowed,
         collectionMode: fact.collectionMode,
