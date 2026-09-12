@@ -183,7 +183,9 @@ async function syncPack(prisma: Prisma.TransactionClient, pack: AdaptiveRulePack
       where: {
         groupDefinitionId_version: { groupDefinitionId: definition.id, version: group.version },
       },
-      include: { groupRules: true },
+      include: {
+        groupRules: { orderBy: [{ sortOrder: 'asc' }, { ruleVersionId: 'asc' }] },
+      },
     });
     const payload = {
       title: normalized.title,
@@ -262,7 +264,12 @@ async function syncPack(prisma: Prisma.TransactionClient, pack: AdaptiveRulePack
   });
   let packVersion = await prisma.adaptiveRulePackVersion.findUnique({
     where: { packDefinitionId_version: { packDefinitionId: definition.id, version: pack.version } },
-    include: { facts: true, targets: true, rules: true, groups: true },
+    include: {
+      facts: { orderBy: { factVersionId: 'asc' } },
+      targets: { orderBy: { targetVersionId: 'asc' } },
+      rules: { orderBy: { ruleVersionId: 'asc' } },
+      groups: { orderBy: { groupVersionId: 'asc' } },
+    },
   });
   const relationships = {
     facts: [...factVersionIds.values()].sort(),
