@@ -3,7 +3,9 @@ import {
   ADAPTIVE_LIMITS,
   ADAPTIVE_DEMO_DISCLAIMER,
   AdaptiveLimitExceededError,
+  CANONICAL_ASSESSMENT_ADAPTIVE_FACT_VERSIONS_V2,
   CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2,
+  DEMO_ADAPTIVE_FACT_VERSIONS_V1,
   DEMO_ADAPTIVE_RULE_PACK,
   adaptiveContentHash,
   adaptivePackContentHash,
@@ -134,6 +136,18 @@ describe('adaptive deterministic engine', () => {
     expect(collectionMode(CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2)).toBe('DERIVED_OR_USER');
     expect(DEMO_ADAPTIVE_RULE_PACK.version).toBe('1.0.0');
     expect(CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2.version).toBe('2.0.0');
+  });
+
+  it('reuses frozen V1 fact metadata without sharing mutable choice arrays with V2', () => {
+    const factKey = 'organization.strategicProtectionPriorities';
+    const historical = DEMO_ADAPTIVE_FACT_VERSIONS_V1.find((fact) => fact.factKey === factKey)!;
+    const current = CANONICAL_ASSESSMENT_ADAPTIVE_FACT_VERSIONS_V2.find(
+      (fact) => fact.factKey === factKey,
+    )!;
+
+    expect(current).not.toBe(historical);
+    expect(current.choices).toEqual(historical.choices);
+    expect(current.choices).not.toBe(historical.choices);
   });
 
   it('validates typed facts without treating unknown as false or zero', () => {

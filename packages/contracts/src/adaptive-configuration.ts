@@ -1587,7 +1587,7 @@ function assessmentFactV2(
 ): AdaptiveFactVersionContract {
   const historical = DEMO_ADAPTIVE_FACT_VERSIONS_V1.find((item) => item.factKey === factKey);
   if (!historical) throw new Error(`Missing historical Adaptive fact: ${factKey}`);
-  return { ...historical, version: '2.0.0', collectionMode };
+  return { ...historical, version: '2.0.0', collectionMode, choices: [...historical.choices] };
 }
 
 export const CANONICAL_ASSESSMENT_ADAPTIVE_FACT_VERSIONS_V2: AdaptiveFactVersionContract[] = [

@@ -65,8 +65,11 @@ semantics.
 
 Published Adaptive reference versions are immutable. Historical V1 preserves
 `organization.totalWorkerCount@1.0.0` as `DERIVED_ONLY`, matching the originally sealed production
-row and pack hash. Modern V2 defines `organization.totalWorkerCount@2.0.0` independently as
-`DERIVED_OR_USER`, so the canonical guided assessment can ask when the value cannot be derived.
+row and pack hash. Modern V2 is persisted and versioned separately while its source builders reuse
+the sealed V1 baseline for unchanged metadata and semantics. V2 explicitly overrides
+`organization.totalWorkerCount@2.0.0` as `DERIVED_OR_USER`, so the canonical guided assessment can
+ask when the value cannot be derived. Pack validation materializes a separate parsed object graph,
+and the separately exported V2 fact source also copies mutable choice arrays instead of aliasing V1.
 Future semantic changes require a new fact and pack version; they must never redefine a published
 version in place.
 
