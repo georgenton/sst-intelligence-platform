@@ -209,7 +209,11 @@ const publishedAt = new Date('2026-08-21T16:11:13.858Z');
 
 export async function createHistoricalAdaptiveV1ProductionFixture(
   prisma,
-  { workerCountQuestionText } = {},
+  {
+    workerCountQuestionText,
+    nonCanonicalRelationshipOrder = false,
+    omitPackFactRelationship = false,
+  } = {},
 ) {
   const identities = LEGACY_PRODUCTION_ADAPTIVE_V1_FIXTURE;
   const workerFact = DEMO_ADAPTIVE_RULE_PACK.factVersions.find(
@@ -318,6 +322,10 @@ export async function createHistoricalAdaptiveV1ProductionFixture(
   for (const group of DEMO_ADAPTIVE_RULE_PACK.groups) {
     const [definitionId, versionId] = identities.groups[group.groupKey];
     const normalized = normalizeAdaptiveGroupVersion(group);
+    const groupRules = normalized.ruleKeys.map((ruleKey, sortOrder) => ({
+      ruleVersionId: identities.rules[ruleKey][2],
+      sortOrder,
+    }));
     await prisma.adaptiveRuleGroupDefinition.create({
       data: { id: definitionId, groupKey: group.groupKey },
     });
@@ -333,10 +341,7 @@ export async function createHistoricalAdaptiveV1ProductionFixture(
         isDemo: true,
         regulatory: false,
         groupRules: {
-          create: normalized.ruleKeys.map((ruleKey, sortOrder) => ({
-            ruleVersionId: identities.rules[ruleKey][2],
-            sortOrder,
-          })),
+          create: nonCanonicalRelationshipOrder ? groupRules.reverse() : groupRules,
         },
       },
     });
@@ -371,6 +376,25 @@ export async function createHistoricalAdaptiveV1ProductionFixture(
   assert.equal(calculatedHash, HISTORICAL_ADAPTIVE_V1_PRODUCTION_HASH);
 
   const [packDefinitionId, packVersionId] = identities.pack;
+  const factVersionIds = Object.values(identities.facts)
+    .map(([, factVersionId]) => factVersionId)
+    .sort();
+  const targetVersionIds = Object.values(identities.targets)
+    .map(([, targetVersionId]) => targetVersionId)
+    .sort();
+  const ruleVersionIds = Object.values(identities.rules)
+    .map(([, , ruleVersionId]) => ruleVersionId)
+    .sort();
+  const groupVersionIds = Object.values(identities.groups)
+    .map(([, groupVersionId]) => groupVersionId)
+    .sort();
+  if (nonCanonicalRelationshipOrder) {
+    factVersionIds.reverse();
+    targetVersionIds.reverse();
+    ruleVersionIds.reverse();
+    groupVersionIds.reverse();
+  }
+  if (omitPackFactRelationship) factVersionIds.pop();
   await prisma.adaptiveRulePackDefinition.create({
     data: {
       id: packDefinitionId,
@@ -390,28 +414,16 @@ export async function createHistoricalAdaptiveV1ProductionFixture(
       regulatory: false,
       disclaimer: DEMO_ADAPTIVE_RULE_PACK.disclaimer,
       facts: {
-        create: Object.values(identities.facts)
-          .map(([, factVersionId]) => factVersionId)
-          .sort()
-          .map((factVersionId) => ({ factVersionId })),
+        create: factVersionIds.map((factVersionId) => ({ factVersionId })),
       },
       targets: {
-        create: Object.values(identities.targets)
-          .map(([, targetVersionId]) => targetVersionId)
-          .sort()
-          .map((targetVersionId) => ({ targetVersionId })),
+        create: targetVersionIds.map((targetVersionId) => ({ targetVersionId })),
       },
       rules: {
-        create: Object.values(identities.rules)
-          .map(([, , ruleVersionId]) => ruleVersionId)
-          .sort()
-          .map((ruleVersionId) => ({ ruleVersionId })),
+        create: ruleVersionIds.map((ruleVersionId) => ({ ruleVersionId })),
       },
       groups: {
-        create: Object.values(identities.groups)
-          .map(([, groupVersionId]) => groupVersionId)
-          .sort()
-          .map((groupVersionId) => ({ groupVersionId })),
+        create: groupVersionIds.map((groupVersionId) => ({ groupVersionId })),
       },
     },
   });
