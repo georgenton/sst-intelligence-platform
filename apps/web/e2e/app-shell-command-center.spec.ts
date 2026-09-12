@@ -1,4 +1,10 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import {
+  createE2eOrganization,
+  markE2eOrganizationLegacyConfigured,
+  setE2eOrganizationPlan,
+} from './support/e2e-api';
+import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 async function navigateFromPrimaryNavigation(page: Page, name: string, pathname: string) {
   const navigation = page.getByRole('navigation', { name: 'Navegación principal' });
@@ -8,50 +14,37 @@ async function navigateFromPrimaryNavigation(page: Page, name: string, pathname:
   await Promise.all([page.waitForURL((url) => url.pathname === pathname), link.click()]);
 }
 
-async function createDemoOrganization(page: Page, suffix: number, organizationName: string) {
-  await page.goto('/diagnostico');
-  await page.getByRole('button', { name: 'Comenzar' }).click();
-  await expect(page.getByText('Paso 1 de 6')).toBeVisible();
-  await page.getByRole('button', { name: 'Guardar y continuar' }).click();
-  await expect(page.getByText('Paso 2 de 6')).toBeVisible();
-  await page.getByLabel('Actividades críticas').check();
-  await page.getByLabel('Riesgo de incendio').check();
-  await page.getByRole('button', { name: 'Guardar y continuar' }).click();
-  await expect(page.getByText('Paso 3 de 6')).toBeVisible();
-  await page.getByLabel('Permisos manuales').check();
-  await page.getByLabel('Dificultad para encontrar evidencias').check();
-  await page.getByLabel('Hallazgos recurrentes').check();
-  await page.getByRole('button', { name: 'Guardar y continuar' }).click();
-  await expect(page.getByText('Paso 4 de 6')).toBeVisible();
-  await page.getByLabel('Múltiples turnos').check();
-  await page.getByRole('button', { name: 'Guardar y continuar' }).click();
-  await expect(page.getByText('Paso 5 de 6')).toBeVisible();
-  await page.getByRole('button', { name: 'Guardar y continuar' }).click();
-  await expect(page.getByText('Paso 6 de 6')).toBeVisible();
-  await Promise.all([
-    page.waitForURL(/\/diagnostico\/[0-9a-f-]+\/resultado$/),
-    page.getByRole('button', { name: 'Ver recomendación' }).click(),
-  ]);
-  await page.getByRole('link', { name: 'Crear cuenta y continuar' }).click();
-  await page.getByLabel('Nombre').fill('Usuario AppShell E2E');
-  await page.getByLabel('Correo').fill(`app-shell-${suffix}@example.test`);
-  await page.getByLabel('Contraseña').fill('app-shell-e2e-password-123');
-  await page.getByRole('button', { name: 'Crear cuenta' }).click();
-  await page.getByLabel('Nombre de empresa').fill(organizationName);
-  await page.getByLabel('Sector').fill('Manufactura');
-  await page.getByRole('button', { name: 'Crear y activar demo' }).click();
+async function createDemoOrganization(
+  page: Page,
+  request: APIRequestContext,
+  suffix: number,
+  organizationName: string,
+  secondOrganizationName: string,
+) {
+  const registration = await registerE2eUser({
+    displayName: 'Usuario AppShell E2E',
+    email: `app-shell-${suffix}@example.test`,
+    password: 'app-shell-e2e-password-123',
+  });
+  expect(registration.statusCode, registration.body).toBe(201);
+  const context = await createE2eOrganization(request, registration, organizationName);
+  await setE2eOrganizationPlan(context.organization.id, 'GROWTH');
+  await markE2eOrganizationLegacyConfigured(context.organization.id, context.session.user.id);
+  await createE2eOrganization(request, registration, secondOrganizationName);
+  await activateE2eUserSession(page, registration);
   await expect(page.getByRole('heading', { name: 'Centro de comando' })).toBeVisible();
 }
 
 test('authenticated shell navigation, command center and isolated organization switch', async ({
   page,
+  request,
 }) => {
   test.setTimeout(120_000);
   const suffix = Date.now();
   const firstOrganization = `Operación central ${suffix}`;
   const secondOrganization = `Operación alterna ${suffix}`;
 
-  await createDemoOrganization(page, suffix, firstOrganization);
+  await createDemoOrganization(page, request, suffix, firstOrganization, secondOrganization);
   await expect(page.getByText(firstOrganization, { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('link', { name: 'Inicio', exact: true })).toHaveAttribute(
     'aria-current',
@@ -62,10 +55,8 @@ test('authenticated shell navigation, command center and isolated organization s
   await expect(
     page.getByRole('heading', { name: 'Centros de trabajo', exact: true }),
   ).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Centro Guayaquil (demostración)', exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText('Sintético', { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Centro principal', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Centro principal Activo' })).toBeVisible();
   await expect(page.locator('#main-content')).not.toContainText(/inválid|fuera del plan|excede/i);
   await navigateFromPrimaryNavigation(page, 'Inicio', '/app');
   await expect(page.getByRole('heading', { name: 'Centro de comando' })).toBeVisible();
@@ -81,7 +72,6 @@ test('authenticated shell navigation, command center and isolated organization s
   await expect(page.getByRole('heading', { name: 'Cola de trabajo' })).toBeVisible();
 
   for (const destination of [
-    ['Perfil y brechas', '/app/adaptive-intelligence'],
     ['Plan operativo', '/app/plans'],
     ['Inspecciones', '/app/inspections'],
     ['Buscar', '/app/search'],
@@ -102,10 +92,6 @@ test('authenticated shell navigation, command center and isolated organization s
   await navigateFromPrimaryNavigation(page, 'Inicio', '/app');
   await expect(page.getByRole('heading', { name: 'Centro de comando' })).toBeVisible();
 
-  await page.getByRole('link', { name: 'Organizaciones', exact: true }).click();
-  await page.getByLabel('Nombre de empresa').fill(secondOrganization);
-  await page.getByRole('button', { name: 'Crear organización' }).click();
-  await expect(page.getByText('Organización creada correctamente.')).toBeVisible();
   await page.getByLabel('Organización activa').selectOption({ label: firstOrganization });
   await page.getByRole('link', { name: 'Inicio', exact: true }).click();
   await expect(page.getByText(firstOrganization, { exact: true }).first()).toBeVisible();
@@ -120,21 +106,25 @@ test('authenticated shell navigation, command center and isolated organization s
   });
   await page.getByLabel('Organización activa').selectOption({ label: secondOrganization });
   await expect(
-    page.getByRole('status').filter({ hasText: 'Cambiando organización' }),
+    page.getByRole('status').filter({ hasText: /Cambiando (?:organización|empresa)/ }),
   ).toBeVisible();
-  await expect(page.locator('#main-content')).not.toContainText(firstOrganization);
-  await expect(page.getByText(secondOrganization, { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Centro de comando' })).toBeVisible();
-  await expect(page.locator('#main-content')).not.toContainText(firstOrganization);
+  await expect(page.locator('#main-content')).toHaveCount(0);
   await expect(
-    page.getByRole('heading', { name: 'Completa la configuración inicial de SST' }),
+    page.getByRole('status').filter({ hasText: `Configurando ${secondOrganization}` }),
   ).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Comenzar configuración SST' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Centro de comando' })).toHaveCount(0);
+  await expect(page.locator('#setup-main')).not.toContainText(firstOrganization);
+  await expect(
+    page.getByRole('heading', { name: 'Conozcamos primero cómo funciona tu empresa.' }),
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Continuar Evaluación SST' })).toBeVisible();
   await expect(page.getByText('Sin elementos que requieran atención hoy')).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Módulos', exact: true })).toHaveCount(0);
 
-  await page.getByRole('link', { name: 'Módulos', exact: true }).click();
-  await expect(page.getByText('NO INCLUIDO').first()).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Solicitar mejora →' }).first()).toBeVisible();
+  await page.getByLabel('Organización activa').selectOption({ label: firstOrganization });
+  await expect(page.getByRole('heading', { name: 'Centro de comando' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Salir' }).click();
   await expect(page).toHaveURL(/\/(?:auth\/login(?:\?.*)?)?$/);

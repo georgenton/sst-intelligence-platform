@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createE2eOrganization } from './support/e2e-api';
+import { createE2eOrganization, markE2eOrganizationLegacyConfigured } from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 test('deriva una señal operativa explicable y la proyecta a la cola', async ({ page, request }) => {
@@ -10,6 +10,7 @@ test('deriva una señal operativa explicable y la proyecta a la cola', async ({ 
     password: 'signals-e2e-password-123',
   });
   const context = await createE2eOrganization(request, registration, `Señales E2E ${suffix}`);
+  await markE2eOrganizationLegacyConfigured(context.organization.id, context.session.user.id);
   const [membersResponse, centersResponse] = await Promise.all([
     request.get(`http://127.0.0.1:3101/api/v1/organizations/${context.organization.id}/members`, {
       headers: context.headers,

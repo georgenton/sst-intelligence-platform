@@ -18,9 +18,17 @@ import {
 } from '@/lib/active-organization-storage';
 import { isolateOrganizationTransition, planOrganizationReconciliation } from '@/lib/query-cache';
 import { queryKeys } from '@/lib/query-keys';
+import {
+  isAssessmentSetupPath,
+  requiresAssessmentSetup,
+  setupStateMessage,
+} from '@/lib/sst-assessment-setup';
+import type { AssessmentSetupState } from '@/lib/sst-assessment-types';
 import { AppSidebar } from './app-sidebar';
 import { AppTopbar } from './app-topbar';
 import { useAuth } from './auth-provider';
+import { PublicAssessmentEntry } from './sst-assessment/public-assessment-entry';
+import { SetupShell } from './sst-assessment/setup-shell';
 
 type Organization = {
   id: string;
@@ -55,11 +63,18 @@ export function AppShell({ children }: PropsWithChildren) {
     queryFn: ({ signal }) => auth.request<Organization[]>('/organizations', { signal }),
     enabled: Boolean(userId && auth.accessToken),
   });
+  const setupState = useQuery({
+    queryKey: queryKeys.organization.sstAssessmentSetup(activeId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<AssessmentSetupState>('/sst-assessment/setup-state', { signal }, activeId!),
+    enabled: Boolean(activeId && transitionTarget === undefined),
+  });
+  const setupAllowsApplication = setupState.data?.hardGate === false;
   const entitlements = useQuery({
     queryKey: queryKeys.organization.entitlements(activeId ?? 'inactive'),
     queryFn: ({ signal }) =>
       auth.request<EffectiveEntitlements>('/entitlements', { signal }, activeId!),
-    enabled: Boolean(activeId && transitionTarget === undefined),
+    enabled: Boolean(activeId && transitionTarget === undefined && setupAllowsApplication),
   });
 
   useEffect(() => {
@@ -111,6 +126,7 @@ export function AppShell({ children }: PropsWithChildren) {
     setContextNotice(null);
     setTransitionTarget(reconciliation.organizationId);
     void isolateOrganizationTransition(queryClient, activeId, reconciliation.organizationId, () => {
+      if (pathname.startsWith('/app/evaluation/')) router.replace('/app/evaluation');
       setActiveIdState(reconciliation.organizationId);
       if (reconciliation.organizationId)
         storeActiveOrganization(
@@ -121,7 +137,16 @@ export function AppShell({ children }: PropsWithChildren) {
         );
       else clearStoredActiveOrganization(window.localStorage, userId);
     }).catch(() => setTransitionTarget(undefined));
-  }, [activeId, contextUserId, organizations.data, queryClient, transitionTarget, userId]);
+  }, [
+    activeId,
+    contextUserId,
+    organizations.data,
+    pathname,
+    queryClient,
+    router,
+    transitionTarget,
+    userId,
+  ]);
 
   useEffect(() => {
     if (transitionTarget === undefined || activeId !== transitionTarget) return;
@@ -145,6 +170,7 @@ export function AppShell({ children }: PropsWithChildren) {
     setTransitionTarget(id);
     try {
       await isolateOrganizationTransition(queryClient, activeId, id, () => {
+        if (pathname.startsWith('/app/evaluation/')) router.replace('/app/evaluation');
         storeActiveOrganization(window.localStorage, userId, id, validIds);
         setActiveIdState(id);
         setContextNotice(notice ?? null);
@@ -178,6 +204,69 @@ export function AppShell({ children }: PropsWithChildren) {
         <p>Cargando sesión…</p>
       </main>
     );
+  const setupPath = isAssessmentSetupPath(pathname);
+  const noOrganizations = organizations.isSuccess && organizations.data.length === 0;
+  const setupLoading = transitioning || Boolean(activeId && setupState.isLoading);
+  const setupError = Boolean(activeId && setupState.isError);
+  const setupRequired = requiresAssessmentSetup(setupState.data);
+  const useSetupShell = noOrganizations || setupPath || setupLoading || setupError || setupRequired;
+  if (useSetupShell) {
+    const setupContent = noOrganizations ? (
+      pathname === '/app/setup/claim' || pathname === '/app/organizations' ? (
+        children
+      ) : (
+        <PublicAssessmentEntry continuation="authenticated" />
+      )
+    ) : setupLoading ? (
+      <div className="assessment-shell" aria-busy="true">
+        <div className="assessment-skeleton assessment-skeleton--title" />
+        <div className="assessment-skeleton assessment-skeleton--question" />
+      </div>
+    ) : setupError ? (
+      <section className="assessment-shell">
+        <h1>No pudimos verificar la configuración</h1>
+        <p>No abrimos módulos privados mientras el estado de la empresa no sea verificable.</p>
+        <button className="button" type="button" onClick={() => void setupState.refetch()}>
+          Reintentar
+        </button>
+      </section>
+    ) : setupPath ? (
+      children
+    ) : (
+      <section className="assessment-shell assessment-gate-callout">
+        <p className="eyebrow">Configuración inicial</p>
+        <h1>{setupState.data ? setupStateMessage(setupState.data.state) : 'Evaluación SST'}</h1>
+        <p>
+          Completa o revisa el diagnóstico antes de entrar a los módulos operativos. Tu información
+          histórica permanece intacta.
+        </p>
+        <Link
+          className="button"
+          href={
+            setupState.data?.assessmentId
+              ? `/app/evaluation/${setupState.data.assessmentId}`
+              : '/app/evaluation'
+          }
+        >
+          Continuar Evaluación SST
+        </Link>
+      </section>
+    );
+    return (
+      <OrganizationContext.Provider value={context}>
+        <SetupShell
+          organizations={organizations.data ?? []}
+          activeId={activeId}
+          activeName={current?.name}
+          transitioning={transitioning}
+          onOrganizationChange={(id) => void setActiveId(id)}
+          onLogout={() => void auth.logout().then(() => router.push('/'))}
+        >
+          {setupContent}
+        </SetupShell>
+      </OrganizationContext.Provider>
+    );
+  }
   return (
     <OrganizationContext.Provider value={context}>
       <a className="skip-link" href="#main-content">

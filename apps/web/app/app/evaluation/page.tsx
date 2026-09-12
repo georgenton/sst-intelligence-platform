@@ -1,5 +1,5 @@
-import { UnifiedSstEvaluationWorkspace } from '@/components/unified-sst-evaluation-ui';
+import { AuthenticatedAssessmentHub } from '@/components/sst-assessment/authenticated-assessment-hub';
 
 export default function Page() {
-  return <UnifiedSstEvaluationWorkspace />;
+  return <AuthenticatedAssessmentHub />;
 }

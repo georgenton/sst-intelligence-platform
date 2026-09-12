@@ -1,13 +1,26 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type APIRequestContext } from '@playwright/test';
+import { createE2eOrganization, markE2eOrganizationLegacyConfigured } from './support/e2e-api';
+import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 async function registerUser(page: import('@playwright/test').Page, email: string) {
-  await page.goto('/auth/register');
-  await page.getByLabel('Nombre').fill('Usuario Apariencia E2E');
-  await page.getByLabel('Correo').fill(email);
-  await page.getByLabel('Contraseña').fill('appearance-e2e-password-123');
-  await page.getByRole('button', { name: 'Crear cuenta' }).click();
-  await expect(page).toHaveURL(/\/app$/);
-  await expect(page.getByLabel('Tema visual')).toBeVisible();
+  const registration = await registerE2eUser({
+    displayName: 'Usuario Apariencia E2E',
+    email,
+    password: 'appearance-e2e-password-123',
+  });
+  expect(registration.statusCode, registration.body).toBe(201);
+  return registration;
+}
+
+async function prepareLegacyOrganization(
+  page: import('@playwright/test').Page,
+  request: APIRequestContext,
+  registration: Awaited<ReturnType<typeof registerUser>>,
+  name: string,
+) {
+  const context = await createE2eOrganization(request, registration, name);
+  await markE2eOrganizationLegacyConfigured(context.organization.id, context.session.user.id);
+  await activateE2eUserSession(page, registration);
 }
 
 async function navigateWithinApp(page: import('@playwright/test').Page, pathname: string) {
@@ -19,6 +32,7 @@ async function navigateWithinApp(page: import('@playwright/test').Page, pathname
 
 test('theme, no-flash reload, focus scope, public forcing and user isolation', async ({
   page,
+  request,
 }, testInfo) => {
   test.setTimeout(90_000);
   const suffix = Date.now();
@@ -35,13 +49,14 @@ test('theme, no-flash reload, focus scope, public forcing and user isolation', a
   await expect(page.locator('html')).toHaveAttribute('data-focus', 'off');
   await expect(page.getByLabel('Tema visual')).toHaveCount(0);
 
-  await registerUser(page, firstEmail);
-  await page.getByRole('link', { name: 'Organizaciones', exact: true }).click();
-  await page.getByLabel('Nombre de empresa').fill(`Fundaciones visuales ${suffix}`);
-  await page.getByLabel('Sector').fill('Manufactura');
-  await page.getByRole('button', { name: 'Crear organización' }).click();
-  await expect(page.getByText('Organización creada correctamente.')).toBeVisible();
-  await page.getByRole('link', { name: 'Inicio', exact: true }).click();
+  const firstRegistration = await registerUser(page, firstEmail);
+  await prepareLegacyOrganization(
+    page,
+    request,
+    firstRegistration,
+    `Fundaciones visuales ${suffix}`,
+  );
+  await expect(page.getByLabel('Tema visual')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Centro de comando' })).toBeVisible();
   await expect(
     page.getByText(`Fundaciones visuales ${suffix}`, { exact: true }).first(),
@@ -132,7 +147,9 @@ test('theme, no-flash reload, focus scope, public forcing and user isolation', a
   await expect(page).toHaveURL(/\/(?:auth\/login(?:\?.*)?)?$/);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'operativo');
   await expect(page.locator('html')).toHaveAttribute('data-focus', 'off');
-  await registerUser(page, secondEmail);
+  const secondRegistration = await registerUser(page, secondEmail);
+  await activateE2eUserSession(page, secondRegistration);
+  await expect(page).toHaveURL(/\/app$/);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'operativo');
   await expect(page.locator('html')).toHaveAttribute('data-focus', 'off');
 });

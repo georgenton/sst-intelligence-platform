@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createE2eOrganization } from './support/e2e-api';
+import { createE2eOrganization, markE2eOrganizationLegacyConfigured } from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 test('finaliza un paquete canónico y muestra su resumen documental', async ({ page, request }) => {
@@ -10,6 +10,7 @@ test('finaliza un paquete canónico y muestra su resumen documental', async ({ p
     password: 'evidence-e2e-password-123',
   });
   const context = await createE2eOrganization(request, registration, `Evidencia E2E ${suffix}`);
+  await markE2eOrganizationLegacyConfigured(context.organization.id, context.session.user.id);
   const bodyResponse = await request.post('http://127.0.0.1:3101/api/v1/governance/bodies', {
     headers: context.headers,
     data: { name: `Fuente evidencia ${suffix}`, category: 'WORK_GROUP' },

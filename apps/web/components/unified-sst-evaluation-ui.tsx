@@ -240,7 +240,11 @@ function EvaluationAccess({ children }: { children: React.ReactNode }) {
   return children;
 }
 
-export function UnifiedSstEvaluationWorkspace() {
+export function UnifiedSstEvaluationWorkspace({
+  detailBaseHref = '/app/applicability/unified',
+}: {
+  detailBaseHref?: string;
+}) {
   const api = useUnifiedApi();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -271,7 +275,7 @@ export function UnifiedSstEvaluationWorkspace() {
       await queryClient.invalidateQueries({
         queryKey: queryKeys.organization.unifiedSstEvaluations(organizationId),
       });
-      router.push(`/app/evaluation/${evaluation.id}`);
+      router.push(`${detailBaseHref}/${evaluation.id}`);
     },
   });
   const error = profiles.error ?? evaluations.error;
@@ -388,7 +392,13 @@ export function UnifiedSstEvaluationWorkspace() {
   );
 }
 
-export function UnifiedSstEvaluationDetailView({ evaluationId }: { evaluationId: string }) {
+export function UnifiedSstEvaluationDetailView({
+  evaluationId,
+  backHref = '/app/applicability/unified',
+}: {
+  evaluationId: string;
+  backHref?: string;
+}) {
   const api = useUnifiedApi();
   const organizationId = api.organizationId ?? 'inactive';
   const evaluation = useQuery({
@@ -415,7 +425,7 @@ export function UnifiedSstEvaluationDetailView({ evaluationId }: { evaluationId:
             title="Prioridades y fundamento"
             description="Cada resultado conserva la versión del perfil, el rastro determinístico y el artículo oficial exacto."
             action={
-              <Link className="button secondary" href="/app/evaluation">
+              <Link className="button secondary" href={backHref}>
                 Volver a Evaluación SST
               </Link>
             }

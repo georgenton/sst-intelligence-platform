@@ -11,12 +11,20 @@ cross-module intelligence.
 
 ## Priority tracks
 
-### Foundation U — Unified Assessment Core + Canonical Intake V1 — PR46 external audit pending
+### Foundation V — Guided SST Assessment UX + Initial Setup Gate V1 — PR47 audit pending
 
-One canonical public/authenticated intake and orchestration facade is implemented in Draft PR46.
+The single **Evaluación SST** experience now consumes the canonical PR46 core in public and
+authenticated channels. Public continuity, post-assessment company creation, explicit Work Center
+mapping, setup shell/gate, legacy compatibility, diagnosis presentation and reassessment UX are
+implemented without migration 35. PR48 workspace configuration completion remains pending; no
+module activation, plan generation, completed-setup state or external LLM is present.
+
+### Foundation U — Unified Assessment Core + Canonical Intake V1 — merged
+
+One canonical public/authenticated intake and orchestration facade is merged from PR46.
 It reuses the current deterministic specialists, preserves scoped facts and creates no new rule
-engine. PR47 guided UX, PR48 diagnosis-to-modules/plan and PR49 bounded LLM explanation remain
-separate future gates and must not start until PR46 closes.
+engine. PR47 guided UX is implemented pending audit; PR48 diagnosis-to-modules/plan and PR49 bounded
+LLM explanation remain separate future gates.
 
 ### A — Anita professional review
 

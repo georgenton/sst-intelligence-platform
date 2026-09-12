@@ -10,7 +10,7 @@ export function SiteHeader({ authReturnPath }: { authReturnPath?: '/invite/accep
           {appName}
         </Link>
         <nav className="header-nav" aria-label="Navegación principal">
-          <Link href="/diagnostico">Diagnóstico</Link>
+          <Link href="/evaluacion-sst">Evaluación SST</Link>
           <Link href={`/auth/login${authReturnQuery}`}>Iniciar sesión</Link>
           <Link className="button" href={`/auth/register${authReturnQuery}`}>
             Crear cuenta

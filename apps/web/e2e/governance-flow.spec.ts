@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createE2eOrganization } from './support/e2e-api';
+import { createE2eOrganization, markE2eOrganizationLegacyConfigured } from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 test('registra reunión, decisión, compromiso y evidencia de gobernanza', async ({
@@ -13,6 +13,7 @@ test('registra reunión, decisión, compromiso y evidencia de gobernanza', async
     password: 'governance-e2e-password-123',
   });
   const context = await createE2eOrganization(request, registration, `Gobernanza E2E ${suffix}`);
+  await markE2eOrganizationLegacyConfigured(context.organization.id, context.session.user.id);
   await activateE2eUserSession(page, registration, '/app/governance');
   await expect(page.getByRole('heading', { name: 'Gobernanza' })).toBeVisible();
 

@@ -8,6 +8,7 @@ import { OrganizationContext, Roles } from '../organizations/organization-contex
 import { OrganizationGuard } from '../organizations/organization.guard';
 import { RolesGuard } from '../organizations/roles.guard';
 import {
+  ClaimNewOrganizationPublicAssessmentDto,
   ClaimPublicAssessmentDto,
   CreateAuthenticatedAssessmentDto,
   CreatePublicAssessmentDto,
@@ -73,6 +74,26 @@ export class SstAssessmentController {
     @Req() request: ApiRequest,
   ) {
     return this.assessments.claimPublic(
+      sessionId,
+      organization.id,
+      user.id,
+      body,
+      requestMetadata(request),
+    );
+  }
+
+  @Post('public/sessions/:sessionId/claim-new-organization')
+  @ApiBearerAuth()
+  @Roles('ORG_OWNER')
+  @UseGuards(AccessTokenGuard, OrganizationGuard, RolesGuard)
+  claimPublicForNewOrganization(
+    @Param('sessionId') sessionId: string,
+    @OrganizationContext() organization: Organization,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: ClaimNewOrganizationPublicAssessmentDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.assessments.claimPublicForNewOrganization(
       sessionId,
       organization.id,
       user.id,

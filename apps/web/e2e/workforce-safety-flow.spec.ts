@@ -1,13 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
+import { createE2eOrganization, markE2eOrganizationLegacyConfigured } from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
-
-async function createOrganization(page: Page, name: string) {
-  await page.getByRole('link', { name: 'Organizaciones', exact: true }).click();
-  await page.getByLabel('Nombre de empresa').fill(name);
-  await page.getByLabel('Sector').fill('Operación industrial sintética');
-  await page.getByRole('button', { name: 'Crear organización' }).click();
-  await expect(page.getByText('Organización creada correctamente.')).toBeVisible();
-}
 
 async function prepareDemoRegistration(page: Page) {
   await page.goto('/diagnostico');
@@ -58,7 +51,10 @@ function trainingSessionRow(page: Page, title: string) {
 }
 
 test.describe.serial('workforce safety operations', () => {
-  test('registra y desactiva un trabajador sin consumir un asiento de acceso', async ({ page }) => {
+  test('registra y desactiva un trabajador sin consumir un asiento de acceso', async ({
+    page,
+    request,
+  }) => {
     test.setTimeout(120_000);
     const suffix = Date.now();
     const email = `worker-owner-${suffix}@example.test`;
@@ -72,8 +68,9 @@ test.describe.serial('workforce safety operations', () => {
     });
     expect(registration.statusCode, registration.body).toBe(201);
 
-    await activateE2eUserSession(page, registration);
-    await createOrganization(page, organizationName);
+    const context = await createE2eOrganization(request, registration, organizationName);
+    await markE2eOrganizationLegacyConfigured(context.organization.id, context.session.user.id);
+    await activateE2eUserSession(page, registration, '/app/workers');
 
     await page.getByRole('link', { name: 'Personas / Trabajadores', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Trabajadores', exact: true })).toBeVisible();

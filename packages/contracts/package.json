@@ -10,6 +10,11 @@
       "types": "./dist/index.d.ts",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./sst-assessment-catalog": {
+      "types": "./dist/sst-assessment-catalog.d.ts",
+      "require": "./dist/sst-assessment-catalog.js",
+      "default": "./dist/sst-assessment-catalog.js"
     }
   },
   "scripts": {

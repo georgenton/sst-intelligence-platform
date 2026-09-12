@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { createE2eOrganization, markE2eOrganizationLegacyConfigured } from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 async function expectNoDocumentOverflow(page: import('@playwright/test').Page) {
@@ -7,7 +8,10 @@ async function expectNoDocumentOverflow(page: import('@playwright/test').Page) {
   );
 }
 
-test('preguntas adaptativas, propuesta por centro y estado actual declarado', async ({ page }) => {
+test('preguntas adaptativas, propuesta por centro y estado actual declarado', async ({
+  page,
+  request,
+}) => {
   test.setTimeout(90_000);
   const suffix = Date.now();
   const email = `adaptive-e2e-${suffix}@example.test`;
@@ -19,13 +23,12 @@ test('preguntas adaptativas, propuesta por centro y estado actual declarado', as
   });
   expect(registration.statusCode, registration.body).toBe(201);
 
-  await activateE2eUserSession(page, registration, '/app/organizations');
-  await page.getByLabel('Nombre de empresa').fill(`Adaptativa Demo ${suffix}`);
-  await page.getByLabel('Sector').fill('Servicios administrativos');
-  await page.getByRole('button', { name: 'Crear organización' }).click();
-  await expect(page.getByText('Organización creada correctamente.')).toBeVisible();
+  const context = await createE2eOrganization(request, registration, `Adaptativa Demo ${suffix}`);
+  await markE2eOrganizationLegacyConfigured(context.organization.id, context.session.user.id);
+  await activateE2eUserSession(page, registration, '/app');
 
-  await page.getByRole('link', { name: 'Configuración SST', exact: true }).click();
+  await page.getByRole('link', { name: 'Biblioteca normativa', exact: true }).click();
+  await page.getByRole('link', { name: 'Volver a Configuración SST', exact: true }).click();
   await page.getByRole('link', { name: 'Nueva evaluación de aplicabilidad' }).click();
   await page.getByLabel('Personas trabajadoras · opcional').fill('6');
   await page

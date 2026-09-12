@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsIn,
   IsInt,
@@ -65,4 +66,20 @@ export class ClaimPublicAssessmentDto {
   @ValidateNested({ each: true })
   @Type(() => ClaimScopeMappingDto)
   scopeMappings!: ClaimScopeMappingDto[];
+}
+
+export class SetupWorkCenterDraftDto {
+  @IsString() @MaxLength(160) scopeKey!: string;
+  @IsString() @IsNotEmpty() @MaxLength(160) name!: string;
+  @IsOptional() @IsString() @MaxLength(160) city?: string;
+}
+
+export class ClaimNewOrganizationPublicAssessmentDto {
+  @IsString() @MaxLength(200) publicToken!: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(SST_ASSESSMENT_LIMITS.workCenters)
+  @ValidateNested({ each: true })
+  @Type(() => SetupWorkCenterDraftDto)
+  centers!: SetupWorkCenterDraftDto[];
 }

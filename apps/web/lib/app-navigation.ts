@@ -116,13 +116,6 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         match: 'segment',
       },
       {
-        id: 'sst-evaluation',
-        label: 'Evaluación SST',
-        href: '/app/evaluation',
-        group: 'assessments',
-        match: 'segment',
-      },
-      {
         id: 'inspections',
         label: 'Inspecciones',
         href: '/app/inspections',
@@ -160,16 +153,9 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
     label: 'Evaluaciones',
     items: [
       {
-        id: 'adaptive-intelligence',
-        label: 'Perfil y brechas',
-        href: '/app/adaptive-intelligence',
-        group: 'assessments',
-        match: 'segment',
-      },
-      {
-        id: 'applicability',
-        label: 'Configuración SST',
-        href: '/app/applicability',
+        id: 'sst-evaluation',
+        label: 'Evaluación SST',
+        href: '/app/evaluation',
         group: 'assessments',
         match: 'segment',
       },

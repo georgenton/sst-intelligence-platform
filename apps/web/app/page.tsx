@@ -15,8 +15,8 @@ export default function HomePage() {
                 Diagnostica tu operación, recibe recomendaciones explicables y activa un espacio de
                 demostración con información sintética. Sin promesas de cumplimiento automático.
               </p>
-              <Link className="button" href="/diagnostico">
-                Iniciar diagnóstico gratuito
+              <Link className="button" href="/evaluacion-sst">
+                Evaluar mi empresa
               </Link>
             </div>
             <aside className="hero-panel" aria-label="Principios de la plataforma">
