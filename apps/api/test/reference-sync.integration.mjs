@@ -847,6 +847,8 @@ const evidence = {
   historicalAdaptiveV1UnchangedAfterRelease: false,
   historicalAdaptiveV1UnchangedAfterRepeatedRelease: false,
   historicalAdaptiveV1SemanticMutationRejected: false,
+  historicalAdaptiveV1RelationshipOrderCanonicalized: false,
+  historicalAdaptiveV1RelationshipDriftRejected: false,
   adaptiveV2CurrentSemantics: false,
   productionLikeOperationalCountsUnchanged: false,
 };
@@ -894,6 +896,7 @@ try {
     runPackageScript('prisma:deploy', productionLike.url);
     const historicalAdaptiveV1 = await createHistoricalAdaptiveV1ProductionFixture(
       productionLike.prisma,
+      { nonCanonicalRelationshipOrder: true },
     );
     assert.equal(historicalAdaptiveV1.contentHash, HISTORICAL_ADAPTIVE_V1_PRODUCTION_HASH);
     const adaptiveV1Before = await historicalAdaptiveV1Snapshot(productionLike.prisma);
@@ -924,6 +927,7 @@ try {
     assert.deepEqual(await historicalAdaptiveV1Snapshot(productionLike.prisma), adaptiveV1Before);
     assert.equal(adaptiveV1Before.contentHash, HISTORICAL_ADAPTIVE_V1_PRODUCTION_HASH);
     evidence.historicalAdaptiveV1UnchangedAfterRelease = true;
+    evidence.historicalAdaptiveV1RelationshipOrderCanonicalized = true;
     const adaptiveV2 = synchronized.adaptivePackVersions.find(({ version }) => version === '2.0.0');
     assert.ok(adaptiveV2?.publishedAt);
     assert.ok(adaptiveV2.sealedAt);
@@ -1028,6 +1032,22 @@ try {
     await adaptiveSemanticDrift.prisma.$disconnect();
   }
 
+  const adaptiveRelationshipDrift = await createDisposableSchema('adaptive_rel');
+  try {
+    runPackageScript('prisma:deploy', adaptiveRelationshipDrift.url);
+    await createHistoricalAdaptiveV1ProductionFixture(adaptiveRelationshipDrift.prisma, {
+      omitPackFactRelationship: true,
+    });
+    const output = runPackageScript('reference:sync', adaptiveRelationshipDrift.url, false);
+    assert.match(
+      output,
+      /PUBLISHED_VERSION_DRIFT:ADAPTIVE_PACK:DEMO_ADAPTIVE_SST_CONFIGURATION:1\.0\.0/,
+    );
+    evidence.historicalAdaptiveV1RelationshipDriftRejected = true;
+  } finally {
+    await adaptiveRelationshipDrift.prisma.$disconnect();
+  }
+
   assert.deepEqual(evidence, {
     freshDatabaseWithoutGeneralSeed: true,
     productionLikeSync: true,
@@ -1041,6 +1061,8 @@ try {
     historicalAdaptiveV1UnchangedAfterRelease: true,
     historicalAdaptiveV1UnchangedAfterRepeatedRelease: true,
     historicalAdaptiveV1SemanticMutationRejected: true,
+    historicalAdaptiveV1RelationshipOrderCanonicalized: true,
+    historicalAdaptiveV1RelationshipDriftRejected: true,
     adaptiveV2CurrentSemantics: true,
     productionLikeOperationalCountsUnchanged: true,
   });
