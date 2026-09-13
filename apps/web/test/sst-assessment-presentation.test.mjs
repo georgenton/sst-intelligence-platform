@@ -14,6 +14,9 @@ import {
   canSkipAssessmentQuestion,
   capabilityAccessLabel,
   capabilityAccessState,
+  capabilityEmptyStateMessage,
+  capabilityPendingInformationLabel,
+  capabilityPendingInformationLabels,
   explicitBooleanChoices,
   groupAssessmentResults,
   orderAssessmentQuestions,
@@ -111,6 +114,47 @@ test('keeps recommendations separate from current entitlement state', () => {
     'AVAILABLE',
   );
   assert.equal(capabilityAccessLabel('NOT_INCLUDED'), 'No incluida en tu acceso actual');
+});
+
+test('presents scope-aware capability uncertainty without exposing internal scores', () => {
+  const scopes = [
+    { scopeKey: 'organization', kind: 'ORGANIZATION', order: 0, displayName: 'Organización' },
+    { scopeKey: 'center:2', kind: 'WORK_CENTER', order: 2, displayName: 'Bodega Sur' },
+  ];
+  assert.equal(
+    capabilityPendingInformationLabel(
+      {
+        scopeKey: 'organization',
+        factKey: 'organization.manualPermits',
+        missingState: 'UNANSWERED',
+      },
+      scopes,
+    ),
+    'Empresa: Los permisos de trabajo se gestionan manualmente — Aún sin respuesta',
+  );
+  assert.equal(
+    capabilityPendingInformationLabel(
+      {
+        scopeKey: 'center:2',
+        factKey: 'workCenter.hasConfinedSpaces',
+        missingState: 'EXPLICIT_UNKNOWN',
+      },
+      scopes,
+    ),
+    'Bodega Sur: En este centro existen trabajos en espacios confinados — Marcado como “No lo sé”',
+  );
+  assert.match(
+    capabilityEmptyStateMessage({ recommendations: [], missingInformation: [{}] }),
+    /información confirmada suficiente/,
+  );
+  assert.doesNotMatch(
+    capabilityEmptyStateMessage({ recommendations: [], missingInformation: [{}] }),
+    /puntaje|score|riesgo técnico/i,
+  );
+  assert.deepEqual(
+    capabilityPendingInformationLabels({ missingFactKeys: ['organization.manualPermits'] }, scopes),
+    ['Los permisos de trabajo se gestionan manualmente'],
+  );
 });
 
 test('humanizes choices, multi-choice values, unknowns, facts and topics without exposing raw keys', () => {

@@ -535,15 +535,9 @@ describe('canonical SST assessment integration', () => {
       .post(`/sessions/${created.body.id as string}/answers`)
       .send({
         expectedSessionRevision: created.body.sessionRevision,
-        answers: [
-          ...readyAnswers(1),
-          {
-            factKey: 'organization.manualPermits',
-            scopeKey: 'organization',
-            answerState: 'KNOWN',
-            value: true,
-          },
-        ],
+        answers: readyAnswers(1).map((answer) =>
+          answer.factKey === 'workCenter.hasWorkAtHeight' ? { ...answer, value: true } : answer,
+        ),
       })
       .expect(201);
     const evaluated = await authenticated(owner.token, organizationId)
@@ -552,7 +546,7 @@ describe('canonical SST assessment integration', () => {
       .expect(201);
     expect(evaluated.body.result.capabilityEvaluation).toEqual(
       expect.objectContaining({
-        engineVersion: '1.0.0',
+        engineVersion: '1.1.0',
         inputHash: expect.stringMatching(/^sha256:/),
         outputHash: expect.stringMatching(/^sha256:/),
         boundaries: {
@@ -570,6 +564,13 @@ describe('canonical SST assessment integration', () => {
           recommendationState: 'PROPOSED',
           humanDecision: 'PENDING',
           activationEffect: 'NONE',
+          pendingInformation: [
+            {
+              scopeKey: 'organization',
+              factKey: 'organization.manualPermits',
+              missingState: 'UNANSWERED',
+            },
+          ],
         }),
       ]),
     );
@@ -596,6 +597,12 @@ describe('canonical SST assessment integration', () => {
           {
             factKey: 'organization.manualPermits',
             scopeKey: 'organization',
+            answerState: 'KNOWN',
+            value: false,
+          },
+          {
+            factKey: 'workCenter.hasWorkAtHeight',
+            scopeKey: 'center:1',
             answerState: 'KNOWN',
             value: false,
           },

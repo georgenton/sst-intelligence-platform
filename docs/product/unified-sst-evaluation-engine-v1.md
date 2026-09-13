@@ -1,7 +1,7 @@
 # Unified SST Evaluation Engine V1
 
-Status: implemented on top of the canonical SST assessment core and Guided SST Assessment UX;
-external audit pending.
+Status: implemented on top of the canonical SST assessment core and Guided SST Assessment UX. The
+P1 incomplete/missing-information semantic finding is fixed and pending external re-audit.
 
 ## Product boundary
 
@@ -13,7 +13,7 @@ The unified result now contains three deliberately separate layers:
 
 1. confirmed or explicitly unknown organization facts in the versioned assessment snapshot;
 2. deterministic specialist findings and missing information;
-3. proposed product-capability recommendations from `SST_CAPABILITY_ENGINE_VERSION=1.0.0`.
+3. proposed product-capability recommendations from `SST_CAPABILITY_ENGINE_VERSION=1.1.0`.
 
 Effective entitlements are fetched separately for authenticated presentation. The UI labels current
 availability separately and directs the user to review the capability or current access. A
@@ -23,15 +23,24 @@ recommendation records `recommendationState=PROPOSED`, the separate `humanDecisi
 
 ## Deterministic recommendation model
 
-The pure contracts engine consumes only normalized `KNOWN` facts. It emits ordered recommendations
-for existing capabilities such as Workforce, Inspections, Technical Risk, Incidents, PPE, Training,
+The pure contracts engine scores only normalized `KNOWN` facts. It emits ordered recommendations for
+existing capabilities such as Workforce, Inspections, Technical Risk, Incidents, PPE, Training,
 Governance and Work Permits. Each recommendation includes the rule keys, human reasons, exact matched
-fact identities, provenance, unresolved fact keys, priority, input hash and output hash.
+fact identities, provenance, scope-aware pending information, priority, input hash and output hash.
 
-An `EXPLICIT_UNKNOWN` answer is never treated as true. When an unresolved fact is necessary to
-consider a capability and no confirmed indicator reaches its threshold, the engine emits bounded
-missing information instead of inventing a recommendation. Equivalent fact order produces identical
-output. A changed confirmed fact produces a new input/output hash on a new evaluation.
+Information coverage has three independent states: `KNOWN`, `EXPLICIT_UNKNOWN` and
+`UNANSWERED_APPLICABLE`. `EXPLICIT_UNKNOWN` and a currently applicable unanswered question never
+contribute score, and absence is never interpreted as `false`. The canonical question planner is the
+single source of applicability, including exact organization or work-center scope; non-applicable
+facts and `COMMERCIAL_OPTIONAL` intake do not create capability uncertainty.
+
+When relevant pending information exists and no confirmed indicator reaches the threshold, the
+engine emits bounded, scope-aware missing information instead of inventing a recommendation. When
+confirmed evidence already reaches the threshold, the proposal remains `PROPOSED` with
+`humanDecision=PENDING` and carries any additional relevant pending information in its trace. When
+all applicable indicators are explicitly known and negative, it emits neither a proposal nor a
+missing-information warning. Equivalent snapshot and applicable-question plans produce identical
+versioned input/output hashes.
 
 This is product guidance, not a legal, compliance or technical-risk decision. The deterministic
 engine cannot publish regulatory rules, approve Anita review items, calculate GTC45, activate a
@@ -46,6 +55,10 @@ result; the previous snapshot, recommendation set and hashes remain unchanged. O
 API reads continue to require the validated organization context, and the capability engine receives
 no arbitrary organization identifier.
 
+The `1.1.0` output adds scoped pending-information states without rewriting prior `1.0.0` JSON.
+Presentation remains read-compatible with historical unresolved fact-key lists while every new
+evaluation persists the scoped representation.
+
 The integration regression verifies that evaluation and reevaluation leave organization modules,
 subscriptions, feature definitions and plan assignments byte-for-byte unchanged. Existing Adaptive
 V1/V2 specialist pins, reference sync, runtime image, regulatory candidates and the zero real
@@ -54,7 +67,10 @@ published RuleVersion boundary remain unchanged.
 ## Validation scenarios
 
 - new organizations generate explainable recommendations from confirmed progressive facts;
-- insufficient information is explicit and cannot become an inferred fact;
+- unanswered applicable and explicitly unknown information remain distinct and scope-aware;
+- non-applicable and commercial-optional questions cannot create false missing-information warnings;
+- a proposed capability can retain additional pending information without changing its human gate;
+- all-known-negative indicators produce neither a recommendation nor artificial uncertainty;
 - a relevant answer change generates a distinct deterministic evaluation;
 - recommendations do not alter effective access or activation state;
 - cross-tenant session reads remain denied;

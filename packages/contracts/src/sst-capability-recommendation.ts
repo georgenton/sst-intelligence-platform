@@ -5,12 +5,14 @@ import {
   type SstAssessmentFact,
   type SstAssessmentFactValue,
   type SstAssessmentSnapshot,
+  type SstCapabilityApplicableQuestion,
   type SstCapabilityEvaluation,
   type SstCapabilityKey,
+  type SstCapabilityPendingInformation,
   type SstCapabilityRecommendation,
 } from './sst-assessment.js';
 
-export const SST_CAPABILITY_ENGINE_VERSION = '1.0.0' as const;
+export const SST_CAPABILITY_ENGINE_VERSION = '1.1.0' as const;
 
 type KnownFact = Extract<SstAssessmentFact, { answerState: 'KNOWN' }>;
 type Indicator = {
@@ -292,16 +294,29 @@ function recommendationPriority(score: number): SstCapabilityRecommendation['pri
 
 export function evaluateSstCapabilityRecommendations(
   snapshotInput: SstAssessmentSnapshot,
+  applicableQuestions: readonly SstCapabilityApplicableQuestion[],
 ): SstCapabilityEvaluation {
   const snapshot = normalizeSstAssessmentSnapshot(snapshotInput);
   const knownFacts = snapshot.facts.filter(
     (fact): fact is KnownFact => fact.answerState === 'KNOWN',
   );
-  const explicitUnknownKeys = new Set(
-    snapshot.facts
-      .filter(({ answerState }) => answerState === 'EXPLICIT_UNKNOWN')
-      .map(({ factKey }) => factKey),
+  const factsByIdentity = new Map(
+    snapshot.facts.map((fact) => [`${fact.scopeKey}:${fact.factKey}`, fact] as const),
   );
+  const normalizedApplicableQuestions = applicableQuestions
+    .filter(({ collectionPolicy }) => collectionPolicy !== 'COMMERCIAL_OPTIONAL')
+    .map(({ scopeKey, factKey, collectionPolicy }) => ({ scopeKey, factKey, collectionPolicy }))
+    .filter(
+      (question, index, questions) =>
+        questions.findIndex(
+          (candidate) =>
+            candidate.scopeKey === question.scopeKey && candidate.factKey === question.factKey,
+        ) === index,
+    )
+    .sort(
+      (left, right) =>
+        left.scopeKey.localeCompare(right.scopeKey) || left.factKey.localeCompare(right.factKey),
+    );
   const recommendations: SstCapabilityRecommendation[] = [];
   const missingInformation: SstCapabilityEvaluation['missingInformation'] = [];
 
@@ -316,13 +331,17 @@ export function evaluateSstCapabilityRecommendations(
       100,
       matchedIndicators.reduce((total, { indicator }) => total + indicator.score, 0),
     );
-    const missingFactKeys = [
-      ...new Set(
-        capability.indicators
-          .map(({ factKey }) => factKey)
-          .filter((factKey) => explicitUnknownKeys.has(factKey)),
-      ),
-    ].sort();
+    const indicatorFactKeys = new Set(capability.indicators.map(({ factKey }) => factKey));
+    const pendingInformation = normalizedApplicableQuestions
+      .filter(({ factKey }) => indicatorFactKeys.has(factKey))
+      .flatMap(({ scopeKey, factKey }): SstCapabilityPendingInformation[] => {
+        const fact = factsByIdentity.get(`${scopeKey}:${factKey}`);
+        if (!fact) return [{ scopeKey, factKey, missingState: 'UNANSWERED' }];
+        if (fact.answerState === 'EXPLICIT_UNKNOWN') {
+          return [{ scopeKey, factKey, missingState: 'EXPLICIT_UNKNOWN' }];
+        }
+        return [];
+      });
 
     if (score >= capability.threshold) {
       const matchedFacts = matchedIndicators
@@ -356,16 +375,16 @@ export function evaluateSstCapabilityRecommendations(
         ruleKeys: matchedIndicators.map(({ indicator }) => indicator.ruleKey).sort(),
         reasons: [...new Set(matchedIndicators.map(({ indicator }) => indicator.reason))].sort(),
         matchedFacts,
-        missingFactKeys,
+        pendingInformation,
         recommendationState: 'PROPOSED',
         humanDecision: 'PENDING',
         activationEffect: 'NONE',
       });
-    } else if (missingFactKeys.length > 0) {
+    } else if (pendingInformation.length > 0) {
       missingInformation.push({
         capabilityKey: capability.capabilityKey,
         title: capability.title,
-        factKeys: missingFactKeys,
+        pendingInformation,
         explanation:
           'No se propone esta capacidad hasta que una persona confirme la información pendiente.',
       });
@@ -377,7 +396,10 @@ export function evaluateSstCapabilityRecommendations(
       right.score - left.score || left.capabilityKey.localeCompare(right.capabilityKey),
   );
   missingInformation.sort((left, right) => left.capabilityKey.localeCompare(right.capabilityKey));
-  const inputHash = sstAssessmentSemanticHash(snapshot);
+  const inputHash = sstAssessmentContentHash({
+    snapshotHash: sstAssessmentSemanticHash(snapshot),
+    applicableQuestions: normalizedApplicableQuestions,
+  });
   const result = {
     engineVersion: SST_CAPABILITY_ENGINE_VERSION,
     inputHash,

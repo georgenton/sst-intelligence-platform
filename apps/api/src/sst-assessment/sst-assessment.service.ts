@@ -1390,15 +1390,23 @@ export class SstAssessmentService {
       ...specialist.adaptive.questions,
       ...specialist.regulatory.questions,
     ];
-    const questions = planSstAssessmentQuestions(snapshot, {
+    const planningOptions = {
       channel,
       specialistQuestions: specialistsQuestions,
-    });
-    const progress = calculateSstAssessmentProgress(snapshot, {
-      channel,
-      specialistQuestions: specialistsQuestions,
-    });
-    const capabilityEvaluation = evaluateSstCapabilityRecommendations(snapshot);
+    } as const;
+    const questions = planSstAssessmentQuestions(snapshot, planningOptions);
+    const progress = calculateSstAssessmentProgress(snapshot, planningOptions);
+    const applicableCapabilityQuestions = planSstAssessmentQuestions(
+      {
+        ...snapshot,
+        facts: snapshot.facts.filter(({ answerState }) => answerState !== 'EXPLICIT_UNKNOWN'),
+      },
+      planningOptions,
+    );
+    const capabilityEvaluation = evaluateSstCapabilityRecommendations(
+      snapshot,
+      applicableCapabilityQuestions,
+    );
     const items: SstAssessmentResult['items'] = [
       ...specialist.adaptive.items.map((item) => ({
         scopeKey: item.scopeKey,

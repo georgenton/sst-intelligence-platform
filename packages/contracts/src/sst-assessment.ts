@@ -174,6 +174,17 @@ export const sstAssessmentQuestionSchema = z
   .strict();
 export type SstAssessmentQuestion = z.infer<typeof sstAssessmentQuestionSchema>;
 
+export type SstCapabilityApplicableQuestion = Pick<
+  SstAssessmentQuestion,
+  'factKey' | 'scopeKey' | 'collectionPolicy'
+>;
+
+export type SstCapabilityPendingInformation = {
+  scopeKey: string;
+  factKey: string;
+  missingState: 'EXPLICIT_UNKNOWN' | 'UNANSWERED';
+};
+
 export type SstAssessmentProgress = {
   answeredFacts: number;
   resolvedFactCount: number;
@@ -213,7 +224,7 @@ export type SstCapabilityRecommendation = {
     value: SstAssessmentFactValue;
     provenance: SstAssessmentProvenance;
   }>;
-  missingFactKeys: string[];
+  pendingInformation: SstCapabilityPendingInformation[];
   recommendationState: 'PROPOSED';
   humanDecision: 'PENDING';
   activationEffect: 'NONE';
@@ -227,7 +238,7 @@ export type SstCapabilityEvaluation = {
   missingInformation: Array<{
     capabilityKey: SstCapabilityKey;
     title: string;
-    factKeys: string[];
+    pendingInformation: SstCapabilityPendingInformation[];
     explanation: string;
   }>;
   boundaries: {

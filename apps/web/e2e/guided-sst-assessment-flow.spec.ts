@@ -267,6 +267,17 @@ test('public guided assessment resumes, registers, claims and starts an immutabl
   await page.screenshot({ path: testInfo.outputPath('10-grouped-progress.png'), fullPage: true });
   await finalizePublicAssessment(page, testInfo, 'public');
   await expect(page.getByRole('button', { name: 'Corregir' })).toHaveCount(0);
+  const workforceCapability = page
+    .locator('.assessment-capability-grid article')
+    .filter({ has: page.getByRole('heading', { name: 'Personas y trabajadores' }) });
+  await workforceCapability.getByText('Ver trazabilidad de la recomendación').click();
+  await expect(workforceCapability.getByText('Información aún pendiente:')).toBeVisible();
+  await expect(
+    workforceCapability.getByText(
+      'Empresa: La organización opera en múltiples turnos — Aún sin respuesta',
+    ),
+  ).toBeVisible();
+  await expect(workforceCapability.getByText(/puntaje|score|riesgo técnico/i)).toHaveCount(0);
   const foundationCard = page
     .locator('.assessment-result-group article')
     .filter({ has: page.getByText('Datos utilizados') })

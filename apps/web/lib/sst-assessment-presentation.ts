@@ -5,6 +5,7 @@ import {
   type SstAssessmentQuestion,
   type SstAssessmentResult,
   type SstAssessmentScope,
+  type SstCapabilityPendingInformation,
 } from '@sst/contracts';
 import { SST_ASSESSMENT_FACT_CATALOG } from '@sst/contracts/sst-assessment-catalog';
 import { ApiClientError } from '@sst/api-client';
@@ -385,4 +386,42 @@ export function capabilityAccessLabel(state: CapabilityAccessState) {
   if (state === 'AVAILABLE') return 'Disponible en tu espacio actual';
   if (state === 'NOT_INCLUDED') return 'No incluida en tu acceso actual';
   return 'El acceso se verificará al entrar a tu empresa';
+}
+
+export function capabilityPendingInformationLabel(
+  pending: SstCapabilityPendingInformation,
+  scopes: readonly SstAssessmentScope[],
+) {
+  const scopeLabel =
+    pending.scopeKey === 'organization'
+      ? 'Empresa'
+      : (scopes.find(({ scopeKey }) => scopeKey === pending.scopeKey)?.displayName ??
+        'Centro de trabajo');
+  const stateLabel =
+    pending.missingState === 'EXPLICIT_UNKNOWN' ? 'Marcado como “No lo sé”' : 'Aún sin respuesta';
+  return `${scopeLabel}: ${assessmentFactLabel(pending.factKey)} — ${stateLabel}`;
+}
+
+export function capabilityPendingInformationLabels(
+  source: {
+    pendingInformation?: readonly SstCapabilityPendingInformation[];
+    missingFactKeys?: readonly string[];
+    factKeys?: readonly string[];
+  },
+  scopes: readonly SstAssessmentScope[],
+) {
+  if (source.pendingInformation) {
+    return source.pendingInformation.map((pending) =>
+      capabilityPendingInformationLabel(pending, scopes),
+    );
+  }
+  return (source.missingFactKeys ?? source.factKeys ?? []).map(assessmentFactLabel);
+}
+
+export function capabilityEmptyStateMessage(
+  evaluation: NonNullable<SstAssessmentResult['capabilityEvaluation']>,
+) {
+  return evaluation.missingInformation.length > 0
+    ? 'Aún no hay información confirmada suficiente para proponer capacidades. Completa la información pendiente para reducir la incertidumbre.'
+    : 'No identificamos capacidades adicionales con la información confirmada.';
 }

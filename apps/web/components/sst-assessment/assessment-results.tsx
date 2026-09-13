@@ -8,6 +8,8 @@ import {
   assessmentTechnicalDetailsPolicy,
   capabilityAccessLabel,
   capabilityAccessState,
+  capabilityEmptyStateMessage,
+  capabilityPendingInformationLabels,
   professionalFoundation,
   resultNextStep,
 } from '@/lib/sst-assessment-presentation';
@@ -133,6 +135,7 @@ export function AssessmentResults({
           <div className="assessment-capability-grid">
             {capabilityEvaluation.recommendations.map((recommendation) => {
               const access = capabilityAccessState(recommendation, channel, features);
+              const pendingInformation = capabilityPendingInformationLabels(recommendation, scopes);
               return (
                 <article key={recommendation.capabilityKey}>
                   <span className="status-badge">
@@ -165,6 +168,20 @@ export function AssessmentResults({
                         </li>
                       ))}
                     </ul>
+                    {pendingInformation.length > 0 ? (
+                      <div>
+                        <p>
+                          <strong>Información aún pendiente:</strong>
+                        </p>
+                        <ul>
+                          {pendingInformation.map((label, index) => (
+                            <li key={`${recommendation.capabilityKey}:${index}:${label}`}>
+                              {label}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </details>
                   {channel === 'AUTHENTICATED' ? (
                     access === 'AVAILABLE' ? (
@@ -182,7 +199,7 @@ export function AssessmentResults({
             })}
           </div>
         ) : (
-          <p>No identificamos capacidades adicionales con la información confirmada.</p>
+          <p>{capabilityEmptyStateMessage(capabilityEvaluation)}</p>
         )}
         {capabilityEvaluation && capabilityEvaluation.missingInformation.length > 0 ? (
           <details className="assessment-capability-missing">
@@ -191,7 +208,7 @@ export function AssessmentResults({
               {capabilityEvaluation.missingInformation.map((item) => (
                 <li key={item.capabilityKey}>
                   <strong>{item.title}:</strong> {item.explanation} Pendiente:{' '}
-                  {item.factKeys.map(assessmentFactLabel).join('; ')}.
+                  {capabilityPendingInformationLabels(item, scopes).join('; ')}.
                 </li>
               ))}
             </ul>
