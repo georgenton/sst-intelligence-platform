@@ -24,6 +24,7 @@ type OrganizationDetails = {
   workCenters: WorkCenter[];
 };
 type WorkCenter = { id: string; name: string; city?: string; isActive: boolean };
+type EffectiveEntitlements = { features: Record<string, boolean | number | string> };
 
 function EditableCenterRow({
   center,
@@ -125,6 +126,12 @@ export function AuthenticatedAssessmentHub({ sessionId: routeSessionId }: { sess
         { signal },
         organizationId!,
       ),
+    enabled: Boolean(organizationId),
+  });
+  const entitlements = useQuery({
+    queryKey: queryKeys.organization.entitlements(organizationId ?? 'inactive'),
+    queryFn: ({ signal }) =>
+      auth.request<EffectiveEntitlements>('/entitlements', { signal }, organizationId!),
     enabled: Boolean(organizationId),
   });
   const effectiveSessionId = routeSessionId ?? setup.data?.assessmentId ?? null;
@@ -277,6 +284,7 @@ export function AuthenticatedAssessmentHub({ sessionId: routeSessionId }: { sess
           onReassess={() =>
             createAssessment.mutate({ kind: 'REASSESSMENT', parentAssessmentId: session.data.id })
           }
+          features={entitlements.data?.features}
         />
         {session.data.status === 'FINALIZED' && history.data?.length ? (
           <section

@@ -12,6 +12,8 @@ import {
   assessmentTopicLabel,
   aggregateAssessmentProgress,
   canSkipAssessmentQuestion,
+  capabilityAccessLabel,
+  capabilityAccessState,
   explicitBooleanChoices,
   groupAssessmentResults,
   orderAssessmentQuestions,
@@ -84,6 +86,31 @@ test('boolean answers are always explicit and unchecked never means false', () =
     [true, false],
   );
   assert.equal(explicitBooleanChoices(true).find(({ value }) => value === false)?.label, 'No');
+});
+
+test('keeps recommendations separate from current entitlement state', () => {
+  const recommendation = {
+    capabilityKey: 'INSPECTIONS',
+    featureKey: 'module.inspections',
+  };
+  assert.equal(capabilityAccessState(recommendation, 'PUBLIC'), 'NOT_VERIFIED');
+  assert.equal(
+    capabilityAccessState(recommendation, 'AUTHENTICATED', { 'module.inspections': false }),
+    'NOT_INCLUDED',
+  );
+  assert.equal(
+    capabilityAccessState(recommendation, 'AUTHENTICATED', { 'module.inspections': true }),
+    'AVAILABLE',
+  );
+  assert.equal(
+    capabilityAccessState(
+      { ...recommendation, capabilityKey: 'GOVERNANCE', featureKey: null },
+      'AUTHENTICATED',
+      {},
+    ),
+    'AVAILABLE',
+  );
+  assert.equal(capabilityAccessLabel('NOT_INCLUDED'), 'No incluida en tu acceso actual');
 });
 
 test('humanizes choices, multi-choice values, unknowns, facts and topics without exposing raw keys', () => {

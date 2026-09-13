@@ -185,6 +185,59 @@ export type SstAssessmentProgress = {
   topics: Array<{ topic: string; answered: number; total: number; complete: boolean }>;
 };
 
+export const SST_CAPABILITY_KEYS = [
+  'WORKFORCE',
+  'INSPECTIONS',
+  'TECHNICAL_RISK',
+  'INCIDENTS',
+  'PPE',
+  'TRAINING',
+  'GOVERNANCE',
+  'WORK_PERMITS',
+] as const;
+export type SstCapabilityKey = (typeof SST_CAPABILITY_KEYS)[number];
+
+export type SstCapabilityRecommendation = {
+  capabilityKey: SstCapabilityKey;
+  title: string;
+  description: string;
+  featureKey: string | null;
+  href: string;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  score: number;
+  ruleKeys: string[];
+  reasons: string[];
+  matchedFacts: Array<{
+    scopeKey: string;
+    factKey: string;
+    value: SstAssessmentFactValue;
+    provenance: SstAssessmentProvenance;
+  }>;
+  missingFactKeys: string[];
+  recommendationState: 'PROPOSED';
+  humanDecision: 'PENDING';
+  activationEffect: 'NONE';
+};
+
+export type SstCapabilityEvaluation = {
+  engineVersion: string;
+  inputHash: string;
+  outputHash: string;
+  recommendations: SstCapabilityRecommendation[];
+  missingInformation: Array<{
+    capabilityKey: SstCapabilityKey;
+    title: string;
+    factKeys: string[];
+    explanation: string;
+  }>;
+  boundaries: {
+    confirmedFactsOnly: true;
+    humanConfirmationRequired: true;
+    moduleActivation: 'NOT_PERFORMED';
+    entitlementMutation: 'NOT_PERFORMED';
+  };
+};
+
 export type SstAssessmentResult = {
   schemaVersion: typeof SST_ASSESSMENT_SCHEMA_VERSION;
   authoritiesPresent: SstAssessmentAuthority[];
@@ -213,6 +266,7 @@ export type SstAssessmentResult = {
     outputHash: string;
     authority: SstAssessmentAuthority;
   }>;
+  capabilityEvaluation?: SstCapabilityEvaluation;
   semanticInputHash: string;
   semanticOutputHash: string;
 };

@@ -126,8 +126,8 @@ in-progress reassessment. Switching organizations first replaces an assessment-s
 `/app/evaluation`, preventing a session from the previous tenant from being requested in the new
 context.
 
-PR47 intentionally ends at `DIAGNOSIS_READY`. It does not create `SETUP_COMPLETED`, recommend or
+PR47 originally ended at `DIAGNOSIS_READY` without recommending or activating modules. The follow-on
+[Unified SST Evaluation Engine V1](unified-sst-evaluation-engine-v1.md) consumes the same canonical
+diagnosis and adds deterministic capability proposals. It still does not create `SETUP_COMPLETED`,
 activate modules, change entitlements/subscriptions, generate Operational Plans or call an external
-LLM. PR48 must consume the canonical diagnosis to complete configuration and any explicitly
-authorized plan workflow. In particular, PR48 owns the explicit decision that reconciles factual
-multi-center setup topology with licensed Work Center capacity before removing the hard gate.
+LLM. Factual multi-center topology and licensed Work Center capacity remain separate concerns.

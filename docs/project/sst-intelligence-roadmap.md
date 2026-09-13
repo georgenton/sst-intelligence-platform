@@ -291,3 +291,15 @@ La matriz técnica queda P0=0, P1=0, P2=3 y P3=1. Los 10 puntos profesionales pe
 Evidence Packages conserva catálogo humano paginado, autoridad API, aislamiento por organización y
 paridad de entitlement. Producción sigue con proveedor local determinista, sin IA externa, sin
 cambio de GTC45 ni recálculo histórico. No se inicia otro programa desde este cierre.
+
+### Motor Unificado de Evaluación SST V1 — external audit pending
+
+El incremento reutiliza el Unified SST Assessment Core y Guided SST Assessment UX existentes. Añade
+una capa pura, determinística y versionada de recomendaciones para capacidades ya disponibles, con
+hechos confirmados, faltantes, reglas, procedencia y hashes explicables. Las recomendaciones son
+propuestas para decisión humana y no activan módulos, no conceden entitlements, no cambian planes ni
+generan Plan Operativo. No requiere migración nueva.
+
+El alcance conserva Adaptive V1/V2, sincronización de referencias, cero RuleVersions regulatorias
+reales, GTC45 e históricos sin cambios. IA externa no participa en el resultado. P0=0, P1=0 y los
+P2=3/PENDING_ANITA=10 existentes permanecen sin modificación hasta auditoría externa.

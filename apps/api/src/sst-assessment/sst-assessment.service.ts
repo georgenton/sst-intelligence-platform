@@ -13,6 +13,7 @@ import {
   SST_ASSESSMENT_LIMITS,
   SST_ASSESSMENT_SCHEMA_VERSION,
   calculateSstAssessmentProgress,
+  evaluateSstCapabilityRecommendations,
   normalizeSstAssessmentSnapshot,
   reconcileSstAssessmentConditionalFacts,
   organizationSstProfileSchema,
@@ -1397,6 +1398,7 @@ export class SstAssessmentService {
       channel,
       specialistQuestions: specialistsQuestions,
     });
+    const capabilityEvaluation = evaluateSstCapabilityRecommendations(snapshot);
     const items: SstAssessmentResult['items'] = [
       ...specialist.adaptive.items.map((item) => ({
         scopeKey: item.scopeKey,
@@ -1454,7 +1456,7 @@ export class SstAssessmentService {
         authority: 'CANDIDATE',
       },
     ];
-    const output = { progress, questions, items, specialistTraces };
+    const output = { progress, questions, items, specialistTraces, capabilityEvaluation };
     return {
       schemaVersion: SST_ASSESSMENT_SCHEMA_VERSION,
       authoritiesPresent: [

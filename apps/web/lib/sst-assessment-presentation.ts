@@ -365,3 +365,24 @@ export function resultNextStep(item: SstAssessmentResult['items'][number]) {
     return 'Completa la información pendiente para resolver este criterio.';
   return 'Puedes incorporar esta recomendación en la siguiente etapa de configuración.';
 }
+
+export type CapabilityAccessState = 'AVAILABLE' | 'NOT_INCLUDED' | 'NOT_VERIFIED';
+
+export function capabilityAccessState(
+  recommendation: NonNullable<
+    SstAssessmentResult['capabilityEvaluation']
+  >['recommendations'][number],
+  channel: 'PUBLIC' | 'AUTHENTICATED',
+  features?: Record<string, boolean | number | string>,
+): CapabilityAccessState {
+  if (channel === 'PUBLIC') return 'NOT_VERIFIED';
+  if (recommendation.featureKey === null) return 'AVAILABLE';
+  if (!features) return 'NOT_VERIFIED';
+  return features[recommendation.featureKey] === true ? 'AVAILABLE' : 'NOT_INCLUDED';
+}
+
+export function capabilityAccessLabel(state: CapabilityAccessState) {
+  if (state === 'AVAILABLE') return 'Disponible en tu espacio actual';
+  if (state === 'NOT_INCLUDED') return 'No incluida en tu acceso actual';
+  return 'El acceso se verificará al entrar a tu empresa';
+}

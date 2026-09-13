@@ -501,6 +501,149 @@ describe('canonical SST assessment integration', () => {
     expect(authEvaluated.body.result).not.toHaveProperty('authority');
   });
 
+  it('persists versioned capability recommendations without changing access or prior history', async () => {
+    const owner = await user('capability-engine-owner');
+    const otherOwner = await user('capability-engine-other-owner');
+    const organizationId = await organization(owner.token, 'Capability engine');
+    const otherOrganizationId = await organization(otherOwner.token, 'Other capability engine');
+    const accessBefore = await Promise.all([
+      prisma.organizationModule.findMany({
+        where: { organizationId },
+        select: { id: true, moduleId: true, status: true, source: true },
+        orderBy: { id: 'asc' },
+      }),
+      prisma.subscription.findMany({
+        where: { organizationId },
+        select: { id: true, planId: true, status: true },
+        orderBy: { id: 'asc' },
+      }),
+      prisma.featureDefinition.findMany({
+        select: { id: true, key: true, valueType: true },
+        orderBy: { key: 'asc' },
+      }),
+      prisma.planFeature.findMany({
+        select: { id: true, planId: true, featureId: true, value: true },
+        orderBy: { id: 'asc' },
+      }),
+    ]);
+
+    const created = await authenticated(owner.token, organizationId)
+      .post('/sessions')
+      .send({})
+      .expect(201);
+    const saved = await authenticated(owner.token, organizationId)
+      .post(`/sessions/${created.body.id as string}/answers`)
+      .send({
+        expectedSessionRevision: created.body.sessionRevision,
+        answers: [
+          ...readyAnswers(1),
+          {
+            factKey: 'organization.manualPermits',
+            scopeKey: 'organization',
+            answerState: 'KNOWN',
+            value: true,
+          },
+        ],
+      })
+      .expect(201);
+    const evaluated = await authenticated(owner.token, organizationId)
+      .post(`/sessions/${created.body.id as string}/evaluate`)
+      .send({ expectedSessionRevision: saved.body.sessionRevision })
+      .expect(201);
+    expect(evaluated.body.result.capabilityEvaluation).toEqual(
+      expect.objectContaining({
+        engineVersion: '1.0.0',
+        inputHash: expect.stringMatching(/^sha256:/),
+        outputHash: expect.stringMatching(/^sha256:/),
+        boundaries: {
+          confirmedFactsOnly: true,
+          humanConfirmationRequired: true,
+          moduleActivation: 'NOT_PERFORMED',
+          entitlementMutation: 'NOT_PERFORMED',
+        },
+      }),
+    );
+    expect(evaluated.body.result.capabilityEvaluation.recommendations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          capabilityKey: 'WORK_PERMITS',
+          recommendationState: 'PROPOSED',
+          humanDecision: 'PENDING',
+          activationEffect: 'NONE',
+        }),
+      ]),
+    );
+    const finalized = await authenticated(owner.token, organizationId)
+      .post(`/sessions/${created.body.id as string}/finalize`)
+      .send({ expectedSessionRevision: evaluated.body.sessionRevision })
+      .expect(201);
+    const historicalResult = structuredClone(finalized.body.result);
+    const historicalSnapshot = structuredClone(finalized.body.finalSnapshot);
+
+    await authenticated(otherOwner.token, otherOrganizationId)
+      .get(`/sessions/${created.body.id as string}`)
+      .expect(404);
+
+    const reassessment = await authenticated(owner.token, organizationId)
+      .post('/sessions')
+      .send({ kind: 'REASSESSMENT', parentAssessmentId: created.body.id })
+      .expect(201);
+    const revised = await authenticated(owner.token, organizationId)
+      .post(`/sessions/${reassessment.body.id as string}/answers`)
+      .send({
+        expectedSessionRevision: reassessment.body.sessionRevision,
+        answers: [
+          {
+            factKey: 'organization.manualPermits',
+            scopeKey: 'organization',
+            answerState: 'KNOWN',
+            value: false,
+          },
+        ],
+      })
+      .expect(201);
+    const reevaluated = await authenticated(owner.token, organizationId)
+      .post(`/sessions/${reassessment.body.id as string}/evaluate`)
+      .send({ expectedSessionRevision: revised.body.sessionRevision })
+      .expect(201);
+    expect(
+      reevaluated.body.result.capabilityEvaluation.recommendations.some(
+        ({ capabilityKey }: { capabilityKey: string }) => capabilityKey === 'WORK_PERMITS',
+      ),
+    ).toBe(false);
+    expect(reevaluated.body.result.capabilityEvaluation.outputHash).not.toBe(
+      historicalResult.capabilityEvaluation.outputHash,
+    );
+
+    const original = await authenticated(owner.token, organizationId)
+      .get(`/sessions/${created.body.id as string}`)
+      .expect(200);
+    expect(original.body.result).toEqual(historicalResult);
+    expect(original.body.finalSnapshot).toEqual(historicalSnapshot);
+
+    const accessAfter = await Promise.all([
+      prisma.organizationModule.findMany({
+        where: { organizationId },
+        select: { id: true, moduleId: true, status: true, source: true },
+        orderBy: { id: 'asc' },
+      }),
+      prisma.subscription.findMany({
+        where: { organizationId },
+        select: { id: true, planId: true, status: true },
+        orderBy: { id: 'asc' },
+      }),
+      prisma.featureDefinition.findMany({
+        select: { id: true, key: true, valueType: true },
+        orderBy: { key: 'asc' },
+      }),
+      prisma.planFeature.findMany({
+        select: { id: true, planId: true, featureId: true, value: true },
+        orderBy: { id: 'asc' },
+      }),
+    ]);
+    expect(accessAfter).toEqual(accessBefore);
+  });
+
   it('keeps incomplete assessments collecting and blocks premature authenticated finalization', async () => {
     const owner = await user('assessment-readiness-owner');
     const organizationId = await organization(owner.token, 'Assessment readiness');

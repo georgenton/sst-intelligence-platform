@@ -113,6 +113,10 @@ async function finalizePublicAssessment(page: Page, testInfo?: TestInfo, prefix 
   }
   await page.getByRole('button', { name: 'Confirmar y generar diagnóstico' }).click();
   await expect(page.getByText('Diagnóstico listo', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Capacidades que pueden ser pertinentes' }),
+  ).toBeVisible();
+  await expect(page.getByText(/No activan módulos ni cambian tu plan/)).toBeVisible();
   if (testInfo) {
     await waitForAssessmentMotion(page);
     await page.screenshot({ path: testInfo.outputPath(`${prefix}-diagnosis.png`), fullPage: true });

@@ -27,12 +27,14 @@ export function GuidedSstAssessmentExperience({
   continuation,
   onSessionChange,
   onReassess,
+  features,
 }: {
   session: AssessmentSession;
   transport: AssessmentTransport;
   continuation?: 'public' | 'authenticated';
   onSessionChange(session: AssessmentSession): void;
   onReassess?: () => void;
+  features?: Record<string, boolean | number | string>;
 }) {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'evaluating' | 'saved'>('idle');
   const [error, setError] = useState('');
@@ -124,6 +126,7 @@ export function GuidedSstAssessmentExperience({
           continuation={continuation}
           onReassess={onReassess}
           scopes={presentationScopes}
+          features={features}
         />
       </AssessmentShell>
     );

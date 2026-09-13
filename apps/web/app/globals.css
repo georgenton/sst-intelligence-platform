@@ -1454,6 +1454,44 @@ h2 {
 .assessment-result-group dd {
   margin: 0;
 }
+
+.assessment-capability-evaluation {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.assessment-capability-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.assessment-capability-grid article {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+}
+
+.assessment-capability-grid h4,
+.assessment-capability-grid p,
+.assessment-capability-grid ul {
+  margin: 0;
+}
+
+.assessment-capability-grid .button {
+  justify-self: start;
+}
+
+.assessment-capability-missing {
+  padding: var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--surface-sunken);
+}
 .assessment-foundation-data {
   display: grid;
   gap: 6px;
@@ -1606,6 +1644,10 @@ h2 {
   .assessment-choice-grid--boolean,
   .assessment-scope-picker {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assessment-capability-grid {
+    grid-template-columns: 1fr;
   }
   .setup-header {
     flex-wrap: wrap;

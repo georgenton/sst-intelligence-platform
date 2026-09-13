@@ -1,10 +1,13 @@
 import type { SstAssessmentResult, SstAssessmentScope } from '@sst/contracts';
 import Link from 'next/link';
 import {
+  assessmentFactLabel,
   groupAssessmentResults,
   resultStateLabel,
   safeResultExplanation,
   assessmentTechnicalDetailsPolicy,
+  capabilityAccessLabel,
+  capabilityAccessState,
   professionalFoundation,
   resultNextStep,
 } from '@/lib/sst-assessment-presentation';
@@ -17,6 +20,7 @@ export function AssessmentResults({
   continuation,
   onReassess,
   scopes,
+  features,
 }: {
   result: SstAssessmentResult;
   sessionId: string;
@@ -24,9 +28,11 @@ export function AssessmentResults({
   continuation?: 'public' | 'authenticated';
   onReassess?: () => void;
   scopes: readonly SstAssessmentScope[];
+  features?: Record<string, boolean | number | string>;
 }) {
   const claimPath = sstAssessmentClaimReturnPath(sessionId);
   const technicalDetails = assessmentTechnicalDetailsPolicy(channel);
+  const capabilityEvaluation = result.capabilityEvaluation;
   return (
     <section className="assessment-results" aria-labelledby="assessment-results-title">
       <header>
@@ -106,6 +112,92 @@ export function AssessmentResults({
           </div>
         </section>
       ))}
+      <section
+        className="assessment-capability-evaluation"
+        aria-labelledby="assessment-capabilities-title"
+      >
+        <header>
+          <p className="eyebrow">Siguiente etapa</p>
+          <h3 id="assessment-capabilities-title">Capacidades que pueden ser pertinentes</h3>
+          <p>
+            Estas propuestas provienen solo de la información confirmada. No activan módulos ni
+            cambian tu plan: una persona decide qué revisar o configurar.
+          </p>
+        </header>
+        {!capabilityEvaluation ? (
+          <p>
+            Este diagnóstico histórico conserva su resultado original. Realiza una reevaluación para
+            obtener propuestas de capacidades con el motor actual.
+          </p>
+        ) : capabilityEvaluation.recommendations.length > 0 ? (
+          <div className="assessment-capability-grid">
+            {capabilityEvaluation.recommendations.map((recommendation) => {
+              const access = capabilityAccessState(recommendation, channel, features);
+              return (
+                <article key={recommendation.capabilityKey}>
+                  <span className="status-badge">
+                    Prioridad {recommendation.priority.toLowerCase()}
+                  </span>
+                  <h4>{recommendation.title}</h4>
+                  <p>{recommendation.description}</p>
+                  <ul>
+                    {recommendation.reasons.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                  <p>
+                    <strong>Estado real:</strong> {capabilityAccessLabel(access)}.
+                  </p>
+                  <details>
+                    <summary>Ver trazabilidad de la recomendación</summary>
+                    <p>
+                      Motor {capabilityEvaluation.engineVersion}. Propuesta pendiente de decisión
+                      humana; efecto de activación: ninguno.
+                    </p>
+                    <ul>
+                      {recommendation.matchedFacts.map((fact) => (
+                        <li key={`${fact.scopeKey}:${fact.factKey}`}>
+                          {fact.scopeKey === 'organization'
+                            ? 'Empresa'
+                            : (scopes.find(({ scopeKey }) => scopeKey === fact.scopeKey)
+                                ?.displayName ?? 'Centro de trabajo')}
+                          : {assessmentFactLabel(fact.factKey)}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                  {channel === 'AUTHENTICATED' ? (
+                    access === 'AVAILABLE' ? (
+                      <Link className="button secondary" href={recommendation.href}>
+                        Revisar capacidad
+                      </Link>
+                    ) : (
+                      <Link className="button secondary" href="/app/modules">
+                        Revisar acceso actual
+                      </Link>
+                    )
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p>No identificamos capacidades adicionales con la información confirmada.</p>
+        )}
+        {capabilityEvaluation && capabilityEvaluation.missingInformation.length > 0 ? (
+          <details className="assessment-capability-missing">
+            <summary>Información pendiente para otras capacidades</summary>
+            <ul>
+              {capabilityEvaluation.missingInformation.map((item) => (
+                <li key={item.capabilityKey}>
+                  <strong>{item.title}:</strong> {item.explanation} Pendiente:{' '}
+                  {item.factKeys.map(assessmentFactLabel).join('; ')}.
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+      </section>
       <div className="assessment-completion">
         <h3>Diagnóstico listo</h3>
         <p>
