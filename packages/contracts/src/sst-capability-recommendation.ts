@@ -11,6 +11,7 @@ import {
   type SstCapabilityPendingInformation,
   type SstCapabilityRecommendation,
 } from './sst-assessment.js';
+import { SST_ASSESSMENT_COMMERCIAL_OPTIONAL_FACT_KEYS } from './sst-assessment-catalog.js';
 
 export const SST_CAPABILITY_ENGINE_VERSION = '1.1.0' as const;
 
@@ -166,8 +167,8 @@ const CAPABILITIES: CapabilityDefinition[] = [
       {
         ruleKey: 'incidents.recurring-findings',
         factKey: 'organization.recurringFindings',
-        score: 30,
-        reason: 'Los hallazgos recurrentes requieren seguimiento operativo trazable.',
+        score: 10,
+        reason: 'Los hallazgos recurrentes refuerzan la necesidad de seguimiento operativo.',
         matches: isTrue,
       },
       ...hazardIndicators(
@@ -230,8 +231,9 @@ const CAPABILITIES: CapabilityDefinition[] = [
       {
         ruleKey: 'governance.no-current-plan',
         factKey: 'organization.hasExistingSstWorkPlan',
-        score: 35,
-        reason: 'La organización indicó que aún no dispone de un plan de trabajo SST.',
+        score: 10,
+        reason:
+          'La ausencia de un plan actual aporta contexto secundario para organizar la gestión.',
         matches: (value) => value === false,
       },
       {
@@ -248,13 +250,6 @@ const CAPABILITIES: CapabilityDefinition[] = [
         reason: 'Existen acciones SST vencidas que requieren gobernanza de seguimiento.',
         matches: isTrue,
       },
-      {
-        ruleKey: 'governance.management-objectives',
-        factKey: 'organization.productObjectives',
-        score: 25,
-        reason: 'Los objetivos confirmados incluyen seguimiento, evidencia o gestión regulatoria.',
-        matches: includesAny('COMPLIANCE', 'TRACKING', 'REPORTING'),
-      },
     ],
   },
   {
@@ -268,8 +263,8 @@ const CAPABILITIES: CapabilityDefinition[] = [
       {
         ruleKey: 'work-permits.manual-process',
         factKey: 'organization.manualPermits',
-        score: 45,
-        reason: 'La organización confirmó que gestiona permisos manualmente.',
+        score: 10,
+        reason: 'El proceso manual aporta contexto secundario cuando existen trabajos críticos.',
         matches: isTrue,
       },
       ...[
@@ -288,6 +283,10 @@ const CAPABILITIES: CapabilityDefinition[] = [
   },
 ];
 
+export const SST_CAPABILITY_INDICATOR_FACT_KEYS = [
+  ...new Set(CAPABILITIES.flatMap(({ indicators }) => indicators.map(({ factKey }) => factKey))),
+].sort();
+
 function recommendationPriority(score: number): SstCapabilityRecommendation['priority'] {
   return score >= 70 ? 'HIGH' : score >= 40 ? 'MEDIUM' : 'LOW';
 }
@@ -297,11 +296,17 @@ export function evaluateSstCapabilityRecommendations(
   applicableQuestions: readonly SstCapabilityApplicableQuestion[],
 ): SstCapabilityEvaluation {
   const snapshot = normalizeSstAssessmentSnapshot(snapshotInput);
-  const knownFacts = snapshot.facts.filter(
+  const diagnosticSnapshot = {
+    ...snapshot,
+    facts: snapshot.facts.filter(
+      ({ factKey }) => !SST_ASSESSMENT_COMMERCIAL_OPTIONAL_FACT_KEYS.has(factKey),
+    ),
+  };
+  const knownFacts = diagnosticSnapshot.facts.filter(
     (fact): fact is KnownFact => fact.answerState === 'KNOWN',
   );
   const factsByIdentity = new Map(
-    snapshot.facts.map((fact) => [`${fact.scopeKey}:${fact.factKey}`, fact] as const),
+    diagnosticSnapshot.facts.map((fact) => [`${fact.scopeKey}:${fact.factKey}`, fact] as const),
   );
   const normalizedApplicableQuestions = applicableQuestions
     .filter(({ collectionPolicy }) => collectionPolicy !== 'COMMERCIAL_OPTIONAL')
@@ -397,7 +402,7 @@ export function evaluateSstCapabilityRecommendations(
   );
   missingInformation.sort((left, right) => left.capabilityKey.localeCompare(right.capabilityKey));
   const inputHash = sstAssessmentContentHash({
-    snapshotHash: sstAssessmentSemanticHash(snapshot),
+    snapshotHash: sstAssessmentSemanticHash(diagnosticSnapshot),
     applicableQuestions: normalizedApplicableQuestions,
   });
   const result = {

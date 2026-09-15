@@ -488,6 +488,7 @@ export function planSstAssessmentQuestions(
       relatedRuleKeys?: string[];
       relatedTargetKeys?: string[];
     }>;
+    includeCommercial?: boolean;
   } = {},
 ): SstAssessmentQuestion[] {
   const snapshot = normalizeSstAssessmentSnapshot(snapshotInput);
@@ -547,6 +548,10 @@ export function planSstAssessmentQuestions(
         })),
     )
     .filter(({ scope, fact }) => !answered.has(`${scope.scopeKey}:${fact.factKey}`))
+    .filter(
+      ({ fact }) =>
+        options.includeCommercial !== false || fact.collectionPolicy !== 'COMMERCIAL_OPTIONAL',
+    )
     .filter(({ fact }) => !(options.channel === 'AUTHENTICATED' && fact.authenticatedDerived))
     .filter(({ scope, fact }) => isRelevant(scope, fact))
     .sort(
@@ -566,7 +571,11 @@ export function planSstAssessmentQuestions(
         unknownAllowed: fact.unknownAllowed,
         questionText: fact.questionText,
         helpText: fact.helpText,
-        choices: fact.choices,
+        choices:
+          fact.factKey === 'organization.inspectionFrequency' &&
+          knownOrganizationValue('organization.inspectionPractice') !== 'NONE'
+            ? fact.choices.filter(({ value }) => value !== 'NEVER')
+            : fact.choices,
         purpose: specialist?.whyAsked ?? fact.purpose,
         order: fact.order,
         sensitivity: fact.sensitivity,
@@ -611,6 +620,11 @@ export function calculateSstAssessmentProgress(
   const isAnsweredFactRelevant = (fact: SstAssessmentFact) => {
     const definition = catalog.find(({ factKey }) => factKey === fact.factKey);
     if (!definition) return false;
+    if (
+      options.includeCommercial === false &&
+      definition.collectionPolicy === 'COMMERCIAL_OPTIONAL'
+    )
+      return false;
     switch (definition.relevancePolicy) {
       case 'ALWAYS':
         return true;
@@ -644,6 +658,8 @@ export function calculateSstAssessmentProgress(
         (fact) =>
           fact.scopeKind === scope.kind &&
           relevantIdentities.has(`${scope.scopeKey}:${fact.factKey}`) &&
+          (options.includeCommercial !== false ||
+            fact.collectionPolicy !== 'COMMERCIAL_OPTIONAL') &&
           !(options.channel === 'AUTHENTICATED' && fact.authenticatedDerived),
       )
       .map((fact) => ({ scope, fact })),

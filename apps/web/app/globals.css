@@ -1187,6 +1187,29 @@ h2 {
   padding: 0;
   border: 0;
 }
+.assessment-question__scope {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--line));
+  border-radius: 14px;
+  background: var(--accent);
+}
+.assessment-question__scope strong {
+  color: var(--brand-dark);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.assessment-question__scope span {
+  font-weight: 800;
+}
+.assessment-question__scope p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
 .assessment-question legend {
   display: grid;
   gap: 10px;
@@ -1233,6 +1256,15 @@ h2 {
 }
 .assessment-why p {
   margin: 10px 0 0;
+  line-height: 1.55;
+}
+.assessment-safety-note,
+.assessment-review__notice {
+  padding: 12px 14px;
+  border-left: 4px solid var(--brand);
+  border-radius: 8px;
+  background: var(--surface-card);
+  color: var(--muted);
   line-height: 1.55;
 }
 .assessment-choice-grid {
@@ -1302,6 +1334,26 @@ h2 {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+.assessment-defer {
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+}
+.assessment-defer small,
+.assessment-base-setup__note {
+  color: var(--muted);
+  line-height: 1.45;
+}
+.assessment-continue-later {
+  display: inline-block;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+.assessment-optional-exit {
+  justify-self: start;
+}
 .assessment-save-status {
   justify-self: start;
   padding: 7px 11px;
@@ -1326,6 +1378,34 @@ h2 {
 .assessment-context > h2 {
   margin: 0;
   font-size: 18px;
+}
+.assessment-context__groups {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+.assessment-context__groups > button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.assessment-context__groups span,
+.assessment-context__groups small {
+  color: var(--muted);
+}
+.assessment-context__groups em {
+  margin-top: 4px;
+  color: var(--brand-dark);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 750;
 }
 .assessment-context-mobile {
   display: none;
@@ -1364,6 +1444,15 @@ h2 {
 .assessment-context-dialog__header h2 {
   margin: 0;
   font-size: 20px;
+}
+.assessment-context-dialog__header span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.assessment-context-dialog__group + .assessment-context-dialog__group {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
 }
 .assessment-context-dialog__header button {
   min-height: 44px;
@@ -1532,6 +1621,19 @@ h2 {
 }
 .assessment-scope-custom {
   max-width: 300px;
+}
+.assessment-scope-selection {
+  margin: 0;
+  color: var(--brand-dark);
+  font-weight: 800;
+}
+.assessment-base-setup {
+  justify-self: start;
+}
+.assessment-base-setup__note {
+  max-width: 620px;
+  margin: -10px 0 0;
+  font-size: 13px;
 }
 .assessment-primary-action {
   justify-self: start;

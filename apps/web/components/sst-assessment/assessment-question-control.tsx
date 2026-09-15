@@ -56,7 +56,7 @@ export function AssessmentQuestionControl({
         ))}
         {question.unknownAllowed ? (
           <button type="button" disabled={disabled} onClick={unknown}>
-            No tengo esa información
+            No lo sé
           </button>
         ) : null}
       </div>
@@ -129,12 +129,20 @@ export function AssessmentQuestionControl({
       ) : question.valueType === 'INTEGER' ? (
         <input
           aria-label="Respuesta numérica"
+          type="number"
+          step={1}
+          min={bounds.min}
+          max={bounds.max}
           inputMode="numeric"
           value={typeof value === 'string' ? value : ''}
           onChange={(event) => setValue(event.target.value)}
           disabled={disabled}
         />
-      ) : (
+      ) : [
+          'organization.activityDescription',
+          'organization.additionalContext',
+          'workCenter.activityDescription',
+        ].includes(question.factKey) ? (
         <textarea
           aria-label="Respuesta"
           rows={question.factKey === 'organization.additionalContext' ? 5 : 3}
@@ -142,12 +150,32 @@ export function AssessmentQuestionControl({
           onChange={(event) => setValue(event.target.value)}
           disabled={disabled}
         />
+      ) : (
+        <input
+          aria-label="Respuesta"
+          type="text"
+          autoComplete={question.factKey === 'organization.country' ? 'country-name' : undefined}
+          placeholder={
+            question.factKey === 'organization.country'
+              ? 'Ej. Ecuador'
+              : question.factKey === 'organization.sector'
+                ? 'Ej. Manufactura, servicios, construcción'
+                : undefined
+          }
+          value={typeof value === 'string' ? value : ''}
+          onChange={(event) => setValue(event.target.value)}
+          disabled={disabled}
+        />
       )}
       {question.factKey === 'organization.additionalContext' ? (
         <p className="assessment-privacy-note">
-          Lo guardaremos como contexto. Todavía no lo convertiremos automáticamente en una
-          conclusión.
+          Lo guardaremos como contexto y no como una conclusión. No incluyas datos personales,
+          médicos, psicosociales individuales, investigaciones privilegiadas, archivos ni
+          credenciales.
         </p>
+      ) : null}
+      {question.factKey === 'organization.strategicProtectionPriorities' ? (
+        <p className="assessment-privacy-note">{question.helpText}</p>
       ) : null}
       {validation ? (
         <p className="field-error" role="alert">
@@ -157,7 +185,7 @@ export function AssessmentQuestionControl({
       <div className="assessment-actions">
         {question.unknownAllowed ? (
           <button className="button secondary" type="button" disabled={disabled} onClick={unknown}>
-            No tengo esa información
+            No lo sé
           </button>
         ) : null}
         <button className="button" type="button" disabled={disabled} onClick={submit}>

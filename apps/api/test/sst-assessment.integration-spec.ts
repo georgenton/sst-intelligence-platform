@@ -2312,7 +2312,7 @@ describe('canonical SST assessment integration', () => {
     ).toEqual(historicalSnapshot);
   });
 
-  it('keeps commercial intake discoverable and outside specialist decisions', async () => {
+  it('keeps commercial intake outside guided questions and capability decisions', async () => {
     const evaluate = async (commercial: boolean) => {
       const created = await request(app.getHttpServer())
         .post('/api/v1/sst-assessment/public/sessions')
@@ -2325,11 +2325,11 @@ describe('canonical SST assessment integration', () => {
             collectionPolicy: 'CONTEXT_RECOMMENDED',
             blocking: false,
           }),
-          expect.objectContaining({
-            factKey: 'organization.budgetRange',
-            collectionPolicy: 'COMMERCIAL_OPTIONAL',
-            blocking: false,
-          }),
+        ]),
+      );
+      expect(created.body.questions).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ collectionPolicy: 'COMMERCIAL_OPTIONAL' }),
         ]),
       );
       const answers = [
@@ -2373,6 +2373,9 @@ describe('canonical SST assessment integration', () => {
     expect(withCommercial.result.items).toEqual(withoutCommercial.result.items);
     expect(withCommercial.result.specialistTraces).toEqual(
       withoutCommercial.result.specialistTraces,
+    );
+    expect(withCommercial.result.capabilityEvaluation).toEqual(
+      withoutCommercial.result.capabilityEvaluation,
     );
     expect(withCommercial.snapshot.facts).toEqual(
       expect.arrayContaining([

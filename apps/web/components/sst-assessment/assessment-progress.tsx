@@ -4,19 +4,26 @@ import { aggregateAssessmentProgress } from '@/lib/sst-assessment-presentation';
 export function AssessmentProgress({
   progress,
   activeTopic,
+  diagnosisReady = false,
 }: {
   progress: SstAssessmentProgress;
   activeTopic?: string;
+  diagnosisReady?: boolean;
 }) {
   const humanProgress = aggregateAssessmentProgress(progress, activeTopic);
   return (
-    <section className="assessment-progress" aria-label="Progreso por temas">
+    <section className="assessment-progress" aria-label="Áreas de contexto">
       <div className="assessment-progress__summary">
         <strong>
-          {humanProgress.completedTopics} de {humanProgress.totalTopics} temas con información
-          suficiente
+          {diagnosisReady
+            ? 'Información mínima para el diagnóstico completada'
+            : `${humanProgress.completedTopics} de ${humanProgress.totalTopics} áreas de contexto con información suficiente`}
         </strong>
-        <span>El progreso describe información, no cumplimiento.</span>
+        <span>
+          {diagnosisReady
+            ? `${humanProgress.completedTopics} de ${humanProgress.totalTopics} áreas tienen contexto adicional. Puedes profundizar de forma opcional.`
+            : 'El progreso describe información, no cumplimiento.'}
+        </span>
       </div>
       <ol>
         {humanProgress.topics.map((topic) => {

@@ -3,6 +3,7 @@
 import { ApiClientError, apiRequest } from '@sst/api-client';
 import { SST_ASSESSMENT_WORK_CENTER_LIMIT } from '@sst/contracts/sst-assessment-catalog';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { queryKeys } from '@/lib/query-keys';
 import {
@@ -34,8 +35,13 @@ export function PublicAssessmentEntry({
   const [workCenterCount, setWorkCenterCount] = useState<number | null>(null);
   const [customScope, setCustomScope] = useState(false);
   const [scopeError, setScopeError] = useState('');
+  const [persistenceAvailable, setPersistenceAvailable] = useState(false);
 
-  useEffect(() => setRecord(loadPublicAssessmentSession(window.localStorage)), []);
+  useEffect(() => {
+    const stored = loadPublicAssessmentSession(window.localStorage);
+    setRecord(stored);
+    setPersistenceAvailable(Boolean(stored));
+  }, []);
   const transport = useMemo(
     () => (record ? createPublicAssessmentTransport(record.sessionId, record.publicToken) : null),
     [record],
@@ -59,7 +65,9 @@ export function PublicAssessmentEntry({
         publicToken: created.publicToken,
         expiresAt: created.expiresAt,
       };
-      if (!storePublicAssessmentSession(window.localStorage, nextRecord)) {
+      const stored = storePublicAssessmentSession(window.localStorage, nextRecord);
+      setPersistenceAvailable(stored);
+      if (!stored) {
         setScopeError(
           'El navegador no permitió guardar la sesión. Puedes continuar, pero no se recuperará al cerrar esta pestaña.',
         );
@@ -122,6 +130,7 @@ export function PublicAssessmentEntry({
         session={session.data}
         transport={transport}
         continuation={continuation}
+        publicPersistenceAvailable={persistenceAvailable}
         onSessionChange={(next) =>
           queryClient.setQueryData(queryKeys.public.sstAssessment.session(record.sessionId), next)
         }
@@ -132,8 +141,8 @@ export function PublicAssessmentEntry({
   return (
     <AssessmentShell
       eyebrow="Evaluación SST · Alcance inicial"
-      title="¿Cuántos centros de trabajo quieres incluir?"
-      description="Puede ser una oficina, planta, bodega, obra u otra sede con operación propia. Definiremos este alcance antes de iniciar."
+      title="¿Cuántos centros de trabajo quieres evaluar ahora?"
+      description="Incluye las sedes que quieres comprender en este diagnóstico: una oficina, planta, bodega, obra u otro lugar con operación propia."
       aside={
         <div className="assessment-scope-note">
           <strong>Tu decisión define la evaluación</strong>
@@ -179,11 +188,21 @@ export function PublicAssessmentEntry({
           <label htmlFor="assessment-center-count">Cantidad exacta</label>
           <input
             id="assessment-center-count"
+            type="number"
+            step={1}
+            min={1}
+            max={SST_ASSESSMENT_WORK_CENTER_LIMIT}
             inputMode="numeric"
             value={workCenterCount ?? ''}
             onChange={(event) => setWorkCenterCount(Number(event.target.value))}
           />
         </div>
+      ) : null}
+      {workCenterCount ? (
+        <p className="assessment-scope-selection" role="status">
+          {workCenterCount} {workCenterCount === 1 ? 'centro incluido' : 'centros incluidos'} en
+          esta evaluación.
+        </p>
       ) : null}
       {scopeError ? (
         <p className="field-error" role="alert">
@@ -203,6 +222,16 @@ export function PublicAssessmentEntry({
       >
         {create.isPending ? 'Preparando entrevista…' : 'Comenzar evaluación'}
       </button>
+      <Link
+        className="button secondary assessment-base-setup"
+        href={`/auth/register?next=${encodeURIComponent('/app/organizations?setup=base')}`}
+      >
+        Prefiero empezar y configurar después
+      </Link>
+      <p className="assessment-base-setup__note">
+        Esta opción crea tu acceso y abre la configuración base; no inventa respuestas ni genera un
+        diagnóstico.
+      </p>
     </AssessmentShell>
   );
 }

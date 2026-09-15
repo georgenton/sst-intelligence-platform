@@ -435,6 +435,16 @@ export function AuthenticatedAssessmentHub({ sessionId: routeSessionId }: { sess
       >
         {createAssessment.isPending ? 'Creando evaluación…' : 'Comenzar entrevista'}
       </button>
+      <button
+        className="button secondary assessment-base-setup"
+        type="button"
+        onClick={() => router.replace('/app?setup=base')}
+      >
+        Prefiero empezar y configurar después
+      </button>
+      <p className="assessment-base-setup__note">
+        Entrarás al espacio de trabajo actual sin crear respuestas, diagnósticos ni activaciones.
+      </p>
       {history.data?.length ? (
         <section className="assessment-history">
           <h2>Historial</h2>

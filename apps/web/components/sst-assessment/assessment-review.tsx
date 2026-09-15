@@ -1,5 +1,9 @@
 import type { SstAssessmentFact, SstAssessmentQuestion, SstAssessmentScope } from '@sst/contracts';
-import { visibleFactSummaries, editableQuestionForFact } from '@/lib/sst-assessment-presentation';
+import {
+  assessmentWorkerCountMismatch,
+  editableQuestionForFact,
+  groupAssessmentContext,
+} from '@/lib/sst-assessment-presentation';
 
 export function AssessmentReview({
   facts,
@@ -18,7 +22,8 @@ export function AssessmentReview({
   onEdit(question: SstAssessmentQuestion): void;
   onAddOptionalContext(): void;
 }) {
-  const summaries = visibleFactSummaries(facts, scopes);
+  const groups = groupAssessmentContext(facts, scopes);
+  const workerCountMismatch = assessmentWorkerCountMismatch(facts, scopes);
   return (
     <section className="assessment-review" aria-labelledby="assessment-review-title">
       <p className="assessment-assistant">
@@ -26,26 +31,33 @@ export function AssessmentReview({
       </p>
       <h2 id="assessment-review-title">Esto es lo que entendimos de tu empresa</h2>
       <div className="assessment-review__summary">
-        {summaries.map((item) => {
-          const fact = facts.find(
-            ({ scopeKey, factKey }) => scopeKey === item.scopeKey && factKey === item.factKey,
-          )!;
-          const scope = scopes.find(({ scopeKey }) => scopeKey === item.scopeKey)!;
-          const editable = editableQuestionForFact(fact, scope);
+        {groups.map((group) => {
+          const scope = scopes.find(({ scopeKey }) => scopeKey === group.scopeKey)!;
+          const editable = facts
+            .filter(({ scopeKey }) => scopeKey === group.scopeKey)
+            .map((fact) => editableQuestionForFact(fact, scope))
+            .find((question) => question !== null);
           return (
-            <div key={item.identity}>
-              <span>{item.scopeName}</span>
-              <strong>{item.label}</strong>
-              <p>{item.value}</p>
+            <div key={group.scopeKey}>
+              <span>{group.title}</span>
+              <strong>
+                {group.factCount} {group.factCount === 1 ? 'dato confirmado' : 'datos confirmados'}
+              </strong>
+              <p>{group.summary}</p>
               {editable ? (
                 <button type="button" onClick={() => onEdit(editable)}>
-                  Corregir
+                  Revisar y corregir
                 </button>
               ) : null}
             </div>
           );
         })}
       </div>
+      {workerCountMismatch ? (
+        <p className="assessment-review__notice" role="status">
+          <strong>Revisa la distribución de personas.</strong> {workerCountMismatch}
+        </p>
+      ) : null}
       <div className="assessment-actions">
         <button type="button" className="button" disabled={busy} onClick={onConfirm}>
           {busy ? 'Generando diagnóstico…' : 'Confirmar y generar diagnóstico'}

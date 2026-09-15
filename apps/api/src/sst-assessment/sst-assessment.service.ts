@@ -253,8 +253,12 @@ function assessmentResponse(row: {
     sessionRevision: row.sessionRevision,
     snapshot,
     claimScopeMappings: persistedClaimScopeMappings(row.claimScopeMappings),
-    questions: storedQuestions ?? planSstAssessmentQuestions(snapshot, { channel }),
-    progress: storedProgress ?? calculateSstAssessmentProgress(snapshot, { channel }),
+    questions:
+      storedQuestions ??
+      planSstAssessmentQuestions(snapshot, { channel, includeCommercial: false }),
+    progress:
+      storedProgress ??
+      calculateSstAssessmentProgress(snapshot, { channel, includeCommercial: false }),
     requiredActions:
       channel === 'AUTHENTICATED' &&
       !snapshot.facts.some(({ factKey }) => factKey === 'organization.sector')
@@ -1358,6 +1362,7 @@ export class SstAssessmentService {
     const status = resolveSstAssessmentReadiness(snapshot, {
       channel,
       specialistQuestions: result.questions,
+      includeCommercial: false,
     });
     const updated = await this.prisma.sstAssessmentSession.updateMany({
       where: {
@@ -1393,6 +1398,7 @@ export class SstAssessmentService {
     const planningOptions = {
       channel,
       specialistQuestions: specialistsQuestions,
+      includeCommercial: false,
     } as const;
     const questions = planSstAssessmentQuestions(snapshot, planningOptions);
     const progress = calculateSstAssessmentProgress(snapshot, planningOptions);

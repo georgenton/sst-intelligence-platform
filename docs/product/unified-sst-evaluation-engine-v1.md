@@ -77,3 +77,36 @@ published RuleVersion boundary remain unchanged.
 - human confirmation and finalized-history immutability are preserved;
 - equivalent input order yields the same recommendation output;
 - the UI presents recommendations and current access as distinct concepts.
+
+## Hands-on UX correction pass
+
+La entrevista guiada presenta el alcance activo de cada centro de trabajo, agrupa el contexto
+confirmado por organización y centro, y mantiene el detalle editable dentro de un diálogo. El
+progreso se expresa como **áreas de contexto**, no como pasos lineales ni como avance de
+cumplimiento. Al alcanzar `DIAGNOSIS_READY`, la interfaz confirma que existe información mínima y
+permite profundizar opcionalmente o volver de inmediato a la revisión.
+
+El alcance inicial pregunta cuántos centros se evaluarán ahora. El flujo público puede corregir país
+y sector declarados por la persona antes de finalizar, pero los valores con procedencia
+`ORGANIZATION_RECORD` continúan protegidos. “No lo sé” persiste `EXPLICIT_UNKNOWN`; “Responder
+después” no crea un hecho. La opción de continuar otro día solo se muestra cuando el navegador pudo
+persistir la sesión pública. La alternativa de configuración base reutiliza registro, onboarding y
+el espacio autenticado existente, sin crear hechos, diagnóstico, recomendaciones ni activaciones.
+
+`COMMERCIAL_OPTIONAL` queda fuera de las preguntas, el progreso, el scoring y el hash de capacidades
+de Guided Setup. Ningún indicador de capacidad consume datos comerciales. Los permisos manuales,
+hallazgos recurrentes y la ausencia de un plan SST son señales secundarias: por sí solos no proponen
+Work Permits, Incidents ni Governance. Un trabajo crítico confirmado sí puede proponer Work Permits.
+Cuando existe una práctica de inspección distinta de `NONE`, la pregunta de frecuencia no ofrece
+`NEVER`; los registros históricos que ya contienen ese valor permanecen legibles e inmutables.
+
+La revisión final resume organización y centros sin repetir el inventario completo del panel de
+contexto. Una diferencia entre el total organizacional de personas y la suma por centros genera una
+advertencia no bloqueante. Los datos preventivos sensibles mantienen ayuda visible y prohíben datos
+personales, médicos o psicosociales individuales. El resultado fresco debe incluir siempre
+`capabilityEvaluation.engineVersion=1.1.0`; la presentación no sustituye ese resultado por un
+fallback histórico.
+
+Este pase no añade migraciones, reglas regulatorias reales, entitlements, módulos, generación de
+planes ni cálculo GTC45. Un futuro traspaso desde el diagnóstico hacia Plan Operativo requerirá un
+incremento explícito y confirmación humana; la ausencia de un plan no crea ese traspaso ahora.

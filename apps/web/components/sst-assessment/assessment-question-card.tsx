@@ -1,9 +1,13 @@
 'use client';
 
-import type { SstAssessmentQuestion } from '@sst/contracts';
+import type { SstAssessmentFact, SstAssessmentQuestion, SstAssessmentScope } from '@sst/contracts';
 import { useEffect, useRef } from 'react';
 import type { AssessmentAnswer } from '@/lib/sst-assessment-types';
-import { assessmentTopicLabel, canSkipAssessmentQuestion } from '@/lib/sst-assessment-presentation';
+import {
+  assessmentQuestionScopeContext,
+  assessmentTopicLabel,
+  canSkipAssessmentQuestion,
+} from '@/lib/sst-assessment-presentation';
 import { AssessmentQuestionControl } from './assessment-question-control';
 
 export function AssessmentQuestionCard({
@@ -12,14 +16,26 @@ export function AssessmentQuestionCard({
   onAnswer,
   onSkip,
   focusOnMount = false,
+  facts,
+  scopes,
+  canContinueLater = false,
 }: {
   question: SstAssessmentQuestion;
   disabled: boolean;
   onAnswer(answer: AssessmentAnswer): void;
   onSkip(): void;
   focusOnMount?: boolean;
+  facts: readonly SstAssessmentFact[];
+  scopes: readonly SstAssessmentScope[];
+  canContinueLater?: boolean;
 }) {
   const cardRef = useRef<HTMLElement>(null);
+  const scopeContext = assessmentQuestionScopeContext(question, facts, scopes);
+  const sensitiveHelp = [
+    'organization.psychosocialReviewNeeded',
+    'organization.stressExposedRolesPresent',
+    'organization.additionalContext',
+  ].includes(question.factKey);
 
   useEffect(() => {
     if (!focusOnMount) return;
@@ -40,8 +56,19 @@ export function AssessmentQuestionCard({
       data-question-type={question.valueType}
       tabIndex={-1}
     >
+      {scopeContext ? (
+        <div className="assessment-question__scope" aria-live="polite">
+          <strong>{scopeContext.label}</strong>
+          <span>{scopeContext.name}</span>
+          <p>{scopeContext.summary}</p>
+        </div>
+      ) : null}
       <p className="assessment-assistant">
-        Quiero entender este aspecto antes de continuar con tu diagnóstico.
+        {assessmentTopicLabel(question.topic) === 'Operación'
+          ? 'Ahora revisaremos cómo funciona la operación de este centro.'
+          : assessmentTopicLabel(question.topic) === 'Gestión'
+            ? 'Ahora revisaremos cómo se organiza y da seguimiento a la gestión SST.'
+            : 'Quiero entender este aspecto antes de continuar con tu diagnóstico.'}
       </p>
       <fieldset disabled={disabled}>
         <legend>
@@ -52,6 +79,7 @@ export function AssessmentQuestionCard({
           <summary>¿Por qué te pregunto esto?</summary>
           <p>{question.purpose || question.helpText}</p>
         </details>
+        {sensitiveHelp ? <p className="assessment-safety-note">{question.helpText}</p> : null}
         <AssessmentQuestionControl
           key={question.questionId}
           question={question}
@@ -60,9 +88,17 @@ export function AssessmentQuestionCard({
         />
       </fieldset>
       {canSkipAssessmentQuestion(question) ? (
-        <button className="assessment-skip" type="button" disabled={disabled} onClick={onSkip}>
-          Omitir por ahora
-        </button>
+        <div className="assessment-defer">
+          <button className="assessment-skip" type="button" disabled={disabled} onClick={onSkip}>
+            Responder después
+          </button>
+          <small>“No lo sé” guarda esa respuesta; “Responder después” no crea ningún dato.</small>
+        </div>
+      ) : null}
+      {canContinueLater ? (
+        <a className="assessment-continue-later" href="/">
+          Continuar después
+        </a>
       ) : null}
     </article>
   );

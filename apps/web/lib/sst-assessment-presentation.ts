@@ -49,7 +49,7 @@ const topicLabels: Record<string, string> = {
   Prioridades: 'Prioridades',
   Objetivos: 'Prioridades',
   Implementación: 'Implementación',
-  'Contexto adicional': 'Implementación',
+  'Contexto adicional': 'Empresa',
 };
 
 const humanTopicOrder = [
@@ -59,7 +59,6 @@ const humanTopicOrder = [
   'Gestión',
   'Personas',
   'Prioridades',
-  'Implementación',
 ] as const;
 const humanTopicPriority = new Map<string, number>(
   humanTopicOrder.map((label, index) => [label, index]),
@@ -212,6 +211,102 @@ export function visibleFactSummaries(
     }));
 }
 
+export type AssessmentContextGroup = {
+  scopeKey: string;
+  title: string;
+  factCount: number;
+  summary: string;
+  facts: ReturnType<typeof visibleFactSummaries>;
+};
+
+export function groupAssessmentContext(
+  facts: readonly SstAssessmentFact[],
+  scopes: readonly SstAssessmentScope[],
+): AssessmentContextGroup[] {
+  const summaries = visibleFactSummaries(facts, scopes);
+  return scopes
+    .map((scope) => {
+      const scopeFacts = summaries.filter(({ scopeKey }) => scopeKey === scope.scopeKey);
+      const preferredFactKeys =
+        scope.kind === 'ORGANIZATION'
+          ? ['organization.country', 'organization.sector', 'organization.totalWorkerCount']
+          : ['workCenter.workArrangement', 'workCenter.facilityTypes', 'workCenter.workerCount'];
+      const summaryValues = preferredFactKeys
+        .flatMap((factKey) => scopeFacts.find((fact) => fact.factKey === factKey) ?? [])
+        .map(({ value }) => value)
+        .slice(0, 3);
+      return {
+        scopeKey: scope.scopeKey,
+        title: scope.kind === 'ORGANIZATION' ? 'Organización' : scope.displayName,
+        factCount: scopeFacts.length,
+        summary:
+          summaryValues.length > 0
+            ? summaryValues.join(' · ')
+            : scopeFacts.length > 0
+              ? `${scopeFacts.length} ${scopeFacts.length === 1 ? 'dato confirmado' : 'datos confirmados'}`
+              : 'Aún sin datos confirmados',
+        facts: scopeFacts,
+      };
+    })
+    .filter(({ factCount }) => factCount > 0);
+}
+
+export function assessmentQuestionScopeContext(
+  question: SstAssessmentQuestion,
+  facts: readonly SstAssessmentFact[],
+  scopes: readonly SstAssessmentScope[],
+) {
+  const scope = scopes.find(({ scopeKey }) => scopeKey === question.scopeKey);
+  if (!scope || scope.kind !== 'WORK_CENTER') return null;
+  const workCenters = scopes.filter(({ kind }) => kind === 'WORK_CENTER');
+  const index = workCenters.findIndex(({ scopeKey }) => scopeKey === scope.scopeKey);
+  const group = groupAssessmentContext(facts, scopes).find(
+    ({ scopeKey }) => scopeKey === scope.scopeKey,
+  );
+  return {
+    label: `Centro ${index + 1} de ${workCenters.length}`,
+    name: scope.displayName,
+    summary: group?.summary ?? 'Completemos el contexto de este centro',
+  };
+}
+
+export function assessmentWorkerCountMismatch(
+  facts: readonly SstAssessmentFact[],
+  scopes: readonly SstAssessmentScope[],
+) {
+  const organizationTotal = facts.find(
+    ({ scopeKey, factKey, answerState }) =>
+      scopeKey === 'organization' &&
+      factKey === 'organization.totalWorkerCount' &&
+      answerState === 'KNOWN',
+  );
+  if (organizationTotal?.answerState !== 'KNOWN' || typeof organizationTotal.value !== 'number')
+    return null;
+  const centerCounts = scopes
+    .filter(({ kind }) => kind === 'WORK_CENTER')
+    .map((scope) =>
+      facts.find(
+        ({ scopeKey, factKey, answerState }) =>
+          scopeKey === scope.scopeKey &&
+          factKey === 'workCenter.workerCount' &&
+          answerState === 'KNOWN',
+      ),
+    );
+  if (
+    centerCounts.length === 0 ||
+    centerCounts.some((fact) => fact?.answerState !== 'KNOWN' || typeof fact.value !== 'number')
+  )
+    return null;
+  const centerTotal = centerCounts.reduce(
+    (total, fact) =>
+      total + (fact?.answerState === 'KNOWN' && typeof fact.value === 'number' ? fact.value : 0),
+    0,
+  );
+  return centerTotal === organizationTotal.value
+    ? null
+    : `La suma informada por centros es ${new Intl.NumberFormat('es-EC').format(centerTotal)}, mientras que el total de la organización es ${new Intl.NumberFormat('es-EC').format(organizationTotal.value)}. Puedes continuar y corregirlo después.`;
+}
+
 export function editableQuestionForFact(
   fact: SstAssessmentFact,
   scope: SstAssessmentScope,
@@ -219,7 +314,7 @@ export function editableQuestionForFact(
   const definition = definitions.get(fact.factKey);
   if (
     !definition ||
-    definition.authenticatedDerived ||
+    (definition.authenticatedDerived && fact.provenance.source !== 'PUBLIC_DECLARATION') ||
     fact.factKey === 'organization.workCenterCount'
   )
     return null;

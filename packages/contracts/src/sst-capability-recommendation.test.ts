@@ -8,9 +8,11 @@ import {
   type SstAssessmentSnapshot,
 } from './sst-assessment.js';
 import {
+  SST_CAPABILITY_INDICATOR_FACT_KEYS,
   SST_CAPABILITY_ENGINE_VERSION,
   evaluateSstCapabilityRecommendations,
 } from './sst-capability-recommendation.js';
+import { SST_ASSESSMENT_COMMERCIAL_OPTIONAL_FACT_KEYS } from './sst-assessment-catalog.js';
 
 const provenance = { source: 'ORGANIZATION_DECLARATION' as const };
 
@@ -107,7 +109,6 @@ describe('unified SST capability recommendation engine', () => {
         'WORKFORCE',
         'INSPECTIONS',
         'TECHNICAL_RISK',
-        'INCIDENTS',
         'PPE',
         'TRAINING',
         'GOVERNANCE',
@@ -215,7 +216,11 @@ describe('unified SST capability recommendation engine', () => {
   });
 
   it('keeps a confirmed recommendation while exposing other applicable pending information', () => {
-    const input = snapshot([...readyFacts(), knownFact('organization.manualPermits', true)]);
+    const input = snapshot([
+      ...readyFacts(),
+      knownFact('organization.manualPermits', true),
+      knownFact('workCenter.hasWorkAtHeight', true, 'center:1'),
+    ]);
     const result = evaluateSstCapabilityRecommendations(
       input,
       applicableQuestions(input, [
@@ -308,11 +313,11 @@ describe('unified SST capability recommendation engine', () => {
     expect(forward.outputHash).toMatch(/^sha256:/);
   });
 
-  it('changes the deterministic output only after a relevant answer is confirmed', () => {
+  it('changes the deterministic output only after a relevant critical exposure is confirmed', () => {
     const beforeInput = snapshot([knownFact('organization.totalWorkerCount', 84)]);
     const afterInput = snapshot([
       knownFact('organization.totalWorkerCount', 84),
-      knownFact('organization.manualPermits', true),
+      knownFact('workCenter.hasWorkAtHeight', true, 'center:1'),
     ]);
     const before = evaluateSstCapabilityRecommendations(
       beforeInput,
@@ -328,6 +333,118 @@ describe('unified SST capability recommendation engine', () => {
     );
     expect(after.inputHash).not.toBe(before.inputHash);
     expect(after.outputHash).not.toBe(before.outputHash);
+  });
+
+  it('keeps commercial answers outside scoring, recommendations and deterministic hashes', () => {
+    const base = snapshot([...readyFacts(), knownFact('organization.evidenceDifficulty', true)]);
+    const commercial = snapshot([
+      ...base.facts,
+      knownFact('organization.productObjectives', ['COMPLIANCE', 'TRACKING']),
+      knownFact('organization.implementationUrgency', 'IMMEDIATE'),
+    ]);
+    const withoutCommercial = evaluateSstCapabilityRecommendations(base, applicableQuestions(base));
+    const withCommercial = evaluateSstCapabilityRecommendations(
+      commercial,
+      applicableQuestions(commercial),
+    );
+
+    expect(withCommercial).toEqual(withoutCommercial);
+    expect(
+      SST_CAPABILITY_INDICATOR_FACT_KEYS.filter((factKey) =>
+        SST_ASSESSMENT_COMMERCIAL_OPTIONAL_FACT_KEYS.has(factKey),
+      ),
+    ).toEqual([]);
+  });
+
+  it('treats manual permits, recurring findings and no current plan as secondary signals', () => {
+    const manualOnly = snapshot([...readyFacts(), knownFact('organization.manualPermits', true)]);
+    const recurringOnly = snapshot([
+      ...readyFacts(),
+      knownFact('organization.recurringFindings', true),
+    ]);
+    const noPlanOnly = snapshot([
+      ...readyFacts(),
+      knownFact('organization.hasExistingSstWorkPlan', false),
+    ]);
+
+    expect(
+      evaluateSstCapabilityRecommendations(manualOnly, applicableQuestions(manualOnly))
+        .recommendations,
+    ).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ capabilityKey: 'WORK_PERMITS' })]),
+    );
+    expect(
+      evaluateSstCapabilityRecommendations(recurringOnly, applicableQuestions(recurringOnly))
+        .recommendations,
+    ).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ capabilityKey: 'INCIDENTS' })]),
+    );
+    expect(
+      evaluateSstCapabilityRecommendations(noPlanOnly, applicableQuestions(noPlanOnly))
+        .recommendations,
+    ).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ capabilityKey: 'GOVERNANCE' })]),
+    );
+  });
+
+  it('recommends work permits when a confirmed critical exposure exists', () => {
+    const input = snapshot([
+      ...readyFacts(),
+      knownFact('organization.manualPermits', false),
+      knownFact('workCenter.hasConfinedSpaces', true, 'center:1'),
+    ]);
+    expect(
+      evaluateSstCapabilityRecommendations(input, applicableQuestions(input)).recommendations,
+    ).toEqual(expect.arrayContaining([expect.objectContaining({ capabilityKey: 'WORK_PERMITS' })]));
+  });
+
+  it('matches the two-center administrative hands-on fixture without over-recommending', () => {
+    const facts: SstAssessmentFact[] = [
+      knownFact('organization.country', 'Ecuador'),
+      knownFact('organization.totalWorkerCount', 60),
+      knownFact('organization.workCenterCount', 2),
+      knownFact('organization.managementSystem', 'SPREADSHEETS'),
+      knownFact('organization.inspectionPractice', 'CHECKLISTS'),
+      knownFact('organization.inspectionFrequency', 'MONTHLY'),
+      knownFact('organization.manualPermits', false),
+      knownFact('organization.evidenceDifficulty', true),
+      knownFact('organization.overdueActions', true),
+      knownFact('organization.recurringFindings', true),
+      knownFact('organization.hasExistingSstWorkPlan', false),
+      knownFact('organization.multipleShifts', false),
+      knownFact('organization.psychosocialReviewNeeded', false),
+      knownFact('organization.stressExposedRolesPresent', false),
+      knownFact('organization.strategicProtectionPriorities', [
+        'PEOPLE_AND_HEALTH',
+        'PRODUCTIVE_CONTINUITY',
+      ]),
+      ...(['center:1', 'center:2'] as const).flatMap((scopeKey, index) => [
+        knownFact('workCenter.workerCount', index === 0 ? 40 : 20, scopeKey),
+        knownFact('workCenter.workArrangement', index === 0 ? 'PHYSICAL' : 'REMOTE', scopeKey),
+        knownFact('workCenter.activityCategories', ['ADMINISTRATIVE_SERVICES'], scopeKey),
+        ...(index === 0 ? [knownFact('workCenter.facilityTypes', ['OFFICE'], scopeKey)] : []),
+        ...[
+          'workCenter.hasChemicalProcesses',
+          'workCenter.hasHighEnergyOperations',
+          'workCenter.hasWorkAtHeight',
+          'workCenter.hasHotWork',
+          'workCenter.hasElectricalWorkOrExposure',
+          'workCenter.hasConfinedSpaces',
+          'workCenter.hasExternalWorkforce',
+          'workCenter.hasCriticalMachinery',
+          'workCenter.hasDriversOrTransport',
+          'workCenter.hasFireExposure',
+        ].map((factKey) => knownFact(factKey, false, scopeKey)),
+      ]),
+    ];
+    const input = snapshot(facts, 2);
+    const result = evaluateSstCapabilityRecommendations(input, applicableQuestions(input));
+
+    expect(result.recommendations.map(({ capabilityKey }) => capabilityKey).sort()).toEqual([
+      'GOVERNANCE',
+      'INSPECTIONS',
+      'WORKFORCE',
+    ]);
   });
 
   it('does not mutate facts and records the human and commercial boundaries', () => {

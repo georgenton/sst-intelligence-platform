@@ -18,10 +18,14 @@ import {
   capabilityPendingInformationLabel,
   capabilityPendingInformationLabels,
   explicitBooleanChoices,
+  editableQuestionForFact,
+  groupAssessmentContext,
   groupAssessmentResults,
   orderAssessmentQuestions,
   professionalFoundation,
   resolveAssessmentPresentationScopes,
+  assessmentQuestionScopeContext,
+  assessmentWorkerCountMismatch,
   resultNextStep,
   resultStateLabel,
   safeResultExplanation,
@@ -130,7 +134,7 @@ test('presents scope-aware capability uncertainty without exposing internal scor
       },
       scopes,
     ),
-    'Empresa: Los permisos de trabajo se gestionan manualmente — Aún sin respuesta',
+    'Empresa: La organización usa autorizaciones o formatos manuales para controlar trabajos críticos — Aún sin respuesta',
   );
   assert.equal(
     capabilityPendingInformationLabel(
@@ -153,7 +157,116 @@ test('presents scope-aware capability uncertainty without exposing internal scor
   );
   assert.deepEqual(
     capabilityPendingInformationLabels({ missingFactKeys: ['organization.manualPermits'] }, scopes),
-    ['Los permisos de trabajo se gestionan manualmente'],
+    ['La organización usa autorizaciones o formatos manuales para controlar trabajos críticos'],
+  );
+});
+
+test('groups context deterministically and identifies a work-center question scope', () => {
+  const scopes = [
+    { scopeKey: 'organization', kind: 'ORGANIZATION', order: 0, displayName: 'Organización' },
+    { scopeKey: 'center:1', kind: 'WORK_CENTER', order: 1, displayName: 'Centro Norte' },
+    { scopeKey: 'center:2', kind: 'WORK_CENTER', order: 2, displayName: 'Centro Remoto' },
+  ];
+  const facts = [
+    {
+      factKey: 'organization.country',
+      scopeKey: 'organization',
+      answerState: 'KNOWN',
+      value: 'Ecuador',
+      provenance: { source: 'PUBLIC_DECLARATION' },
+    },
+    {
+      factKey: 'workCenter.workArrangement',
+      scopeKey: 'center:1',
+      answerState: 'KNOWN',
+      value: 'PHYSICAL',
+      provenance: { source: 'PUBLIC_DECLARATION' },
+    },
+    {
+      factKey: 'workCenter.facilityTypes',
+      scopeKey: 'center:1',
+      answerState: 'KNOWN',
+      value: ['OFFICE'],
+      provenance: { source: 'PUBLIC_DECLARATION' },
+    },
+  ];
+  const groups = groupAssessmentContext(facts, scopes);
+  assert.deepEqual(
+    groups.map(({ scopeKey, title, factCount, summary }) => ({
+      scopeKey,
+      title,
+      factCount,
+      summary,
+    })),
+    [
+      { scopeKey: 'organization', title: 'Organización', factCount: 1, summary: 'Ecuador' },
+      {
+        scopeKey: 'center:1',
+        title: 'Centro Norte',
+        factCount: 2,
+        summary: 'Presencial · Oficina',
+      },
+    ],
+  );
+  assert.deepEqual(
+    assessmentQuestionScopeContext(
+      question({ scopeKey: 'center:2', factKey: 'workCenter.workerCount' }),
+      facts,
+      scopes,
+    ),
+    {
+      label: 'Centro 2 de 2',
+      name: 'Centro Remoto',
+      summary: 'Completemos el contexto de este centro',
+    },
+  );
+});
+
+test('allows public declarations for country and sector to be corrected without unlocking organization records', () => {
+  const scope = {
+    scopeKey: 'organization',
+    kind: 'ORGANIZATION',
+    order: 0,
+    displayName: 'Organización',
+  };
+  const publicFact = {
+    factKey: 'organization.country',
+    scopeKey: 'organization',
+    answerState: 'KNOWN',
+    value: 'Ecuador',
+    provenance: { source: 'PUBLIC_DECLARATION' },
+  };
+  const organizationFact = {
+    ...publicFact,
+    provenance: { source: 'ORGANIZATION_RECORD', sourceReference: 'organization-1' },
+  };
+  assert.equal(editableQuestionForFact(publicFact, scope)?.factKey, 'organization.country');
+  assert.equal(editableQuestionForFact(organizationFact, scope), null);
+});
+
+test('reports a non-blocking organization and center worker-count mismatch', () => {
+  const scopes = [
+    { scopeKey: 'organization', kind: 'ORGANIZATION', order: 0, displayName: 'Organización' },
+    { scopeKey: 'center:1', kind: 'WORK_CENTER', order: 1, displayName: 'Centro 1' },
+    { scopeKey: 'center:2', kind: 'WORK_CENTER', order: 2, displayName: 'Centro 2' },
+  ];
+  const fact = (factKey, scopeKey, value) => ({
+    factKey,
+    scopeKey,
+    answerState: 'KNOWN',
+    value,
+    provenance: { source: 'PUBLIC_DECLARATION' },
+  });
+  assert.match(
+    assessmentWorkerCountMismatch(
+      [
+        fact('organization.totalWorkerCount', 'organization', 60),
+        fact('workCenter.workerCount', 'center:1', 40),
+        fact('workCenter.workerCount', 'center:2', 15),
+      ],
+      scopes,
+    ),
+    /55.*60/,
   );
 });
 
@@ -428,7 +541,7 @@ test('orders human progress topics canonically regardless of backend insertion o
   });
   assert.deepEqual(
     progress.topics.map(({ label }) => label),
-    ['Empresa', 'Centros', 'Operación', 'Gestión', 'Personas', 'Prioridades', 'Implementación'],
+    ['Empresa', 'Centros', 'Operación', 'Gestión', 'Personas', 'Prioridades'],
   );
 });
 

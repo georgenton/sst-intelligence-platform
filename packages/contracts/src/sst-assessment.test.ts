@@ -362,6 +362,27 @@ describe('canonical SST assessment contract', () => {
       ]),
     );
     expect(resolveSstAssessmentReadiness(branched)).toBe('DIAGNOSIS_READY');
+    const frequency = planSstAssessmentQuestions(branched).find(
+      ({ factKey }) => factKey === 'organization.inspectionFrequency',
+    );
+    expect(frequency?.choices.map(({ value }) => value)).toEqual([
+      'OCCASIONAL',
+      'MONTHLY',
+      'WEEKLY_OR_MORE',
+    ]);
+  });
+
+  it('can exclude commercial intake from the guided diagnostic plan and progress', () => {
+    const input = snapshot();
+    const questions = planSstAssessmentQuestions(input, { includeCommercial: false });
+    const progress = calculateSstAssessmentProgress(input, { includeCommercial: false });
+
+    expect(
+      questions.some(({ collectionPolicy }) => collectionPolicy === 'COMMERCIAL_OPTIONAL'),
+    ).toBe(false);
+    expect(progress.topics.map(({ topic }) => topic)).not.toEqual(
+      expect.arrayContaining(['Objetivos', 'Implementación']),
+    );
   });
 
   it('removes only current finite conditional facts when their controlling answer changes', () => {
