@@ -19,7 +19,7 @@ assessment catalog.
 ## Progress and review
 
 Progress groups canonical topics into human areas such as Empresa, Centros, Operación, Gestión,
-Personas, Prioridades and Implementación. It describes collected information and never claims a
+Personas and Prioridades. Commercial implementation preferences stay outside the diagnostic interview. It describes collected information and never claims a
 compliance percentage. A responsive “Lo que ya sabemos” panel displays only confirmed or explicitly
 unknown facts. It allows corrections through the canonical answer/evaluate cycle before finalization;
 finalized snapshots are read-only and expose **Reevaluar empresa** instead.
@@ -105,7 +105,7 @@ or module selection.
 
 ## Accessibility, motion and async behavior
 
-Question controls use fieldset/legend semantics, keyboard-operable buttons, visible focus, Spanish
+Question controls use fieldset/legend semantics, native radios for boolean/single choices, keyboard-operable buttons, visible focus, Spanish
 validation, `aria-live` save state and comfortable touch targets. Desktop uses a wide interview
 column with sticky context. Mobile keeps the focal question first and exposes context through a
 closed-by-default accessible dialog. Close and Escape return focus to its trigger; **Corregir**
@@ -131,3 +131,51 @@ PR47 originally ended at `DIAGNOSIS_READY` without recommending or activating mo
 diagnosis and adds deterministic capability proposals. It still does not create `SETUP_COMPLETED`,
 activate modules, change entitlements/subscriptions, generate Operational Plans or call an external
 LLM. Factual multi-center topology and licensed Work Center capacity remain separate concerns.
+
+## Cloud Design v1.2 visual convergence (PR50)
+
+The handoff is a visual reference. The current PR50 HEAD and existing contracts remain authoritative
+for behavior, readiness, unknown answers and scope resolution. Prototype HTML/CSS is not shipped.
+The compact task header leaves the question as the primary typographic focus. The ordered roadmap
+renders exactly one segment per `aggregateAssessmentProgress().topics` entry and always states that
+progress describes information, not compliance. `DIAGNOSIS_READY` explicitly identifies the completed
+minimum; remaining depth is optional. No commercial topic is added.
+
+A center-scoped question keeps the resolved `scopeContext` visible: ribbon on desktop/tablet, full
+band above progress on mobile. Choice cards use native radio keyboard behavior and retain the selected
+answer during saving; **Continuar** submits the explicit choice through the unchanged answer/evaluate
+cycle. Numeric suggestions are omitted because no authoritative range list exists. Purpose is always
+visible, and sensitive help remains visible without duplicating the same note. If specialist purpose contains internal DEMO/pack/DSL identifiers, presentation uses the existing canonical catalog purpose; API questions and decisions remain unchanged.
+
+The single save status region lives beside the primary action. Processing is revealed only after a
+250 ms visual threshold while the real request remains active, with steps derived from `saving` and
+`evaluating`. It disappears immediately on completion; neither requests nor the next surface wait
+for a timer or a minimum display duration. Reduced motion stops the spinner and scene displacement.
+
+Client-only snapshot diffs show **Se agregó** or **Actualizado** for roughly four seconds. They compare
+identity, answer state and confirmed value, ignore provenance-only changes, use existing human
+presentation, and suppress additional-context and sensitive values. Counts come from `groupAssessmentContext`.
+Desktop context is sticky, tablet context folds above the question, and mobile uses a native modal
+bottom sheet. Detail rows use the canonical correction cycle. Close/Escape restore the actual opener;
+Tab/Shift+Tab cycle within the modal; correction focuses the edited question. Each new question focuses its first control, with scope associated to the fieldset. The mobile scope band remains sticky while reading.
+
+A relay occurs only when outgoing and incoming questions refer to different existing work centers.
+Its recap uses confirmed facts and it names the next center without predicting question counts. Topic
+checkpoints recap confirmed facts and name the next area. **Continuar después** is offered only when
+public browser recovery is available. Readiness review separates sufficient information from optional
+context; diagnosis retains result grouping, professional foundation, capability proposals, historical
+compatibility and the channel-specific technical trace policy.
+
+The alternative entry route keeps the existing deferred setup gate: entering the workspace creates
+no assessment answers, diagnosis, recommendations or module activations. The setup shell uses the
+configured text wordmark; the global application monogram remains outside this pass.
+
+Verification adds rendered-component tests for five/six dynamic topics, readiness, unknown controls,
+purpose, commercial filtering and local diffs, plus controlled-request E2E assertions for processing,
+center relays, correction, dialog focus, keyboard radios, reduced motion, 320 px reflow and 200% zoom.
+Screenshots are audit artifacts, not pixel-perfect golden images.
+
+Visual interaction scenarios run in a separate E2E file so the existing serial batch runner gives
+both guided-flow and visual checks fresh API processes. Real throttling remains enabled and unchanged.
+The processing panel repeats the submitted human answer when it would otherwise be covered on a
+narrow screen; additional free context is represented without repeating its sensitive text.

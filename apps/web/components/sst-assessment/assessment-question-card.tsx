@@ -1,10 +1,11 @@
 'use client';
 
 import type { SstAssessmentFact, SstAssessmentQuestion, SstAssessmentScope } from '@sst/contracts';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type { AssessmentAnswer } from '@/lib/sst-assessment-types';
 import {
   assessmentQuestionScopeContext,
+  assessmentQuestionPurpose,
   assessmentTopicLabel,
   canSkipAssessmentQuestion,
 } from '@/lib/sst-assessment-presentation';
@@ -19,6 +20,9 @@ export function AssessmentQuestionCard({
   facts,
   scopes,
   canContinueLater = false,
+  saveStatus,
+  processing,
+  error,
 }: {
   question: SstAssessmentQuestion;
   disabled: boolean;
@@ -28,9 +32,14 @@ export function AssessmentQuestionCard({
   facts: readonly SstAssessmentFact[];
   scopes: readonly SstAssessmentScope[];
   canContinueLater?: boolean;
+  saveStatus?: ReactNode;
+  processing?: ReactNode;
+  error?: string;
 }) {
   const cardRef = useRef<HTMLElement>(null);
+  const purpose = assessmentQuestionPurpose(question);
   const scopeContext = assessmentQuestionScopeContext(question, facts, scopes);
+  const scopeId = `assessment-scope-${question.questionId}`;
   const sensitiveHelp = [
     'organization.psychosocialReviewNeeded',
     'organization.stressExposedRolesPresent',
@@ -55,46 +64,60 @@ export function AssessmentQuestionCard({
       data-question-id={question.questionId}
       data-question-type={question.valueType}
       tabIndex={-1}
+      aria-busy={disabled}
     >
       {scopeContext ? (
-        <div className="assessment-question__scope" aria-live="polite">
+        <div className="assessment-question__scope" id={scopeId}>
           <strong>{scopeContext.label}</strong>
           <span>{scopeContext.name}</span>
           <p>{scopeContext.summary}</p>
         </div>
       ) : null}
-      <p className="assessment-assistant">
-        {assessmentTopicLabel(question.topic) === 'Operación'
-          ? 'Ahora revisaremos cómo funciona la operación de este centro.'
-          : assessmentTopicLabel(question.topic) === 'Gestión'
-            ? 'Ahora revisaremos cómo se organiza y da seguimiento a la gestión SST.'
-            : 'Quiero entender este aspecto antes de continuar con tu diagnóstico.'}
-      </p>
-      <fieldset disabled={disabled}>
+      <fieldset disabled={disabled} aria-describedby={scopeContext ? scopeId : undefined}>
         <legend>
           <span>{assessmentTopicLabel(question.topic)}</span>
           {question.questionText}
         </legend>
-        <details className="assessment-why">
-          <summary>¿Por qué te pregunto esto?</summary>
-          <p>{question.purpose || question.helpText}</p>
-        </details>
-        {sensitiveHelp ? <p className="assessment-safety-note">{question.helpText}</p> : null}
+        <div className="assessment-why">
+          <p>
+            <strong>Por qué lo preguntamos. </strong>
+            {purpose}
+          </p>
+        </div>
+        {sensitiveHelp && question.helpText !== purpose ? (
+          <p className="assessment-safety-note">{question.helpText}</p>
+        ) : null}
         <AssessmentQuestionControl
           key={question.questionId}
           question={question}
           disabled={disabled}
           onAnswer={onAnswer}
+          saveStatus={saveStatus}
+          secondaryAction={
+            canSkipAssessmentQuestion(question) ? (
+              <button
+                className="assessment-skip"
+                type="button"
+                disabled={disabled}
+                onClick={onSkip}
+              >
+                Responder después
+              </button>
+            ) : undefined
+          }
         />
       </fieldset>
       {canSkipAssessmentQuestion(question) ? (
         <div className="assessment-defer">
-          <button className="assessment-skip" type="button" disabled={disabled} onClick={onSkip}>
-            Responder después
-          </button>
           <small>“No lo sé” guarda esa respuesta; “Responder después” no crea ningún dato.</small>
         </div>
       ) : null}
+      {error ? (
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {processing}
       {canContinueLater ? (
         <a className="assessment-continue-later" href="/">
           Continuar después

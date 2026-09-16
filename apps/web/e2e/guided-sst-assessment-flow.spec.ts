@@ -8,60 +8,11 @@ import {
 } from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
-async function waitForAssessmentMotion(page: Page) {
-  await page
-    .locator(
-      '.assessment-question, .assessment-review, .assessment-result-group article, .assessment-preflight-card',
-    )
-    .evaluateAll(async (elements) => {
-      await Promise.all(
-        elements.flatMap((element) =>
-          element.getAnimations().map((animation) => animation.finished),
-        ),
-      );
-    });
-}
-
-async function startPublicAssessment(page: Page, centerCount: 1 | 2 | 3) {
-  await page.goto('/evaluacion-sst');
-  await page
-    .getByRole('button', { name: `${centerCount} ${centerCount === 1 ? 'centro' : 'centros'}` })
-    .click();
-  await page.getByRole('button', { name: 'Comenzar evaluación' }).click();
-  await expect(page.locator('[data-question-id]')).toBeVisible();
-  await expect(page.getByText(/Paso 1 de 6/)).toHaveCount(0);
-  await expect(page.locator('input[type="checkbox"]')).toHaveCount(0);
-}
-
-async function answerCurrentQuestion(page: Page) {
-  const question = page.locator('[data-question-id]').first();
-  const questionId = await question.getAttribute('data-question-id');
-  const valueType = await question.getAttribute('data-question-type');
-  if (!questionId || !valueType) throw new Error('ASSESSMENT_QUESTION_METADATA_MISSING');
-
-  if (valueType === 'BOOLEAN') {
-    await question.getByRole('button', { name: 'No', exact: true }).click();
-  } else if (valueType === 'SINGLE_CHOICE') {
-    await question.locator('.assessment-choice-grid button').first().click();
-  } else if (valueType === 'MULTI_CHOICE') {
-    await question.locator('.assessment-choice-grid button').first().click();
-    await question.getByRole('button', { name: 'Continuar', exact: true }).click();
-  } else if (valueType === 'INTEGER') {
-    await question.getByLabel('Respuesta numérica').fill('24');
-    await question.getByRole('button', { name: 'Continuar', exact: true }).click();
-  } else {
-    const prompt = (await question.textContent()) ?? '';
-    const answer = prompt.includes('país')
-      ? 'Ecuador'
-      : prompt.includes('sector')
-        ? 'Manufactura liviana'
-        : 'Operación sintética para validación de producto';
-    await question.getByLabel('Respuesta', { exact: true }).fill(answer);
-    await question.getByRole('button', { name: 'Continuar', exact: true }).click();
-  }
-
-  await expect(page.locator(`[data-question-id="${questionId}"]`)).toHaveCount(0);
-}
+import {
+  answerCurrentQuestion,
+  startPublicAssessment,
+  waitForAssessmentMotion,
+} from './support/guided-assessment-helpers';
 
 async function continueThroughBlockingQuestions(
   page: Page,
@@ -73,8 +24,23 @@ async function continueThroughBlockingQuestions(
   for (let index = 0; index < 80; index += 1) {
     const review = page.getByRole('heading', { name: 'Esto es lo que entendimos de tu empresa' });
     if (await review.isVisible().catch(() => false)) return;
+    const relay = page.getByRole('button', { name: /^Empezar con Centro/ });
+    if (await relay.isVisible().catch(() => false)) {
+      if (testInfo)
+        await page.screenshot({
+          path: testInfo.outputPath(`${screenshotPrefix}-center-relay-${index}.png`),
+          fullPage: true,
+        });
+      await relay.click();
+      continue;
+    }
     const checkpoint = page.getByRole('button', { name: 'Todo correcto, continuar' });
     if (await checkpoint.isVisible().catch(() => false)) {
+      if (testInfo)
+        await page.screenshot({
+          path: testInfo.outputPath(`${screenshotPrefix}-checkpoint-${index}.png`),
+          fullPage: true,
+        });
       await checkpoint.click();
       continue;
     }
@@ -134,7 +100,9 @@ async function claimReturnPath(page: Page) {
 }
 
 async function expectFinalizedContextReadOnly(page: Page) {
-  const contextGroup = page.locator('.assessment-context__groups > button').first();
+  const contextGroup = page
+    .locator('.assessment-context--desktop .assessment-context__groups > button')
+    .first();
   if ((await contextGroup.count()) === 0) {
     await expect(
       page.getByRole('button', { name: 'Corregir' }).filter({ visible: true }),
@@ -252,7 +220,7 @@ async function configureAndClaim(
 
 test('guided setup keeps multi-center context human, editable and capability-safe', async ({
   page,
-}) => {
+}, testInfo) => {
   test.setTimeout(300_000);
   await page.goto('/evaluacion-sst');
   await expect(
@@ -267,6 +235,7 @@ test('guided setup keeps multi-center context human, editable and capability-saf
   );
   await page.getByRole('button', { name: '2 centros' }).click();
   await expect(page.getByText('2 centros incluidos en esta evaluación.')).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('cloud-entry-desktop.png'), fullPage: true });
   await page.getByRole('button', { name: 'Comenzar evaluación' }).click();
 
   const answerText = async (value: string) => {
@@ -287,30 +256,58 @@ test('guided setup keeps multi-center context human, editable and capability-saf
     'Empresa',
   );
   await page.getByRole('button', { name: 'Todo correcto, continuar' }).click();
-  await page.getByLabel('Respuesta numérica').fill('60');
+  const workerCountInput = page.getByLabel('Respuesta numérica');
+  await workerCountInput.fill('-1');
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+  await expect(workerCountInput).toHaveAttribute('aria-invalid', 'true');
+  await expect(workerCountInput).toHaveAttribute('aria-describedby', /-error$/);
+  await expect(workerCountInput).toBeFocused();
+  await expect(page.locator('[data-question-id]').getByRole('alert')).toContainText(
+    'Ingresa un número entero',
+  );
+  await workerCountInput.fill('60');
   await page.getByRole('button', { name: 'Continuar', exact: true }).click();
   await page.getByRole('button', { name: 'Todo correcto, continuar' }).click();
 
-  await expect(page.getByText('Centro 1 de 2', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Presencial', exact: true }).click();
-  await expect(page.getByText('Centro 2 de 2', { exact: true })).toBeVisible();
+  await expect(
+    page.locator('.assessment-question__scope').getByText('Centro 1 de 2', { exact: true }),
+  ).toBeVisible();
+  await waitForAssessmentMotion(page);
+  await page.screenshot({
+    path: testInfo.outputPath('cloud-question-center-1.png'),
+    fullPage: true,
+  });
+  await page.getByRole('radio', { name: 'Presencial', exact: true }).check();
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Ahora revisaremos Centro 2' })).toBeFocused();
+  await waitForAssessmentMotion(page);
+  await page.screenshot({ path: testInfo.outputPath('cloud-center-relay.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Empezar con Centro 2' }).click();
+  await expect(
+    page.locator('.assessment-question__scope').getByText('Centro 2 de 2', { exact: true }),
+  ).toBeVisible();
   const secondCenterScope = page.locator('.assessment-question__scope');
   await expect(secondCenterScope).toContainText('Centro 2 de 2');
   await expect(secondCenterScope).toContainText('Completemos el contexto de este centro');
   const remoteQuestionId = await page
     .locator('[data-question-id]')
     .getAttribute('data-question-id');
-  await page.getByRole('button', { name: 'Remota', exact: true }).click();
+  await page.getByRole('radio', { name: 'Remota', exact: true }).check();
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click();
   if (remoteQuestionId)
     await expect(page.locator(`[data-question-id="${remoteQuestionId}"]`)).toHaveCount(0);
 
   const organizationContext = page
-    .locator('.assessment-context__groups > button')
+    .locator('.assessment-context--desktop .assessment-context__groups > button')
     .filter({ hasText: 'Organización' });
-  await expect(organizationContext).toContainText(/datos?/);
+  await expect(organizationContext.locator('.assessment-context__count')).toHaveAttribute(
+    'aria-label',
+    /\d+ datos confirmados/,
+  );
   await organizationContext.click();
   const contextDialog = page.getByRole('dialog', { name: 'Organización' });
   await expect(contextDialog).toContainText('Colombia');
+  await page.screenshot({ path: testInfo.outputPath('cloud-context-drawer.png'), fullPage: true });
   await contextDialog
     .locator('.assessment-context__facts > div')
     .filter({ hasText: 'País' })
@@ -320,6 +317,12 @@ test('guided setup keeps multi-center context human, editable and capability-saf
     page.locator('[data-question-id="organization:organization.country"]'),
   ).toBeVisible();
   await answerText('Ecuador');
+  await expect(
+    page
+      .locator('.assessment-context--desktop .assessment-context__change')
+      .filter({ hasText: /Actualizado:.*Ecuador/ })
+      .first(),
+  ).toBeVisible();
   const checkpoint = page.getByRole('button', { name: 'Todo correcto, continuar' });
   if (await checkpoint.isVisible().catch(() => false)) await checkpoint.click();
 
@@ -427,7 +430,9 @@ test('guided setup keeps multi-center context human, editable and capability-saf
   ).toEqual(['GOVERNANCE', 'INSPECTIONS', 'WORKFORCE']);
 
   await page.reload();
-  await expect(page.getByText('Información mínima para el diagnóstico completada')).toBeVisible();
+  await expect(
+    page.getByText('Información mínima para el diagnóstico completada').first(),
+  ).toBeVisible();
   await expect(page.getByText(/Objetivos que buscas con la plataforma/i)).toHaveCount(0);
   await page.getByRole('button', { name: 'Añadir contexto opcional' }).click();
   await expect(page.locator('[data-question-id]')).toBeVisible();
@@ -437,8 +442,12 @@ test('guided setup keeps multi-center context human, editable and capability-saf
   const unknownQuestionId = await page
     .locator('[data-question-id]')
     .getAttribute('data-question-id');
-  await page.getByRole('button', { name: 'No lo sé', exact: true }).click();
-  await expect(page.getByText(/Respuesta guardada/)).toBeVisible();
+  const unknownRadio = page.getByRole('radio', { name: 'No lo sé', exact: true });
+  if (await unknownRadio.count()) {
+    await unknownRadio.check();
+    await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+  } else await page.getByRole('button', { name: 'No lo sé', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText(/Respuesta guardada|Guardado en Centro/);
   if (await checkpoint.isVisible().catch(() => false)) await checkpoint.click();
   const deferredQuestionId = await page
     .locator('[data-question-id]')
@@ -969,6 +978,7 @@ test('mobile guided question has no horizontal overflow and keeps its context ac
   await expect(question).toBeVisible();
   await expect(contextTrigger).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Tu evaluación' })).not.toBeVisible();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const questionBox = await question.boundingBox();
   const triggerBox = await contextTrigger.boundingBox();
   expect(questionBox?.y).toBeLessThan(triggerBox?.y ?? 0);
@@ -984,7 +994,14 @@ test('mobile guided question has no horizontal overflow and keeps its context ac
     path: testInfo.outputPath('04-mobile-context-open.png'),
     fullPage: true,
   });
-  await dialog.getByRole('button', { name: 'Cerrar contexto' }).click();
+  await expect
+    .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+    .toBe(true);
+  await page.keyboard.press('Shift+Tab');
+  await expect
+    .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+    .toBe(true);
+  await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
   await expect(contextTrigger).toBeFocused();
   await answerCurrentQuestion(page);

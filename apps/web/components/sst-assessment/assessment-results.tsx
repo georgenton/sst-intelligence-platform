@@ -35,25 +35,37 @@ export function AssessmentResults({
   const claimPath = sstAssessmentClaimReturnPath(sessionId);
   const technicalDetails = assessmentTechnicalDetailsPolicy(channel);
   const capabilityEvaluation = result.capabilityEvaluation;
+  const centerCount = scopes.filter(({ kind }) => kind === 'WORK_CENTER').length;
   return (
     <section className="assessment-results" aria-labelledby="assessment-results-title">
       <header>
         <p className="eyebrow">Diagnóstico ejecutivo</p>
         <h2 id="assessment-results-title">{result.summary.title}</h2>
+        <div className="assessment-results__scope">
+          {centerCount > 0 ? (
+            <span className="status-badge">
+              {centerCount} {centerCount === 1 ? 'centro' : 'centros'} en el alcance
+            </span>
+          ) : null}
+          <span className="status-badge">Diagnóstico orientativo</span>
+        </div>
         <p>{result.summary.disclaimer}</p>
       </header>
       {groupAssessmentResults(result.items).map((group) => (
-        <section className="assessment-result-group" key={group.key}>
-          <h3>{group.title}</h3>
+        <section className="assessment-result-group" key={group.key} data-group={group.key}>
+          <h3>
+            {group.title} <span className="assessment-context__count">{group.items.length}</span>
+          </h3>
           <div>
             {group.items.map((item) => {
               const foundation = professionalFoundation(item, scopes);
               return (
                 <article key={`${item.scopeKey}:${item.targetKey}`}>
                   <span className="status-badge">{resultStateLabel(item)}</span>
+                  <span className="status-badge assessment-result-scope">{foundation.scope}</span>
                   <h4>{item.title}</h4>
                   <p>{safeResultExplanation(item)}</p>
-                  <p>
+                  <p className="assessment-result-next-step">
                     <strong>Siguiente paso:</strong> {resultNextStep(item)}
                   </p>
                   <details>

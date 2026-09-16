@@ -9,12 +9,13 @@ export function AssessmentSaveStatus({
     status === 'saving'
       ? 'Guardando…'
       : status === 'evaluating'
-        ? 'Analizando…'
+        ? 'Actualizando contexto…'
         : status === 'saved'
-          ? (message ?? 'Información actualizada')
+          ? (message ?? 'Respuesta guardada')
           : 'Lista para responder';
   return (
     <span className="assessment-save-status" data-status={status} role="status" aria-live="polite">
+      <span aria-hidden="true">{status === 'saved' ? '✓' : '●'}</span>
       {label}
     </span>
   );

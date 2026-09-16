@@ -1,7 +1,8 @@
 'use client';
 
 import type { SstAssessmentFact, SstAssessmentQuestion, SstAssessmentScope } from '@sst/contracts';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import type { AssessmentContextChange } from '@/lib/sst-assessment-visual-feedback';
 import {
   editableQuestionForFact,
   groupAssessmentContext,
@@ -38,10 +39,10 @@ function GroupDetails({
         return (
           <div key={item.identity}>
             <strong>{item.label}</strong>
-            <p>{item.value}</p>
+            <p data-unknown={fact.answerState === 'EXPLICIT_UNKNOWN'}>{item.value}</p>
             {editable ? (
               <button type="button" onClick={() => onEdit(editable)}>
-                Corregir
+                {fact.answerState === 'EXPLICIT_UNKNOWN' ? 'Responder' : 'Corregir'}
               </button>
             ) : null}
           </div>
@@ -56,20 +57,31 @@ export function AssessmentContextPanel({
   scopes,
   onEdit,
   readOnly = false,
+  activeScopeKey,
+  changes = [],
+  disabled = false,
 }: {
   facts: readonly SstAssessmentFact[];
   scopes: readonly SstAssessmentScope[];
   onEdit(question: SstAssessmentQuestion): void;
   readOnly?: boolean;
+  activeScopeKey?: string;
+  changes?: readonly AssessmentContextChange[];
+  disabled?: boolean;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
   const [selectedScopeKey, setSelectedScopeKey] = useState<string>();
   const groups = groupAssessmentContext(facts, scopes);
   const visibleCount = groups.reduce((total, group) => total + group.factCount, 0);
   const selectedGroup = groups.find(({ scopeKey }) => scopeKey === selectedScopeKey);
 
+  useEffect(() => {
+    if (disabled && dialogRef.current?.open) closeDialog();
+  }, [disabled]);
+
   function openDialog(scopeKey?: string) {
+    triggerRef.current = document.activeElement as HTMLElement | null;
     setSelectedScopeKey(scopeKey);
     dialogRef.current?.showModal();
   }
@@ -80,38 +92,102 @@ export function AssessmentContextPanel({
     triggerRef.current?.focus();
   }
 
+  function trapDialogFocus(event: KeyboardEvent<HTMLDialogElement>) {
+    if (event.key !== 'Tab') return;
+    const controls = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((element) => element.getClientRects().length > 0);
+    const first = controls[0];
+    const last = controls.at(-1);
+    if (
+      first &&
+      last &&
+      ((event.shiftKey && document.activeElement === first) ||
+        (!event.shiftKey && document.activeElement === last))
+    ) {
+      event.preventDefault();
+      (event.shiftKey ? last : first).focus();
+    }
+  }
+
+  const groupCards = (
+    <div className="assessment-context__groups">
+      {groups.map((group) => (
+        <button
+          key={group.scopeKey}
+          type="button"
+          disabled={disabled}
+          data-active={group.scopeKey === activeScopeKey}
+          onClick={() => openDialog(group.scopeKey)}
+        >
+          <span className="assessment-context__group-heading">
+            <strong>{group.title}</strong>
+            <span
+              className="assessment-context__count"
+              aria-label={`${group.factCount} datos confirmados`}
+            >
+              {group.factCount}
+            </span>
+          </span>
+          <small>{group.summary}</small>
+          <span className="assessment-context__change" aria-hidden="true">
+            {changes
+              .filter(({ scopeKey }) => scopeKey === group.scopeKey)
+              .slice(-1)
+              .map((change) => (
+                <span key={change.identity}>
+                  ✓ {change.kind === 'added' ? 'Se agregó' : 'Actualizado'}: {change.text}
+                </span>
+              ))}
+          </span>
+          <em>Ver detalle y corregir</em>
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <>
       <section className="assessment-context assessment-context--desktop">
-        <h2>Contexto confirmado</h2>
-        {groups.length === 0 ? <p>Aún estamos construyendo el contexto.</p> : null}
-        <div className="assessment-context__groups">
-          {groups.map((group) => (
-            <button key={group.scopeKey} type="button" onClick={() => openDialog(group.scopeKey)}>
-              <span>{group.title}</span>
-              <strong>
-                {group.factCount} {group.factCount === 1 ? 'dato' : 'datos'}
-              </strong>
-              <small>{group.summary}</small>
-              <em>Ver detalle y corregir</em>
-            </button>
-          ))}
+        <div className="assessment-context__heading">
+          <h2>Contexto confirmado</h2>
+          <span className="assessment-context__count">{visibleCount} datos</span>
         </div>
+        {groups.length === 0 ? <p>Aún estamos construyendo el contexto.</p> : null}
+        {groupCards}
+        <p className="assessment-context__note">
+          Solo mostramos lo que confirmaste o marcaste como desconocido.
+        </p>
       </section>
+      <details className="assessment-context-tablet">
+        <summary>Contexto confirmado · {visibleCount} datos</summary>
+        {groupCards}
+      </details>
       <div className="assessment-context-mobile">
         <button
-          ref={triggerRef}
           className="assessment-context-mobile__trigger"
           type="button"
+          disabled={disabled}
           onClick={() => openDialog()}
         >
           Contexto · {visibleCount} {visibleCount === 1 ? 'dato' : 'datos'}
         </button>
+        <div className="assessment-context__change">
+          {changes.slice(-1).map((change) => (
+            <span key={change.identity}>
+              ✓ {change.kind === 'added' ? 'Se agregó' : 'Actualizado'}: {change.text}
+            </span>
+          ))}
+        </div>
       </div>
       <dialog
         ref={dialogRef}
         className="assessment-context-dialog"
         aria-labelledby="assessment-context-dialog-title"
+        aria-modal="true"
+        onKeyDown={trapDialogFocus}
         onCancel={(event) => {
           event.preventDefault();
           closeDialog();
@@ -126,6 +202,9 @@ export function AssessmentContextPanel({
             Cerrar
           </button>
         </div>
+        <p className="assessment-context__note">
+          Corregir vuelve a evaluar la información y puede adaptar las siguientes preguntas.
+        </p>
         {selectedGroup ? (
           <GroupDetails
             scopeKey={selectedGroup.scopeKey}

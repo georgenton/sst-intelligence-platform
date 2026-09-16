@@ -520,3 +520,12 @@ export function capabilityEmptyStateMessage(
     ? 'Aún no hay información confirmada suficiente para proponer capacidades. Completa la información pendiente para reducir la incertidumbre.'
     : 'No identificamos capacidades adicionales con la información confirmada.';
 }
+
+export function assessmentQuestionPurpose(question: SstAssessmentQuestion) {
+  const purpose = question.purpose || question.helpText;
+  const internal =
+    /\bDEMO(?:\b|_)|\b(?:DSL|pack|ruleKey|ruleId|factKey|targetKey)\b|(?:organization|workCenter)\.|[<>]=|&&|\|\||\b[0-9a-f]{8}-[0-9a-f-]{27,}\b/i;
+  return internal.test(purpose)
+    ? (definitions.get(question.factKey)?.purpose ?? 'Completar el contexto de la evaluación SST.')
+    : purpose;
+}

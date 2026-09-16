@@ -141,97 +141,122 @@ export function PublicAssessmentEntry({
   return (
     <AssessmentShell
       eyebrow="Evaluación SST · Alcance inicial"
-      title="¿Cuántos centros de trabajo quieres evaluar ahora?"
+      title="Entendamos tu operación antes de configurar"
       description="Incluye las sedes que quieres comprender en este diagnóstico: una oficina, planta, bodega, obra u otro lugar con operación propia."
-      aside={
-        <div className="assessment-scope-note">
-          <strong>Tu decisión define la evaluación</strong>
-          <p>
-            Después de comenzar no cambiaremos silenciosamente la cantidad de centros. Si necesitas
-            corregirla, podrás reiniciar.
-          </p>
-        </div>
-      }
     >
-      <div
-        className="assessment-scope-picker"
-        role="group"
-        aria-label="Cantidad de centros de trabajo"
-      >
-        {[1, 2, 3].map((count) => (
-          <button
-            key={count}
-            type="button"
-            aria-pressed={workCenterCount === count}
-            onClick={() => {
-              setCustomScope(false);
-              setWorkCenterCount(count);
-            }}
-          >
-            {count}
-            <span>{count === 1 ? 'centro' : 'centros'}</span>
-          </button>
-        ))}
-        <button
-          type="button"
-          aria-pressed={customScope}
-          onClick={() => {
-            setCustomScope(true);
-            setWorkCenterCount(4);
-          }}
+      <div className="assessment-entry-routes">
+        <section
+          className="assessment-entry-route assessment-entry-route--recommended"
+          aria-labelledby="assessment-guided-route-title"
         >
-          4+<span>centros</span>
-        </button>
+          <span className="status-badge">Recomendado</span>
+          <h2 id="assessment-guided-route-title">Evaluación guiada</h2>
+          <p>
+            Una decisión por vez, con su motivo a la vista. Construiremos el contexto de tu empresa
+            y de cada centro para preparar un diagnóstico orientativo.
+          </p>
+          <ul>
+            <li>Tus respuestas se guardan antes de avanzar.</li>
+            <li>Puedes revisar y corregir el contexto confirmado.</li>
+            <li>El diagnóstico incluye el fundamento de cada resultado.</li>
+          </ul>
+          <h3>¿Cuántos centros de trabajo quieres evaluar ahora?</h3>
+          <div
+            className="assessment-scope-picker"
+            role="group"
+            aria-label="Cantidad de centros de trabajo"
+          >
+            {[1, 2, 3].map((count) => (
+              <button
+                key={count}
+                type="button"
+                aria-pressed={workCenterCount === count}
+                onClick={() => {
+                  setCustomScope(false);
+                  setWorkCenterCount(count);
+                }}
+              >
+                {count}
+                <span>{count === 1 ? 'centro' : 'centros'}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              aria-pressed={customScope}
+              onClick={() => {
+                setCustomScope(true);
+                setWorkCenterCount(4);
+              }}
+            >
+              4+<span>centros</span>
+            </button>
+          </div>
+          {customScope ? (
+            <div className="field assessment-scope-custom">
+              <label htmlFor="assessment-center-count">Cantidad exacta</label>
+              <input
+                id="assessment-center-count"
+                type="number"
+                step={1}
+                min={1}
+                max={SST_ASSESSMENT_WORK_CENTER_LIMIT}
+                inputMode="numeric"
+                value={workCenterCount ?? ''}
+                onChange={(event) => setWorkCenterCount(Number(event.target.value))}
+              />
+            </div>
+          ) : null}
+          {workCenterCount ? (
+            <p className="assessment-scope-selection" role="status">
+              {workCenterCount} {workCenterCount === 1 ? 'centro incluido' : 'centros incluidos'} en
+              esta evaluación.
+            </p>
+          ) : null}
+          {scopeError ? (
+            <p className="field-error" role="alert">
+              {scopeError}
+            </p>
+          ) : null}
+          {create.isError ? (
+            <p className="field-error" role="alert">
+              No pudimos iniciar la evaluación. Intenta nuevamente.
+            </p>
+          ) : null}
+          <button
+            className="button assessment-primary-action"
+            type="button"
+            disabled={create.isPending || workCenterCount === null}
+            onClick={begin}
+          >
+            {create.isPending ? 'Preparando entrevista…' : 'Comenzar evaluación'}
+          </button>
+          <p className="assessment-context__note">
+            Incluye una oficina, planta, bodega, obra u otra sede con operación propia. Podrás
+            reiniciar si necesitas cambiar el alcance.
+          </p>
+        </section>
+        <section className="assessment-entry-route" aria-labelledby="assessment-base-route-title">
+          <p className="eyebrow">A tu ritmo</p>
+          <h2 id="assessment-base-route-title">Entrar al espacio y configurar después</h2>
+          <p>
+            Puedes entrar al espacio de trabajo sin completar ahora la evaluación. No crearemos
+            respuestas, diagnóstico ni recomendaciones con información que no hayas confirmado.
+          </p>
+          <ul>
+            <li>Crea tu acceso y prepara tu empresa.</li>
+            <li>Completa la evaluación cuando tengas la información a mano.</li>
+          </ul>
+          <Link
+            className="button secondary assessment-base-setup"
+            href={`/auth/register?next=${encodeURIComponent('/app/organizations?setup=base')}`}
+          >
+            Prefiero empezar y configurar después
+          </Link>
+          <p className="assessment-context__note">
+            La Evaluación SST seguirá disponible para completarla después.
+          </p>
+        </section>
       </div>
-      {customScope ? (
-        <div className="field assessment-scope-custom">
-          <label htmlFor="assessment-center-count">Cantidad exacta</label>
-          <input
-            id="assessment-center-count"
-            type="number"
-            step={1}
-            min={1}
-            max={SST_ASSESSMENT_WORK_CENTER_LIMIT}
-            inputMode="numeric"
-            value={workCenterCount ?? ''}
-            onChange={(event) => setWorkCenterCount(Number(event.target.value))}
-          />
-        </div>
-      ) : null}
-      {workCenterCount ? (
-        <p className="assessment-scope-selection" role="status">
-          {workCenterCount} {workCenterCount === 1 ? 'centro incluido' : 'centros incluidos'} en
-          esta evaluación.
-        </p>
-      ) : null}
-      {scopeError ? (
-        <p className="field-error" role="alert">
-          {scopeError}
-        </p>
-      ) : null}
-      {create.isError ? (
-        <p className="field-error" role="alert">
-          No pudimos iniciar la evaluación. Intenta nuevamente.
-        </p>
-      ) : null}
-      <button
-        className="button assessment-primary-action"
-        type="button"
-        disabled={create.isPending || workCenterCount === null}
-        onClick={begin}
-      >
-        {create.isPending ? 'Preparando entrevista…' : 'Comenzar evaluación'}
-      </button>
-      <Link
-        className="button secondary assessment-base-setup"
-        href={`/auth/register?next=${encodeURIComponent('/app/organizations?setup=base')}`}
-      >
-        Prefiero empezar y configurar después
-      </Link>
-      <p className="assessment-base-setup__note">
-        Esta opción crea tu acceso y abre la configuración base; no inventa respuestas ni genera un
-        diagnóstico.
-      </p>
     </AssessmentShell>
   );
 }
