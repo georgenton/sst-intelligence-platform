@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildDeterministicOperationalPlanDraft,
   buildAssessmentOperationalPlanDraft,
+  buildIncorporatedAssessmentOperationalPlanDraft,
+  type OperationalPlanVersionInput,
   canTransitionOperationalPlanItem,
   operationalPlanContentDigest,
 } from './operational-plan.js';
@@ -164,4 +166,111 @@ describe('assessment Operational Plan handoff', () => {
     expect(draft.provenance.capabilityEngineVersion).toBe('1.1.0');
     expect(draft.provenance).not.toHaveProperty('capabilityEvaluationOutputHash');
   });
+});
+
+describe('incorporating selected diagnosis proposals into a persisted active plan', () => {
+  const original: OperationalPlanVersionInput = {
+    name: 'Plan vigente original',
+    description: 'Descripción preservada',
+    periodStart: '2026-01-01',
+    periodEnd: '2026-12-31',
+    origin: 'MANUAL',
+    provenance: { humanReference: 'original' },
+    items: [
+      {
+        title: 'Actividad original urgente',
+        description: 'Contenido original',
+        startsAt: '2026-02-01',
+        dueAt: '2026-03-01',
+        frequency: 'Mensual',
+        priority: 'URGENT',
+        evidenceReferences: ['evidencia:original'],
+        provenanceType: 'MANUAL',
+        provenanceReference: 'original',
+        provenanceSnapshot: { note: 'original' },
+      },
+    ],
+  };
+  const base = {
+    sourcePlanId: '10000000-0000-4000-8000-000000000002',
+    sourceVersionId: '10000000-0000-4000-8000-000000000003',
+    sourceVersion: original,
+    inheritedItems: [
+      { id: '10000000-0000-4000-8000-000000000004', displayOrder: 5, item: original.items[0]! },
+    ],
+    selection: { selectedCapabilityKeys: ['INSPECTIONS', 'GOVERNANCE'] as SstCapabilityKey[] },
+    assessmentSessionId: assessmentId,
+    capabilityEvaluation: storedEvaluation,
+  };
+  it('preserves inherited content/provenance and appends only the selected proposals without invented assignments or dates', () => {
+    const before = structuredClone(base);
+    const draft = buildIncorporatedAssessmentOperationalPlanDraft(base);
+    expect(draft.items).toHaveLength(3);
+    expect(draft.items[0]).toEqual({
+      ...original.items[0],
+      provenanceSnapshot: {
+        note: 'original',
+        inheritedFromPlanId: base.sourcePlanId,
+        inheritedFromVersionId: base.sourceVersionId,
+        inheritedFromItemId: base.inheritedItems[0]!.id,
+      },
+    });
+    expect(draft.description).toBe(original.description);
+    for (const item of draft.items.slice(1)) {
+      expect(item.provenanceType).toBe('UNIFIED_SST_EVALUATION');
+      expect(item.dueAt).toBeUndefined();
+      expect(item.responsibleUserId).toBeUndefined();
+      expect(item.workCenterId).toBeUndefined();
+      expect(item.provenanceSnapshot.capabilityKey).not.toBe('WORKFORCE');
+    }
+    expect(base).toEqual(before);
+    expect(JSON.stringify(draft)).not.toMatch(/ruleKeys|score|entitlement|subscription/);
+  });
+  it('orders inherited items by source display order and proposals independently of input selection order', () => {
+    const second = {
+      id: '10000000-0000-4000-8000-000000000005',
+      displayOrder: 1,
+      item: { ...original.items[0]!, title: 'Primera actividad de origen' },
+    };
+    const a = buildIncorporatedAssessmentOperationalPlanDraft({
+      ...base,
+      inheritedItems: [...base.inheritedItems, second],
+    });
+    const b = buildIncorporatedAssessmentOperationalPlanDraft({
+      ...base,
+      inheritedItems: [second, ...base.inheritedItems],
+      selection: { selectedCapabilityKeys: [...base.selection.selectedCapabilityKeys].reverse() },
+    });
+    expect(a.items[0]!.title).toBe(second.item.title);
+    expect(a).toEqual(b);
+    expect(operationalPlanContentDigest(a)).toBe(operationalPlanContentDigest(b));
+  });
+  it('inherits metadata when optional transport fields are present with undefined values', () => {
+    const draft = buildIncorporatedAssessmentOperationalPlanDraft({
+      ...base,
+      selection: {
+        ...base.selection,
+        name: undefined,
+        description: undefined,
+        periodStart: undefined,
+        periodEnd: undefined,
+        responsibleUserId: undefined,
+      },
+    });
+    expect(draft.name).toBe(original.name);
+    expect(draft.description).toBe(original.description);
+    expect(draft.periodStart).toBe(original.periodStart);
+    expect(draft.periodEnd).toBe(original.periodEnd);
+  });
+  it.each([[], ['INSPECTIONS', 'INSPECTIONS'], ['WORK_PERMITS']])(
+    'rejects empty, duplicate or unavailable selection %j',
+    (selected) => {
+      expect(() =>
+        buildIncorporatedAssessmentOperationalPlanDraft({
+          ...base,
+          selection: { selectedCapabilityKeys: selected as SstCapabilityKey[] },
+        }),
+      ).toThrow();
+    },
+  );
 });

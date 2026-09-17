@@ -23,6 +23,7 @@ export const operationalPlanItemProvenanceTypes = [
 export type OperationalPlanItemStatus = (typeof operationalPlanItemStatuses)[number];
 
 export const operationalPlanItemInputSchema = z.object({
+  sourceItemId: z.uuid().optional(),
   title: z.string().trim().min(3).max(240),
   description: z.string().trim().max(2000).optional(),
   startsAt: z.iso.date().optional(),
@@ -106,6 +107,76 @@ const planningCapabilityEvaluationSchema = z
     ({ recommendations }) =>
       new Set(recommendations.map((r) => r.capabilityKey)).size === recommendations.length,
   );
+
+export const incorporateAssessmentOperationalPlanInputSchema = z
+  .object(assessmentOperationalPlanInputSchema.shape)
+  .partial({
+    name: true,
+    description: true,
+    periodStart: true,
+    periodEnd: true,
+    responsibleUserId: true,
+  })
+  .refine(
+    ({ selectedCapabilityKeys }) =>
+      new Set(selectedCapabilityKeys).size === selectedCapabilityKeys.length,
+  )
+  .refine(({ periodStart, periodEnd }) => !periodStart || !periodEnd || periodEnd >= periodStart);
+
+export type InheritedOperationalPlanItem = {
+  id: string;
+  displayOrder: number;
+  item: z.infer<typeof operationalPlanItemInputSchema>;
+};
+
+/** The application supplies persisted source content, never browser-derived inheritance. */
+export function buildIncorporatedAssessmentOperationalPlanDraft(input: {
+  sourcePlanId: string;
+  sourceVersionId: string;
+  sourceVersion: OperationalPlanVersionInput;
+  inheritedItems: readonly InheritedOperationalPlanItem[];
+  selection: z.infer<typeof incorporateAssessmentOperationalPlanInputSchema>;
+  assessmentSessionId: string;
+  assessmentFinalizedAt?: string;
+  capabilityEvaluation: unknown;
+}): OperationalPlanVersionInput {
+  const selection = incorporateAssessmentOperationalPlanInputSchema.parse(input.selection);
+  const proposals = buildAssessmentOperationalPlanDraft({
+    name: selection.name ?? input.sourceVersion.name,
+    description: selection.description ?? input.sourceVersion.description,
+    periodStart: selection.periodStart ?? input.sourceVersion.periodStart,
+    periodEnd: selection.periodEnd ?? input.sourceVersion.periodEnd,
+    responsibleUserId: selection.responsibleUserId ?? input.sourceVersion.responsibleUserId,
+    selectedCapabilityKeys: selection.selectedCapabilityKeys,
+    assessmentSessionId: input.assessmentSessionId,
+    assessmentFinalizedAt: input.assessmentFinalizedAt,
+    capabilityEvaluation: input.capabilityEvaluation,
+  });
+  return operationalPlanVersionInputSchema.parse({
+    ...proposals,
+    provenance: {
+      ...input.sourceVersion.provenance,
+      ...proposals.provenance,
+      createdFrom: 'EXISTING_PLAN_AND_SST_ASSESSMENT',
+      sourcePlanId: input.sourcePlanId,
+      sourceVersionId: input.sourceVersionId,
+    },
+    items: [
+      ...[...input.inheritedItems]
+        .sort((a, b) => a.displayOrder - b.displayOrder)
+        .map(({ id, item }) => ({
+          ...item,
+          provenanceSnapshot: {
+            ...item.provenanceSnapshot,
+            inheritedFromPlanId: input.sourcePlanId,
+            inheritedFromVersionId: input.sourceVersionId,
+            inheritedFromItemId: id,
+          },
+        })),
+      ...proposals.items,
+    ],
+  });
+}
 
 export function buildAssessmentOperationalPlanDraft(
   input: z.infer<typeof assessmentOperationalPlanInputSchema> & {

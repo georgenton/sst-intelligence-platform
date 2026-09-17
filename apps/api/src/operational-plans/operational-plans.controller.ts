@@ -21,6 +21,7 @@ import { RolesGuard } from '../organizations/roles.guard';
 import {
   CreateOperationalPlanDto,
   AssessmentOperationalPlanDto,
+  IncorporateAssessmentOperationalPlanDto,
   GenerateOperationalPlanDto,
   OperationalPlanQueryDto,
   TransitionOperationalPlanItemDto,
@@ -70,6 +71,29 @@ export class OperationalPlansController {
     @Query() query: OperationalPlanQueryDto,
   ) {
     return this.plans.list(organization.id, query);
+  }
+
+  @Post(':planId/from-assessment/:assessmentId')
+  @Roles(...OPERATIONAL_PLAN_WRITE_ROLES)
+  @UseGuards(RolesGuard)
+  incorporateAssessment(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('planId', new ParseUUIDPipe()) planId: string,
+    @Param('assessmentId', new ParseUUIDPipe()) assessmentId: string,
+    @Body() body: IncorporateAssessmentOperationalPlanDto,
+    @Headers('idempotency-key') creationKey: string | undefined,
+    @Req() request: ApiRequest,
+  ) {
+    return this.plans.incorporateAssessment(
+      organization.id,
+      user.id,
+      planId,
+      assessmentId,
+      body,
+      requestMetadata(request),
+      creationKey,
+    );
   }
 
   @Get(':planId')

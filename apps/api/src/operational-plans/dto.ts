@@ -24,6 +24,7 @@ import {
 import { SST_CAPABILITY_KEYS, type SstCapabilityKey } from '@sst/contracts';
 
 export class OperationalPlanItemDto {
+  @IsOptional() @IsUUID() sourceItemId?: string;
   @IsString() @Length(3, 240) title!: string;
   @IsOptional() @IsString() @Length(0, 2000) description?: string;
   @IsOptional() @IsDateString() startsAt?: string;
@@ -61,6 +62,19 @@ export class GenerateOperationalPlanDto {
 }
 
 export class AssessmentOperationalPlanDto extends GenerateOperationalPlanDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayUnique()
+  @IsIn(SST_CAPABILITY_KEYS, { each: true })
+  selectedCapabilityKeys!: SstCapabilityKey[];
+}
+
+export class IncorporateAssessmentOperationalPlanDto {
+  @IsOptional() @IsString() @Length(3, 200) name?: string;
+  @IsOptional() @IsString() @Length(0, 2000) description?: string;
+  @IsOptional() @IsDateString() periodStart?: string;
+  @IsOptional() @IsDateString() periodEnd?: string;
+  @IsOptional() @IsUUID() responsibleUserId?: string;
   @IsArray()
   @ArrayNotEmpty()
   @ArrayUnique()
