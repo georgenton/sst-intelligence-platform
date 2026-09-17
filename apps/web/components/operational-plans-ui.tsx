@@ -497,8 +497,8 @@ export function OperationalPlans({ planId }: { planId?: string }) {
               </h2>
               <p>{version.description ?? 'Sin descripción adicional.'}</p>
               <p>
-                {new Date(version.periodStart).toLocaleDateString('es-EC')} –{' '}
-                {new Date(version.periodEnd).toLocaleDateString('es-EC')}
+                {new Date(version.periodStart).toLocaleDateString('es-EC', { timeZone: 'UTC' })} –{' '}
+                {new Date(version.periodEnd).toLocaleDateString('es-EC', { timeZone: 'UTC' })}
               </p>
               {planId &&
               version.status === 'DRAFT' &&

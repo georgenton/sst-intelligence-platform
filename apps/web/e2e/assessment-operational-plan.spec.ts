@@ -6,6 +6,7 @@ import { createE2eOrganization } from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 const prisma = new PrismaClient();
+test.use({ timezoneId: 'America/Guayaquil' });
 test.afterAll(async () => prisma.$disconnect());
 
 function administrativeAnswers() {
@@ -163,6 +164,7 @@ test('finalized administrative diagnosis → explicit subset → review new vers
   await page.getByRole('button', { name: 'Crear borrador', exact: true }).click();
   await expect(page).toHaveURL(/\/app\/plans\/[0-9a-f-]+$/);
   const planId = page.url().split('/').at(-1)!;
+  await expect(page.getByText('1/9/2026 – 31/12/2026', { exact: true })).toBeVisible();
   await expect(page.getByText('Origen: Diagnóstico SST')).toHaveCount(2);
   const first = await prisma.operationalPlanVersion.findFirstOrThrow({
     where: { planId, version: 1 },

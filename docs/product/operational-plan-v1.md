@@ -14,6 +14,8 @@ La decisión se conserva en la procedencia de la versión y su auditoría: diagn
 
 La creación siempre produce una versión DRAFT. Revisar el borrador utiliza `POST /operational-plans/:planId/versions` y crea N+1; no modifica el contenido de una versión anterior. La revisión conserva la procedencia y permite cambiar actividades, responsables, centro, fechas, prioridad, frecuencia y referencias de evidencia.
 
+Las fechas del período se presentan como días calendario UTC, igual que los inputs y el contrato guardado, para evitar adelantar o atrasar un día según la zona horaria del navegador.
+
 La activación es una acción explícita permitida a ORG_OWNER, ORG_ADMIN y SST_MANAGER. Conserva la exclusión de versiones activas por organización mediante el bloqueo existente. La ejecución utiliza los estados y conflictos optimistas existentes. Work Queue sigue siendo una proyección de atención de ítems activos, no el inventario completo del plan.
 
 ## API, contexto y seguridad de reintento
