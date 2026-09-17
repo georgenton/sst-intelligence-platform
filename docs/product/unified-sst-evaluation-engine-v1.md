@@ -13,7 +13,7 @@ The unified result now contains three deliberately separate layers:
 
 1. confirmed or explicitly unknown organization facts in the versioned assessment snapshot;
 2. deterministic specialist findings and missing information;
-3. proposed product-capability recommendations from `SST_CAPABILITY_ENGINE_VERSION=1.1.0`.
+3. proposed product-capability recommendations from `SST_CAPABILITY_ENGINE_VERSION=1.2.0`.
 
 Effective entitlements are fetched separately for authenticated presentation. The UI labels current
 availability separately and directs the user to review the capability or current access. A
@@ -58,6 +58,13 @@ no arbitrary organization identifier.
 The `1.1.0` output adds scoped pending-information states without rewriting prior `1.0.0` JSON.
 Presentation remains read-compatible with historical unresolved fact-key lists while every new
 evaluation persists the scoped representation.
+
+Capability engine `1.2.0` preserves the pending-information behavior introduced in `1.1.0` and
+identifies the hands-on PR50 scoring corrections: manual permits, recurring findings and no SST
+plan are secondary signals, and `COMMERCIAL_OPTIONAL` facts are excluded from diagnostic scoring,
+recommendations and input semantics. Historical versions remain readable without rewriting their
+payloads. Recommendations remain human-confirmed, non-activating product guidance, never legal or
+compliance determinations.
 
 The integration regression verifies that evaluation and reevaluation leave organization modules,
 subscriptions, feature definitions and plan assignments byte-for-byte unchanged. Existing Adaptive
@@ -104,7 +111,7 @@ La revisión final resume organización y centros sin repetir el inventario comp
 contexto. Una diferencia entre el total organizacional de personas y la suma por centros genera una
 advertencia no bloqueante. Los datos preventivos sensibles mantienen ayuda visible y prohíben datos
 personales, médicos o psicosociales individuales. El resultado fresco debe incluir siempre
-`capabilityEvaluation.engineVersion=1.1.0`; la presentación no sustituye ese resultado por un
+`capabilityEvaluation.engineVersion=1.2.0`; la presentación no sustituye ese resultado por un
 fallback histórico.
 
 Este pase no añade migraciones, reglas regulatorias reales, entitlements, módulos, generación de

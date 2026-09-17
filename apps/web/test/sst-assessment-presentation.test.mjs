@@ -120,6 +120,38 @@ test('keeps recommendations separate from current entitlement state', () => {
   assert.equal(capabilityAccessLabel('NOT_INCLUDED'), 'No incluida en tu acceso actual');
 });
 
+test('reads historical 1.1.0 capability output without mutation or re-evaluation', () => {
+  const stored = JSON.stringify({
+    engineVersion: '1.1.0',
+    recommendations: [
+      { capabilityKey: 'WORK_PERMITS', featureKey: 'module.work_permits', score: 45 },
+    ],
+    missingInformation: [
+      {
+        capabilityKey: 'INCIDENTS',
+        pendingInformation: [
+          {
+            scopeKey: 'organization',
+            factKey: 'organization.recurringFindings',
+            missingState: 'EXPLICIT_UNKNOWN',
+          },
+        ],
+      },
+    ],
+  });
+  const historical = JSON.parse(stored);
+  assert.equal(capabilityAccessState(historical.recommendations[0], 'PUBLIC'), 'NOT_VERIFIED');
+  assert.match(
+    capabilityPendingInformationLabels(historical.missingInformation[0], [
+      { scopeKey: 'organization', kind: 'ORGANIZATION', order: 0, displayName: 'Organización' },
+    ])[0],
+    /Empresa:.*Marcado como “No lo sé”/,
+  );
+  assert.equal(historical.engineVersion, '1.1.0');
+  assert.equal(historical.recommendations[0].score, 45);
+  assert.equal(JSON.stringify(historical), stored);
+});
+
 test('presents scope-aware capability uncertainty without exposing internal scores', () => {
   const scopes = [
     { scopeKey: 'organization', kind: 'ORGANIZATION', order: 0, displayName: 'Organización' },

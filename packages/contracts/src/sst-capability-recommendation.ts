@@ -13,7 +13,7 @@ import {
 } from './sst-assessment.js';
 import { SST_ASSESSMENT_COMMERCIAL_OPTIONAL_FACT_KEYS } from './sst-assessment-catalog.js';
 
-export const SST_CAPABILITY_ENGINE_VERSION = '1.1.0' as const;
+export const SST_CAPABILITY_ENGINE_VERSION = '1.2.0' as const;
 
 type KnownFact = Extract<SstAssessmentFact, { answerState: 'KNOWN' }>;
 type Indicator = {

@@ -546,7 +546,7 @@ describe('canonical SST assessment integration', () => {
       .expect(201);
     expect(evaluated.body.result.capabilityEvaluation).toEqual(
       expect.objectContaining({
-        engineVersion: '1.1.0',
+        engineVersion: '1.2.0',
         inputHash: expect.stringMatching(/^sha256:/),
         outputHash: expect.stringMatching(/^sha256:/),
         boundaries: {

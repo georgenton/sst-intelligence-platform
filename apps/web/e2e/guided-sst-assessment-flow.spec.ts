@@ -77,7 +77,11 @@ async function finalizePublicAssessment(page: Page, testInfo?: TestInfo, prefix 
     await waitForAssessmentMotion(page);
     await page.screenshot({ path: testInfo.outputPath(`${prefix}-review.png`), fullPage: true });
   }
+  const completed = page.waitForResponse(
+    (response) => response.request().method() === 'POST' && response.url().endsWith('/complete'),
+  );
   await page.getByRole('button', { name: 'Confirmar y generar diagnóstico' }).click();
+  expect((await (await completed).json()).result.capabilityEvaluation.engineVersion).toBe('1.2.0');
   await expect(page.getByText('Diagnóstico listo', { exact: true })).toBeVisible();
   await expect(
     page.getByRole('heading', { name: 'Capacidades que pueden ser pertinentes' }),
@@ -422,7 +426,7 @@ test('guided setup keeps multi-center context human, editable and capability-saf
   expect(
     evaluated.questions.some(({ collectionPolicy }) => collectionPolicy === 'COMMERCIAL_OPTIONAL'),
   ).toBe(false);
-  expect(evaluated.result.capabilityEvaluation.engineVersion).toBe('1.1.0');
+  expect(evaluated.result.capabilityEvaluation.engineVersion).toBe('1.2.0');
   expect(
     evaluated.result.capabilityEvaluation.recommendations
       .map(({ capabilityKey }) => capabilityKey)
