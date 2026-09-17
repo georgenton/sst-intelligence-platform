@@ -6,7 +6,9 @@ import {
   claimDestinationTarget,
   initialClaimDestination,
   reduceClaimDestination,
+  claimCompanyCreationError,
 } from '../lib/sst-assessment-claim.ts';
+import { ApiClientError } from '@sst/api-client';
 
 test('claim destination remains undecided until the user explicitly chooses an organization', () => {
   assert.equal(claimDestinationTarget(initialClaimDestination), null);
@@ -27,6 +29,23 @@ test('new company creation requires a human activity when the assessment has non
   assert.equal(canCreateClaimCompany('Empresa nueva', '', ''), false);
   assert.equal(canCreateClaimCompany('Empresa nueva', '', 'Manufactura liviana'), true);
   assert.equal(canCreateClaimCompany('Empresa nueva', 'Servicios administrativos', ''), true);
+  assert.equal(canCreateClaimCompany('a'.repeat(121), '', 'Servicios'), false);
+  assert.equal(canCreateClaimCompany('Empresa', '', 'a'.repeat(121)), false);
+});
+
+test('company creation errors are bounded and never expose provider or persistence errors', () => {
+  const internal = new ApiClientError(500, {
+    code: 'INTERNAL_ERROR',
+    message: 'Prisma P2025 password internal',
+    details: {},
+    traceId: 'test',
+  });
+  assert.match(claimCompanyCreationError(internal), /Tu diagnóstico sigue guardado/);
+  assert.doesNotMatch(claimCompanyCreationError(internal), /Prisma|P2025|password|internal/);
+  assert.equal(
+    claimCompanyCreationError(new Error('private internals')),
+    claimCompanyCreationError(internal),
+  );
 });
 
 test('a user with an active organization can explicitly choose safe new-company setup', () => {

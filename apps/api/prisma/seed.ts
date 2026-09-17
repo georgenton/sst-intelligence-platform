@@ -20,11 +20,21 @@ import {
 import { assertPublishedVersionMatches } from '../src/adaptive-configuration/adaptive-reference-integrity';
 import { syncGlobalReferenceData } from '../src/reference-data/risk-methodology-reference-sync';
 import { provisionRegulatoryReviewCorpus } from './regulatory-review-corpus-reference-data';
+import {
+  ORGANIZATION_BASELINE_FEATURES,
+  ORGANIZATION_BASELINE_MODULE,
+  ORGANIZATION_BASELINE_PLAN,
+  ORGANIZATION_BASELINE_VALUES,
+} from '../src/reference-data/organization-baseline-reference-data';
 
 const prisma = new PrismaClient();
 
 const modules = [
-  ['CORE', 'Núcleo SST', 'Organización, acceso, evidencias y trazabilidad común.'],
+  [
+    ORGANIZATION_BASELINE_MODULE.key,
+    ORGANIZATION_BASELINE_MODULE.name,
+    ORGANIZATION_BASELINE_MODULE.description,
+  ],
   ['INSPECTIONS_INTELLIGENCE', 'Inspecciones inteligentes', 'Centraliza hallazgos y recurrencias.'],
   ['TECHNICAL_RISK', 'Riesgo técnico', 'Presenta controles e indicadores técnicos sintéticos.'],
   ['WORK_PERMITS', 'Permisos de trabajo', 'Prepara la trazabilidad de actividades críticas.'],
@@ -33,40 +43,28 @@ const modules = [
 ] as const;
 
 const plans = [
-  ['FREE', 'Free', 'Exploración y diagnóstico inicial.'],
+  [
+    ORGANIZATION_BASELINE_PLAN.key,
+    ORGANIZATION_BASELINE_PLAN.name,
+    ORGANIZATION_BASELINE_PLAN.description,
+  ],
   ['STARTER', 'Starter', 'Inicio gradual para equipos pequeños.'],
   ['GROWTH', 'Growth', 'Operaciones con varios centros y módulos.'],
   ['ENTERPRISE', 'Enterprise', 'Gobierno y escala empresarial.'],
 ] as const;
 
 const features = [
-  ['organization.max_work_centers', 'Máximo de centros de trabajo', 'INTEGER'],
-  ['organization.max_members', 'Máximo de miembros', 'INTEGER'],
-  ['demo.enabled', 'Permite activar demostración', 'BOOLEAN'],
-  ['demo.duration_days', 'Duración de demostración', 'INTEGER'],
-  ['ai.monthly_actions', 'Acciones mensuales de IA', 'INTEGER'],
-  ['module.inspections', 'Módulo de inspecciones', 'BOOLEAN'],
-  ['module.technical_risk', 'Módulo de riesgo técnico', 'BOOLEAN'],
+  ...ORGANIZATION_BASELINE_FEATURES.map(
+    ([key, description, valueType]) => [key, description, valueType] as const,
+  ),
   ['module.work_permits', 'Módulo de permisos', 'BOOLEAN'],
   ['module.incidents', 'Módulo de incidentes', 'BOOLEAN'],
   ['module.ppe', 'Módulo de EPP', 'BOOLEAN'],
   ['module.training', 'Módulo de capacitación', 'BOOLEAN'],
-  ['module.psychosocial', 'Módulo psicosocial', 'BOOLEAN'],
-  ['module.compliance', 'Módulo de cumplimiento', 'BOOLEAN'],
 ] as const;
 
 const planValues: Record<PlanKey, Record<string, string>> = {
-  FREE: {
-    'organization.max_work_centers': '1',
-    'organization.max_members': '2',
-    'demo.enabled': 'true',
-    'demo.duration_days': '14',
-    'ai.monthly_actions': '0',
-    'module.inspections': 'false',
-    'module.technical_risk': 'false',
-    'module.psychosocial': 'false',
-    'module.compliance': 'false',
-  },
+  FREE: ORGANIZATION_BASELINE_VALUES,
   STARTER: {
     'organization.max_work_centers': '3',
     'organization.max_members': '10',

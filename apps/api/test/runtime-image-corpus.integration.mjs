@@ -6,6 +6,10 @@ import process from 'node:process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, URL } from 'node:url';
 import { PrismaClient } from '@prisma/client';
+import {
+  organizationBaselineSnapshot,
+  verifyOrganizationCreationWithoutSeed,
+} from './support/organization-release-probe.mjs';
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error('DATABASE_URL is required');
@@ -174,6 +178,7 @@ async function referenceSnapshot(prisma) {
     }),
   ]);
   return {
+    organizationBaseline: await organizationBaselineSnapshot(prisma),
     sources,
     sourceVersions,
     units,
@@ -390,7 +395,7 @@ async function customerSnapshot(prisma, ids) {
   return { user, organization, inspection, finding, assessment };
 }
 
-async function verifyContainerReadiness(scopedUrl) {
+async function verifyContainerReadiness(scopedUrl, prisma) {
   const name = `sst-runtime-api-${randomUUID()}`;
   apiContainers.push(name);
   const argumentsList = dockerRuntimeArguments(scopedUrl).filter((argument) => argument !== '--rm');
@@ -408,11 +413,16 @@ async function verifyContainerReadiness(scopedUrl) {
         const logs = run('docker', ['logs', name], { capture: true });
         throw new Error(`Runtime image API exited before readiness:\n${logs}`);
       }
+      let ready = false;
       try {
         const response = await globalThis.fetch(`http://127.0.0.1:${port}/api/v1/health`);
-        if (response.status === 200 && (await response.json()).status === 'ok') return;
+        ready = response.status === 200 && (await response.json()).status === 'ok';
       } catch {
         // Container is still starting.
+      }
+      if (ready) {
+        await verifyOrganizationCreationWithoutSeed(`http://127.0.0.1:${port}`, prisma);
+        return;
       }
       await delay(125);
     }
@@ -427,6 +437,7 @@ const evidence = {
   runtimeCorpus: false,
   freshRelease: false,
   readiness: false,
+  organizationCreationWithoutSeed: false,
   repeatedSync: false,
   driftProtection: false,
   alreadyMigratedRelease: false,
@@ -457,8 +468,9 @@ try {
     });
     evidence.freshRelease = true;
 
-    await verifyContainerReadiness(fresh.url);
+    await verifyContainerReadiness(fresh.url, fresh.prisma);
     evidence.readiness = true;
+    evidence.organizationCreationWithoutSeed = true;
 
     runImage(fresh.url, ['pnpm', '--filter', '@sst/api', 'reference:sync']);
     assert.deepEqual(await referenceSnapshot(fresh.prisma), first);
@@ -530,6 +542,7 @@ try {
     runtimeCorpus: true,
     freshRelease: true,
     readiness: true,
+    organizationCreationWithoutSeed: true,
     repeatedSync: true,
     driftProtection: true,
     alreadyMigratedRelease: true,

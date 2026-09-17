@@ -18,8 +18,11 @@ export type AuditEvent = {
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
-  record(event: AuditEvent) {
-    return this.prisma.auditLog.create({
+  record(
+    event: AuditEvent,
+    transaction: Prisma.TransactionClient = this.prisma,
+  ): Promise<{ id: string }> {
+    return transaction.auditLog.create({
       data: { ...event, metadata: event.metadata ?? {} },
       select: { id: true },
     });

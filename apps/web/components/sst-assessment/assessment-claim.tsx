@@ -8,6 +8,7 @@ import { queryKeys } from '@/lib/query-keys';
 import {
   canCreateClaimCompany,
   claimCompanyActivity,
+  claimCompanyCreationError,
   claimDestinationTarget,
   initialClaimDestination,
   reduceClaimDestination,
@@ -216,6 +217,8 @@ export function AssessmentClaim() {
       if (!sector) throw new Error('La actividad principal es necesaria para crear la empresa.');
       return auth.request<{ id: string }>('/organizations', {
         method: 'POST',
+        // The existing session UUID remains stable even if a response or storage write is lost.
+        headers: { 'Idempotency-Key': record!.sessionId },
         body: JSON.stringify({ name: companyName, country, sector }),
       });
     },
@@ -302,7 +305,11 @@ export function AssessmentClaim() {
     new Set(Object.values(mappings)).size === centerScopes.length;
   const mutationError = createCompany.error ?? claimNewOrganization.error ?? claim.error;
   const reconciliation = assessmentReconciliationDetails(mutationError);
-  const message = mutationError && !reconciliation ? assessmentErrorMessage(mutationError) : '';
+  const message = createCompany.error
+    ? claimCompanyCreationError(createCompany.error)
+    : mutationError && !reconciliation
+      ? assessmentErrorMessage(mutationError)
+      : '';
 
   return (
     <AssessmentShell
@@ -361,7 +368,12 @@ export function AssessmentClaim() {
           <div className="assessment-inline-form">
             <label>
               <span>Nombre de empresa</span>
-              <input value={companyName} onChange={(event) => setCompanyName(event.target.value)} />
+              <input
+                value={companyName}
+                maxLength={120}
+                disabled={createCompany.isPending}
+                onChange={(event) => setCompanyName(event.target.value)}
+              />
             </label>
             {assessmentSector ? (
               <p>
@@ -373,6 +385,8 @@ export function AssessmentClaim() {
                 <span>Actividad principal</span>
                 <input
                   value={companySector}
+                  maxLength={120}
+                  disabled={createCompany.isPending}
                   placeholder="Ej. manufactura de alimentos"
                   onChange={(event) => setCompanySector(event.target.value)}
                 />
@@ -393,6 +407,7 @@ export function AssessmentClaim() {
           <button
             className="assessment-skip"
             type="button"
+            disabled={createCompany.isPending}
             onClick={() => dispatchDestination({ type: 'reset' })}
           >
             Volver a elegir destino

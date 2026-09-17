@@ -7,6 +7,10 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, URL } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 import {
+  organizationBaselineSnapshot,
+  verifyOrganizationCreationWithoutSeed,
+} from './support/organization-release-probe.mjs';
+import {
   CANONICAL_ASSESSMENT_ADAPTIVE_RULE_PACK_V2,
   DEMO_ADAPTIVE_RULE_PACK,
 } from '@sst/contracts';
@@ -182,6 +186,7 @@ async function referenceSnapshot(prisma) {
     }),
   ]);
   return {
+    organizationBaseline: await organizationBaselineSnapshot(prisma),
     sources,
     sourceVersions,
     definitions,
@@ -714,12 +719,22 @@ async function verifyReadiness(scopedDatabaseUrl) {
   try {
     for (let attempt = 0; attempt < 80; attempt += 1) {
       if (child.exitCode !== null) throw new Error(`API exited before readiness:\n${output}`);
+      let ready = false;
       try {
         const response = await globalThis.fetch(`http://127.0.0.1:${port}/api/v1/health`);
         const body = await response.json();
-        if (response.status === 200 && body.status === 'ok') return;
+        ready = response.status === 200 && body.status === 'ok';
       } catch {
         // The process is still starting.
+      }
+      if (ready) {
+        const prisma = clientFor(scopedDatabaseUrl);
+        try {
+          await verifyOrganizationCreationWithoutSeed(`http://127.0.0.1:${port}`, prisma);
+        } finally {
+          await prisma.$disconnect();
+        }
+        return;
       }
       await delay(125);
     }
@@ -842,6 +857,7 @@ const evidence = {
   customerDataUnchanged: false,
   historicalMethodUuidUnchanged: false,
   readiness: false,
+  organizationCreationWithoutSeed: false,
   canonicalAssessmentV2WithoutSeed: false,
   historicalAdaptiveV1ProductionFixture: false,
   historicalAdaptiveV1UnchangedAfterRelease: false,
@@ -879,13 +895,15 @@ try {
 
     await verifyReadiness(fresh.url);
     evidence.readiness = true;
+    evidence.organizationCreationWithoutSeed = true;
     await verifyCanonicalAssessmentV2(fresh.url, fresh.prisma);
     evidence.canonicalAssessmentV2WithoutSeed = true;
+    const operationalAfterUserJourney = await operationalCounts(fresh.prisma);
 
     runPackageScript('reference:sync', fresh.url);
     const secondSnapshot = await referenceSnapshot(fresh.prisma);
     assert.deepEqual(secondSnapshot, firstSnapshot);
-    assert.deepEqual(await operationalCounts(fresh.prisma), operationalAfterRelease);
+    assert.deepEqual(await operationalCounts(fresh.prisma), operationalAfterUserJourney);
     evidence.repeatedSync = true;
   } finally {
     await fresh.prisma.$disconnect();
@@ -1056,6 +1074,7 @@ try {
     customerDataUnchanged: true,
     historicalMethodUuidUnchanged: true,
     readiness: true,
+    organizationCreationWithoutSeed: true,
     canonicalAssessmentV2WithoutSeed: true,
     historicalAdaptiveV1ProductionFixture: true,
     historicalAdaptiveV1UnchangedAfterRelease: true,

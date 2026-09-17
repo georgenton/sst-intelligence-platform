@@ -38,6 +38,13 @@ pre-deploy, so Nest cannot start with a partially synchronized required catalog.
 
 ## Scope and exclusions
 
+The release also provisions the normal organization creation baseline: missing FREE and CORE
+identities and the existing FREE feature definitions/assignments, shared with the development seed.
+It preserves already configured catalog metadata, identities and feature values. This closes the
+seed-only dependency that caused organization creation to fail on release-only databases. See
+[organization creation atomicity](organization-creation-atomicity-v1.md) for transaction and retry
+semantics. No paid catalog or customer data is generated.
+
 The synchronizer owns these globally required Risk Methodology aggregates:
 
 - `MethodologySource` and `MethodologySourceVersion`;
