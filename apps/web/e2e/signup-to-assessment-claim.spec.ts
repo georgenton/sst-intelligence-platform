@@ -159,13 +159,17 @@ test('finalized public assessment signs up and claims once on a fresh release, i
     role: 'ORG_OWNER',
     status: 'ACTIVE',
   });
-  expect(organization.workCenters.map(({ name }) => name).sort()).toEqual([
+  expect(organization.workCenters.map(({ name }: { name: string }) => name).sort()).toEqual([
     'Centro Norte',
     'Centro Sur',
   ]);
-  expect(organization.modules.map(({ module }) => module.key)).toEqual(['CORE']);
+  expect(organization.modules.map(({ module }: { module: { key: string } }) => module.key)).toEqual(
+    ['CORE'],
+  );
   expect(organization.modules[0]).toMatchObject({ source: 'PLAN', status: 'ACTIVE' });
-  expect(organization.subscriptions.map(({ plan }) => plan.key)).toEqual(['FREE']);
+  expect(organization.subscriptions.map(({ plan }: { plan: { key: string } }) => plan.key)).toEqual(
+    ['FREE'],
+  );
   expect(await runtime.prisma.planFeature.findMany({ orderBy: { id: 'asc' } })).toEqual(baseline);
   const after = await runtime.prisma.sstAssessmentSession.findUniqueOrThrow({
     where: { id: assessmentId },
