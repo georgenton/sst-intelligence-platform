@@ -126,7 +126,9 @@ export function AssessmentPlanHandoff({ assessmentId }: { assessmentId: string }
   if (
     !session.data ||
     !canCreateAssessmentPlan(
-      session.data.channel,
+      // This resource is read through the authenticated tenant endpoint. A claimed
+      // diagnosis retains PUBLIC as its historical origin, not its access mode.
+      'AUTHENTICATED',
       session.data.status,
       session.data.result?.capabilityEvaluation,
     )

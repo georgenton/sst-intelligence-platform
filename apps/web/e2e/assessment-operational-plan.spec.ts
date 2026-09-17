@@ -8,26 +8,7 @@ import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-
 const prisma = new PrismaClient();
 test.afterAll(async () => prisma.$disconnect());
 
-async function finalizedAdministrativeAssessment(api: APIRequestContext, page: Page) {
-  const registration = await registerE2eUser({
-    displayName: 'Responsable PR51',
-    email: `plan-${randomUUID()}@example.test`,
-    password: randomUUID() + randomUUID(),
-  });
-  const actor = await createE2eOrganization(api, registration, `Administración ${randomUUID()}`);
-  // Two-center administrative fixture, without upgrading the FREE subscription.
-  await prisma.workCenter.create({
-    data: { organizationId: actor.organization.id, name: 'Oficina remota' },
-  });
-  const post = async (path: string, data: unknown) => {
-    const response = await api.post(`http://127.0.0.1:3101/api/v1/sst-assessment${path}`, {
-      headers: actor.headers,
-      data,
-    });
-    expect(response.status(), await response.text()).toBe(201);
-    return (await response.json()) as AssessmentSession;
-  };
-  let assessment = await post('/sessions', {});
+function administrativeAnswers() {
   const organizationFacts: Record<string, unknown> = {
     'organization.totalWorkerCount': 60,
     'organization.managementSystem': 'SPREADSHEETS',
@@ -80,9 +61,32 @@ async function finalizedAdministrativeAssessment(api: APIRequestContext, page: P
       })),
     );
   }
+  return answers;
+}
+
+async function finalizedAdministrativeAssessment(api: APIRequestContext, page: Page) {
+  const registration = await registerE2eUser({
+    displayName: 'Responsable PR51',
+    email: `plan-${randomUUID()}@example.test`,
+    password: randomUUID() + randomUUID(),
+  });
+  const actor = await createE2eOrganization(api, registration, `Administración ${randomUUID()}`);
+  // Two-center administrative fixture, without upgrading the FREE subscription.
+  await prisma.workCenter.create({
+    data: { organizationId: actor.organization.id, name: 'Oficina remota' },
+  });
+  const post = async (path: string, data: unknown) => {
+    const response = await api.post(`http://127.0.0.1:3101/api/v1/sst-assessment${path}`, {
+      headers: actor.headers,
+      data,
+    });
+    expect(response.status(), await response.text()).toBe(201);
+    return (await response.json()) as AssessmentSession;
+  };
+  let assessment = await post('/sessions', {});
   assessment = await post(`/sessions/${assessment.id}/answers`, {
     expectedSessionRevision: assessment.sessionRevision,
-    answers,
+    answers: administrativeAnswers(),
   });
   assessment = await post(`/sessions/${assessment.id}/evaluate`, {
     expectedSessionRevision: assessment.sessionRevision,
@@ -297,4 +301,120 @@ test('technician can create and review a draft but sees no activation control', 
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Activar plan', exact: true })).toHaveCount(0);
   expect(await provisioning(f.organization.id)).toEqual(f.baseline);
+});
+
+test('public finalized diagnosis → signup → claim two centers → authenticated handoff preserves PUBLIC origin', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await page.goto('/evaluacion-sst');
+  await page.getByRole('button', { name: '2 centros', exact: true }).click();
+  await page.getByRole('button', { name: 'Comenzar evaluación', exact: true }).click();
+  await expect(page.locator('[data-question-id]')).toBeVisible();
+  const assessment = await page.evaluate(
+    async (answers) => {
+      const id = localStorage.getItem('sst-assessment-session:active');
+      const recovery = JSON.parse(localStorage.getItem(`sst-assessment-session:${id}`) ?? 'null');
+      if (!id || !recovery?.publicToken) throw new Error('PUBLIC_SESSION_RECOVERY_MISSING');
+      const path = `/api/v1/sst-assessment/public/sessions/${id}`;
+      const headers = {
+        'content-type': 'application/json',
+        'x-assessment-token': recovery.publicToken,
+      };
+      const call = async (suffix: string, body?: unknown) => {
+        const response = await fetch(path + suffix, {
+          headers,
+          ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}),
+        });
+        if (!response.ok) throw new Error(`PUBLIC_FIXTURE_FAILED_${response.status}`);
+        return response.json() as Promise<AssessmentSession>;
+      };
+      const current = await call('');
+      const saved = await call('/answers', {
+        expectedSessionRevision: current.sessionRevision,
+        answers,
+      });
+      const evaluated = await call('/evaluate', { expectedSessionRevision: saved.sessionRevision });
+      return call('/complete', { expectedSessionRevision: evaluated.sessionRevision });
+    },
+    [
+      {
+        factKey: 'organization.country',
+        scopeKey: 'organization',
+        answerState: 'KNOWN',
+        value: 'Ecuador',
+      },
+      ...administrativeAnswers(),
+    ],
+  );
+  expect(assessment.status).toBe('FINALIZED');
+  expect(
+    assessment.result!.capabilityEvaluation!.recommendations.map((r) => r.capabilityKey).sort(),
+  ).toEqual(['GOVERNANCE', 'INSPECTIONS', 'WORKFORCE']);
+  await page.reload();
+  await page.getByRole('link', { name: 'Crear cuenta y continuar' }).click();
+  await page.getByLabel('Nombre', { exact: true }).fill('Responsable público PR51');
+  await page.getByLabel('Correo', { exact: true }).fill(`public-plan-${randomUUID()}@example.test`);
+  await page.getByLabel('Contraseña', { exact: true }).fill(randomUUID() + randomUUID());
+  await page.getByRole('button', { name: 'Crear cuenta', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Guarda este diagnóstico en tu empresa' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: /Crear nueva empresa/ }).click();
+  await page
+    .getByLabel('Nombre de empresa', { exact: true })
+    .fill(`Administración pública ${randomUUID()}`);
+  await page.getByLabel('Actividad principal', { exact: true }).fill('Servicios administrativos');
+  const creationResponse = page.waitForResponse(
+    (r) => r.request().method() === 'POST' && r.url().endsWith('/api/v1/organizations'),
+  );
+  await page.getByRole('button', { name: 'Crear empresa', exact: true }).click();
+  const creation = await creationResponse;
+  expect(creation.status()).toBe(201);
+  const organization = (await creation.json()) as { id: string };
+  await expect(
+    page.getByRole('heading', { name: 'Configura los centros de trabajo' }),
+  ).toBeVisible();
+  for (const [index, name] of ['Oficina presencial', 'Oficina remota'].entries())
+    await page.getByLabel(`Centro ${index + 1}`, { exact: true }).fill(name);
+  await page.getByRole('button', { name: 'Guardar centros y continuar', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/app/evaluation/${assessment.id}$`));
+  expect(
+    await page.evaluate(() => localStorage.getItem('sst-assessment-session:active')),
+  ).toBeNull();
+  const source = await prisma.sstAssessmentSession.findUniqueOrThrow({
+    where: { id: assessment.id },
+  });
+  expect(source.channel).toBe('PUBLIC');
+  expect(source.organizationId).toBe(organization.id);
+  expect(source.claimedAt).not.toBeNull();
+  expect(await prisma.workCenter.count({ where: { organizationId: organization.id } })).toBe(2);
+  const baseline = await provisioning(organization.id);
+  // Navigate directly after claim: the cached source still has historical channel PUBLIC.
+  await page.getByRole('link', { name: 'Crear borrador de Plan Operativo' }).click();
+  await expect(page.getByRole('heading', { name: 'Elige qué incluir en tu plan' })).toBeVisible();
+  await expect(page.getByRole('checkbox')).toHaveCount(3);
+  for (const checkbox of await page.getByRole('checkbox').all())
+    await expect(checkbox).not.toBeChecked();
+  for (const r of assessment.result!.capabilityEvaluation!.recommendations.filter(
+    (r) => r.capabilityKey !== 'WORKFORCE',
+  ))
+    await page.getByRole('checkbox', { name: `Incluir ${r.title} en el plan` }).check();
+  await page.getByRole('button', { name: 'Crear borrador', exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/plans\/[0-9a-f-]+$/);
+  const planId = page.url().split('/').at(-1)!;
+  expect(await prisma.operationalPlan.count({ where: { organizationId: organization.id } })).toBe(
+    1,
+  );
+  const draft = await prisma.operationalPlanVersion.findFirstOrThrow({
+    where: { planId },
+    include: { items: true },
+  });
+  expect(draft.status).toBe('DRAFT');
+  expect(draft.items).toHaveLength(2);
+  expect(
+    await prisma.sstAssessmentSession.findUniqueOrThrow({ where: { id: assessment.id } }),
+  ).toEqual(source);
+  expect(await provisioning(organization.id)).toEqual(baseline);
+  expect(page.url()).not.toMatch(/token/i);
 });

@@ -1,12 +1,12 @@
 import type { SstCapabilityEvaluation } from '@sst/contracts';
 
 export function canCreateAssessmentPlan(
-  channel: string,
+  accessChannel: string,
   status: string,
   evaluation?: SstCapabilityEvaluation | null,
 ) {
   return (
-    channel === 'AUTHENTICATED' &&
+    accessChannel === 'AUTHENTICATED' &&
     status === 'FINALIZED' &&
     Boolean(evaluation?.recommendations.length)
   );

@@ -131,7 +131,14 @@ export class OperationalPlansService {
           }
         }
         const assessment = await tx.sstAssessmentSession.findFirst({
-          where: { id: assessmentId, organizationId, channel: 'AUTHENTICATED' },
+          where: {
+            id: assessmentId,
+            organizationId,
+            OR: [
+              { channel: 'AUTHENTICATED' },
+              { channel: 'PUBLIC', claimedAt: { not: null }, claimedById: { not: null } },
+            ],
+          },
           select: { status: true, latestResult: true, finalizedAt: true },
         });
         if (!assessment) throw new NotFoundException('Diagnóstico SST no encontrado.');

@@ -4,7 +4,7 @@ Existe un solo dominio de planificación: `OperationalPlan`, sus versiones inmut
 
 ## Fuentes y decisión humana
 
-Se mantienen la creación manual, el generador determinista desde señales existentes y la conversión explícita desde brechas. El nuevo handoff usa exclusivamente `latestResult.capabilityEvaluation` de un `SstAssessmentSession` autenticado, FINALIZED y perteneciente a la organización activa. No vuelve a ejecutar el motor ni modifica el diagnóstico histórico. Un diagnóstico sin ese resultado conservado requiere una nueva evaluación para utilizar el handoff.
+Se mantienen la creación manual, el generador determinista desde señales existentes y la conversión explícita desde brechas. El nuevo handoff usa exclusivamente `latestResult.capabilityEvaluation` de un `SstAssessmentSession` accesible mediante la API autenticada, FINALIZED y perteneciente a la organización activa. Una evaluación pública reclamada conserva `channel:PUBLIC` como origen histórico; su vínculo de tenant y claim confirmado permiten el handoff autenticado. Una sesión pública sin claim no es elegible. No vuelve a ejecutar el motor ni modifica el diagnóstico histórico. Un diagnóstico sin ese resultado conservado requiere una nueva evaluación para utilizar el handoff.
 
 La pantalla de selección empieza sin capacidades marcadas. La persona elige un subconjunto y confirma nombre, descripción opcional, período y responsable general opcional. Cada capacidad elegida produce un frente de trabajo inicial con su título, descripción y prioridad guardados. No se inventan responsable por actividad, centro, fechas, frecuencia ni evidencia exigida. Esos datos se completan durante la revisión.
 

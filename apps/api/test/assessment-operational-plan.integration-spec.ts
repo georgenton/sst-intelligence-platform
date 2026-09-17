@@ -218,6 +218,20 @@ describe('assessment to existing Operational Plan', () => {
     const r = await create(f).expect(201);
     expect(r.body.versions[0].provenance.capabilityEngineVersion).toBe('1.1.0');
   });
+  it('accepts a tenant-bound claimed PUBLIC diagnosis while preserving its historical origin', async () => {
+    const f = await fixture();
+    await prisma.sstAssessmentSession.update({
+      where: { id: f.assessment.id },
+      data: { channel: 'PUBLIC', claimedById: f.id, claimedAt: new Date() },
+    });
+    const before = await prisma.sstAssessmentSession.findUniqueOrThrow({
+      where: { id: f.assessment.id },
+    });
+    await create(f, randomUUID()).expect(201);
+    expect(
+      await prisma.sstAssessmentSession.findUniqueOrThrow({ where: { id: f.assessment.id } }),
+    ).toEqual(before);
+  });
   it('enforces tenant, authenticated channel, writer role and active references', async () => {
     const a = await fixture();
     const b = await fixture();
