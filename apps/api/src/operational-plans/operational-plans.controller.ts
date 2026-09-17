@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AccessTokenGuard } from '../auth/access-token.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -9,6 +20,7 @@ import { OrganizationGuard } from '../organizations/organization.guard';
 import { RolesGuard } from '../organizations/roles.guard';
 import {
   CreateOperationalPlanDto,
+  AssessmentOperationalPlanDto,
   GenerateOperationalPlanDto,
   OperationalPlanQueryDto,
   TransitionOperationalPlanItemDto,
@@ -25,6 +37,32 @@ import { OperationalPlansService } from './operational-plans.service';
 @UseGuards(AccessTokenGuard, OrganizationGuard)
 export class OperationalPlansController {
   constructor(private readonly plans: OperationalPlansService) {}
+
+  @Get('context')
+  context(@OrganizationContext() organization: { id: string }) {
+    return this.plans.context(organization.id);
+  }
+
+  @Post('from-assessment/:assessmentId')
+  @Roles(...OPERATIONAL_PLAN_WRITE_ROLES)
+  @UseGuards(RolesGuard)
+  fromAssessment(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('assessmentId', new ParseUUIDPipe()) assessmentId: string,
+    @Body() body: AssessmentOperationalPlanDto,
+    @Headers('idempotency-key') creationKey: string | undefined,
+    @Req() request: ApiRequest,
+  ) {
+    return this.plans.fromAssessment(
+      organization.id,
+      user.id,
+      assessmentId,
+      body,
+      requestMetadata(request),
+      creationKey,
+    );
+  }
 
   @Get()
   list(

@@ -1,6 +1,9 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  ArrayNotEmpty,
+  ArrayUnique,
+  IsIn,
   IsDateString,
   IsEnum,
   IsInt,
@@ -18,6 +21,7 @@ import {
   OperationalPlanItemProvenanceType,
   OperationalPlanItemStatus,
 } from '@prisma/client';
+import { SST_CAPABILITY_KEYS, type SstCapabilityKey } from '@sst/contracts';
 
 export class OperationalPlanItemDto {
   @IsString() @Length(3, 240) title!: string;
@@ -54,6 +58,14 @@ export class GenerateOperationalPlanDto {
   @IsDateString() periodStart!: string;
   @IsDateString() periodEnd!: string;
   @IsOptional() @IsUUID() responsibleUserId?: string;
+}
+
+export class AssessmentOperationalPlanDto extends GenerateOperationalPlanDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayUnique()
+  @IsIn(SST_CAPABILITY_KEYS, { each: true })
+  selectedCapabilityKeys!: SstCapabilityKey[];
 }
 
 export class OperationalPlanQueryDto {
