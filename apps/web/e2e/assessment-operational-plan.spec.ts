@@ -6,6 +6,8 @@ import { createE2eOrganization } from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 const prisma = new PrismaClient();
+// The filtered web preview build does not generate the API Prisma client.
+type PersistedExecutionItem = { execution: { status: string } | null };
 test.use({ timezoneId: 'America/Guayaquil' });
 test.afterAll(async () => prisma.$disconnect());
 
@@ -555,7 +557,7 @@ test('existing ACTIVE v2 → explicit choice and subset → idempotent server v3
     where: { planId: existing.planId, version: 3 },
     include: { items: { orderBy: { displayOrder: 'asc' }, include: { execution: true } } },
   });
-  expect(v3.items.map((item) => item.execution!.status)).toEqual([
+  expect(v3.items.map((item: PersistedExecutionItem) => item.execution!.status)).toEqual([
     'COMPLETED',
     'IN_PROGRESS',
     'PLANNED',
@@ -617,8 +619,8 @@ test('existing ACTIVE v2 → explicit choice and subset → idempotent server v3
     where: { id: latestBeforeActivation.id },
     include: { items: { orderBy: { displayOrder: 'asc' }, include: { execution: true } } },
   });
-  expect(activated.items.map((item) => item.execution!.status)).toEqual(
-    v3.items.map((item) => item.execution!.status),
+  expect(activated.items.map((item: PersistedExecutionItem) => item.execution!.status)).toEqual(
+    v3.items.map((item: PersistedExecutionItem) => item.execution!.status),
   );
   expect(
     await prisma.auditLog.count({
