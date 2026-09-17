@@ -1,4 +1,5 @@
 import { FeatureValueType, type Prisma } from '@prisma/client';
+import { syncOrganizationBaseline } from './organization-baseline-reference-data';
 import {
   INCIDENTS_FEATURE_KEY,
   PPE_FEATURE_KEY,
@@ -30,6 +31,7 @@ export const PREVIEW_FEATURE_DEFINITIONS = [
 ] as const;
 
 export async function syncCatalogReferences(prisma: Prisma.TransactionClient) {
+  const organizationBaseline = await syncOrganizationBaseline(prisma);
   for (const definition of PREVIEW_FEATURE_DEFINITIONS) {
     const existing = await prisma.featureDefinition.findUnique({
       where: { key: definition.key },
@@ -51,5 +53,9 @@ export async function syncCatalogReferences(prisma: Prisma.TransactionClient) {
     where: { feature: { key: { in: PREVIEW_FEATURE_DEFINITIONS.map(({ key }) => key) } } },
   });
 
-  return { featureDefinitions: PREVIEW_FEATURE_DEFINITIONS.length, planFeatureAssignments: 0 };
+  return {
+    featureDefinitions: PREVIEW_FEATURE_DEFINITIONS.length,
+    planFeatureAssignments: 0,
+    organizationBaseline,
+  };
 }

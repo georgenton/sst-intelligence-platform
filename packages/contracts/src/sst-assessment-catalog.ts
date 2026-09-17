@@ -6,7 +6,7 @@ import type {
 
 export const SST_ASSESSMENT_WORK_CENTER_LIMIT = 100;
 
-const COMMERCIAL_OPTIONAL_FACT_KEYS = new Set([
+export const SST_ASSESSMENT_COMMERCIAL_OPTIONAL_FACT_KEYS = new Set([
   'organization.productObjectives',
   'organization.implementationUrgency',
   'organization.estimatedUsers',
@@ -59,7 +59,7 @@ const definition = (
   authenticatedDerived: options.authenticatedDerived ?? false,
   collectionPolicy:
     options.collectionPolicy ??
-    (COMMERCIAL_OPTIONAL_FACT_KEYS.has(factKey)
+    (SST_ASSESSMENT_COMMERCIAL_OPTIONAL_FACT_KEYS.has(factKey)
       ? 'COMMERCIAL_OPTIONAL'
       : SPECIALIST_REQUIRED_FACT_KEYS.has(factKey)
         ? 'SPECIALIST_REQUIRED'
@@ -148,6 +148,8 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
         ['CONTRACTORS_AND_SUPPLY_CHAIN', 'Contratistas y cadena de suministro'],
         ['PRODUCT_OR_SERVICE_QUALITY', 'Calidad del producto o servicio'],
       ),
+      helpText:
+        'Elige solo las prioridades principales. Esta selección orienta el contexto y no produce conclusiones legales ni técnicas.',
     },
   ),
   definition(
@@ -206,32 +208,50 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     'Permisos de trabajo',
     'ORGANIZATION',
     'BOOLEAN',
-    '¿Los permisos de trabajo se gestionan manualmente?',
+    '¿La organización usa autorizaciones o formatos manuales para controlar trabajos críticos?',
     100,
+    {
+      helpText:
+        'Esto describe el proceso actual. Por sí solo no determina que necesites el módulo de permisos.',
+      purpose:
+        'Conocer cómo se autorizan hoy los trabajos críticos ayuda a orientar el seguimiento sin asumir que el riesgo existe.',
+    },
   ),
   definition(
     'organization.evidenceDifficulty',
     'Evidencia',
     'ORGANIZATION',
     'BOOLEAN',
-    '¿Es difícil reunir evidencia para revisiones SST?',
+    '¿Cuesta reunir registros, soportes o evidencias para revisiones SST?',
     110,
+    {
+      purpose:
+        'Esta respuesta ayuda a identificar si conviene ordenar la evidencia y su trazabilidad.',
+    },
   ),
   definition(
     'organization.overdueActions',
     'Seguimiento',
     'ORGANIZATION',
     'BOOLEAN',
-    '¿Existen acciones SST vencidas?',
+    '¿Hay acciones SST cuya fecha prevista ya pasó y siguen pendientes?',
     120,
+    {
+      purpose:
+        'Permite reconocer necesidades de seguimiento sin convertir la respuesta en una conclusión de cumplimiento.',
+    },
   ),
   definition(
     'organization.recurringFindings',
     'Seguimiento',
     'ORGANIZATION',
     'BOOLEAN',
-    '¿Existen hallazgos recurrentes?',
+    '¿Se repiten hallazgos similares en inspecciones, observaciones o seguimientos?',
     130,
+    {
+      purpose:
+        'Ayuda a orientar el seguimiento de recurrencias; no implica por sí sola que hayan ocurrido incidentes.',
+    },
   ),
   definition(
     'organization.hasExistingSstWorkPlan',
@@ -362,7 +382,7 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     240,
     {
       helpText:
-        'No incluyas datos personales, médicos, investigaciones privilegiadas ni credenciales.',
+        'No incluyas datos personales, médicos, psicosociales individuales, investigaciones privilegiadas, archivos de evidencia ni credenciales.',
       maxLength: 2_000,
       collectionPolicy: 'CONTEXT_RECOMMENDED',
     },

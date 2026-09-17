@@ -8,60 +8,11 @@ import {
 } from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
-async function waitForAssessmentMotion(page: Page) {
-  await page
-    .locator(
-      '.assessment-question, .assessment-review, .assessment-result-group article, .assessment-preflight-card',
-    )
-    .evaluateAll(async (elements) => {
-      await Promise.all(
-        elements.flatMap((element) =>
-          element.getAnimations().map((animation) => animation.finished),
-        ),
-      );
-    });
-}
-
-async function startPublicAssessment(page: Page, centerCount: 1 | 2 | 3) {
-  await page.goto('/evaluacion-sst');
-  await page
-    .getByRole('button', { name: `${centerCount} ${centerCount === 1 ? 'centro' : 'centros'}` })
-    .click();
-  await page.getByRole('button', { name: 'Comenzar evaluación' }).click();
-  await expect(page.locator('[data-question-id]')).toBeVisible();
-  await expect(page.getByText(/Paso 1 de 6/)).toHaveCount(0);
-  await expect(page.locator('input[type="checkbox"]')).toHaveCount(0);
-}
-
-async function answerCurrentQuestion(page: Page) {
-  const question = page.locator('[data-question-id]').first();
-  const questionId = await question.getAttribute('data-question-id');
-  const valueType = await question.getAttribute('data-question-type');
-  if (!questionId || !valueType) throw new Error('ASSESSMENT_QUESTION_METADATA_MISSING');
-
-  if (valueType === 'BOOLEAN') {
-    await question.getByRole('button', { name: 'No', exact: true }).click();
-  } else if (valueType === 'SINGLE_CHOICE') {
-    await question.locator('.assessment-choice-grid button').first().click();
-  } else if (valueType === 'MULTI_CHOICE') {
-    await question.locator('.assessment-choice-grid button').first().click();
-    await question.getByRole('button', { name: 'Continuar', exact: true }).click();
-  } else if (valueType === 'INTEGER') {
-    await question.getByLabel('Respuesta numérica').fill('24');
-    await question.getByRole('button', { name: 'Continuar', exact: true }).click();
-  } else {
-    const prompt = (await question.textContent()) ?? '';
-    const answer = prompt.includes('país')
-      ? 'Ecuador'
-      : prompt.includes('sector')
-        ? 'Manufactura liviana'
-        : 'Operación sintética para validación de producto';
-    await question.getByLabel('Respuesta', { exact: true }).fill(answer);
-    await question.getByRole('button', { name: 'Continuar', exact: true }).click();
-  }
-
-  await expect(page.locator(`[data-question-id="${questionId}"]`)).toHaveCount(0);
-}
+import {
+  answerCurrentQuestion,
+  startPublicAssessment,
+  waitForAssessmentMotion,
+} from './support/guided-assessment-helpers';
 
 async function continueThroughBlockingQuestions(
   page: Page,
@@ -73,8 +24,23 @@ async function continueThroughBlockingQuestions(
   for (let index = 0; index < 80; index += 1) {
     const review = page.getByRole('heading', { name: 'Esto es lo que entendimos de tu empresa' });
     if (await review.isVisible().catch(() => false)) return;
+    const relay = page.getByRole('button', { name: /^Empezar con Centro/ });
+    if (await relay.isVisible().catch(() => false)) {
+      if (testInfo)
+        await page.screenshot({
+          path: testInfo.outputPath(`${screenshotPrefix}-center-relay-${index}.png`),
+          fullPage: true,
+        });
+      await relay.click();
+      continue;
+    }
     const checkpoint = page.getByRole('button', { name: 'Todo correcto, continuar' });
     if (await checkpoint.isVisible().catch(() => false)) {
+      if (testInfo)
+        await page.screenshot({
+          path: testInfo.outputPath(`${screenshotPrefix}-checkpoint-${index}.png`),
+          fullPage: true,
+        });
       await checkpoint.click();
       continue;
     }
@@ -111,8 +77,16 @@ async function finalizePublicAssessment(page: Page, testInfo?: TestInfo, prefix 
     await waitForAssessmentMotion(page);
     await page.screenshot({ path: testInfo.outputPath(`${prefix}-review.png`), fullPage: true });
   }
+  const completed = page.waitForResponse(
+    (response) => response.request().method() === 'POST' && response.url().endsWith('/complete'),
+  );
   await page.getByRole('button', { name: 'Confirmar y generar diagnóstico' }).click();
+  expect((await (await completed).json()).result.capabilityEvaluation.engineVersion).toBe('1.2.0');
   await expect(page.getByText('Diagnóstico listo', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Capacidades que pueden ser pertinentes' }),
+  ).toBeVisible();
+  await expect(page.getByText(/No activan módulos ni cambian tu plan/)).toBeVisible();
   if (testInfo) {
     await waitForAssessmentMotion(page);
     await page.screenshot({ path: testInfo.outputPath(`${prefix}-diagnosis.png`), fullPage: true });
@@ -127,6 +101,23 @@ async function claimReturnPath(page: Page) {
   const next = new URL(claimHref, 'http://127.0.0.1:3100').searchParams.get('next');
   if (!next) throw new Error('ASSESSMENT_CLAIM_RETURN_PATH_MISSING');
   return next;
+}
+
+async function expectFinalizedContextReadOnly(page: Page) {
+  const contextGroup = page
+    .locator('.assessment-context--desktop .assessment-context__groups > button')
+    .first();
+  if ((await contextGroup.count()) === 0) {
+    await expect(
+      page.getByRole('button', { name: 'Corregir' }).filter({ visible: true }),
+    ).toHaveCount(0);
+    return;
+  }
+  await contextGroup.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Corregir' })).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Cerrar contexto' }).click();
 }
 
 async function configureAndClaim(
@@ -231,6 +222,278 @@ async function configureAndClaim(
   return null;
 }
 
+test('guided setup keeps multi-center context human, editable and capability-safe', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(300_000);
+  await page.goto('/evaluacion-sst');
+  await expect(
+    page.getByRole('heading', { name: '¿Cuántos centros de trabajo quieres evaluar ahora?' }),
+  ).toBeVisible();
+  const baseSetup = page.getByRole('link', {
+    name: 'Prefiero empezar y configurar después',
+  });
+  await expect(baseSetup).toHaveAttribute(
+    'href',
+    /\/auth\/register\?next=.*app%2Forganizations.*setup%3Dbase/,
+  );
+  await page.getByRole('button', { name: '2 centros' }).click();
+  await expect(page.getByText('2 centros incluidos en esta evaluación.')).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('cloud-entry-desktop.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Comenzar evaluación' }).click();
+
+  const answerText = async (value: string) => {
+    const questionId = await page.locator('[data-question-id]').getAttribute('data-question-id');
+    await page.getByLabel('Respuesta', { exact: true }).fill(value);
+    await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+    if (questionId) await expect(page.locator(`[data-question-id="${questionId}"]`)).toHaveCount(0);
+  };
+  await expect(
+    page.locator('[data-question-id="organization:organization.country"]'),
+  ).toBeVisible();
+  await expect(page.getByLabel('Respuesta', { exact: true })).toHaveAttribute(
+    'autocomplete',
+    'country-name',
+  );
+  await answerText('Colombia');
+  await expect(page.locator('.assessment-progress li[data-state="active"]')).toContainText(
+    'Empresa',
+  );
+  await page.getByRole('button', { name: 'Todo correcto, continuar' }).click();
+  const workerCountInput = page.getByLabel('Respuesta numérica');
+  await workerCountInput.fill('-1');
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+  await expect(workerCountInput).toHaveAttribute('aria-invalid', 'true');
+  await expect(workerCountInput).toHaveAttribute('aria-describedby', /-error$/);
+  await expect(workerCountInput).toBeFocused();
+  await expect(page.locator('[data-question-id]').getByRole('alert')).toContainText(
+    'Ingresa un número entero',
+  );
+  await workerCountInput.fill('60');
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+  await page.getByRole('button', { name: 'Todo correcto, continuar' }).click();
+
+  await expect(
+    page.locator('.assessment-question__scope').getByText('Centro 1 de 2', { exact: true }),
+  ).toBeVisible();
+  await waitForAssessmentMotion(page);
+  await page.screenshot({
+    path: testInfo.outputPath('cloud-question-center-1.png'),
+    fullPage: true,
+  });
+  await page.getByRole('radio', { name: 'Presencial', exact: true }).check();
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Ahora revisaremos Centro 2' })).toBeFocused();
+  await waitForAssessmentMotion(page);
+  await page.screenshot({ path: testInfo.outputPath('cloud-center-relay.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Empezar con Centro 2' }).click();
+  await expect(
+    page.locator('.assessment-question__scope').getByText('Centro 2 de 2', { exact: true }),
+  ).toBeVisible();
+  const secondCenterScope = page.locator('.assessment-question__scope');
+  await expect(secondCenterScope).toContainText('Centro 2 de 2');
+  await expect(secondCenterScope).toContainText('Completemos el contexto de este centro');
+  const remoteQuestionId = await page
+    .locator('[data-question-id]')
+    .getAttribute('data-question-id');
+  await page.getByRole('radio', { name: 'Remota', exact: true }).check();
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+  if (remoteQuestionId)
+    await expect(page.locator(`[data-question-id="${remoteQuestionId}"]`)).toHaveCount(0);
+
+  const organizationContext = page
+    .locator('.assessment-context--desktop .assessment-context__groups > button')
+    .filter({ hasText: 'Organización' });
+  await expect(organizationContext.locator('.assessment-context__count')).toHaveAttribute(
+    'aria-label',
+    /\d+ datos confirmados/,
+  );
+  await organizationContext.click();
+  const contextDialog = page.getByRole('dialog', { name: 'Organización' });
+  await expect(contextDialog).toContainText('Colombia');
+  await page.screenshot({ path: testInfo.outputPath('cloud-context-drawer.png'), fullPage: true });
+  await contextDialog
+    .locator('.assessment-context__facts > div')
+    .filter({ hasText: 'País' })
+    .getByRole('button', { name: 'Corregir' })
+    .click();
+  await expect(
+    page.locator('[data-question-id="organization:organization.country"]'),
+  ).toBeVisible();
+  await answerText('Ecuador');
+  await expect(
+    page
+      .locator('.assessment-context--desktop .assessment-context__change')
+      .filter({ hasText: /Actualizado:.*Ecuador/ })
+      .first(),
+  ).toBeVisible();
+  const checkpoint = page.getByRole('button', { name: 'Todo correcto, continuar' });
+  if (await checkpoint.isVisible().catch(() => false)) await checkpoint.click();
+
+  const fixtureFacts = [
+    ['organization.country', 'organization', 'Ecuador'],
+    ['organization.totalWorkerCount', 'organization', 60],
+    ['organization.managementSystem', 'organization', 'SPREADSHEETS'],
+    ['organization.inspectionPractice', 'organization', 'CHECKLISTS'],
+    ['organization.inspectionFrequency', 'organization', 'MONTHLY'],
+    ['organization.manualPermits', 'organization', false],
+    ['organization.evidenceDifficulty', 'organization', true],
+    ['organization.overdueActions', 'organization', true],
+    ['organization.recurringFindings', 'organization', true],
+    ['organization.hasExistingSstWorkPlan', 'organization', false],
+    ['organization.multipleShifts', 'organization', false],
+    ['organization.psychosocialReviewNeeded', 'organization', false],
+    ['organization.stressExposedRolesPresent', 'organization', false],
+    [
+      'organization.strategicProtectionPriorities',
+      'organization',
+      ['PEOPLE_AND_HEALTH', 'PRODUCTIVE_CONTINUITY'],
+    ],
+    ['workCenter.workerCount', 'center:1', 40],
+    ['workCenter.workArrangement', 'center:1', 'PHYSICAL'],
+    ['workCenter.activityCategories', 'center:1', ['ADMINISTRATIVE_SERVICES']],
+    ['workCenter.facilityTypes', 'center:1', ['OFFICE']],
+    ['workCenter.activityDescription', 'center:1', 'Operación administrativa presencial'],
+    ['workCenter.workerCount', 'center:2', 20],
+    ['workCenter.workArrangement', 'center:2', 'REMOTE'],
+    ['workCenter.activityCategories', 'center:2', ['ADMINISTRATIVE_SERVICES']],
+    ['workCenter.activityDescription', 'center:2', 'Operación administrativa remota'],
+    ...(['center:1', 'center:2'] as const).flatMap((scopeKey) =>
+      [
+        'workCenter.hasDistinctOperationalZones',
+        'workCenter.hasChemicalProcesses',
+        'workCenter.hasHighEnergyOperations',
+        'workCenter.hasWorkAtHeight',
+        'workCenter.hasHotWork',
+        'workCenter.hasElectricalWorkOrExposure',
+        'workCenter.hasConfinedSpaces',
+        'workCenter.hasExternalWorkforce',
+        'workCenter.hasCriticalMachinery',
+        'workCenter.hasDriversOrTransport',
+        'workCenter.hasFireExposure',
+      ].map((factKey) => [factKey, scopeKey, false]),
+    ),
+  ];
+  const evaluated = await page.evaluate(async (facts) => {
+    const sessionId = window.localStorage.getItem('sst-assessment-session:active');
+    if (!sessionId) throw new Error('ASSESSMENT_SESSION_MISSING');
+    const record = JSON.parse(
+      window.localStorage.getItem(`sst-assessment-session:${sessionId}`) ?? 'null',
+    ) as { publicToken?: string } | null;
+    if (!record?.publicToken) throw new Error('ASSESSMENT_TOKEN_MISSING');
+    const path = `/api/v1/sst-assessment/public/sessions/${sessionId}`;
+    const headers = {
+      'content-type': 'application/json',
+      'x-assessment-token': record.publicToken,
+    };
+    const current = (await (await fetch(path, { headers })).json()) as {
+      sessionRevision: number;
+    };
+    const saved = (await (
+      await fetch(`${path}/answers`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          expectedSessionRevision: current.sessionRevision,
+          answers: facts.map(([factKey, scopeKey, value]) => ({
+            factKey,
+            scopeKey,
+            answerState: 'KNOWN',
+            value,
+          })),
+        }),
+      })
+    ).json()) as { sessionRevision: number };
+    return (await (
+      await fetch(`${path}/evaluate`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ expectedSessionRevision: saved.sessionRevision }),
+      })
+    ).json()) as {
+      status: string;
+      sessionRevision: number;
+      questions: Array<{ factKey: string; collectionPolicy: string }>;
+      result: {
+        capabilityEvaluation: {
+          engineVersion: string;
+          recommendations: Array<{ capabilityKey: string }>;
+        };
+      };
+    };
+  }, fixtureFacts);
+  expect(evaluated.status).toBe('DIAGNOSIS_READY');
+  expect(
+    evaluated.questions.some(({ collectionPolicy }) => collectionPolicy === 'COMMERCIAL_OPTIONAL'),
+  ).toBe(false);
+  expect(evaluated.result.capabilityEvaluation.engineVersion).toBe('1.2.0');
+  expect(
+    evaluated.result.capabilityEvaluation.recommendations
+      .map(({ capabilityKey }) => capabilityKey)
+      .sort(),
+  ).toEqual(['GOVERNANCE', 'INSPECTIONS', 'WORKFORCE']);
+
+  await page.reload();
+  await expect(
+    page.getByText('Información mínima para el diagnóstico completada').first(),
+  ).toBeVisible();
+  await expect(page.getByText(/Objetivos que buscas con la plataforma/i)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Añadir contexto opcional' }).click();
+  await expect(page.locator('[data-question-id]')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Terminar contexto adicional y volver a la revisión' }),
+  ).toBeVisible();
+  const unknownQuestionId = await page
+    .locator('[data-question-id]')
+    .getAttribute('data-question-id');
+  const unknownRadio = page.getByRole('radio', { name: 'No lo sé', exact: true });
+  if (await unknownRadio.count()) {
+    await unknownRadio.check();
+    await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+  } else await page.getByRole('button', { name: 'No lo sé', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText(/Respuesta guardada|Guardado en Centro/);
+  if (await checkpoint.isVisible().catch(() => false)) await checkpoint.click();
+  const deferredQuestionId = await page
+    .locator('[data-question-id]')
+    .getAttribute('data-question-id');
+  await page.getByRole('button', { name: 'Responder después' }).click();
+  await page
+    .getByRole('button', { name: 'Terminar contexto adicional y volver a la revisión' })
+    .click();
+  const states = await page.evaluate(
+    async ({ unknownQuestionId, deferredQuestionId }) => {
+      const sessionId = window.localStorage.getItem('sst-assessment-session:active')!;
+      const record = JSON.parse(
+        window.localStorage.getItem(`sst-assessment-session:${sessionId}`)!,
+      ) as { publicToken: string };
+      const response = await fetch(`/api/v1/sst-assessment/public/sessions/${sessionId}`, {
+        headers: { 'x-assessment-token': record.publicToken },
+      });
+      const current = (await response.json()) as {
+        snapshot: { facts: Array<{ scopeKey: string; factKey: string; answerState: string }> };
+      };
+      const identityState = (identity: string | null) =>
+        current.snapshot.facts.find(
+          ({ scopeKey, factKey }) => `${scopeKey}:${factKey}` === identity,
+        )?.answerState;
+      return {
+        unknown: identityState(unknownQuestionId),
+        deferred: identityState(deferredQuestionId),
+      };
+    },
+    { unknownQuestionId, deferredQuestionId },
+  );
+  expect(states).toEqual({ unknown: 'EXPLICIT_UNKNOWN', deferred: undefined });
+
+  await page.getByRole('button', { name: 'Confirmar y generar diagnóstico' }).click();
+  await expect(page.getByText('Diagnóstico listo', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Personas y trabajadores' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Inspecciones inteligentes' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Gobernanza SST' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Permisos de trabajo' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Accidentes e incidentes' })).toHaveCount(0);
+});
+
 test('public guided assessment resumes, registers, claims and starts an immutable reassessment', async ({
   page,
 }, testInfo) => {
@@ -262,7 +525,18 @@ test('public guided assessment resumes, registers, claims and starts an immutabl
   });
   await page.screenshot({ path: testInfo.outputPath('10-grouped-progress.png'), fullPage: true });
   await finalizePublicAssessment(page, testInfo, 'public');
-  await expect(page.getByRole('button', { name: 'Corregir' })).toHaveCount(0);
+  await expectFinalizedContextReadOnly(page);
+  const workforceCapability = page
+    .locator('.assessment-capability-grid article')
+    .filter({ has: page.getByRole('heading', { name: 'Personas y trabajadores' }) });
+  await workforceCapability.getByText('Ver trazabilidad de la recomendación').click();
+  await expect(workforceCapability.getByText('Información aún pendiente:')).toBeVisible();
+  await expect(
+    workforceCapability.getByText(
+      'Empresa: La organización opera en múltiples turnos — Aún sin respuesta',
+    ),
+  ).toBeVisible();
+  await expect(workforceCapability.getByText(/puntaje|score|riesgo técnico/i)).toHaveCount(0);
   const foundationCard = page
     .locator('.assessment-result-group article')
     .filter({ has: page.getByText('Datos utilizados') })
@@ -285,7 +559,7 @@ test('public guided assessment resumes, registers, claims and starts an immutabl
   await page.getByRole('button', { name: 'Crear cuenta' }).click();
   await configureAndClaim(page, `Empresa guiada ${suffix}`, ['Planta Norte']);
   await expect(page.getByRole('heading', { name: 'Historial de evaluaciones' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Corregir' })).toHaveCount(0);
+  await expectFinalizedContextReadOnly(page);
   const finalizedUrl = page.url();
   await page.getByRole('button', { name: 'Reevaluar empresa' }).click();
   await expect(page).not.toHaveURL(finalizedUrl);
@@ -432,7 +706,7 @@ test('a user without organizations sees setup shell and private children never r
   expect(registration.statusCode, registration.body).toBe(201);
   await activateE2eUserSession(page, registration);
   await expect(
-    page.getByRole('heading', { name: '¿Cuántos centros de trabajo quieres incluir?' }),
+    page.getByRole('heading', { name: '¿Cuántos centros de trabajo quieres evaluar ahora?' }),
   ).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Centro de comando' })).toHaveCount(0);
@@ -704,10 +978,11 @@ test('mobile guided question has no horizontal overflow and keeps its context ac
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
     .toBe(true);
   const question = page.locator('[data-question-id]');
-  const contextTrigger = page.getByRole('button', { name: /Ver lo que ya sabemos/ });
+  const contextTrigger = page.getByRole('button', { name: /^Contexto · \d+ datos?$/ });
   await expect(question).toBeVisible();
   await expect(contextTrigger).toBeVisible();
-  await expect(page.getByRole('dialog', { name: 'Lo que ya sabemos' })).not.toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Tu evaluación' })).not.toBeVisible();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const questionBox = await question.boundingBox();
   const triggerBox = await contextTrigger.boundingBox();
   expect(questionBox?.y).toBeLessThan(triggerBox?.y ?? 0);
@@ -717,29 +992,36 @@ test('mobile guided question has no horizontal overflow and keeps its context ac
     fullPage: true,
   });
   await contextTrigger.click();
-  const dialog = page.getByRole('dialog', { name: 'Lo que ya sabemos' });
+  const dialog = page.getByRole('dialog', { name: 'Tu evaluación' });
   await expect(dialog).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath('04-mobile-context-open.png'),
     fullPage: true,
   });
-  await dialog.getByRole('button', { name: 'Cerrar contexto' }).click();
+  await expect
+    .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+    .toBe(true);
+  await page.keyboard.press('Shift+Tab');
+  await expect
+    .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+    .toBe(true);
+  await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
   await expect(contextTrigger).toBeFocused();
   await answerCurrentQuestion(page);
   const checkpoint = page.getByRole('button', { name: 'Todo correcto, continuar' });
   if (await checkpoint.isVisible()) await checkpoint.click();
   await expect(question).toBeVisible();
-  const editableQuestionId = await question.getAttribute('data-question-id');
-  if (!editableQuestionId) throw new Error('EDITABLE_QUESTION_ID_MISSING');
-  await answerCurrentQuestion(page);
   await contextTrigger.click();
-  await dialog.getByRole('button', { name: 'Corregir' }).first().click();
+  await dialog
+    .locator('.assessment-context__facts > div')
+    .filter({ hasText: 'País' })
+    .getByRole('button', { name: 'Corregir' })
+    .click();
   await expect(dialog).not.toBeVisible();
-  const editedQuestion = page.locator(`[data-question-id="${editableQuestionId}"]`);
+  const editedQuestion = page.locator('[data-question-id="organization:organization.country"]');
   await expect(editedQuestion).toBeVisible();
   await expect
     .poll(() => editedQuestion.evaluate((element) => element.contains(document.activeElement)))
     .toBe(true);
-  await answerCurrentQuestion(page);
 });

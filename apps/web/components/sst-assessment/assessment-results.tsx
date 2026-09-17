@@ -1,10 +1,15 @@
 import type { SstAssessmentResult, SstAssessmentScope } from '@sst/contracts';
 import Link from 'next/link';
 import {
+  assessmentFactLabel,
   groupAssessmentResults,
   resultStateLabel,
   safeResultExplanation,
   assessmentTechnicalDetailsPolicy,
+  capabilityAccessLabel,
+  capabilityAccessState,
+  capabilityEmptyStateMessage,
+  capabilityPendingInformationLabels,
   professionalFoundation,
   resultNextStep,
 } from '@/lib/sst-assessment-presentation';
@@ -17,6 +22,7 @@ export function AssessmentResults({
   continuation,
   onReassess,
   scopes,
+  features,
 }: {
   result: SstAssessmentResult;
   sessionId: string;
@@ -24,28 +30,42 @@ export function AssessmentResults({
   continuation?: 'public' | 'authenticated';
   onReassess?: () => void;
   scopes: readonly SstAssessmentScope[];
+  features?: Record<string, boolean | number | string>;
 }) {
   const claimPath = sstAssessmentClaimReturnPath(sessionId);
   const technicalDetails = assessmentTechnicalDetailsPolicy(channel);
+  const capabilityEvaluation = result.capabilityEvaluation;
+  const centerCount = scopes.filter(({ kind }) => kind === 'WORK_CENTER').length;
   return (
     <section className="assessment-results" aria-labelledby="assessment-results-title">
       <header>
         <p className="eyebrow">Diagnóstico ejecutivo</p>
         <h2 id="assessment-results-title">{result.summary.title}</h2>
+        <div className="assessment-results__scope">
+          {centerCount > 0 ? (
+            <span className="status-badge">
+              {centerCount} {centerCount === 1 ? 'centro' : 'centros'} en el alcance
+            </span>
+          ) : null}
+          <span className="status-badge">Diagnóstico orientativo</span>
+        </div>
         <p>{result.summary.disclaimer}</p>
       </header>
       {groupAssessmentResults(result.items).map((group) => (
-        <section className="assessment-result-group" key={group.key}>
-          <h3>{group.title}</h3>
+        <section className="assessment-result-group" key={group.key} data-group={group.key}>
+          <h3>
+            {group.title} <span className="assessment-context__count">{group.items.length}</span>
+          </h3>
           <div>
             {group.items.map((item) => {
               const foundation = professionalFoundation(item, scopes);
               return (
                 <article key={`${item.scopeKey}:${item.targetKey}`}>
                   <span className="status-badge">{resultStateLabel(item)}</span>
+                  <span className="status-badge assessment-result-scope">{foundation.scope}</span>
                   <h4>{item.title}</h4>
                   <p>{safeResultExplanation(item)}</p>
-                  <p>
+                  <p className="assessment-result-next-step">
                     <strong>Siguiente paso:</strong> {resultNextStep(item)}
                   </p>
                   <details>
@@ -106,6 +126,107 @@ export function AssessmentResults({
           </div>
         </section>
       ))}
+      <section
+        className="assessment-capability-evaluation"
+        aria-labelledby="assessment-capabilities-title"
+      >
+        <header>
+          <p className="eyebrow">Siguiente etapa</p>
+          <h3 id="assessment-capabilities-title">Capacidades que pueden ser pertinentes</h3>
+          <p>
+            Estas propuestas provienen solo de la información confirmada. No activan módulos ni
+            cambian tu plan: una persona decide qué revisar o configurar.
+          </p>
+        </header>
+        {!capabilityEvaluation ? (
+          <p>
+            Este diagnóstico histórico conserva su resultado original. Realiza una reevaluación para
+            obtener propuestas de capacidades con el motor actual.
+          </p>
+        ) : capabilityEvaluation.recommendations.length > 0 ? (
+          <div className="assessment-capability-grid">
+            {capabilityEvaluation.recommendations.map((recommendation) => {
+              const access = capabilityAccessState(recommendation, channel, features);
+              const pendingInformation = capabilityPendingInformationLabels(recommendation, scopes);
+              return (
+                <article key={recommendation.capabilityKey}>
+                  <span className="status-badge">
+                    Prioridad {recommendation.priority.toLowerCase()}
+                  </span>
+                  <h4>{recommendation.title}</h4>
+                  <p>{recommendation.description}</p>
+                  <ul>
+                    {recommendation.reasons.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                  <p>
+                    <strong>Estado real:</strong> {capabilityAccessLabel(access)}.
+                  </p>
+                  <details>
+                    <summary>Ver trazabilidad de la recomendación</summary>
+                    <p>
+                      Motor {capabilityEvaluation.engineVersion}. Propuesta pendiente de decisión
+                      humana; efecto de activación: ninguno.
+                    </p>
+                    <ul>
+                      {recommendation.matchedFacts.map((fact) => (
+                        <li key={`${fact.scopeKey}:${fact.factKey}`}>
+                          {fact.scopeKey === 'organization'
+                            ? 'Empresa'
+                            : (scopes.find(({ scopeKey }) => scopeKey === fact.scopeKey)
+                                ?.displayName ?? 'Centro de trabajo')}
+                          : {assessmentFactLabel(fact.factKey)}
+                        </li>
+                      ))}
+                    </ul>
+                    {pendingInformation.length > 0 ? (
+                      <div>
+                        <p>
+                          <strong>Información aún pendiente:</strong>
+                        </p>
+                        <ul>
+                          {pendingInformation.map((label, index) => (
+                            <li key={`${recommendation.capabilityKey}:${index}:${label}`}>
+                              {label}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </details>
+                  {channel === 'AUTHENTICATED' ? (
+                    access === 'AVAILABLE' ? (
+                      <Link className="button secondary" href={recommendation.href}>
+                        Revisar capacidad
+                      </Link>
+                    ) : (
+                      <Link className="button secondary" href="/app/modules">
+                        Revisar acceso actual
+                      </Link>
+                    )
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p>{capabilityEmptyStateMessage(capabilityEvaluation)}</p>
+        )}
+        {capabilityEvaluation && capabilityEvaluation.missingInformation.length > 0 ? (
+          <details className="assessment-capability-missing">
+            <summary>Información pendiente para otras capacidades</summary>
+            <ul>
+              {capabilityEvaluation.missingInformation.map((item) => (
+                <li key={item.capabilityKey}>
+                  <strong>{item.title}:</strong> {item.explanation} Pendiente:{' '}
+                  {capabilityPendingInformationLabels(item, scopes).join('; ')}.
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+      </section>
       <div className="assessment-completion">
         <h3>Diagnóstico listo</h3>
         <p>

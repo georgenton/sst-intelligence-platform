@@ -26,9 +26,6 @@ export function SetupShell({
       </a>
       <header className="setup-header">
         <Link className="app-brand" href="/app/evaluation">
-          <span className="app-brand__mark" aria-hidden="true">
-            SI
-          </span>
           <span>{process.env.NEXT_PUBLIC_APP_NAME ?? 'SST Inteligente'}</span>
         </Link>
         <nav aria-label="Configuración inicial">

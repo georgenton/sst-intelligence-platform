@@ -174,6 +174,17 @@ export const sstAssessmentQuestionSchema = z
   .strict();
 export type SstAssessmentQuestion = z.infer<typeof sstAssessmentQuestionSchema>;
 
+export type SstCapabilityApplicableQuestion = Pick<
+  SstAssessmentQuestion,
+  'factKey' | 'scopeKey' | 'collectionPolicy'
+>;
+
+export type SstCapabilityPendingInformation = {
+  scopeKey: string;
+  factKey: string;
+  missingState: 'EXPLICIT_UNKNOWN' | 'UNANSWERED';
+};
+
 export type SstAssessmentProgress = {
   answeredFacts: number;
   resolvedFactCount: number;
@@ -183,6 +194,59 @@ export type SstAssessmentProgress = {
   completedTopics: number;
   totalTopics: number;
   topics: Array<{ topic: string; answered: number; total: number; complete: boolean }>;
+};
+
+export const SST_CAPABILITY_KEYS = [
+  'WORKFORCE',
+  'INSPECTIONS',
+  'TECHNICAL_RISK',
+  'INCIDENTS',
+  'PPE',
+  'TRAINING',
+  'GOVERNANCE',
+  'WORK_PERMITS',
+] as const;
+export type SstCapabilityKey = (typeof SST_CAPABILITY_KEYS)[number];
+
+export type SstCapabilityRecommendation = {
+  capabilityKey: SstCapabilityKey;
+  title: string;
+  description: string;
+  featureKey: string | null;
+  href: string;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  score: number;
+  ruleKeys: string[];
+  reasons: string[];
+  matchedFacts: Array<{
+    scopeKey: string;
+    factKey: string;
+    value: SstAssessmentFactValue;
+    provenance: SstAssessmentProvenance;
+  }>;
+  pendingInformation: SstCapabilityPendingInformation[];
+  recommendationState: 'PROPOSED';
+  humanDecision: 'PENDING';
+  activationEffect: 'NONE';
+};
+
+export type SstCapabilityEvaluation = {
+  engineVersion: string;
+  inputHash: string;
+  outputHash: string;
+  recommendations: SstCapabilityRecommendation[];
+  missingInformation: Array<{
+    capabilityKey: SstCapabilityKey;
+    title: string;
+    pendingInformation: SstCapabilityPendingInformation[];
+    explanation: string;
+  }>;
+  boundaries: {
+    confirmedFactsOnly: true;
+    humanConfirmationRequired: true;
+    moduleActivation: 'NOT_PERFORMED';
+    entitlementMutation: 'NOT_PERFORMED';
+  };
 };
 
 export type SstAssessmentResult = {
@@ -213,6 +277,7 @@ export type SstAssessmentResult = {
     outputHash: string;
     authority: SstAssessmentAuthority;
   }>;
+  capabilityEvaluation?: SstCapabilityEvaluation;
   semanticInputHash: string;
   semanticOutputHash: string;
 };
@@ -423,6 +488,7 @@ export function planSstAssessmentQuestions(
       relatedRuleKeys?: string[];
       relatedTargetKeys?: string[];
     }>;
+    includeCommercial?: boolean;
   } = {},
 ): SstAssessmentQuestion[] {
   const snapshot = normalizeSstAssessmentSnapshot(snapshotInput);
@@ -482,6 +548,10 @@ export function planSstAssessmentQuestions(
         })),
     )
     .filter(({ scope, fact }) => !answered.has(`${scope.scopeKey}:${fact.factKey}`))
+    .filter(
+      ({ fact }) =>
+        options.includeCommercial !== false || fact.collectionPolicy !== 'COMMERCIAL_OPTIONAL',
+    )
     .filter(({ fact }) => !(options.channel === 'AUTHENTICATED' && fact.authenticatedDerived))
     .filter(({ scope, fact }) => isRelevant(scope, fact))
     .sort(
@@ -501,7 +571,11 @@ export function planSstAssessmentQuestions(
         unknownAllowed: fact.unknownAllowed,
         questionText: fact.questionText,
         helpText: fact.helpText,
-        choices: fact.choices,
+        choices:
+          fact.factKey === 'organization.inspectionFrequency' &&
+          knownOrganizationValue('organization.inspectionPractice') !== 'NONE'
+            ? fact.choices.filter(({ value }) => value !== 'NEVER')
+            : fact.choices,
         purpose: specialist?.whyAsked ?? fact.purpose,
         order: fact.order,
         sensitivity: fact.sensitivity,
@@ -546,6 +620,11 @@ export function calculateSstAssessmentProgress(
   const isAnsweredFactRelevant = (fact: SstAssessmentFact) => {
     const definition = catalog.find(({ factKey }) => factKey === fact.factKey);
     if (!definition) return false;
+    if (
+      options.includeCommercial === false &&
+      definition.collectionPolicy === 'COMMERCIAL_OPTIONAL'
+    )
+      return false;
     switch (definition.relevancePolicy) {
       case 'ALWAYS':
         return true;
@@ -579,6 +658,8 @@ export function calculateSstAssessmentProgress(
         (fact) =>
           fact.scopeKind === scope.kind &&
           relevantIdentities.has(`${scope.scopeKey}:${fact.factKey}`) &&
+          (options.includeCommercial !== false ||
+            fact.collectionPolicy !== 'COMMERCIAL_OPTIONAL') &&
           !(options.channel === 'AUTHENTICATED' && fact.authenticatedDerived),
       )
       .map((fact) => ({ scope, fact })),

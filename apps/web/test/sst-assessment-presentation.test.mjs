@@ -12,11 +12,20 @@ import {
   assessmentTopicLabel,
   aggregateAssessmentProgress,
   canSkipAssessmentQuestion,
+  capabilityAccessLabel,
+  capabilityAccessState,
+  capabilityEmptyStateMessage,
+  capabilityPendingInformationLabel,
+  capabilityPendingInformationLabels,
   explicitBooleanChoices,
+  editableQuestionForFact,
+  groupAssessmentContext,
   groupAssessmentResults,
   orderAssessmentQuestions,
   professionalFoundation,
   resolveAssessmentPresentationScopes,
+  assessmentQuestionScopeContext,
+  assessmentWorkerCountMismatch,
   resultNextStep,
   resultStateLabel,
   safeResultExplanation,
@@ -84,6 +93,213 @@ test('boolean answers are always explicit and unchecked never means false', () =
     [true, false],
   );
   assert.equal(explicitBooleanChoices(true).find(({ value }) => value === false)?.label, 'No');
+});
+
+test('keeps recommendations separate from current entitlement state', () => {
+  const recommendation = {
+    capabilityKey: 'INSPECTIONS',
+    featureKey: 'module.inspections',
+  };
+  assert.equal(capabilityAccessState(recommendation, 'PUBLIC'), 'NOT_VERIFIED');
+  assert.equal(
+    capabilityAccessState(recommendation, 'AUTHENTICATED', { 'module.inspections': false }),
+    'NOT_INCLUDED',
+  );
+  assert.equal(
+    capabilityAccessState(recommendation, 'AUTHENTICATED', { 'module.inspections': true }),
+    'AVAILABLE',
+  );
+  assert.equal(
+    capabilityAccessState(
+      { ...recommendation, capabilityKey: 'GOVERNANCE', featureKey: null },
+      'AUTHENTICATED',
+      {},
+    ),
+    'AVAILABLE',
+  );
+  assert.equal(capabilityAccessLabel('NOT_INCLUDED'), 'No incluida en tu acceso actual');
+});
+
+test('reads historical 1.1.0 capability output without mutation or re-evaluation', () => {
+  const stored = JSON.stringify({
+    engineVersion: '1.1.0',
+    recommendations: [
+      { capabilityKey: 'WORK_PERMITS', featureKey: 'module.work_permits', score: 45 },
+    ],
+    missingInformation: [
+      {
+        capabilityKey: 'INCIDENTS',
+        pendingInformation: [
+          {
+            scopeKey: 'organization',
+            factKey: 'organization.recurringFindings',
+            missingState: 'EXPLICIT_UNKNOWN',
+          },
+        ],
+      },
+    ],
+  });
+  const historical = JSON.parse(stored);
+  assert.equal(capabilityAccessState(historical.recommendations[0], 'PUBLIC'), 'NOT_VERIFIED');
+  assert.match(
+    capabilityPendingInformationLabels(historical.missingInformation[0], [
+      { scopeKey: 'organization', kind: 'ORGANIZATION', order: 0, displayName: 'Organización' },
+    ])[0],
+    /Empresa:.*Marcado como “No lo sé”/,
+  );
+  assert.equal(historical.engineVersion, '1.1.0');
+  assert.equal(historical.recommendations[0].score, 45);
+  assert.equal(JSON.stringify(historical), stored);
+});
+
+test('presents scope-aware capability uncertainty without exposing internal scores', () => {
+  const scopes = [
+    { scopeKey: 'organization', kind: 'ORGANIZATION', order: 0, displayName: 'Organización' },
+    { scopeKey: 'center:2', kind: 'WORK_CENTER', order: 2, displayName: 'Bodega Sur' },
+  ];
+  assert.equal(
+    capabilityPendingInformationLabel(
+      {
+        scopeKey: 'organization',
+        factKey: 'organization.manualPermits',
+        missingState: 'UNANSWERED',
+      },
+      scopes,
+    ),
+    'Empresa: La organización usa autorizaciones o formatos manuales para controlar trabajos críticos — Aún sin respuesta',
+  );
+  assert.equal(
+    capabilityPendingInformationLabel(
+      {
+        scopeKey: 'center:2',
+        factKey: 'workCenter.hasConfinedSpaces',
+        missingState: 'EXPLICIT_UNKNOWN',
+      },
+      scopes,
+    ),
+    'Bodega Sur: En este centro existen trabajos en espacios confinados — Marcado como “No lo sé”',
+  );
+  assert.match(
+    capabilityEmptyStateMessage({ recommendations: [], missingInformation: [{}] }),
+    /información confirmada suficiente/,
+  );
+  assert.doesNotMatch(
+    capabilityEmptyStateMessage({ recommendations: [], missingInformation: [{}] }),
+    /puntaje|score|riesgo técnico/i,
+  );
+  assert.deepEqual(
+    capabilityPendingInformationLabels({ missingFactKeys: ['organization.manualPermits'] }, scopes),
+    ['La organización usa autorizaciones o formatos manuales para controlar trabajos críticos'],
+  );
+});
+
+test('groups context deterministically and identifies a work-center question scope', () => {
+  const scopes = [
+    { scopeKey: 'organization', kind: 'ORGANIZATION', order: 0, displayName: 'Organización' },
+    { scopeKey: 'center:1', kind: 'WORK_CENTER', order: 1, displayName: 'Centro Norte' },
+    { scopeKey: 'center:2', kind: 'WORK_CENTER', order: 2, displayName: 'Centro Remoto' },
+  ];
+  const facts = [
+    {
+      factKey: 'organization.country',
+      scopeKey: 'organization',
+      answerState: 'KNOWN',
+      value: 'Ecuador',
+      provenance: { source: 'PUBLIC_DECLARATION' },
+    },
+    {
+      factKey: 'workCenter.workArrangement',
+      scopeKey: 'center:1',
+      answerState: 'KNOWN',
+      value: 'PHYSICAL',
+      provenance: { source: 'PUBLIC_DECLARATION' },
+    },
+    {
+      factKey: 'workCenter.facilityTypes',
+      scopeKey: 'center:1',
+      answerState: 'KNOWN',
+      value: ['OFFICE'],
+      provenance: { source: 'PUBLIC_DECLARATION' },
+    },
+  ];
+  const groups = groupAssessmentContext(facts, scopes);
+  assert.deepEqual(
+    groups.map(({ scopeKey, title, factCount, summary }) => ({
+      scopeKey,
+      title,
+      factCount,
+      summary,
+    })),
+    [
+      { scopeKey: 'organization', title: 'Organización', factCount: 1, summary: 'Ecuador' },
+      {
+        scopeKey: 'center:1',
+        title: 'Centro Norte',
+        factCount: 2,
+        summary: 'Presencial · Oficina',
+      },
+    ],
+  );
+  assert.deepEqual(
+    assessmentQuestionScopeContext(
+      question({ scopeKey: 'center:2', factKey: 'workCenter.workerCount' }),
+      facts,
+      scopes,
+    ),
+    {
+      label: 'Centro 2 de 2',
+      name: 'Centro Remoto',
+      summary: 'Completemos el contexto de este centro',
+    },
+  );
+});
+
+test('allows public declarations for country and sector to be corrected without unlocking organization records', () => {
+  const scope = {
+    scopeKey: 'organization',
+    kind: 'ORGANIZATION',
+    order: 0,
+    displayName: 'Organización',
+  };
+  const publicFact = {
+    factKey: 'organization.country',
+    scopeKey: 'organization',
+    answerState: 'KNOWN',
+    value: 'Ecuador',
+    provenance: { source: 'PUBLIC_DECLARATION' },
+  };
+  const organizationFact = {
+    ...publicFact,
+    provenance: { source: 'ORGANIZATION_RECORD', sourceReference: 'organization-1' },
+  };
+  assert.equal(editableQuestionForFact(publicFact, scope)?.factKey, 'organization.country');
+  assert.equal(editableQuestionForFact(organizationFact, scope), null);
+});
+
+test('reports a non-blocking organization and center worker-count mismatch', () => {
+  const scopes = [
+    { scopeKey: 'organization', kind: 'ORGANIZATION', order: 0, displayName: 'Organización' },
+    { scopeKey: 'center:1', kind: 'WORK_CENTER', order: 1, displayName: 'Centro 1' },
+    { scopeKey: 'center:2', kind: 'WORK_CENTER', order: 2, displayName: 'Centro 2' },
+  ];
+  const fact = (factKey, scopeKey, value) => ({
+    factKey,
+    scopeKey,
+    answerState: 'KNOWN',
+    value,
+    provenance: { source: 'PUBLIC_DECLARATION' },
+  });
+  assert.match(
+    assessmentWorkerCountMismatch(
+      [
+        fact('organization.totalWorkerCount', 'organization', 60),
+        fact('workCenter.workerCount', 'center:1', 40),
+        fact('workCenter.workerCount', 'center:2', 15),
+      ],
+      scopes,
+    ),
+    /55.*60/,
+  );
 });
 
 test('humanizes choices, multi-choice values, unknowns, facts and topics without exposing raw keys', () => {
@@ -357,7 +573,7 @@ test('orders human progress topics canonically regardless of backend insertion o
   });
   assert.deepEqual(
     progress.topics.map(({ label }) => label),
-    ['Empresa', 'Centros', 'Operación', 'Gestión', 'Personas', 'Prioridades', 'Implementación'],
+    ['Empresa', 'Centros', 'Operación', 'Gestión', 'Personas', 'Prioridades'],
   );
 });
 

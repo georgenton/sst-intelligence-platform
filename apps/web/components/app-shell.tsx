@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   createContext,
   useContext,
@@ -52,11 +52,13 @@ export function AppShell({ children }: PropsWithChildren) {
   const auth = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [activeId, setActiveIdState] = useState<string | null>(null);
   const [transitionTarget, setTransitionTarget] = useState<string | null | undefined>(undefined);
   const [contextUserId, setContextUserId] = useState<string | null>(null);
   const [contextNotice, setContextNotice] = useState<string | null>(null);
+  const [assessmentSetupDeferred, setAssessmentSetupDeferred] = useState(false);
   const userId = auth.user?.id;
   const organizations = useQuery({
     queryKey: queryKeys.user.organizations(userId ?? 'unauthenticated'),
@@ -69,7 +71,7 @@ export function AppShell({ children }: PropsWithChildren) {
       auth.request<AssessmentSetupState>('/sst-assessment/setup-state', { signal }, activeId!),
     enabled: Boolean(activeId && transitionTarget === undefined),
   });
-  const setupAllowsApplication = setupState.data?.hardGate === false;
+  const setupAllowsApplication = setupState.data?.hardGate === false || assessmentSetupDeferred;
   const entitlements = useQuery({
     queryKey: queryKeys.organization.entitlements(activeId ?? 'inactive'),
     queryFn: ({ signal }) =>
@@ -84,6 +86,9 @@ export function AppShell({ children }: PropsWithChildren) {
     }
   }, [auth.loading, auth.sessionEnded, auth.user, pathname, router]);
   useEffect(() => setContextNotice(null), [pathname]);
+  useEffect(() => {
+    if (searchParams.get('setup') === 'base') setAssessmentSetupDeferred(true);
+  }, [searchParams]);
   useEffect(() => {
     if (!userId || !organizations.data || transitionTarget !== undefined) return;
     const validIds = organizations.data.map(({ id }) => id);
@@ -209,7 +214,12 @@ export function AppShell({ children }: PropsWithChildren) {
   const setupLoading = transitioning || Boolean(activeId && setupState.isLoading);
   const setupError = Boolean(activeId && setupState.isError);
   const setupRequired = requiresAssessmentSetup(setupState.data);
-  const useSetupShell = noOrganizations || setupPath || setupLoading || setupError || setupRequired;
+  const useSetupShell =
+    noOrganizations ||
+    setupPath ||
+    setupLoading ||
+    setupError ||
+    (setupRequired && !assessmentSetupDeferred);
   if (useSetupShell) {
     const setupContent = noOrganizations ? (
       pathname === '/app/setup/claim' || pathname === '/app/organizations' ? (
@@ -250,6 +260,12 @@ export function AppShell({ children }: PropsWithChildren) {
         >
           Continuar Evaluación SST
         </Link>
+        <Link className="button secondary" href="/app?setup=base">
+          Prefiero empezar y configurar después
+        </Link>
+        <p className="assessment-base-setup__note">
+          Abriremos tu espacio de trabajo sin crear respuestas, diagnósticos ni activaciones.
+        </p>
       </section>
     );
     return (

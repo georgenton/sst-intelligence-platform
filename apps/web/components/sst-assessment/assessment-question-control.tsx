@@ -1,7 +1,7 @@
 'use client';
 
 import type { SstAssessmentQuestion } from '@sst/contracts';
-import { useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { explicitBooleanChoices, questionBounds } from '@/lib/sst-assessment-presentation';
 import type { AssessmentAnswer } from '@/lib/sst-assessment-types';
 
@@ -9,75 +9,61 @@ export function AssessmentQuestionControl({
   question,
   disabled,
   onAnswer,
+  saveStatus,
+  secondaryAction,
 }: {
   question: SstAssessmentQuestion;
   disabled: boolean;
   onAnswer(answer: AssessmentAnswer): void;
+  saveStatus?: ReactNode;
+  secondaryAction?: ReactNode;
 }) {
   const [value, setValue] = useState<string | string[]>(
     question.valueType === 'MULTI_CHOICE' ? [] : '',
   );
   const [validation, setValidation] = useState('');
+  const editorRef = useRef<HTMLDivElement>(null);
   const bounds = questionBounds(question.factKey);
   const base = { scopeKey: question.scopeKey, factKey: question.factKey };
-  const choose = (selected: boolean | string) =>
-    onAnswer({ ...base, answerState: 'KNOWN', value: selected });
-  const unknown = () => onAnswer({ ...base, answerState: 'EXPLICIT_UNKNOWN' });
+  const inputId = `assessment-answer-${question.questionId}`;
+  const errorId = `${inputId}-error`;
+  const isRadio = question.valueType === 'BOOLEAN' || question.valueType === 'SINGLE_CHOICE';
+  const radioChoices =
+    question.valueType === 'BOOLEAN'
+      ? explicitBooleanChoices(question.unknownAllowed).map((choice) => ({
+          label: choice.label,
+          value: choice.value === 'EXPLICIT_UNKNOWN' ? 'EXPLICIT_UNKNOWN' : String(choice.value),
+        }))
+      : [
+          ...question.choices,
+          ...(question.unknownAllowed ? [{ label: 'No lo sé', value: 'EXPLICIT_UNKNOWN' }] : []),
+        ];
+  const hasAnswer = Array.isArray(value) ? value.length > 0 : value.trim().length > 0;
 
-  if (question.valueType === 'BOOLEAN') {
-    return (
-      <div className="assessment-choice-grid assessment-choice-grid--boolean">
-        {explicitBooleanChoices(question.unknownAllowed).map((choice) => (
-          <button
-            type="button"
-            key={choice.label}
-            disabled={disabled}
-            onClick={() => (choice.value === 'EXPLICIT_UNKNOWN' ? unknown() : choose(choice.value))}
-          >
-            {choice.label}
-          </button>
-        ))}
-      </div>
-    );
+  function invalid(message: string) {
+    setValidation(message);
+    editorRef.current?.querySelector<HTMLElement>('input, textarea, button')?.focus();
   }
-
-  if (question.valueType === 'SINGLE_CHOICE') {
-    return (
-      <div className="assessment-choice-grid">
-        {question.choices.map((choice) => (
-          <button
-            type="button"
-            key={choice.value}
-            disabled={disabled}
-            onClick={() => choose(choice.value)}
-          >
-            {choice.label}
-          </button>
-        ))}
-        {question.unknownAllowed ? (
-          <button type="button" disabled={disabled} onClick={unknown}>
-            No tengo esa información
-          </button>
-        ) : null}
-      </div>
-    );
-  }
-
-  const submit = () => {
+  function submit() {
     setValidation('');
+    if (isRadio) {
+      if (!hasAnswer) return invalid('Selecciona una opción para continuar.');
+      if (value === 'EXPLICIT_UNKNOWN')
+        return onAnswer({ ...base, answerState: 'EXPLICIT_UNKNOWN' });
+      return onAnswer({
+        ...base,
+        answerState: 'KNOWN',
+        value: question.valueType === 'BOOLEAN' ? value === 'true' : value,
+      });
+    }
     if (question.valueType === 'MULTI_CHOICE') {
-      if (!Array.isArray(value) || value.length === 0) {
-        setValidation('Selecciona al menos una opción para continuar.');
-        return;
-      }
+      if (!Array.isArray(value) || value.length === 0)
+        return invalid('Selecciona al menos una opción para continuar.');
       onAnswer({ ...base, answerState: 'KNOWN', value });
       return;
     }
     const text = typeof value === 'string' ? value.trim() : '';
-    if (!text) {
-      setValidation('Completa este campo o indica que aún no tienes la información.');
-      return;
-    }
+    if (!text) return invalid('Completa este campo o indica que aún no tienes la información.');
     if (question.valueType === 'INTEGER') {
       const number = Number(text);
       if (
@@ -85,25 +71,62 @@ export function AssessmentQuestionControl({
         (bounds.min !== undefined && number < bounds.min) ||
         (bounds.max !== undefined && number > bounds.max)
       ) {
-        setValidation(
+        return invalid(
           `Ingresa un número entero${bounds.min !== undefined ? ` desde ${bounds.min}` : ''}${bounds.max !== undefined ? ` hasta ${bounds.max}` : ''}.`,
         );
-        return;
       }
       onAnswer({ ...base, answerState: 'KNOWN', value: number });
       return;
     }
-    if (bounds.maxLength !== undefined && text.length > bounds.maxLength) {
-      setValidation(`Usa máximo ${bounds.maxLength} caracteres.`);
-      return;
-    }
+    if (bounds.maxLength !== undefined && text.length > bounds.maxLength)
+      return invalid(`Usa máximo ${bounds.maxLength} caracteres.`);
     onAnswer({ ...base, answerState: 'KNOWN', value: text });
+  }
+  const inputProps = {
+    id: inputId,
+    'aria-label': question.valueType === 'INTEGER' ? 'Respuesta numérica' : 'Respuesta',
+    'aria-invalid': Boolean(validation),
+    'aria-describedby': validation ? errorId : undefined,
+    value: typeof value === 'string' ? value : '',
+    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setValue(event.target.value);
+      setValidation('');
+    },
+    disabled,
   };
 
   return (
-    <div className="assessment-response-editor">
-      {question.valueType === 'MULTI_CHOICE' ? (
-        <div className="assessment-choice-grid" aria-label="Opciones disponibles">
+    <div className="assessment-response-editor" ref={editorRef}>
+      {isRadio ? (
+        <div
+          className={`assessment-choice-grid${question.valueType === 'BOOLEAN' ? ' assessment-choice-grid--boolean' : ''}`}
+          role="radiogroup"
+          aria-label="Opciones disponibles"
+        >
+          {radioChoices.map((choice) => (
+            <label
+              key={choice.value}
+              className="assessment-option"
+              data-selected={value === choice.value}
+            >
+              <input
+                type="radio"
+                name={inputId}
+                value={choice.value}
+                checked={value === choice.value}
+                disabled={disabled}
+                onChange={() => setValue(choice.value)}
+              />
+              <span>{choice.label}</span>
+            </label>
+          ))}
+        </div>
+      ) : question.valueType === 'MULTI_CHOICE' ? (
+        <div
+          className="assessment-choice-grid"
+          aria-label="Opciones disponibles"
+          aria-describedby={validation ? errorId : undefined}
+        >
           {question.choices.map((choice) => {
             const selected = Array.isArray(value) && value.includes(choice.value);
             return (
@@ -121,48 +144,99 @@ export function AssessmentQuestionControl({
                   })
                 }
               >
-                {choice.label}
+                <span aria-hidden="true">{selected ? '✓' : '+'}</span> {choice.label}
               </button>
             );
           })}
         </div>
-      ) : question.valueType === 'INTEGER' ? (
-        <input
-          aria-label="Respuesta numérica"
-          inputMode="numeric"
-          value={typeof value === 'string' ? value : ''}
-          onChange={(event) => setValue(event.target.value)}
-          disabled={disabled}
-        />
       ) : (
-        <textarea
-          aria-label="Respuesta"
-          rows={question.factKey === 'organization.additionalContext' ? 5 : 3}
-          value={typeof value === 'string' ? value : ''}
-          onChange={(event) => setValue(event.target.value)}
-          disabled={disabled}
-        />
+        <div className="assessment-answer-field">
+          <label htmlFor={inputId}>
+            {question.valueType === 'INTEGER' ? 'Respuesta numérica' : 'Respuesta'}
+          </label>
+          {question.valueType === 'INTEGER' ? (
+            <input
+              {...inputProps}
+              type="number"
+              step={1}
+              min={bounds.min}
+              max={bounds.max}
+              inputMode="numeric"
+            />
+          ) : [
+              'organization.activityDescription',
+              'organization.additionalContext',
+              'workCenter.activityDescription',
+            ].includes(question.factKey) ? (
+            <textarea
+              {...inputProps}
+              rows={question.factKey === 'organization.additionalContext' ? 5 : 3}
+            />
+          ) : (
+            <input
+              {...inputProps}
+              type="text"
+              autoComplete={
+                question.factKey === 'organization.country' ? 'country-name' : undefined
+              }
+              placeholder={
+                question.factKey === 'organization.country'
+                  ? 'Ej. Ecuador'
+                  : question.factKey === 'organization.sector'
+                    ? 'Ej. Manufactura, servicios, construcción'
+                    : undefined
+              }
+            />
+          )}
+        </div>
       )}
       {question.factKey === 'organization.additionalContext' ? (
         <p className="assessment-privacy-note">
-          Lo guardaremos como contexto. Todavía no lo convertiremos automáticamente en una
-          conclusión.
+          Lo guardaremos como contexto y no como una conclusión. No incluyas datos personales,
+          médicos, psicosociales individuales, investigaciones privilegiadas, archivos ni
+          credenciales.
         </p>
       ) : null}
+      {question.factKey === 'organization.strategicProtectionPriorities' ? (
+        <p className="assessment-privacy-note">{question.helpText}</p>
+      ) : null}
       {validation ? (
-        <p className="field-error" role="alert">
+        <p id={errorId} className="field-error" role="alert">
           {validation}
         </p>
       ) : null}
-      <div className="assessment-actions">
-        {question.unknownAllowed ? (
-          <button className="button secondary" type="button" disabled={disabled} onClick={unknown}>
-            No tengo esa información
+      <div className="assessment-question__footer">
+        <div className="assessment-question__secondary">
+          {secondaryAction}
+          {!isRadio && question.unknownAllowed ? (
+            <button
+              className="button secondary"
+              type="button"
+              disabled={disabled}
+              onClick={() => onAnswer({ ...base, answerState: 'EXPLICIT_UNKNOWN' })}
+            >
+              No lo sé
+            </button>
+          ) : null}
+        </div>
+        <div className="assessment-question__primary">
+          {saveStatus}
+          <button
+            className="button assessment-primary-action"
+            type="button"
+            disabled={disabled || !hasAnswer}
+            onClick={submit}
+          >
+            Continuar <span aria-hidden="true">→</span>
           </button>
+        </div>
+        {!hasAnswer ? (
+          <small className="assessment-answer-hint">
+            {isRadio || question.valueType === 'MULTI_CHOICE'
+              ? 'Selecciona una opción para continuar.'
+              : 'Completa tu respuesta para continuar.'}
+          </small>
         ) : null}
-        <button className="button" type="button" disabled={disabled} onClick={submit}>
-          Continuar
-        </button>
       </div>
     </div>
   );

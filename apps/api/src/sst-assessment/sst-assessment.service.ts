@@ -13,6 +13,7 @@ import {
   SST_ASSESSMENT_LIMITS,
   SST_ASSESSMENT_SCHEMA_VERSION,
   calculateSstAssessmentProgress,
+  evaluateSstCapabilityRecommendations,
   normalizeSstAssessmentSnapshot,
   reconcileSstAssessmentConditionalFacts,
   organizationSstProfileSchema,
@@ -252,8 +253,12 @@ function assessmentResponse(row: {
     sessionRevision: row.sessionRevision,
     snapshot,
     claimScopeMappings: persistedClaimScopeMappings(row.claimScopeMappings),
-    questions: storedQuestions ?? planSstAssessmentQuestions(snapshot, { channel }),
-    progress: storedProgress ?? calculateSstAssessmentProgress(snapshot, { channel }),
+    questions:
+      storedQuestions ??
+      planSstAssessmentQuestions(snapshot, { channel, includeCommercial: false }),
+    progress:
+      storedProgress ??
+      calculateSstAssessmentProgress(snapshot, { channel, includeCommercial: false }),
     requiredActions:
       channel === 'AUTHENTICATED' &&
       !snapshot.facts.some(({ factKey }) => factKey === 'organization.sector')
@@ -1357,6 +1362,7 @@ export class SstAssessmentService {
     const status = resolveSstAssessmentReadiness(snapshot, {
       channel,
       specialistQuestions: result.questions,
+      includeCommercial: false,
     });
     const updated = await this.prisma.sstAssessmentSession.updateMany({
       where: {
@@ -1389,14 +1395,24 @@ export class SstAssessmentService {
       ...specialist.adaptive.questions,
       ...specialist.regulatory.questions,
     ];
-    const questions = planSstAssessmentQuestions(snapshot, {
+    const planningOptions = {
       channel,
       specialistQuestions: specialistsQuestions,
-    });
-    const progress = calculateSstAssessmentProgress(snapshot, {
-      channel,
-      specialistQuestions: specialistsQuestions,
-    });
+      includeCommercial: false,
+    } as const;
+    const questions = planSstAssessmentQuestions(snapshot, planningOptions);
+    const progress = calculateSstAssessmentProgress(snapshot, planningOptions);
+    const applicableCapabilityQuestions = planSstAssessmentQuestions(
+      {
+        ...snapshot,
+        facts: snapshot.facts.filter(({ answerState }) => answerState !== 'EXPLICIT_UNKNOWN'),
+      },
+      planningOptions,
+    );
+    const capabilityEvaluation = evaluateSstCapabilityRecommendations(
+      snapshot,
+      applicableCapabilityQuestions,
+    );
     const items: SstAssessmentResult['items'] = [
       ...specialist.adaptive.items.map((item) => ({
         scopeKey: item.scopeKey,
@@ -1454,7 +1470,7 @@ export class SstAssessmentService {
         authority: 'CANDIDATE',
       },
     ];
-    const output = { progress, questions, items, specialistTraces };
+    const output = { progress, questions, items, specialistTraces, capabilityEvaluation };
     return {
       schemaVersion: SST_ASSESSMENT_SCHEMA_VERSION,
       authoritiesPresent: [

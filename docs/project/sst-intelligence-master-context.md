@@ -510,3 +510,16 @@ Este cierre no atribuye validación profesional a Anita. Producción conserva
 regulatoria de 15 fuentes, 25 versiones, 1112 unidades, 893 artículos, 5 Requirements candidatos,
 5 RuleDrafts candidatos y 0 RuleVersions reales publicadas. No cambia GTC45, no recalcula
 históricos y no inicia el siguiente programa.
+
+## Unified SST Evaluation Engine V1 — external audit pending
+
+El motor unificado extiende el resultado JSON histórico de `SstAssessmentSession` sin migración.
+Reutiliza la entrevista progresiva, snapshots, specialist pins y reevaluaciones de PR46/47, y añade
+recomendaciones determinísticas versionadas para capacidades existentes. Cada propuesta conserva
+reglas, razones, facts confirmados, procedencia, información faltante e hashes de entrada/salida.
+
+El estado efectivo de acceso se consulta y presenta separadamente; la evaluación no escribe
+`FeatureDefinition`, `PlanFeature`, `Subscription` ni `OrganizationModule`. Toda recomendación queda
+pendiente de decisión humana y tiene efecto de activación `NONE`. No decide aplicabilidad legal,
+cumplimiento, resultado técnico, GTC45 o publicación regulatoria, y no usa IA externa. La definición
+completa está en [Unified SST Evaluation Engine V1](../product/unified-sst-evaluation-engine-v1.md).

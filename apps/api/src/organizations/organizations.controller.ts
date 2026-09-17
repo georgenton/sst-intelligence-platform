@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -49,8 +50,9 @@ export class OrganizationsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: CreateOrganizationDto,
     @Req() request: ApiRequest,
+    @Headers('idempotency-key') creationKey?: string,
   ) {
-    return this.organizations.create(user.id, body, requestMetadata(request));
+    return this.organizations.create(user.id, body, requestMetadata(request), creationKey);
   }
 
   @Get(':id')

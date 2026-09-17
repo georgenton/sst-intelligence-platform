@@ -1,3 +1,5 @@
+import { ApiClientError } from '@sst/api-client';
+
 export type ClaimDestinationState = {
   mode: 'UNDECIDED' | 'EXISTING' | 'NEW';
   selectedOrganizationId: string | null;
@@ -57,6 +59,18 @@ export function canCreateClaimCompany(
 ) {
   return (
     companyName.trim().length >= 2 &&
-    claimCompanyActivity(canonicalActivity, enteredActivity).length >= 2
+    companyName.trim().length <= 120 &&
+    claimCompanyActivity(canonicalActivity, enteredActivity).length >= 2 &&
+    claimCompanyActivity(canonicalActivity, enteredActivity).length <= 120
   );
+}
+
+export function claimCompanyCreationError(error: unknown) {
+  if (
+    error instanceof ApiClientError &&
+    error.payload.code === 'ORGANIZATION_CREATE_RETRY_CONFLICT'
+  ) {
+    return 'El intento anterior usó otros datos. Reintenta con los mismos datos o revisa la empresa de destino.';
+  }
+  return 'No pudimos crear la empresa. Tu diagnóstico sigue guardado. Revisa los datos e intenta nuevamente.';
 }
