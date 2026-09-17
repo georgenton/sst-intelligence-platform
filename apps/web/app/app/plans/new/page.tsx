@@ -1,4 +1,5 @@
 import { AssessmentPlanHandoff } from '@/components/assessment-plan-handoff';
+import { OperationalPlans } from '@/components/operational-plans-ui';
 
 export default async function Page({
   searchParams,
@@ -9,6 +10,6 @@ export default async function Page({
   return assessment ? (
     <AssessmentPlanHandoff key={assessment} assessmentId={assessment} />
   ) : (
-    <p>Selecciona un diagnóstico finalizado desde Evaluación SST.</p>
+    <OperationalPlans manual />
   );
 }

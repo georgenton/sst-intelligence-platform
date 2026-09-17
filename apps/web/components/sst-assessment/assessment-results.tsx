@@ -232,12 +232,23 @@ export function AssessmentResults({
       </section>
       <div className="assessment-completion">
         {canCreateAssessmentPlan(channel, finalized ? 'FINALIZED' : '', capabilityEvaluation) ? (
-          <Link
-            className="button"
-            href={`/app/plans/new?assessment=${encodeURIComponent(sessionId)}`}
+          <section
+            className="assessment-plan-next-step stack-sm"
+            aria-label="Del diagnóstico al plan"
           >
-            Crear borrador de Plan Operativo
-          </Link>
+            <p className="eyebrow">Siguiente paso</p>
+            <h2>Convierte el diagnóstico en trabajo que puedas revisar</h2>
+            <p>
+              {capabilityEvaluation!.recommendations.length} propuestas disponibles. Tú eliges
+              cuáles planificar y preparas un borrador antes de activarlo.
+            </p>
+            <Link
+              className="button"
+              href={`/app/plans/new?assessment=${encodeURIComponent(sessionId)}`}
+            >
+              Crear borrador de Plan Operativo
+            </Link>
+          </section>
         ) : null}
         <h3>Diagnóstico listo</h3>
         <p>
