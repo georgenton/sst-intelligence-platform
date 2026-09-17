@@ -205,3 +205,13 @@ No se añadieron modelos ni migraciones; el motor permanece en 1.2.0 sin cambios
 El smoke real de Staging detectó que un diagnóstico público reclamado conserva `channel:PUBLIC` como origen histórico. La elegibilidad se corrigió para usar acceso autenticado y tenant con claim confirmado, sin reescribir ese origen; una sesión pública sin claim continúa excluida. La regresión cubre evaluación pública finalizada → registro → empresa con dos centros → claim → selección → borrador, incluso con el snapshot PUBLIC en caché.
 
 La inspección de capturas del smoke también mostró el período un día antes en America/Guayaquil: timestamps de medianoche UTC se convertían a fecha local. El detalle usa ahora días calendario UTC para el período, sin cambiar las fechas persistidas ni su semántica. E2E fija esa zona horaria y comprueba el período confirmado.
+
+## PR51 — convergencia Cloud Design v1.1 y plan vigente
+
+La pasada posterior a 18caa97 incorpora la decisión explícita sobre un plan vigente y el endpoint de incorporación server-side. El override de la solicitud prevalece sobre la propuesta del ZIP de reconstruir herencia en cliente: sólo se envían claves y metadata opcional, y la fuente, actividades, ejecuciones y provenance se cargan y copian en una transacción del servidor.
+
+Se conserva el caso sin plan y se añade ACTIVE v2 con COMPLETED, IN_PROGRESS, PLANNED y CANCELED → nuevo DRAFT v3 con las cuatro heredadas + subconjunto diagnóstico PLANNED. La fuente permanece intacta; al activar se retira la anterior sin reiniciar estados. También se valida el linaje de origen durante la revisión ordinaria para no perder estados ni admitir snapshots operativos del navegador. Reintentos con receipt auditado, conflictos de payload/destino y rollback obligatorio se verifican con integración.
+
+El detalle y listado presentan contexto, períodos, responsables, conteos reales y procedencia humana; la revisión crea N+1 con banda explícita, actividades compactas y editor a demanda. La activación requiere confirmación. Se corrige URGENT → Urgente usando el helper canónico. CSS local consume tokens existentes; no se copian prototipos ni se introduce un sistema visual paralelo.
+
+Las superficies de importación del ZIP son documentación futura para PR52 o posterior. PR51 no implementa upload, almacenamiento, parser, candidato, matching ni llamadas LLM. Excel/CSV, original preservado, incertidumbre revisable y columnas no descartadas son principios futuros; Word/PDF permanecen diferidos. Continúan los límites de evidencia canónica, sincronización especializada y selector avanzado. Ninguna de estas decisiones muta motor 1.2.0, corpus, revisiones, módulos o suscripción, ni añade migraciones.
