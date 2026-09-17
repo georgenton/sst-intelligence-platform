@@ -14,6 +14,7 @@ import {
   resultNextStep,
 } from '@/lib/sst-assessment-presentation';
 import { sstAssessmentClaimReturnPath } from '@/lib/auth-return-path';
+import { canCreateAssessmentPlan } from '@/lib/operational-plan-handoff';
 
 export function AssessmentResults({
   result,
@@ -23,6 +24,7 @@ export function AssessmentResults({
   onReassess,
   scopes,
   features,
+  finalized = false,
 }: {
   result: SstAssessmentResult;
   sessionId: string;
@@ -31,6 +33,7 @@ export function AssessmentResults({
   onReassess?: () => void;
   scopes: readonly SstAssessmentScope[];
   features?: Record<string, boolean | number | string>;
+  finalized?: boolean;
 }) {
   const claimPath = sstAssessmentClaimReturnPath(sessionId);
   const technicalDetails = assessmentTechnicalDetailsPolicy(channel);
@@ -228,6 +231,14 @@ export function AssessmentResults({
         ) : null}
       </section>
       <div className="assessment-completion">
+        {canCreateAssessmentPlan(channel, finalized ? 'FINALIZED' : '', capabilityEvaluation) ? (
+          <Link
+            className="button"
+            href={`/app/plans/new?assessment=${encodeURIComponent(sessionId)}`}
+          >
+            Crear borrador de Plan Operativo
+          </Link>
+        ) : null}
         <h3>Diagnóstico listo</h3>
         <p>
           El siguiente paso será configurar tu espacio. Todavía no activamos módulos ni generamos un

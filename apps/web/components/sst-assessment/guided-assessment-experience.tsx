@@ -203,6 +203,7 @@ export function GuidedSstAssessmentExperience({
         aside={aside}
       >
         <AssessmentResults
+          finalized
           result={session.result}
           sessionId={session.id}
           channel={transport.channel}

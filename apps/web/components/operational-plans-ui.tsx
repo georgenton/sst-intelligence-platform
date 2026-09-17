@@ -1,10 +1,11 @@
 'use client';
 
-import { ApiClientError } from '@sst/api-client';
 import { Card } from '@sst/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray, useForm, type UseFormReturn } from 'react-hook-form';
+import { useRef, useState } from 'react';
+import { operationalPlanError, planItemSource } from '@/lib/operational-plan-handoff';
 import { queryKeys } from '@/lib/query-keys';
 import { humanPriorityLabel } from '@/lib/human-lexicon';
 import { useOrganization } from './app-shell';
@@ -19,7 +20,10 @@ type PlanItem = {
   id: string;
   title: string;
   description?: string;
+  startsAt?: string;
   dueAt?: string;
+  evidenceReferences: string[];
+  provenanceSnapshot: Record<string, unknown>;
   frequency?: string;
   priority: string;
   provenanceType: string;
@@ -39,24 +43,31 @@ type PlanVersion = {
   periodStart: string;
   periodEnd: string;
   contentDigest: string;
+  responsibleUserId?: string;
+  provenance: Record<string, unknown>;
   responsible?: { id: string; displayName: string };
   items: PlanItem[];
 };
 
 type Plan = { id: string; versions: PlanVersion[] };
 type PlanList = { items: Plan[]; total: number };
-type Context = {
+export type PlanContext = {
   workCenters: Array<{ id: string; name: string }>;
   members: Array<{ id: string; displayName: string; role: string }>;
 };
 
-type PlanForm = {
+export type PlanForm = {
   name: string;
   description: string;
   periodStart: string;
   periodEnd: string;
   responsibleUserId: string;
+  provenance?: Record<string, unknown>;
   items: Array<{
+    startsAt?: string;
+    provenanceType?: string;
+    provenanceReference?: string;
+    provenanceSnapshot?: Record<string, unknown>;
     title: string;
     description: string;
     dueAt: string;
@@ -79,7 +90,13 @@ function usePlanApi() {
   };
 }
 
-const writers = new Set(['ORG_OWNER', 'ORG_ADMIN', 'SST_MANAGER', 'SST_TECHNICIAN', 'CONSULTANT']);
+export const planWriteRoles = new Set([
+  'ORG_OWNER',
+  'ORG_ADMIN',
+  'SST_MANAGER',
+  'SST_TECHNICIAN',
+  'CONSULTANT',
+]);
 const activators = new Set(['ORG_OWNER', 'ORG_ADMIN', 'SST_MANAGER']);
 
 function stateLabel(value: string) {
@@ -99,6 +116,8 @@ function stateLabel(value: string) {
 export function OperationalPlans({ planId }: { planId?: string }) {
   const api = usePlanApi();
   const queryClient = useQueryClient();
+  const [reviewing, setReviewing] = useState(false);
+  const submission = useRef(false);
   const plans = useQuery({
     queryKey: planId
       ? queryKeys.organization.operationalPlan(api.organizationId ?? 'inactive', planId)
@@ -110,8 +129,8 @@ export function OperationalPlans({ planId }: { planId?: string }) {
     enabled: Boolean(api.organizationId),
   });
   const context = useQuery({
-    queryKey: queryKeys.organization.inspectionContext(api.organizationId ?? 'inactive'),
-    queryFn: ({ signal }) => api.request<Context>('/inspections/context', { signal }),
+    queryKey: queryKeys.organization.operationalPlanContext(api.organizationId ?? 'inactive'),
+    queryFn: ({ signal }) => api.request<PlanContext>('/operational-plans/context', { signal }),
     enabled: Boolean(api.organizationId),
   });
   const form = useForm<PlanForm>({
@@ -138,27 +157,32 @@ export function OperationalPlans({ planId }: { planId?: string }) {
   const fields = useFieldArray({ control: form.control, name: 'items' });
   const create = useMutation({
     mutationFn: (values: PlanForm) =>
-      api.request<Plan>('/operational-plans', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...values,
-          responsibleUserId: values.responsibleUserId || undefined,
-          items: values.items.map(({ evidenceReferencesText, ...item }) => ({
-            ...item,
-            dueAt: item.dueAt || undefined,
-            frequency: item.frequency || undefined,
-            workCenterId: item.workCenterId || undefined,
-            responsibleUserId: item.responsibleUserId || undefined,
-            evidenceReferences: evidenceReferencesText
-              .split('\n')
-              .map((value) => value.trim())
-              .filter(Boolean),
-            provenanceType: 'MANUAL',
-          })),
-        }),
-      }),
+      api.request<Plan>(
+        reviewing && planId ? `/operational-plans/${planId}/versions` : '/operational-plans',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            ...values,
+            responsibleUserId: values.responsibleUserId || undefined,
+            items: values.items.map(({ evidenceReferencesText, ...item }) => ({
+              ...item,
+              dueAt: item.dueAt || undefined,
+              frequency: item.frequency || undefined,
+              workCenterId: item.workCenterId || undefined,
+              responsibleUserId: item.responsibleUserId || undefined,
+              evidenceReferences: evidenceReferencesText
+                .split('\n')
+                .map((value) => value.trim())
+                .filter(Boolean),
+              startsAt: item.startsAt || undefined,
+              provenanceType: item.provenanceType || 'MANUAL',
+            })),
+          }),
+        },
+      ),
     onSuccess: async () => {
       form.reset();
+      setReviewing(false);
       await queryClient.invalidateQueries({
         queryKey: queryKeys.organization.scope(api.organizationId!),
       });
@@ -228,19 +252,27 @@ export function OperationalPlans({ planId }: { planId?: string }) {
   return (
     <div className="inspection-task-page stack">
       <InspectionPageHeader
-        eyebrow="Plan Operativo Macro V0"
+        eyebrow="Plan Operativo"
         title={planId ? 'Detalle del plan operativo' : 'Planifica el trabajo SST'}
         description="El plan organiza actividades versionadas. La Cola de trabajo muestra únicamente lo que requiere atención."
       />
-      {!planId && writers.has(api.role ?? '') ? (
+      {(!planId || reviewing) && planWriteRoles.has(api.role ?? '') ? (
         <Card className="inspection-form-card">
           <form
             className="inspection-form"
-            onSubmit={form.handleSubmit((values) => create.mutate(values))}
+            onSubmit={form.handleSubmit((values) => {
+              if (submission.current) return;
+              submission.current = true;
+              create.mutate(values, {
+                onSettled: () => {
+                  submission.current = false;
+                },
+              });
+            })}
           >
             <div className="inspection-form-intro">
               <p className="eyebrow">Dos caminos, un mismo borrador revisable</p>
-              <h2>Ya tengo un plan</h2>
+              <h2>{reviewing ? 'Revisar y crear nueva versión' : 'Ya tengo un plan'}</h2>
               <p>
                 Transcribe su estructura sin perder responsable, fechas, frecuencia, prioridad ni
                 procedencia.
@@ -296,21 +328,54 @@ export function OperationalPlans({ planId }: { planId?: string }) {
                     {...form.register(`items.${index}.title`, { required: true, minLength: 3 })}
                   />
                 </div>
+                <div className="field">
+                  <label htmlFor={`plan-item-description-${index}`}>
+                    Descripción de actividad {index + 1}
+                  </label>
+                  <textarea
+                    id={`plan-item-description-${index}`}
+                    {...form.register(`items.${index}.description`)}
+                  />
+                </div>
                 <div className="inspection-form-grid">
                   <div className="field">
-                    <label>Fecha límite</label>
-                    <input type="date" {...form.register(`items.${index}.dueAt`)} />
+                    <label htmlFor={`plan-item-start-${index}`}>
+                      Inicio de actividad {index + 1}
+                    </label>
+                    <input
+                      id={`plan-item-start-${index}`}
+                      type="date"
+                      {...form.register(`items.${index}.startsAt`)}
+                    />
                   </div>
                   <div className="field">
-                    <label>Frecuencia</label>
+                    <label htmlFor={`plan-item-due-${index}`}>
+                      Fecha límite de actividad {index + 1}
+                    </label>
                     <input
+                      id={`plan-item-due-${index}`}
+                      type="date"
+                      {...form.register(`items.${index}.dueAt`)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor={`plan-item-frequency-${index}`}>
+                      Frecuencia de actividad {index + 1}
+                    </label>
+                    <input
+                      id={`plan-item-frequency-${index}`}
                       placeholder="Mensual, trimestral…"
                       {...form.register(`items.${index}.frequency`)}
                     />
                   </div>
                   <div className="field">
-                    <label>Prioridad</label>
-                    <select {...form.register(`items.${index}.priority`)}>
+                    <label htmlFor={`plan-item-priority-${index}`}>
+                      Prioridad de actividad {index + 1}
+                    </label>
+                    <select
+                      id={`plan-item-priority-${index}`}
+                      {...form.register(`items.${index}.priority`)}
+                    >
                       <option value="LOW">Baja</option>
                       <option value="MEDIUM">Media</option>
                       <option value="HIGH">Alta</option>
@@ -318,8 +383,13 @@ export function OperationalPlans({ planId }: { planId?: string }) {
                     </select>
                   </div>
                   <div className="field">
-                    <label>Centro de trabajo</label>
-                    <select {...form.register(`items.${index}.workCenterId`)}>
+                    <label htmlFor={`plan-item-workCenterId-${index}`}>
+                      Centro de trabajo de actividad {index + 1}
+                    </label>
+                    <select
+                      id={`plan-item-workCenterId-${index}`}
+                      {...form.register(`items.${index}.workCenterId`)}
+                    >
                       <option value="">Toda la organización</option>
                       {context.data?.workCenters.map((center) => (
                         <option key={center.id} value={center.id}>
@@ -329,8 +399,13 @@ export function OperationalPlans({ planId }: { planId?: string }) {
                     </select>
                   </div>
                   <div className="field">
-                    <label>Responsable</label>
-                    <select {...form.register(`items.${index}.responsibleUserId`)}>
+                    <label htmlFor={`plan-item-responsibleUserId-${index}`}>
+                      Responsable de actividad {index + 1}
+                    </label>
+                    <select
+                      id={`plan-item-responsibleUserId-${index}`}
+                      {...form.register(`items.${index}.responsibleUserId`)}
+                    >
                       <option value="">Sin asignar</option>
                       {context.data?.members.map((member) => (
                         <option key={member.id} value={member.id}>
@@ -341,8 +416,11 @@ export function OperationalPlans({ planId }: { planId?: string }) {
                   </div>
                 </div>
                 <div className="field">
-                  <label>Referencias de evidencia</label>
+                  <label htmlFor={`plan-item-evidenceReferencesText-${index}`}>
+                    Referencias de evidencia de actividad {index + 1}
+                  </label>
                   <textarea
+                    id={`plan-item-evidenceReferencesText-${index}`}
                     placeholder="Una referencia por línea"
                     {...form.register(`items.${index}.evidenceReferencesText`)}
                   />
@@ -378,7 +456,7 @@ export function OperationalPlans({ planId }: { planId?: string }) {
             </button>
             <div className="inspection-sticky-actions">
               <button className="button" disabled={create.isPending}>
-                Ya tengo un plan
+                {reviewing ? 'Guardar nueva versión' : 'Ya tengo un plan'}
               </button>
               <button
                 type="button"
@@ -386,21 +464,19 @@ export function OperationalPlans({ planId }: { planId?: string }) {
                 disabled={
                   generate.isPending || !form.watch('periodStart') || !form.watch('periodEnd')
                 }
+                hidden={reviewing}
                 onClick={() => generate.mutate()}
               >
                 Ayúdame a crear uno
               </button>
             </div>
             {create.isError || generate.isError ? (
-              <p role="alert">
-                {(create.error ?? generate.error) instanceof ApiClientError
-                  ? (create.error ?? (generate.error as ApiClientError)).message
-                  : 'No pudimos crear el borrador.'}
-              </p>
+              <p role="alert">{operationalPlanError()}</p>
             ) : null}
           </form>
         </Card>
       ) : null}
+      {activate.isError || transition.isError ? <p role="alert">{operationalPlanError()}</p> : null}
       {list.length === 0 ? (
         <InspectionState
           kind="empty"
@@ -424,7 +500,51 @@ export function OperationalPlans({ planId }: { planId?: string }) {
                 {new Date(version.periodStart).toLocaleDateString('es-EC')} –{' '}
                 {new Date(version.periodEnd).toLocaleDateString('es-EC')}
               </p>
-              {version.status === 'DRAFT' && activators.has(api.role ?? '') ? (
+              {planId &&
+              version.status === 'DRAFT' &&
+              planWriteRoles.has(api.role ?? '') &&
+              !reviewing ? (
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => {
+                    form.reset({
+                      name: version.name,
+                      description: version.description ?? '',
+                      periodStart: version.periodStart.slice(0, 10),
+                      periodEnd: version.periodEnd.slice(0, 10),
+                      responsibleUserId: version.responsibleUserId ?? '',
+                      provenance: version.provenance,
+                      items: version.items.map((item) => ({
+                        title: item.title,
+                        description: item.description ?? '',
+                        startsAt: item.startsAt?.slice(0, 10) ?? '',
+                        dueAt: item.dueAt?.slice(0, 10) ?? '',
+                        frequency: item.frequency ?? '',
+                        priority: item.priority as PlanForm['items'][number]['priority'],
+                        workCenterId: item.workCenter?.id ?? '',
+                        responsibleUserId: item.responsible?.id ?? '',
+                        evidenceReferencesText: item.evidenceReferences.join('\n'),
+                        provenanceType: item.provenanceType,
+                        provenanceReference: item.provenanceReference,
+                        provenanceSnapshot: item.provenanceSnapshot,
+                      })),
+                    });
+                    setReviewing(true);
+                  }}
+                >
+                  Revisar y crear nueva versión
+                </button>
+              ) : null}
+              <p>Responsable general: {version.responsible?.displayName ?? 'Sin asignar'}</p>
+              {version.status === 'DRAFT' ? (
+                <p>
+                  Al activarlo, esta versión se convierte en el plan operativo vigente. Las
+                  recomendaciones del diagnóstico no activan módulos ni cambian tu plan de
+                  suscripción.
+                </p>
+              ) : null}
+              {version.status === 'DRAFT' && !reviewing && activators.has(api.role ?? '') ? (
                 <button
                   className="button"
                   type="button"
@@ -447,14 +567,45 @@ export function OperationalPlans({ planId }: { planId?: string }) {
                       </p>
                       <h3>{item.title}</h3>
                       <p>{item.description ?? 'Sin descripción adicional.'}</p>
-                      <small>
-                        Procedencia: {item.provenanceType}
-                        {item.provenanceReference ? ` · ${item.provenanceReference}` : ''}
-                      </small>
-                      {item.execution.status === 'PLANNED' ? (
+                      <p>Origen: {planItemSource(item.provenanceType, item.provenanceSnapshot)}</p>
+                      {typeof item.provenanceSnapshot.engineVersion === 'string' ? (
+                        <p>Motor de recomendación {item.provenanceSnapshot.engineVersion}</p>
+                      ) : null}
+                      <dl>
+                        <div>
+                          <dt>Centro</dt>
+                          <dd>{item.workCenter?.name ?? 'Toda la organización'}</dd>
+                        </div>
+                        <div>
+                          <dt>Responsable</dt>
+                          <dd>{item.responsible?.displayName ?? 'Sin asignar'}</dd>
+                        </div>
+                        <div>
+                          <dt>Inicio</dt>
+                          <dd>{item.startsAt?.slice(0, 10) ?? 'Sin fecha'}</dd>
+                        </div>
+                        <div>
+                          <dt>Fecha límite</dt>
+                          <dd>{item.dueAt?.slice(0, 10) ?? 'Sin fecha'}</dd>
+                        </div>
+                        <div>
+                          <dt>Frecuencia</dt>
+                          <dd>{item.frequency ?? 'Sin definir'}</dd>
+                        </div>
+                      </dl>
+                      <p>
+                        Referencias de evidencia:{' '}
+                        {item.evidenceReferences.length
+                          ? item.evidenceReferences.join('; ')
+                          : 'Sin referencias'}
+                      </p>
+                      {version.status === 'ACTIVE' &&
+                      planWriteRoles.has(api.role ?? '') &&
+                      item.execution.status === 'PLANNED' ? (
                         <button
                           type="button"
                           className="button"
+                          disabled={transition.isPending}
                           onClick={() =>
                             transition.mutate({
                               itemId: item.id,
@@ -466,10 +617,13 @@ export function OperationalPlans({ planId }: { planId?: string }) {
                           Iniciar
                         </button>
                       ) : null}
-                      {item.execution.status === 'IN_PROGRESS' ? (
+                      {version.status === 'ACTIVE' &&
+                      planWriteRoles.has(api.role ?? '') &&
+                      item.execution.status === 'IN_PROGRESS' ? (
                         <button
                           type="button"
                           className="button"
+                          disabled={transition.isPending}
                           onClick={() =>
                             transition.mutate({
                               itemId: item.id,
@@ -495,9 +649,15 @@ export function OperationalPlans({ planId }: { planId?: string }) {
                           Versión {historical.version} · {stateLabel(historical.status)}
                         </strong>
                         <p>{historical.name}</p>
+                        <ul>
+                          {historical.items.map((item) => (
+                            <li key={item.id}>
+                              {item.title} · {stateLabel(item.execution.status)}
+                            </li>
+                          ))}
+                        </ul>
                         <small>
-                          {historical.items.length} actividad(es) · digest{' '}
-                          {historical.contentDigest}
+                          {historical.items.length} actividad(es) · {stateLabel(historical.status)}
                         </small>
                       </article>
                     ))}
@@ -509,5 +669,48 @@ export function OperationalPlans({ planId }: { planId?: string }) {
         })
       )}
     </div>
+  );
+}
+
+export function PlanMetadataFields({
+  form,
+  context,
+  disabled = false,
+}: {
+  form: UseFormReturn<PlanForm>;
+  context?: PlanContext;
+  disabled?: boolean;
+}) {
+  return (
+    <fieldset disabled={disabled} className="inspection-form-grid">
+      <legend>Datos del borrador</legend>
+      <label className="field">
+        Nombre del plan
+        <input {...form.register('name', { required: true, minLength: 3, maxLength: 200 })} />
+      </label>
+      <label className="field">
+        Descripción del plan
+        <textarea {...form.register('description', { maxLength: 2000 })} />
+      </label>
+      <label className="field">
+        Inicio del período
+        <input type="date" {...form.register('periodStart', { required: true })} />
+      </label>
+      <label className="field">
+        Fin del período
+        <input type="date" {...form.register('periodEnd', { required: true })} />
+      </label>
+      <label className="field">
+        Responsable general
+        <select {...form.register('responsibleUserId')}>
+          <option value="">Sin asignar</option>
+          {context?.members.map((member) => (
+            <option key={member.id} value={member.id}>
+              {member.displayName}
+            </option>
+          ))}
+        </select>
+      </label>
+    </fieldset>
   );
 }

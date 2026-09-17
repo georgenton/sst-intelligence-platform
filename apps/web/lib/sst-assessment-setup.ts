@@ -4,8 +4,11 @@ export function requiresAssessmentSetup(state: AssessmentSetupState | null | und
   return state?.hardGate === true;
 }
 
-export function isAssessmentSetupPath(pathname: string) {
+export function isAssessmentSetupPath(pathname: string, state?: AssessmentSetupState | null) {
   return (
+    (state?.state === 'DIAGNOSIS_READY' &&
+      Boolean(state.finalizedAt) &&
+      (pathname === '/app/plans' || pathname.startsWith('/app/plans/'))) ||
     pathname === '/app/evaluation' ||
     pathname.startsWith('/app/evaluation/') ||
     pathname === '/app/organizations' ||
@@ -18,7 +21,7 @@ export function canMountPrivateApplicationChildren(
   state: AssessmentSetupState | null | undefined,
   pathname: string,
 ) {
-  return !requiresAssessmentSetup(state) || isAssessmentSetupPath(pathname);
+  return !requiresAssessmentSetup(state) || isAssessmentSetupPath(pathname, state);
 }
 
 export function setupStateMessage(state: AssessmentSetupState['state']) {

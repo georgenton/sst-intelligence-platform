@@ -106,7 +106,7 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   expect((await planActivation).ok()).toBe(true);
   await expect(page.getByText(/Activo · versión 1/)).toBeVisible();
   await page.getByRole('link', { name: 'Plan operativo sugerido' }).click();
-  await expect(page.getByText(/Procedencia: FINDING/).first()).toBeVisible();
+  await expect(page.getByText(/Origen: Hallazgo de inspección/).first()).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
   const inspectionsResponse = await page.goto('/app/inspections');

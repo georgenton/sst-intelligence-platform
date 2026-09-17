@@ -209,7 +209,7 @@ export function AppShell({ children }: PropsWithChildren) {
         <p>Cargando sesión…</p>
       </main>
     );
-  const setupPath = isAssessmentSetupPath(pathname);
+  const setupPath = isAssessmentSetupPath(pathname, setupState.data);
   const noOrganizations = organizations.isSuccess && organizations.data.length === 0;
   const setupLoading = transitioning || Boolean(activeId && setupState.isLoading);
   const setupError = Boolean(activeId && setupState.isError);
