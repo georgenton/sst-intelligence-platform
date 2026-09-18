@@ -97,7 +97,17 @@ test('fresh production release enters the demo and completes scoped inspection c
     expect(organization.memberships).toHaveLength(1);
     expect(organization.memberships[0]!.role).toBe('ORG_OWNER');
     expect(
-      organization.modules.map(({ module, status, source }) => [module.key, status, source]),
+      organization.modules.map(
+        ({
+          module,
+          status,
+          source,
+        }: {
+          module: { key: string };
+          status: string;
+          source: string;
+        }) => [module.key, status, source],
+      ),
     ).toEqual([['CORE', 'ACTIVE', 'PLAN']]);
     expect(organization.subscriptions[0]!.plan.key).toBe('FREE');
     baselineChecked = true;
@@ -150,7 +160,11 @@ test('fresh production release enters the demo and completes scoped inspection c
     include: { criterionResults: true },
   });
   expect(original.criterionResults).toHaveLength(4);
-  expect(original.criterionResults.every(({ outcome }) => outcome === 'NO_VERIFICADO')).toBe(true);
+  expect(
+    original.criterionResults.every(
+      ({ outcome }: { outcome: string }) => outcome === 'NO_VERIFICADO',
+    ),
+  ).toBe(true);
   await expect(page.getByText('0 de 4 criterios registrados')).toBeVisible();
   await page.getByRole('button', { name: 'Iniciar inspección', exact: true }).click();
   await expect(page.getByRole('radio', { name: /Conforme Cumple/ })).toBeEnabled();
@@ -261,11 +275,12 @@ test('fresh production release enters the demo and completes scoped inspection c
   await focal.getByLabel('Ir a criterio', { exact: true }).selectOption(finding.criterionResultId);
   await expect(focal.getByRole('radio', { name: /Conforme Cumple/ })).toBeDisabled();
   await expect(focal.getByText(/conserva No conforme porque tiene un hallazgo/)).toBeVisible();
-  const rows = await runtime.prisma.inspectionCriterionResult.findMany({
-    where: { inspectionId },
-    include: { criterion: true },
-    orderBy: { criterion: { displayOrder: 'asc' } },
-  });
+  const rows: Array<{ id: string; criterion: { notApplicableAllowed: boolean } }> =
+    await runtime.prisma.inspectionCriterionResult.findMany({
+      where: { inspectionId },
+      include: { criterion: true },
+      orderBy: { criterion: { displayOrder: 'asc' } },
+    });
   const remaining = rows.filter(({ id }) => id !== finding.criterionResultId);
   const notApplicable = remaining.find(({ criterion }) => criterion.notApplicableAllowed)!;
   const otherRows = remaining.filter(({ id }) => id !== notApplicable.id);
