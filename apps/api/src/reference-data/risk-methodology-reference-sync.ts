@@ -15,6 +15,7 @@ import {
   RISK_METHOD_REGULATORY_CONTEXT_MANIFESTS,
 } from '../risk-methodology/risk-method-reference-data';
 import { syncCatalogReferences } from './catalog-reference-sync';
+import { syncSolutionEntryReferences } from './solution-entry-reference-sync';
 import { syncInspectionStandardReferences } from './inspection-standard-reference-sync';
 import { syncInspectionResourceReferences } from './inspection-resource-reference-sync';
 import { syncRegulatoryEvidenceReferences } from './regulatory-evidence-reference-sync';
@@ -459,6 +460,7 @@ export function syncGlobalReferenceData(prisma: PrismaClient) {
         "SELECT pg_advisory_xact_lock(hashtext('sst-global-reference-sync-v1'))",
       );
       const catalog = await syncCatalogReferences(transaction);
+      const solutionEntry = await syncSolutionEntryReferences(transaction);
       await syncRiskMethodologyReferences(transaction);
       const regulatory = await syncRegulatoryEvidenceReferences(transaction);
       const inspectionStandards = await syncInspectionStandardReferences(transaction);
@@ -466,6 +468,7 @@ export function syncGlobalReferenceData(prisma: PrismaClient) {
       const adaptiveAssessment = await syncAdaptiveAssessmentReferences(transaction);
       return {
         catalog,
+        solutionEntry,
         riskMethodology: await referenceCounts(transaction),
         regulatory,
         inspectionStandards,

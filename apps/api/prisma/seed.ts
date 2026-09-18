@@ -21,6 +21,10 @@ import { assertPublishedVersionMatches } from '../src/adaptive-configuration/ada
 import { syncGlobalReferenceData } from '../src/reference-data/risk-methodology-reference-sync';
 import { provisionRegulatoryReviewCorpus } from './regulatory-review-corpus-reference-data';
 import {
+  SOLUTION_ENTRY_FLOW,
+  SOLUTION_ENTRY_MODULES,
+} from '../src/reference-data/solution-entry-reference-sync';
+import {
   ORGANIZATION_BASELINE_FEATURES,
   ORGANIZATION_BASELINE_MODULE,
   ORGANIZATION_BASELINE_PLAN,
@@ -35,11 +39,7 @@ const modules = [
     ORGANIZATION_BASELINE_MODULE.name,
     ORGANIZATION_BASELINE_MODULE.description,
   ],
-  ['INSPECTIONS_INTELLIGENCE', 'Inspecciones inteligentes', 'Centraliza hallazgos y recurrencias.'],
-  ['TECHNICAL_RISK', 'Riesgo técnico', 'Presenta controles e indicadores técnicos sintéticos.'],
-  ['WORK_PERMITS', 'Permisos de trabajo', 'Prepara la trazabilidad de actividades críticas.'],
-  ['PSYCHOSOCIAL', 'Gestión psicosocial', 'Organiza campañas y seguimiento agregado no clínico.'],
-  ['COMPLIANCE', 'Cumplimiento', 'Ordena evidencias, compromisos y reportería.'],
+  ...SOLUTION_ENTRY_MODULES,
 ] as const;
 
 const plans = [
@@ -168,13 +168,7 @@ async function main() {
   await prisma.guidedFlowDefinition.upsert({
     where: { key_version: { key: 'solution-finder', version: '1.0.0' } },
     update: { active: true },
-    create: {
-      key: 'solution-finder',
-      version: '1.0.0',
-      schema: {
-        steps: ['company', 'operation', 'management', 'people', 'objectives', 'commercial'],
-      },
-    },
+    create: SOLUTION_ENTRY_FLOW,
   });
 
   let demoMethod = await prisma.technicalMethodDefinition.findFirst({
