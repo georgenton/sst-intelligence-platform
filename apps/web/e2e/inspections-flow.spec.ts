@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { appearanceFocusStorageKey, appearanceSessionUserKey } from '../lib/appearance';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
-test('inspección, hallazgo, acción, verificación y recurrencia demo', async ({ page }) => {
+test('inspección, hallazgo, acción, verificación y recurrencia demo', async ({ page, request }) => {
   test.setTimeout(90_000);
   const suffix = Date.now();
   const organizationName = `Inspecciones Demo ${suffix}`;
@@ -87,26 +87,34 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
 
   await page.goto('/app/plans');
   await expect(page.getByRole('heading', { name: 'Planifica el trabajo SST' })).toBeVisible();
-  const generatedPlan = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      new URL(response.url()).pathname === '/api/v1/operational-plans/generate-draft',
+  // The legacy generator remains covered through its API; signals are not a live creation journey.
+  const session = JSON.parse(registration.body) as { accessToken: string };
+  const organizations = await request.get('http://127.0.0.1:3101/api/v1/organizations', {
+    headers: { authorization: `Bearer ${session.accessToken}` },
+  });
+  const organization = (await organizations.json()).find(
+    (entry: { name: string }) => entry.name === organizationName,
+  ) as { id: string };
+  const generatedPlan = await request.post(
+    'http://127.0.0.1:3101/api/v1/operational-plans/generate-draft',
+    {
+      headers: {
+        authorization: `Bearer ${session.accessToken}`,
+        'x-organization-id': organization.id,
+      },
+      data: { name: 'Plan operativo sugerido', periodStart: '2026-01-01', periodEnd: '2026-12-31' },
+    },
   );
-  await page.getByRole('button', { name: 'Ayúdame a crear uno' }).click();
-  expect((await generatedPlan).ok()).toBe(true);
-  await expect(page.getByRole('link', { name: 'Plan operativo sugerido' })).toBeVisible();
-  const planActivation = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      /\/api\/v1\/operational-plans\/[0-9a-f-]+\/versions\/[0-9a-f-]+\/activate$/.test(
-        new URL(response.url()).pathname,
-      ),
-  );
-  await page.getByRole('button', { name: 'Activar plan' }).click();
-  expect((await planActivation).ok()).toBe(true);
+  expect(generatedPlan.status()).toBe(201);
+  const plan = await generatedPlan.json();
+  await page.goto(`/app/plans/${plan.id}`);
+  await expect(
+    page.getByRole('heading', { name: 'Plan operativo sugerido', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Activar plan', exact: true }).click();
+  await page.getByRole('button', { name: 'Activar Plan Operativo', exact: true }).click();
   await expect(page.getByText(/Activo · versión 1/)).toBeVisible();
-  await page.getByRole('link', { name: 'Plan operativo sugerido' }).click();
-  await expect(page.getByText(/Procedencia: FINDING/).first()).toBeVisible();
+  await expect(page.getByText(/Origen: Hallazgo de inspección/).first()).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
   const inspectionsResponse = await page.goto('/app/inspections');

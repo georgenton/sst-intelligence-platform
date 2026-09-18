@@ -1,12 +1,21 @@
+import { createHash } from 'node:crypto';
+import { isUUID } from 'class-validator';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
+  HttpException,
+  ServiceUnavailableException,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type OperationalPlanItemExecution } from '@prisma/client';
 import {
   buildDeterministicOperationalPlanDraft,
+  buildAssessmentOperationalPlanDraft,
+  buildIncorporatedAssessmentOperationalPlanDraft,
+  incorporateAssessmentOperationalPlanInputSchema,
+  assessmentOperationalPlanInputSchema,
+  adaptiveContentHash,
   canTransitionOperationalPlanItem,
   operationalPlanContentDigest,
   operationalPlanVersionInputSchema,
@@ -17,6 +26,8 @@ import { AuditService, type AuditEvent } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
   CreateOperationalPlanDto,
+  AssessmentOperationalPlanDto,
+  IncorporateAssessmentOperationalPlanDto,
   GenerateOperationalPlanDto,
   OperationalPlanQueryDto,
   TransitionOperationalPlanItemDto,
@@ -49,6 +60,381 @@ export class OperationalPlansService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
   ) {}
+
+  async context(organizationId: string) {
+    const [workCenters, memberships, activeVersion] = await Promise.all([
+      this.prisma.workCenter.findMany({
+        where: { organizationId, isActive: true },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.membership.findMany({
+        where: { organizationId, status: 'ACTIVE' },
+        select: { role: true, user: { select: { id: true, displayName: true } } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.operationalPlanVersion.findFirst({
+        where: { organizationId, status: 'ACTIVE' },
+        include: {
+          responsible: { select: { id: true, displayName: true } },
+          _count: { select: { items: true } },
+          plan: {
+            select: {
+              versions: { orderBy: { version: 'desc' }, take: 1, select: { version: true } },
+            },
+          },
+        },
+      }),
+    ]);
+    return {
+      workCenters,
+      members: memberships.map(({ user, role }) => ({ ...user, role })),
+      activePlan: activeVersion
+        ? {
+            planId: activeVersion.planId,
+            versionId: activeVersion.id,
+            version: activeVersion.version,
+            nextVersion: activeVersion.plan.versions[0]!.version + 1,
+            name: activeVersion.name,
+            periodStart: activeVersion.periodStart,
+            periodEnd: activeVersion.periodEnd,
+            responsible: activeVersion.responsible,
+            itemCount: activeVersion._count.items,
+          }
+        : null,
+    };
+  }
+
+  async incorporateAssessment(
+    organizationId: string,
+    userId: string,
+    planId: string,
+    assessmentId: string,
+    rawInput: IncorporateAssessmentOperationalPlanDto,
+    context: Context,
+    creationKey?: string,
+  ) {
+    if (creationKey !== undefined && !isUUID(creationKey, '4'))
+      throw new BadRequestException('La clave de reintento no es válida.');
+    const parsed = incorporateAssessmentOperationalPlanInputSchema.safeParse(rawInput);
+    if (!parsed.success)
+      throw new BadRequestException('Revisa la selección y las fechas del plan.');
+    const input = {
+      ...parsed.data,
+      selectedCapabilityKeys: [...parsed.data.selectedCapabilityKeys].sort(),
+    };
+    const keyHash = creationKey
+      ? createHash('sha256')
+          .update(`${organizationId}:${userId}:${creationKey.toLowerCase()}`)
+          .digest('hex')
+      : null;
+    const requestIdentity = { organizationId, userId, planId, assessmentId, ...input };
+    const action = 'OPERATIONAL_PLAN_VERSION_CREATED_FROM_ASSESSMENT';
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        // Shared with activation and execution transitions: the source snapshot is consistent.
+        await tx.$executeRaw`SELECT id FROM "Organization" WHERE id = ${organizationId}::uuid FOR UPDATE`;
+        if (keyHash) {
+          await tx.$executeRaw(
+            Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${keyHash}, 0))`,
+          );
+          const receipt = await tx.auditLog.findFirst({
+            where: {
+              organizationId,
+              actorUserId: userId,
+              action,
+              entityType: 'OperationalPlanVersion',
+              metadata: { path: ['idempotencyKeyHash'], equals: keyHash },
+            },
+            select: { entityId: true, metadata: true },
+          });
+          if (receipt) {
+            const metadata = receipt.metadata as Prisma.JsonObject;
+            const fingerprint = adaptiveContentHash({
+              ...requestIdentity,
+              sourceVersionId: metadata.sourceVersionId,
+            });
+            if (metadata.creationFingerprint !== fingerprint || !receipt.entityId)
+              throw new ConflictException(
+                'El intento anterior usó otros datos. Revisa la versión creada antes de continuar.',
+              );
+            const previous = await tx.operationalPlan.findFirst({
+              where: { id: planId, organizationId, versions: { some: { id: receipt.entityId } } },
+              include: planInclude,
+            });
+            if (!previous)
+              throw new ConflictException('La versión del intento anterior ya no está disponible.');
+            return { ...previous, assessmentHandoffVersionId: receipt.entityId };
+          }
+        }
+        await tx.$executeRaw`SELECT id FROM "OperationalPlan" WHERE id = ${planId}::uuid AND "organizationId" = ${organizationId}::uuid FOR UPDATE`;
+        const plan = await tx.operationalPlan.findFirst({
+          where: { id: planId, organizationId },
+          include: planInclude,
+        });
+        if (!plan) throw new NotFoundException('Plan operativo no encontrado.');
+        const source = plan.versions.find((v) => v.status === 'ACTIVE');
+        if (!source)
+          throw new BadRequestException(
+            'Este plan ya no tiene una versión vigente. Actualiza la vista antes de continuar.',
+          );
+        const assessment = await tx.sstAssessmentSession.findFirst({
+          where: {
+            id: assessmentId,
+            organizationId,
+            OR: [
+              { channel: 'AUTHENTICATED' },
+              { channel: 'PUBLIC', claimedAt: { not: null }, claimedById: { not: null } },
+            ],
+          },
+          select: { status: true, finalizedAt: true, latestResult: true },
+        });
+        if (!assessment) throw new NotFoundException('Diagnóstico SST no encontrado.');
+        if (assessment.status !== 'FINALIZED')
+          throw new BadRequestException('Finaliza el diagnóstico antes de preparar una versión.');
+        const result = assessment.latestResult as Prisma.JsonObject | null;
+        const evaluation = result?.capabilityEvaluation;
+        const sourceVersion: OperationalPlanVersionInput = {
+          name: source.name,
+          description: source.description ?? undefined,
+          periodStart: source.periodStart.toISOString().slice(0, 10),
+          periodEnd: source.periodEnd.toISOString().slice(0, 10),
+          responsibleUserId: source.responsibleUserId ?? undefined,
+          origin: source.origin,
+          provenance: source.provenance as Record<string, unknown>,
+          items: source.items.map((item) => ({
+            title: item.title,
+            description: item.description ?? undefined,
+            startsAt: item.startsAt?.toISOString().slice(0, 10),
+            dueAt: item.dueAt?.toISOString().slice(0, 10),
+            frequency: item.frequency ?? undefined,
+            priority: item.priority,
+            workCenterId: item.workCenterId ?? undefined,
+            responsibleUserId: item.responsibleUserId ?? undefined,
+            evidenceReferences: item.evidenceReferences as string[],
+            provenanceType: item.provenanceType,
+            provenanceReference: item.provenanceReference ?? undefined,
+            provenanceSnapshot: item.provenanceSnapshot as Record<string, unknown>,
+          })),
+        };
+        let draft: OperationalPlanVersionInput;
+        try {
+          draft = buildIncorporatedAssessmentOperationalPlanDraft({
+            sourcePlanId: planId,
+            sourceVersionId: source.id,
+            sourceVersion,
+            inheritedItems: source.items.map((item, index) => ({
+              id: item.id,
+              displayOrder: item.displayOrder,
+              item: sourceVersion.items[index]!,
+            })),
+            selection: input,
+            assessmentSessionId: assessmentId,
+            assessmentFinalizedAt: assessment.finalizedAt?.toISOString(),
+            capabilityEvaluation: evaluation,
+          });
+        } catch {
+          throw new BadRequestException(
+            'Revisa las propuestas disponibles y el período. Solo puedes incorporar capacidades de este diagnóstico; el plan admite hasta 100 actividades.',
+          );
+        }
+        // Historical inherited assignments are retained, even if subsequently inactive.
+        if (input.responsibleUserId)
+          await this.requireTenantReferences(organizationId, [input.responsibleUserId], [], tx);
+        const lastOrder = Math.max(0, ...source.items.map((item) => item.displayOrder));
+        const inheritance = draft.items.map((_, index) =>
+          index < source.items.length
+            ? {
+                execution: source.items[index]!.execution,
+                displayOrder: source.items[index]!.displayOrder,
+              }
+            : { execution: null, displayOrder: lastOrder + index - source.items.length + 1 },
+        );
+        const version = await this.createVersionRecord(
+          tx,
+          planId,
+          organizationId,
+          userId,
+          draft,
+          plan.versions[0]!.version + 1,
+          inheritance,
+        );
+        await this.audit.record(
+          {
+            organizationId,
+            actorUserId: userId,
+            action,
+            entityType: 'OperationalPlanVersion',
+            entityId: version.id,
+            metadata: {
+              ...draft.provenance,
+              planId,
+              newVersionId: version.id,
+              sourceVersionId: source.id,
+              inheritedItemCount: source.items.length,
+              engineVersion: (evaluation as Prisma.JsonObject)?.engineVersion,
+              ...(keyHash
+                ? {
+                    idempotencyKeyHash: keyHash,
+                    creationFingerprint: adaptiveContentHash({
+                      ...requestIdentity,
+                      sourceVersionId: source.id,
+                    }),
+                  }
+                : {}),
+            } as Prisma.InputJsonValue,
+            ...context,
+          },
+          tx,
+        );
+        const updated = await tx.operationalPlan.findFirstOrThrow({
+          where: { id: planId, organizationId },
+          include: planInclude,
+        });
+        return { ...updated, assessmentHandoffVersionId: version.id };
+      });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new ServiceUnavailableException(
+        'No pudimos preparar la versión. Intenta nuevamente con los mismos datos.',
+      );
+    }
+  }
+
+  async fromAssessment(
+    organizationId: string,
+    userId: string,
+    assessmentId: string,
+    rawInput: AssessmentOperationalPlanDto,
+    context: Context,
+    creationKey?: string,
+  ) {
+    if (creationKey !== undefined && !isUUID(creationKey, '4'))
+      throw new BadRequestException('La clave de reintento no es válida.');
+    const parsed = assessmentOperationalPlanInputSchema.safeParse(rawInput);
+    if (!parsed.success)
+      throw new BadRequestException('Revisa la selección y las fechas del plan.');
+    const input = {
+      ...parsed.data,
+      selectedCapabilityKeys: [...parsed.data.selectedCapabilityKeys].sort(),
+    };
+    const keyHash = creationKey
+      ? createHash('sha256')
+          .update(`${organizationId}:${userId}:${creationKey.toLowerCase()}`)
+          .digest('hex')
+      : null;
+    const fingerprint = adaptiveContentHash({ assessmentId, ...input });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT id FROM "Organization" WHERE id = ${organizationId}::uuid FOR UPDATE`;
+        if (keyHash) {
+          await tx.$executeRaw(
+            Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${keyHash}, 0))`,
+          );
+          const receipt = await tx.auditLog.findFirst({
+            where: {
+              organizationId,
+              actorUserId: userId,
+              action: 'OPERATIONAL_PLAN_CREATED_FROM_ASSESSMENT',
+              entityType: 'OperationalPlan',
+              metadata: { path: ['idempotencyKeyHash'], equals: keyHash },
+            },
+            select: { entityId: true, metadata: true },
+          });
+          if (receipt) {
+            const metadata = receipt.metadata as Prisma.JsonObject;
+            if (metadata.creationFingerprint !== fingerprint || !receipt.entityId)
+              throw new ConflictException({
+                code: 'PLAN_CREATE_RETRY_CONFLICT',
+                message:
+                  'El intento anterior usó otros datos. Revisa el plan creado antes de continuar.',
+              });
+            const previous = await tx.operationalPlan.findFirst({
+              where: { id: receipt.entityId, organizationId },
+              include: planInclude,
+            });
+            if (!previous)
+              throw new ConflictException('El plan del intento anterior ya no está disponible.');
+            return previous;
+          }
+        }
+        const assessment = await tx.sstAssessmentSession.findFirst({
+          where: {
+            id: assessmentId,
+            organizationId,
+            OR: [
+              { channel: 'AUTHENTICATED' },
+              { channel: 'PUBLIC', claimedAt: { not: null }, claimedById: { not: null } },
+            ],
+          },
+          select: { status: true, latestResult: true, finalizedAt: true },
+        });
+        if (!assessment) throw new NotFoundException('Diagnóstico SST no encontrado.');
+        if (assessment.status !== 'FINALIZED')
+          throw new BadRequestException({
+            code: 'ASSESSMENT_NOT_FINALIZED',
+            message: 'Finaliza el diagnóstico antes de crear un borrador.',
+          });
+        const result = assessment.latestResult as Prisma.JsonObject | null;
+        const evaluation = result?.capabilityEvaluation as Prisma.JsonObject | undefined;
+        if (
+          !evaluation ||
+          !Array.isArray(evaluation.recommendations) ||
+          !evaluation.recommendations.length
+        )
+          throw new BadRequestException({
+            code: 'ASSESSMENT_CAPABILITY_EVALUATION_UNAVAILABLE',
+            message:
+              'Este diagnóstico no tiene propuestas de capacidades disponibles. Puedes realizar una nueva evaluación para crear un plan desde el diagnóstico.',
+          });
+        let draft: OperationalPlanVersionInput;
+        try {
+          draft = buildAssessmentOperationalPlanDraft({
+            ...input,
+            assessmentSessionId: assessmentId,
+            assessmentFinalizedAt: assessment.finalizedAt?.toISOString(),
+            capabilityEvaluation: evaluation,
+          });
+        } catch {
+          throw new BadRequestException({
+            code: 'ASSESSMENT_CAPABILITY_SELECTION_INVALID',
+            message: 'Selecciona únicamente capacidades propuestas por este diagnóstico.',
+          });
+        }
+        await this.requireTenantReferences(organizationId, [input.responsibleUserId], [], tx);
+        const plan = await tx.operationalPlan.create({
+          data: { organizationId, createdById: userId },
+        });
+        await this.createVersionRecord(tx, plan.id, organizationId, userId, draft, 1);
+        await this.audit.record(
+          {
+            organizationId,
+            actorUserId: userId,
+            action: 'OPERATIONAL_PLAN_CREATED_FROM_ASSESSMENT',
+            entityType: 'OperationalPlan',
+            entityId: plan.id,
+            metadata: {
+              ...draft.provenance,
+              engineVersion: evaluation.engineVersion,
+              ...(keyHash ? { idempotencyKeyHash: keyHash, creationFingerprint: fingerprint } : {}),
+            } as Prisma.InputJsonValue,
+            ...context,
+          },
+          tx,
+        );
+        return tx.operationalPlan.findFirstOrThrow({
+          where: { id: plan.id, organizationId },
+          include: planInclude,
+        });
+      });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new ServiceUnavailableException({
+        code: 'PLAN_CREATE_UNAVAILABLE',
+        message: 'No pudimos crear el borrador. Intenta nuevamente con los mismos datos.',
+      });
+    }
+  }
 
   async list(organizationId: string, query: OperationalPlanQueryDto) {
     const where: Prisma.OperationalPlanWhereInput = {
@@ -115,39 +501,82 @@ export class OperationalPlansService {
     context: Context,
   ) {
     const input = operationalPlanVersionInputSchema.parse({ ...rawInput, origin: 'MANUAL' });
-    await this.requireTenantReferences(
-      organizationId,
-      [input.responsibleUserId, ...input.items.map(({ responsibleUserId }) => responsibleUserId)],
-      input.items.map(({ workCenterId }) => workCenterId),
-    );
-    const versionId = await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT id FROM "Organization" WHERE id = ${organizationId}::uuid FOR UPDATE`;
       await tx.$executeRaw`SELECT id FROM "OperationalPlan" WHERE id = ${planId}::uuid AND "organizationId" = ${organizationId}::uuid FOR UPDATE`;
       const plan = await tx.operationalPlan.findFirst({ where: { id: planId, organizationId } });
       if (!plan) throw new NotFoundException('Plan operativo no encontrado.');
       const latest = await tx.operationalPlanVersion.findFirst({
         where: { planId, organizationId },
         orderBy: { version: 'desc' },
-        select: { version: true },
+        include: { items: { include: { execution: true } } },
       });
-      return (
-        await this.createVersionRecord(
-          tx,
-          planId,
+      const seen = new Set<string>();
+      const originals = input.items.map((item) => {
+        if (!item.sourceItemId) return undefined;
+        const original = latest?.items.find((source) => source.id === item.sourceItemId);
+        if (!original || seen.has(item.sourceItemId))
+          throw new ConflictException(
+            'La versión cambió. Actualiza el plan antes de guardar tu revisión.',
+          );
+        seen.add(item.sourceItemId);
+        return original;
+      });
+      await this.requireTenantReferences(
+        organizationId,
+        [
+          input.responsibleUserId === latest?.responsibleUserId
+            ? undefined
+            : input.responsibleUserId,
+          ...input.items.map((item, index) =>
+            item.responsibleUserId === originals[index]?.responsibleUserId
+              ? undefined
+              : item.responsibleUserId,
+          ),
+        ],
+        input.items.map((item, index) =>
+          item.workCenterId === originals[index]?.workCenterId ? undefined : item.workCenterId,
+        ),
+        tx,
+      );
+      const reviewedInput = {
+        ...input,
+        provenance: latest ? (latest.provenance as Record<string, unknown>) : input.provenance,
+        items: input.items.map(({ sourceItemId: _sourceItemId, ...item }, index) =>
+          originals[index]
+            ? {
+                ...item,
+                provenanceType: originals[index]!.provenanceType,
+                provenanceReference: originals[index]!.provenanceReference ?? undefined,
+                provenanceSnapshot: originals[index]!.provenanceSnapshot as Record<string, unknown>,
+              }
+            : item,
+        ),
+      };
+      const version = await this.createVersionRecord(
+        tx,
+        planId,
+        organizationId,
+        userId,
+        reviewedInput,
+        (latest?.version ?? 0) + 1,
+        originals.map((original, index) => ({
+          execution: original?.execution ?? null,
+          displayOrder: index + 1,
+        })),
+      );
+      await this.audit.record(
+        {
           organizationId,
-          userId,
-          input,
-          (latest?.version ?? 0) + 1,
-        )
-      ).id;
-    });
-    await this.audit.record({
-      organizationId,
-      actorUserId: userId,
-      action: 'OPERATIONAL_PLAN_VERSION_CREATED',
-      entityType: 'OperationalPlanVersion',
-      entityId: versionId,
-      metadata: { planId, origin: input.origin, itemCount: input.items.length },
-      ...context,
+          actorUserId: userId,
+          action: 'OPERATIONAL_PLAN_VERSION_CREATED',
+          entityType: 'OperationalPlanVersion',
+          entityId: version.id,
+          metadata: { planId, origin: input.origin, itemCount: input.items.length },
+          ...context,
+        },
+        tx,
+      );
     });
     return this.get(organizationId, planId);
   }
@@ -279,15 +708,18 @@ export class OperationalPlansService {
         where: { id: versionId },
         data: { status: 'ACTIVE', activatedAt: now },
       });
-    });
-    await this.audit.record({
-      organizationId,
-      actorUserId: userId,
-      action: 'OPERATIONAL_PLAN_ACTIVATED',
-      entityType: 'OperationalPlanVersion',
-      entityId: versionId,
-      metadata: { planId },
-      ...context,
+      await this.audit.record(
+        {
+          organizationId,
+          actorUserId: userId,
+          action: 'OPERATIONAL_PLAN_ACTIVATED',
+          entityType: 'OperationalPlanVersion',
+          entityId: versionId,
+          metadata: { planId },
+          ...context,
+        },
+        tx,
+      );
     });
     return this.get(organizationId, planId);
   }
@@ -299,44 +731,52 @@ export class OperationalPlansService {
     input: TransitionOperationalPlanItemDto,
     context: Context,
   ) {
-    const current = await this.prisma.operationalPlanItemExecution.findFirst({
-      where: {
-        planItemId: itemId,
-        organizationId,
-        planItem: { planVersion: { status: 'ACTIVE' } },
-      },
-    });
-    if (!current) throw new NotFoundException('Ítem de plan no encontrado.');
-    if (!canTransitionOperationalPlanItem(current.status, input.status))
-      throw new BadRequestException('La transición del ítem no está permitida.');
-    const result = await this.prisma.operationalPlanItemExecution.updateMany({
-      where: {
-        id: current.id,
-        organizationId,
-        version: input.expectedVersion,
-        status: current.status,
-      },
-      data: {
-        status: input.status,
-        version: { increment: 1 },
-        actorUserId: userId,
-        startedAt: input.status === 'IN_PROGRESS' ? new Date() : undefined,
-        completedAt: input.status === 'COMPLETED' ? new Date() : undefined,
-      },
-    });
-    if (result.count !== 1)
-      throw new ConflictException('El ítem cambió en otra sesión. Actualiza e intenta nuevamente.');
-    await this.audit.record({
-      organizationId,
-      actorUserId: userId,
-      action: 'OPERATIONAL_PLAN_ITEM_TRANSITIONED',
-      entityType: 'OperationalPlanItem',
-      entityId: itemId,
-      metadata: { from: current.status, to: input.status },
-      ...context,
-    });
-    return this.prisma.operationalPlanItemExecution.findUniqueOrThrow({
-      where: { planItemId: itemId },
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT id FROM "Organization" WHERE id = ${organizationId}::uuid FOR UPDATE`;
+      const current = await tx.operationalPlanItemExecution.findFirst({
+        where: {
+          planItemId: itemId,
+          organizationId,
+          planItem: { planVersion: { status: 'ACTIVE' } },
+        },
+      });
+      if (!current) throw new NotFoundException('Ítem de plan no encontrado.');
+      if (!canTransitionOperationalPlanItem(current.status, input.status))
+        throw new BadRequestException('La transición del ítem no está permitida.');
+      const result = await tx.operationalPlanItemExecution.updateMany({
+        where: {
+          id: current.id,
+          organizationId,
+          version: input.expectedVersion,
+          status: current.status,
+        },
+        data: {
+          status: input.status,
+          version: { increment: 1 },
+          actorUserId: userId,
+          startedAt: input.status === 'IN_PROGRESS' ? new Date() : undefined,
+          completedAt: input.status === 'COMPLETED' ? new Date() : undefined,
+        },
+      });
+      if (result.count !== 1)
+        throw new ConflictException(
+          'El ítem cambió en otra sesión. Actualiza e intenta nuevamente.',
+        );
+      await this.audit.record(
+        {
+          organizationId,
+          actorUserId: userId,
+          action: 'OPERATIONAL_PLAN_ITEM_TRANSITIONED',
+          entityType: 'OperationalPlanItem',
+          entityId: itemId,
+          metadata: { from: current.status, to: input.status },
+          ...context,
+        },
+        tx,
+      );
+      return tx.operationalPlanItemExecution.findUniqueOrThrow({
+        where: { planItemId: itemId },
+      });
     });
   }
 
@@ -357,16 +797,19 @@ export class OperationalPlansService {
         data: { organizationId, createdById: userId },
       });
       await this.createVersionRecord(tx, plan.id, organizationId, userId, input, 1);
+      await this.audit.record(
+        {
+          organizationId,
+          actorUserId: userId,
+          action: 'OPERATIONAL_PLAN_DRAFT_CREATED',
+          entityType: 'OperationalPlan',
+          entityId: plan.id,
+          metadata: { origin: input.origin, itemCount: input.items.length },
+          ...context,
+        },
+        tx,
+      );
       return plan.id;
-    });
-    await this.audit.record({
-      organizationId,
-      actorUserId: userId,
-      action: 'OPERATIONAL_PLAN_DRAFT_CREATED',
-      entityType: 'OperationalPlan',
-      entityId: planId,
-      metadata: { origin: input.origin, itemCount: input.items.length },
-      ...context,
     });
     return this.get(organizationId, planId);
   }
@@ -378,6 +821,7 @@ export class OperationalPlansService {
     userId: string,
     input: OperationalPlanVersionInput,
     version: number,
+    inheritance?: Array<{ execution: OperationalPlanItemExecution | null; displayOrder: number }>,
   ) {
     return tx.operationalPlanVersion.create({
       data: {
@@ -409,8 +853,16 @@ export class OperationalPlansService {
             provenanceType: item.provenanceType,
             provenanceReference: item.provenanceReference,
             provenanceSnapshot: item.provenanceSnapshot as Prisma.InputJsonValue,
-            displayOrder: index + 1,
-            execution: { create: { organizationId, actorUserId: userId } },
+            displayOrder: inheritance?.[index]?.displayOrder ?? index + 1,
+            execution: {
+              create: {
+                organizationId,
+                actorUserId: inheritance?.[index]?.execution?.actorUserId ?? userId,
+                status: inheritance?.[index]?.execution?.status ?? 'PLANNED',
+                startedAt: inheritance?.[index]?.execution?.startedAt,
+                completedAt: inheritance?.[index]?.execution?.completedAt,
+              },
+            },
           })),
         },
       },
@@ -421,16 +873,17 @@ export class OperationalPlansService {
     organizationId: string,
     userIds: Array<string | undefined>,
     workCenterIds: Array<string | undefined>,
+    database: Prisma.TransactionClient = this.prisma,
   ) {
     const uniqueUsers = [...new Set(userIds.filter((value): value is string => Boolean(value)))];
     const uniqueCenters = [
       ...new Set(workCenterIds.filter((value): value is string => Boolean(value))),
     ];
     const [members, centers] = await Promise.all([
-      this.prisma.membership.count({
+      database.membership.count({
         where: { organizationId, userId: { in: uniqueUsers }, status: 'ACTIVE' },
       }),
-      this.prisma.workCenter.count({
+      database.workCenter.count({
         where: { organizationId, id: { in: uniqueCenters }, isActive: true },
       }),
     ]);

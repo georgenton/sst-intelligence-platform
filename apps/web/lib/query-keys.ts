@@ -164,6 +164,8 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'subscription'] as const,
     inspectionContext: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'inspections', 'context'] as const,
+    operationalPlanContext: (organizationId: string) =>
+      [...privateRoot, 'org', organizationId, 'operational-plans', 'context'] as const,
     riskMethods: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'risk-methods'] as const,
     inspectionStandardCatalog: (organizationId: string) =>

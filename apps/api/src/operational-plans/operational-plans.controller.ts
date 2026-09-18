@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AccessTokenGuard } from '../auth/access-token.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -9,6 +20,8 @@ import { OrganizationGuard } from '../organizations/organization.guard';
 import { RolesGuard } from '../organizations/roles.guard';
 import {
   CreateOperationalPlanDto,
+  AssessmentOperationalPlanDto,
+  IncorporateAssessmentOperationalPlanDto,
   GenerateOperationalPlanDto,
   OperationalPlanQueryDto,
   TransitionOperationalPlanItemDto,
@@ -26,12 +39,61 @@ import { OperationalPlansService } from './operational-plans.service';
 export class OperationalPlansController {
   constructor(private readonly plans: OperationalPlansService) {}
 
+  @Get('context')
+  context(@OrganizationContext() organization: { id: string }) {
+    return this.plans.context(organization.id);
+  }
+
+  @Post('from-assessment/:assessmentId')
+  @Roles(...OPERATIONAL_PLAN_WRITE_ROLES)
+  @UseGuards(RolesGuard)
+  fromAssessment(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('assessmentId', new ParseUUIDPipe()) assessmentId: string,
+    @Body() body: AssessmentOperationalPlanDto,
+    @Headers('idempotency-key') creationKey: string | undefined,
+    @Req() request: ApiRequest,
+  ) {
+    return this.plans.fromAssessment(
+      organization.id,
+      user.id,
+      assessmentId,
+      body,
+      requestMetadata(request),
+      creationKey,
+    );
+  }
+
   @Get()
   list(
     @OrganizationContext() organization: { id: string },
     @Query() query: OperationalPlanQueryDto,
   ) {
     return this.plans.list(organization.id, query);
+  }
+
+  @Post(':planId/from-assessment/:assessmentId')
+  @Roles(...OPERATIONAL_PLAN_WRITE_ROLES)
+  @UseGuards(RolesGuard)
+  incorporateAssessment(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('planId', new ParseUUIDPipe()) planId: string,
+    @Param('assessmentId', new ParseUUIDPipe()) assessmentId: string,
+    @Body() body: IncorporateAssessmentOperationalPlanDto,
+    @Headers('idempotency-key') creationKey: string | undefined,
+    @Req() request: ApiRequest,
+  ) {
+    return this.plans.incorporateAssessment(
+      organization.id,
+      user.id,
+      planId,
+      assessmentId,
+      body,
+      requestMetadata(request),
+      creationKey,
+    );
   }
 
   @Get(':planId')
