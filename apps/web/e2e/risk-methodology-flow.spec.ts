@@ -38,11 +38,11 @@ async function provisionDemoSession(page: Page, suffix: number) {
 
 async function createAndStartInspection(page: Page, title: string, methodName: RegExp) {
   await page.goto('/app/inspections/new');
-  await page.getByLabel('Dominio de inspección').selectOption('ELECTRICAL');
-  await page.getByLabel('Recurso a inspeccionar').selectOption({ label: 'Tomacorriente' });
   await page
     .getByLabel('Centro de trabajo')
     .selectOption({ label: 'Centro Guayaquil (demostración)' });
+  await page.getByRole('radio', { name: /Instalaciones eléctricas/ }).check();
+  await page.getByRole('radio', { name: /Tomacorriente/ }).check();
   await page.getByLabel('Área (opcional)').selectOption({ label: 'Planta A' });
   await page.getByLabel('Título').fill(title);
   await page.getByRole('radio', { name: methodName }).check();

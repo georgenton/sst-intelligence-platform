@@ -81,11 +81,11 @@ async function verifyInspectionStandardsAccessibility(page: Page) {
 
 async function createElectricalInspection(page: Page, title: string) {
   await page.goto('/app/inspections/new');
-  await page.getByLabel('Dominio de inspección').selectOption('ELECTRICAL');
-  await page.getByLabel('Recurso a inspeccionar').selectOption({ label: 'Tomacorriente' });
   await page
     .getByLabel('Centro de trabajo')
     .selectOption({ label: 'Centro Guayaquil (demostración)' });
+  await page.getByRole('radio', { name: /Instalaciones eléctricas/ }).check();
+  await page.getByRole('radio', { name: /Tomacorriente/ }).check();
   await page.getByLabel('Área (opcional)').selectOption({ label: 'Planta A' });
   await page.getByLabel('Título').fill(title);
   await page.getByRole('radio', { name: /Matriz demostrativa 5×5 histórica/ }).check();
@@ -112,21 +112,20 @@ test('política A→B, checklist directo y trazabilidad explícita del hallazgo'
 
   const inspectionATitle = `Inspección estándar A ${suffix}`;
   const inspectionAUrl = await createElectricalInspection(page, inspectionATitle);
-  await expect(page.getByRole('heading', { name: 'Demo Electrical Standard A' })).toBeVisible();
-  await expect(page.getByText('Metodología de valoración del riesgo')).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Matriz demostrativa 5×5 histórica' }),
-  ).toBeVisible();
+  await expect(page.getByText('Demo Electrical Standard A', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Metodología del hallazgo')).toBeVisible();
+  await expect(page.getByText(/Matriz demostrativa 5×5 histórica/).first()).toBeVisible();
   await page.getByRole('button', { name: 'Iniciar inspección' }).click();
   await expect(page.getByText('En progreso').first()).toBeVisible();
 
   const criterionCard = page.locator('.inspection-criterion-card').filter({
     hasText: 'Los cerramientos de tableros permanecen completos y cerrados durante la operación.',
   });
-  await criterionCard.getByLabel('Resultado observado').selectOption('NO_CONFORME');
+  await criterionCard.getByRole('radio', { name: /^No conforme/ }).check();
   await criterionCard
     .getByLabel('Observación (obligatoria)')
     .fill('El cerramiento quedó abierto en el escenario sintético E2E.');
+  await criterionCard.getByText('Referencias de evidencia opcionales', { exact: true }).click();
   await criterionCard
     .getByLabel('Referencias de evidencia (una por línea, opcional)')
     .fill('Fotografía sintética E2E-1');
@@ -140,7 +139,7 @@ test('política A→B, checklist directo y trazabilidad explícita del hallazgo'
   await expect(criterionCard.locator('.criterion-outcome')).toHaveText('No conforme');
   await Promise.all([
     page.waitForURL(/\/app\/inspections\/[0-9a-f-]+\/findings\/new\?criterionResultId=/),
-    criterionCard.getByRole('link', { name: 'Crear hallazgo' }).click(),
+    criterionCard.getByRole('link', { name: 'Registrar hallazgo', exact: true }).click(),
   ]);
 
   await expect(page.getByText(/Criterio no conforme: Los cerramientos de tableros/)).toBeVisible();
@@ -170,11 +169,11 @@ test('política A→B, checklist directo y trazabilidad explícita del hallazgo'
     'Cambio E2E controlado al estándar sintético B',
   );
   const inspectionBUrl = await createElectricalInspection(page, `Inspección estándar B ${suffix}`);
-  await expect(page.getByRole('heading', { name: 'Demo Electrical Standard B' })).toBeVisible();
+  await expect(page.getByText('Demo Electrical Standard B', { exact: true }).first()).toBeVisible();
   await expect(
-    page.getByText(
-      'El equipo observado dispone de una referencia interna para su aislamiento operativo.',
-    ),
+    page.getByRole('heading', {
+      name: 'El equipo observado dispone de una referencia interna para su aislamiento operativo.',
+    }),
   ).toBeVisible();
   await expect(
     page.getByText(
@@ -185,10 +184,15 @@ test('política A→B, checklist directo y trazabilidad explícita del hallazgo'
 
   await page.goto(inspectionAUrl);
   await expect(page.getByRole('heading', { name: inspectionATitle })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Demo Electrical Standard A' })).toBeVisible();
-  await expect(
-    page.getByText(
-      'Los cerramientos de tableros permanecen completos y cerrados durante la operación.',
-    ),
-  ).toBeVisible();
+  await expect(page.getByText('Demo Electrical Standard A', { exact: true }).first()).toBeVisible();
+  const historicalCriterion =
+    'Los cerramientos de tableros permanecen completos y cerrados durante la operación.';
+  const historicalOption = page
+    .getByLabel('Ir a criterio')
+    .getByRole('option')
+    .filter({ hasText: historicalCriterion });
+  const historicalResultId = await historicalOption.getAttribute('value');
+  expect(historicalResultId).toBeTruthy();
+  await page.getByLabel('Ir a criterio').selectOption(historicalResultId!);
+  await expect(page.getByRole('heading', { name: historicalCriterion })).toBeVisible();
 });

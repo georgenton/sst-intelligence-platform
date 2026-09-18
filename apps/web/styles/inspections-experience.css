@@ -1573,3 +1573,251 @@ a.inspection-metric:hover {
 [data-theme='contraste'] .recurrence-chip {
   border-width: 2px;
 }
+
+/* Scoped continuity composes the existing workspace, card and control tokens. */
+.inspection-preparation,
+.inspection-focal-execution,
+.inspection-focal-card {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.inspection-preparation .inspection-form-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.inspection-criteria-preview {
+  display: grid;
+  gap: 0.75rem;
+  padding-inline-start: 1.5rem;
+}
+
+.inspection-criteria-preview small,
+.inspection-result-option small {
+  display: block;
+  color: var(--text-secondary);
+}
+
+.inspection-criterion-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+}
+
+.inspection-criterion-progress progress {
+  flex: 1 1 8rem;
+  min-width: 0;
+  width: 100%;
+  height: 0.5rem;
+  accent-color: var(--interactive-primary);
+}
+
+.inspection-focal-card h2 {
+  font-size: 1.35rem;
+  line-height: 1.4;
+}
+
+.inspection-result-controls {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.inspection-result-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.inspection-result-option {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  min-height: 3.5rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  padding: 0.8rem;
+  cursor: pointer;
+}
+
+.inspection-result-option[data-selected='true'] {
+  border-color: var(--interactive-primary);
+  background: var(--surface-selected);
+}
+
+.inspection-result-option:has(input:disabled) {
+  cursor: default;
+  color: var(--text-secondary);
+}
+
+.inspection-result-option:focus-within {
+  outline: 2px solid var(--interactive-primary);
+  outline-offset: 2px;
+}
+
+.inspection-criterion-navigation {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.65rem;
+}
+
+.inspection-live-context {
+  position: sticky;
+  top: 1rem;
+  align-self: start;
+  min-width: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  padding: 1rem;
+}
+
+.inspection-live-context summary {
+  display: grid;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  cursor: pointer;
+}
+
+.inspection-live-context-body {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.inspection-live-context dl {
+  margin: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.inspection-live-context dl > div {
+  border-bottom: 1px solid var(--border-default);
+  padding-block: 0.6rem;
+}
+
+.inspection-live-context dt {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.inspection-live-context dd {
+  margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.inspection-save-feedback {
+  min-height: 1.5rem;
+  margin: 0;
+}
+
+.inspection-result-options input,
+.inspection-preparation input[type='radio'] {
+  accent-color: var(--interactive-primary);
+}
+
+@media (max-width: 700px) {
+  .inspection-standard-workspace {
+    display: flex;
+    flex-direction: column;
+  }
+  .inspection-live-context {
+    position: static;
+    order: -1;
+    width: 100%;
+  }
+  .inspection-result-options,
+  .inspection-criterion-navigation {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .inspection-criterion-navigation .button,
+  .inspection-focal-card .button,
+  .inspection-live-context summary {
+    min-height: 2.75rem;
+  }
+  .inspection-focal-card h2 {
+    font-size: 1.15rem;
+  }
+}
+
+.inspection-continuity-capture,
+.inspection-task-page:has(.inspection-focal-execution) {
+  max-width: 1200px;
+}
+
+.inspection-action-card[id] {
+  scroll-margin-top: var(--space-6);
+}
+.inspection-action-card[id]:focus {
+  outline: 2px solid var(--interactive-primary);
+  outline-offset: 2px;
+}
+
+.inspection-context-rail .inspection-live-context {
+  position: static;
+}
+.inspection-evidence-list a {
+  overflow-wrap: anywhere;
+}
+
+.inspection-preparation .risk-method-card:has(input:disabled) {
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+.inspection-task-page:has(.inspection-focal-execution),
+.inspection-continuity-capture,
+.inspection-workspace:has(.inspection-finding-layout) {
+  container-type: inline-size;
+}
+
+@container (max-width: 700px) {
+  .inspection-standard-workspace,
+  .inspection-finding-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  .inspection-live-context {
+    position: static;
+    order: -1;
+    width: 100%;
+  }
+  .inspection-result-options,
+  .inspection-criterion-navigation {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .inspection-criterion-heading {
+    flex-wrap: wrap;
+  }
+}
+
+@media (min-width: 701px) and (max-width: 840px) {
+  .inspection-standard-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.5fr);
+  }
+}
+
+.inspection-criterion-navigation .field,
+.inspection-preparation .field {
+  min-width: 0;
+}
+.inspection-criterion-navigation select,
+.inspection-preparation select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.inspection-evidence-list > div > :not([aria-hidden='true']) {
+  grid-column: 2;
+  min-width: 0;
+}

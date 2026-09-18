@@ -634,7 +634,7 @@ export class WorkQueueService {
           assignee: action.assignedTo,
           origin: 'Hallazgo de inspección',
           module: 'INSPECTIONS' as const,
-          deepLink: `/app/inspections/${action.finding.inspectionId}?finding=${action.finding.id}&action=${action.id}`,
+          deepLink: `/app/inspections/${action.finding.inspectionId}/findings/${action.finding.id}?action=${action.id}`,
           regulatoryContext: null,
           riskContext: {
             method: snapshot.displayName ?? 'Método de riesgo registrado',

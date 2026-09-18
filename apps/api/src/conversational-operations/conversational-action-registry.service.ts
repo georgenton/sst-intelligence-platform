@@ -319,7 +319,7 @@ export class ConversationalActionRegistryService {
       throw new NotFoundException('Elemento de trabajo no encontrado en la organización activa.');
     const citations = [this.workItemCitation(item)];
     if (item.module === 'INSPECTIONS') {
-      const inspectionId = item.deepLink.match(/\/app\/inspections\/([^?]+)/)?.[1];
+      const inspectionId = item.deepLink.match(/\/app\/inspections\/([^/?]+)/)?.[1];
       if (inspectionId) {
         const inspection = await this.inspections.get(actor.organizationId, inspectionId);
         citations.push(...this.inspectionCitations(inspection));
