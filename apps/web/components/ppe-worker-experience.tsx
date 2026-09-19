@@ -24,6 +24,7 @@ import {
   CatalogChoiceSummary,
   PpeCommandFeedback,
   PpeDialog,
+  PpeFlow,
   PpeSubmit,
   usePpeApi,
   usePpeCommand,
@@ -44,11 +45,13 @@ export function WorkerPpePanel({
   if (!organization.activeId || organization.transitioning)
     return <p>Consultando el contexto de la organización…</p>;
   return (
-    <WorkerPpeExperience
-      key={`${organization.activeId}:${workerId}`}
-      workerId={workerId}
-      workerStatus={workerStatus}
-    />
+    <PpeFlow>
+      <WorkerPpeExperience
+        key={`${organization.activeId}:${workerId}`}
+        workerId={workerId}
+        workerStatus={workerStatus}
+      />
+    </PpeFlow>
   );
 }
 

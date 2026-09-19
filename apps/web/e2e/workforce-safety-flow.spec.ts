@@ -330,10 +330,18 @@ test.describe.serial('workforce safety operations', () => {
     await expect(
       page.getByRole('heading', { name: 'Protección de la persona', exact: true }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Aplicar requisito a esta persona' }).click();
-    await page.getByRole('dialog').getByRole('textbox').fill('Aplicación sintética del requisito.');
-    await page.getByRole('button', { name: 'Añadir requisito a esta persona' }).click();
-    await expect(page.getByRole('dialog')).toBeHidden();
+    const applyButton = page.getByRole('button', { name: 'Aplicar requisito a esta persona' });
+    await expect(applyButton).toBeVisible();
+    await expect(applyButton).toBeEnabled();
+    await applyButton.click();
+    const dialog = page.getByRole('dialog', { name: 'Aplicar requisito a una persona' });
+    await expect(dialog).toBeVisible();
+    const reason = dialog.getByLabel('Motivo de la asignación individual');
+    await expect(reason).toBeVisible();
+    await expect(reason).toBeEditable();
+    await reason.fill('Aplicación sintética del requisito.');
+    await dialog.getByRole('button', { name: 'Añadir requisito a esta persona' }).click();
+    await expect(dialog).toBeHidden();
     await expect(page.getByText('1 requisitos pendientes')).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('epp-worker.png'), fullPage: true });
     await page.getByRole('button', { name: 'Preparar entrega' }).click();
@@ -347,25 +355,31 @@ test.describe.serial('workforce safety operations', () => {
     await expect(issuedCard).toBeVisible();
     await expect(issuedCard.getByRole('button', { name: 'Confirmar entrega' })).toBeVisible();
     await issuedCard.getByRole('button', { name: 'Confirmar entrega' }).click();
-    await page
+    const confirmationDialog = page.getByRole('dialog', { name: 'Confirmar entrega' });
+    await confirmationDialog
       .getByLabel('Nota de confirmación')
       .fill('La entrega fue confirmada presencialmente por el actor autenticado.');
-    await page.getByRole('button', { name: 'Confirmar y pasar a servicio' }).click();
-    await expect(page.getByRole('dialog')).toBeHidden();
+    await confirmationDialog.getByRole('button', { name: 'Confirmar y pasar a servicio' }).click();
+    await expect(confirmationDialog).toBeHidden();
     await issuedCard.getByRole('button', { name: 'Revisar condición' }).click();
-    await page.getByLabel('Condición').selectOption('UNSERVICEABLE');
-    await page.getByLabel('Fecha de revisión').fill('2026-08-31T10:00');
-    await page.getByLabel('Nota (opcional)').fill('El elemento no debe continuar en servicio.');
-    await page.getByRole('button', { name: 'Registrar condición' }).click();
-    await expect(page.getByRole('dialog')).toBeHidden();
+    const conditionDialog = page.getByRole('dialog', { name: 'Revisar condición del EPP' });
+    await conditionDialog
+      .getByRole('combobox', { name: 'Condición', exact: true })
+      .selectOption('UNSERVICEABLE');
+    await conditionDialog.getByLabel('Fecha de revisión').fill('2026-08-31T10:00');
+    await conditionDialog
+      .getByLabel('Nota (opcional)')
+      .fill('El elemento no debe continuar en servicio.');
+    await conditionDialog.getByRole('button', { name: 'Registrar condición' }).click();
+    await expect(conditionDialog).toBeHidden();
     await expect(issuedCard).toContainText('UNSERVICEABLE');
     await page.screenshot({ path: testInfo.outputPath('epp-condition.png'), fullPage: true });
 
     await page.getByRole('link', { name: 'Cola de trabajo', exact: true }).click();
     const queueItem = page.locator('article').filter({ hasText: itemName });
-    await expect(queueItem.getByText('Condición por revisar', { exact: true })).toBeVisible();
+    await expect(queueItem.getByText('Reemplazo requerido', { exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('epp-work-queue.png'), fullPage: true });
-    await queueItem.getByRole('link', { name: 'Revisar entrega' }).click();
+    await queueItem.getByRole('link', { name: 'Abrir' }).click();
     await expect(page).toHaveURL(/\/app\/workers\/[0-9a-f-]+#epp-issue-/);
     const dueCard = page.locator('[id^="epp-issue-"]').filter({ hasText: itemName }).first();
     await dueCard.getByRole('button', { name: 'Preparar reemplazo' }).click();
