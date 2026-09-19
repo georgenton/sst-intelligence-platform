@@ -46,7 +46,8 @@ export class WorkQueueService {
   async list(organizationId: string, query: WorkQueueQueryDto) {
     const now = new Date();
     const dueSoonBoundary = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const limit = Math.min(query.page * query.pageSize, 500);
+    // Project the complete eligible set before the shared sort/filter/page. A
+    // per-source prefix makes totals and even membership depend on pageSize.
     const dueFilter = {
       ...(query.dueFrom ? { gte: new Date(query.dueFrom) } : {}),
       ...(query.dueTo ? { lte: new Date(query.dueTo) } : {}),
@@ -106,7 +107,6 @@ export class WorkQueueService {
                 },
               },
             },
-            take: limit,
             orderBy: { createdAt: 'desc' },
           })
         : [],
@@ -128,7 +128,6 @@ export class WorkQueueService {
               result: { select: { level: true } },
               reviews: { select: { decision: true }, orderBy: { createdAt: 'desc' }, take: 1 },
             },
-            take: limit,
             orderBy: { createdAt: 'desc' },
           })
         : [],
@@ -148,7 +147,6 @@ export class WorkQueueService {
               unit: { select: { identifier: true, locator: true } },
               evaluation: { select: { id: true, createdAt: true } },
             },
-            take: limit,
             orderBy: { evaluation: { createdAt: 'desc' } },
           })
         : [],
@@ -176,7 +174,6 @@ export class WorkQueueService {
               workCenter: { select: { id: true, name: true } },
               assignedTo: { select: { id: true, displayName: true } },
             },
-            take: limit,
             orderBy: { createdAt: 'desc' },
           })
         : [],
@@ -196,7 +193,6 @@ export class WorkQueueService {
               createdAt: true,
               alert: { select: { message: true } },
             },
-            take: limit,
             orderBy: { createdAt: 'desc' },
           })
         : [],
@@ -236,7 +232,6 @@ export class WorkQueueService {
                 select: { permitTemplate: { select: { name: true, isDemo: true } } },
               },
             },
-            take: limit,
             orderBy: { createdAt: 'desc' },
           })
         : [],
@@ -270,7 +265,6 @@ export class WorkQueueService {
               createdAt: true,
               workCenter: { select: { id: true, name: true } },
             },
-            take: limit,
             orderBy: { createdAt: 'desc' },
           })
         : [],
@@ -301,7 +295,6 @@ export class WorkQueueService {
                 },
               },
             },
-            take: limit,
             orderBy: { createdAt: 'desc' },
           })
         : [],
@@ -325,7 +318,6 @@ export class WorkQueueService {
               workCenter: { select: { id: true, name: true } },
               assignedTo: { select: { id: true, displayName: true } },
             },
-            take: limit,
             orderBy: [{ priority: 'desc' }, { observedAt: 'asc' }],
           })
         : [],
@@ -355,7 +347,6 @@ export class WorkQueueService {
               },
               ppeCatalogItem: { select: { name: true } },
             },
-            take: limit,
             orderBy: { createdAt: 'desc' },
           })
         : [],
@@ -368,7 +359,7 @@ export class WorkQueueService {
             where: {
               organizationId,
               status: { notIn: ['REPLACED', 'RETIRED'] },
-              inspections: { some: {} },
+              inspections: { some: { condition: 'REVIEW_REQUIRED' } },
               ...(query.workCenterId ? { worker: { workCenterId: query.workCenterId } } : {}),
             },
             select: {
@@ -384,11 +375,10 @@ export class WorkQueueService {
               ppeCatalogItem: { select: { name: true } },
               inspections: {
                 select: { id: true, condition: true, note: true, createdAt: true },
-                orderBy: { inspectedAt: 'desc' },
+                orderBy: [{ inspectedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
                 take: 1,
               },
             },
-            take: limit,
             orderBy: { createdAt: 'desc' },
           })
         : [],
@@ -427,7 +417,6 @@ export class WorkQueueService {
                 },
               },
             },
-            take: limit,
             orderBy: { createdAt: 'desc' },
           })
         : [],
@@ -469,7 +458,6 @@ export class WorkQueueService {
                 },
               },
             },
-            take: limit,
             orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
           })
         : [],
@@ -493,7 +481,6 @@ export class WorkQueueService {
               trainingDefinition: { select: { title: true } },
               _count: { select: { participants: true, completions: true } },
             },
-            take: limit,
             orderBy: { scheduledEnd: 'asc' },
           })
         : [],
@@ -539,7 +526,6 @@ export class WorkQueueService {
                 },
               },
             },
-            take: limit,
             orderBy: { createdAt: 'desc' },
           })
         : [],
@@ -560,7 +546,6 @@ export class WorkQueueService {
               lastDetectedAt: true,
               workCenter: { select: { id: true, name: true } },
             },
-            take: limit,
             orderBy: { lastDetectedAt: 'desc' },
           })
         : [],
@@ -589,7 +574,6 @@ export class WorkQueueService {
               workCenter: { select: { id: true, name: true } },
               responsible: { select: { id: true, displayName: true } },
             },
-            take: limit,
             orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { id: 'asc' }],
           })
         : [],
@@ -1050,7 +1034,8 @@ export class WorkQueueService {
         (left.dueAt?.getTime() ?? Number.MAX_SAFE_INTEGER) -
           (right.dueAt?.getTime() ?? Number.MAX_SAFE_INTEGER) ||
         right.createdAt.getTime() - left.createdAt.getTime() ||
-        left.sourceId.localeCompare(right.sourceId)
+        left.sourceId.localeCompare(right.sourceId) ||
+        left.type.localeCompare(right.type)
       );
     });
     const filtered = items.filter((item) => !query.status || item.status === query.status);
