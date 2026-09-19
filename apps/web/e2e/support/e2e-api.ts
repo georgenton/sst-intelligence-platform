@@ -63,6 +63,18 @@ export async function markE2eOrganizationLegacyConfigured(
   }
 }
 
+export async function enableE2eWorkforcePreview(organizationId: string) {
+  const prisma = new PrismaClient();
+  try {
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: { demoExpiresAt: new Date(Date.now() + 86_400_000) },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 export async function createE2eOrganizationProfile(
   organizationId: string,
   createdById: string,

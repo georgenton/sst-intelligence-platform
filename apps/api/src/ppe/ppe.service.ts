@@ -48,12 +48,12 @@ const issueInclude = {
       evidenceUrl: true,
       recordedBy: { select: { id: true, displayName: true } },
     },
-    orderBy: { inspectedAt: 'desc' as const },
+    orderBy: [{ inspectedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
   },
   incidentLinks: {
     select: { id: true, note: true, incident: { select: { id: true, title: true, status: true } } },
   },
-} as const;
+} satisfies Prisma.PpeIssueInclude;
 
 @Injectable()
 export class PpeService {
@@ -119,31 +119,34 @@ export class PpeService {
       );
     }
     try {
-      const item = await this.prisma.ppeCatalogItem.create({
-        data: {
+      return await this.prisma.$transaction(async (tx) => {
+        const item = await tx.ppeCatalogItem.create({
+          data: {
+            organizationId,
+            createdById: userId,
+            name: input.name.trim(),
+            category: input.category,
+            description: input.description?.trim(),
+            manufacturerModel: input.manufacturerModel?.trim(),
+            referenceStandard: input.referenceStandard?.trim(),
+            referenceJurisdiction: input.referenceJurisdiction?.trim(),
+            referenceProvenance: input.referenceProvenance?.trim(),
+            referenceReviewStatus: input.referenceReviewStatus,
+            defaultReplacementIntervalDays: input.defaultReplacementIntervalDays,
+          },
+        });
+        await this.recordAudit(
           organizationId,
-          createdById: userId,
-          name: input.name.trim(),
-          category: input.category,
-          description: input.description?.trim(),
-          manufacturerModel: input.manufacturerModel?.trim(),
-          referenceStandard: input.referenceStandard?.trim(),
-          referenceJurisdiction: input.referenceJurisdiction?.trim(),
-          referenceProvenance: input.referenceProvenance?.trim(),
-          referenceReviewStatus: input.referenceReviewStatus,
-          defaultReplacementIntervalDays: input.defaultReplacementIntervalDays,
-        },
+          userId,
+          'PPE_CATALOG_ITEM_CREATED',
+          'PpeCatalogItem',
+          item.id,
+          { category: item.category },
+          context,
+          tx,
+        );
+        return item;
       });
-      await this.recordAudit(
-        organizationId,
-        userId,
-        'PPE_CATALOG_ITEM_CREATED',
-        'PpeCatalogItem',
-        item.id,
-        { category: item.category },
-        context,
-      );
-      return item;
     } catch (error) {
       if (this.isUniqueConflict(error))
         throw new ConflictException('Ya existe un elemento de EPP con ese nombre.');
@@ -243,7 +246,7 @@ export class PpeService {
           'Ya existe un requisito activo idéntico para el cargo y alcance seleccionados.',
         );
       }
-      return tx.positionPpeRequirement.create({
+      const created = await tx.positionPpeRequirement.create({
         data: {
           organizationId,
           positionId: position.id,
@@ -256,16 +259,18 @@ export class PpeService {
           selectedById: userId,
         },
       });
+      await this.recordAudit(
+        organizationId,
+        userId,
+        'POSITION_PPE_REQUIREMENT_SELECTED',
+        'PositionPpeRequirement',
+        created.id,
+        { positionId: position.id, decision: input.decision },
+        context,
+        tx,
+      );
+      return created;
     });
-    await this.recordAudit(
-      organizationId,
-      userId,
-      'POSITION_PPE_REQUIREMENT_SELECTED',
-      'PositionPpeRequirement',
-      requirement.id,
-      { positionId: position.id, decision: input.decision },
-      context,
-    );
     return requirement;
   }
 
@@ -291,6 +296,20 @@ export class PpeService {
           reason: true,
           status: true,
           assignedAt: true,
+          positionRequirementId: true,
+          positionRequirement: {
+            select: {
+              id: true,
+              reason: true,
+              decision: true,
+              createdAt: true,
+              position: { select: { id: true, name: true } },
+              riskContext: { select: { id: true, category: true, description: true } },
+              workCenter: { select: { id: true, name: true } },
+              workArea: { select: { id: true, name: true } },
+              selectedBy: { select: { id: true, displayName: true } },
+            },
+          },
           fulfilledAt: true,
           version: true,
           ppeCatalogItem: {
@@ -335,30 +354,33 @@ export class PpeService {
       this.requireCatalogItem(organizationId, input.ppeCatalogItemId),
     ]);
     await this.requireTenantReferences(organizationId, input, worker);
-    const requirement = await this.prisma.workerPpeRequirement.create({
-      data: {
+    return await this.prisma.$transaction(async (tx) => {
+      const requirement = await tx.workerPpeRequirement.create({
+        data: {
+          organizationId,
+          workerId: worker.id,
+          ppeCatalogItemId: catalogItem.id,
+          workCenterId: input.workCenterId ?? worker.workCenterId,
+          linkedAssessmentId: input.linkedAssessmentId,
+          linkedFindingId: input.linkedFindingId,
+          positionRequirementId: input.positionRequirementId,
+          reason: input.reason.trim(),
+          assignedById: userId,
+        },
+        select: { id: true, workerId: true, ppeCatalogItemId: true, reason: true, status: true },
+      });
+      await this.recordAudit(
         organizationId,
-        workerId: worker.id,
-        ppeCatalogItemId: catalogItem.id,
-        workCenterId: input.workCenterId ?? worker.workCenterId,
-        linkedAssessmentId: input.linkedAssessmentId,
-        linkedFindingId: input.linkedFindingId,
-        positionRequirementId: input.positionRequirementId,
-        reason: input.reason.trim(),
-        assignedById: userId,
-      },
-      select: { id: true, workerId: true, ppeCatalogItemId: true, reason: true, status: true },
+        userId,
+        'PPE_REQUIREMENT_CREATED',
+        'WorkerPpeRequirement',
+        requirement.id,
+        { workerId: worker.id, ppeCatalogItemId: catalogItem.id },
+        context,
+        tx,
+      );
+      return requirement;
     });
-    await this.recordAudit(
-      organizationId,
-      userId,
-      'PPE_REQUIREMENT_CREATED',
-      'WorkerPpeRequirement',
-      requirement.id,
-      { workerId: worker.id, ppeCatalogItemId: catalogItem.id },
-      context,
-    );
-    return requirement;
   }
 
   async issue(organizationId: string, userId: string, input: CreatePpeIssueDto, context: Context) {
@@ -403,17 +425,19 @@ export class PpeService {
           data: { status: 'FULFILLED', fulfilledAt: issuedAt, version: { increment: 1 } },
         });
       }
-      return created;
+      await this.recordAudit(
+        organizationId,
+        userId,
+        'PPE_ISSUED',
+        'PpeIssue',
+        created.id,
+        { workerId: worker.id, requirementId: input.requirementId ?? null },
+        context,
+        tx,
+      );
+      return this.requireIssue(tx, organizationId, created.id);
     });
-    await this.recordAudit(
-      organizationId,
-      userId,
-      'PPE_ISSUED',
-      'PpeIssue',
-      issue.id,
-      { workerId: worker.id, requirementId: input.requirementId ?? null },
-      context,
-    );
+
     return issue;
   }
 
@@ -424,7 +448,7 @@ export class PpeService {
     input: AcknowledgePpeIssueDto,
     context: Context,
   ) {
-    await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       const issue = await this.lockIssue(tx, organizationId, issueId);
       this.assertVersion(issue.version, input.expectedVersion, 'PPE_ISSUE_VERSION_CONFLICT');
       if (issue.status !== 'ISSUED' || issue.acknowledgementStatus !== 'PENDING') {
@@ -443,17 +467,18 @@ export class PpeService {
         },
       });
       this.assertSingleWriter(result.count, 'PPE_ISSUE_VERSION_CONFLICT');
+      await this.recordAudit(
+        organizationId,
+        userId,
+        'PPE_DELIVERY_ACKNOWLEDGED',
+        'PpeIssue',
+        issueId,
+        {},
+        context,
+        tx,
+      );
+      return this.requireIssue(tx, organizationId, issueId);
     });
-    await this.recordAudit(
-      organizationId,
-      userId,
-      'PPE_DELIVERY_ACKNOWLEDGED',
-      'PpeIssue',
-      issueId,
-      {},
-      context,
-    );
-    return this.requireIssue(organizationId, issueId);
   }
 
   async inspect(
@@ -463,7 +488,7 @@ export class PpeService {
     input: InspectPpeIssueDto,
     context: Context,
   ) {
-    await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       const issue = await this.lockIssue(tx, organizationId, issueId);
       this.assertVersion(issue.version, input.expectedVersion, 'PPE_ISSUE_VERSION_CONFLICT');
       if (['REPLACED', 'RETIRED'].includes(issue.status)) {
@@ -488,17 +513,18 @@ export class PpeService {
         data: { status: nextStatus, version: { increment: 1 } },
       });
       this.assertSingleWriter(result.count, 'PPE_ISSUE_VERSION_CONFLICT');
+      await this.recordAudit(
+        organizationId,
+        userId,
+        'PPE_CONDITION_INSPECTED',
+        'PpeIssue',
+        issueId,
+        { condition: input.condition },
+        context,
+        tx,
+      );
+      return this.requireIssue(tx, organizationId, issueId);
     });
-    await this.recordAudit(
-      organizationId,
-      userId,
-      'PPE_CONDITION_INSPECTED',
-      'PpeIssue',
-      issueId,
-      { condition: input.condition },
-      context,
-    );
-    return this.requireIssue(organizationId, issueId);
   }
 
   async replace(
@@ -594,17 +620,19 @@ export class PpeService {
           },
         });
       }
+      await this.recordAudit(
+        organizationId,
+        userId,
+        'PPE_REPLACED',
+        'PpeIssue',
+        created.id,
+        { replacesIssueId: issueId, workerId: created.workerId },
+        context,
+        tx,
+      );
       return created;
     });
-    await this.recordAudit(
-      organizationId,
-      userId,
-      'PPE_REPLACED',
-      'PpeIssue',
-      replacement.id,
-      { replacesIssueId: issueId, workerId: replacement.workerId },
-      context,
-    );
+
     return replacement;
   }
 
@@ -696,8 +724,12 @@ export class PpeService {
       throw new BadRequestException('El requisito de EPP corresponde a otra área de trabajo.');
   }
 
-  private async requireIssue(organizationId: string, issueId: string) {
-    const issue = await this.prisma.ppeIssue.findFirst({
+  private async requireIssue(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    issueId: string,
+  ) {
+    const issue = await tx.ppeIssue.findFirst({
       where: { id: issueId, organizationId },
       include: issueInclude,
     });
@@ -780,15 +812,19 @@ export class PpeService {
     entityId: string,
     metadata: Prisma.InputJsonObject,
     context: Context,
+    tx: Prisma.TransactionClient,
   ) {
-    return this.audit.record({
-      organizationId,
-      actorUserId,
-      action,
-      entityType,
-      entityId,
-      metadata,
-      ...context,
-    });
+    return this.audit.record(
+      {
+        organizationId,
+        actorUserId,
+        action,
+        entityType,
+        entityId,
+        metadata,
+        ...context,
+      },
+      tx,
+    );
   }
 }
