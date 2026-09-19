@@ -296,6 +296,20 @@ export class PpeService {
           reason: true,
           status: true,
           assignedAt: true,
+          positionRequirementId: true,
+          positionRequirement: {
+            select: {
+              id: true,
+              reason: true,
+              decision: true,
+              createdAt: true,
+              position: { select: { id: true, name: true } },
+              riskContext: { select: { id: true, category: true, description: true } },
+              workCenter: { select: { id: true, name: true } },
+              workArea: { select: { id: true, name: true } },
+              selectedBy: { select: { id: true, displayName: true } },
+            },
+          },
           fulfilledAt: true,
           version: true,
           ppeCatalogItem: {
@@ -421,7 +435,7 @@ export class PpeService {
         context,
         tx,
       );
-      return created;
+      return this.requireIssue(tx, organizationId, created.id);
     });
 
     return issue;

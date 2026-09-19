@@ -196,6 +196,7 @@ describe('EPP mandatory audit transaction boundaries', () => {
       );
       expect(after.incidentLinks.length).toBe(operation === 'replacement' ? 1 : 0);
       if (operation === 'delivery') {
+        expect(response.body.requirement).toMatchObject({ status: 'FULFILLED' });
         expect(after.requirements.find((row) => row.id === requirement.id)).toMatchObject({
           status: 'FULFILLED',
           version: 2,

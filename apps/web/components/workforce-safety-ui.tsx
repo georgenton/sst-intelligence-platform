@@ -10,7 +10,7 @@ import { queryKeys } from '@/lib/query-keys';
 import { useOrganization } from './app-shell';
 import { useAuth } from './auth-provider';
 import { WorkerIncidentsPanel } from './incidents-ui';
-import { WorkerPpePanel } from './ppe-ui';
+import { WorkerPpePanel } from './ppe-worker-experience';
 import { WorkerTrainingPanel } from './training-ui';
 import {
   ContextSummary,

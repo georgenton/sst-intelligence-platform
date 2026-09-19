@@ -1,7 +1,7 @@
 # EPP V3 — continuidad de cargo a protección
 
 Base: PR52 cerrado, `main@57a35020f1632c0a8d2cdf5449d79571136b7e9f`.
-Diseño: EPP Cloud Design v1, 34 superficies, 65 archivos. Implementación en curso.
+Diseño: EPP Cloud Design v1, 34 superficies, 65 archivos. Implementación funcional en esta Draft PR; merge y producción permanecen bloqueados.
 
 ## Recorrido y autoridad
 
@@ -77,7 +77,7 @@ costo proporcional al conjunto candidato; no se ofrece un total truncado para
 ocultar ese costo. Se verifican más de 500 candidatos, datos mixtos, páginas de
 1/20/50/100, filtros, terminales, aislamiento y entitlements.
 
-Los selectores de catálogo, trabajador e incidente deben consultar búsqueda y
+Los selectores de catálogo, trabajador e incidente consultan búsqueda y
 paginación del servidor con páginas moderadas, conservar la selección fuera de
 la página visible y reiniciar su estado al cambiar organización. No se eleva el
 límite ni se carga toda una colección como solución de UI. La atención enlaza a
@@ -108,6 +108,8 @@ migraciones; no se publica contenido profesional ni se despliega producción.
 ## Evidencia
 
 Los artefactos ignorados se guardan en `.artifacts/epp-v3/`. Incluyen preflight,
-reproducción sobre la base exacta, regresiones de persistencia y cola, y se
-completarán con validación funcional, accesibilidad, capturas y previews del HEAD
-final. Las cifras de prueba son sintéticas y no son decisiones profesionales.
+reproducción sobre la base exacta, regresiones de persistencia, cola y búsqueda,
+compilación, y el inventario de escenarios E2E/capturas de las superficies
+montadas. La suite EPP de API pasa; una suite global de integración sobre una
+base compartida conserva fallos preexistentes fuera de EPP. Las cifras de prueba
+son sintéticas y no son decisiones profesionales.
