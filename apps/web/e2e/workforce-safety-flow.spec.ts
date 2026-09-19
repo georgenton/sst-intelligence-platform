@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createE2eOrganization, markE2eOrganizationLegacyConfigured } from './support/e2e-api';
+import {
+  createE2eOrganization,
+  enableE2eWorkforcePreview,
+  markE2eOrganizationLegacyConfigured,
+} from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
 async function prepareDemoRegistration(page: Page) {
@@ -266,6 +270,7 @@ test.describe.serial('workforce safety operations', () => {
       `Organización EPP ${suffix}`,
     );
     await markE2eOrganizationLegacyConfigured(context.organization.id, context.session.user.id);
+    await enableE2eWorkforcePreview(context.organization.id);
     await activateE2eUserSession(page, registration, '/app/workers');
     await page.screenshot({ path: testInfo.outputPath('epp-landing.png'), fullPage: true });
 
