@@ -295,7 +295,7 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByLabel('Descripción (opcional)').fill('Elemento sintético para prueba E2E.');
     await page.getByRole('button', { name: 'Agregar al catálogo', exact: true }).click();
     await expect(page.getByRole('dialog')).toBeHidden();
-    await page.getByLabel('Buscar elemento').fill(itemName);
+    await page.getByRole('searchbox', { name: 'Buscar elemento' }).fill(itemName);
     await page.getByRole('button', { name: 'Buscar', exact: true }).click();
     await expect(page.getByRole('button', { name: `Ver elemento ${itemName}` })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('epp-catalog.png'), fullPage: true });
@@ -314,7 +314,7 @@ test.describe.serial('workforce safety operations', () => {
       page.getByText('Contacto eléctrico durante mantenimiento autorizado.', { exact: true }),
     ).toBeVisible();
     await page.getByRole('button', { name: /Cabeza para/ }).click();
-    await page.getByLabel('Buscar elemento').fill(itemName);
+    await page.getByRole('searchbox', { name: 'Buscar elemento' }).fill(itemName);
     await page.getByRole('button', { name: 'Buscar' }).click();
     await page.getByRole('button', { name: `Seleccionar ${itemName}` }).click();
     await page.getByRole('button', { name: 'Seleccionar profesionalmente' }).click();
