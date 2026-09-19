@@ -24,12 +24,7 @@ import {
   type InspectionFilters,
 } from '@/lib/inspection-experience';
 import { queryKeys } from '@/lib/query-keys';
-import {
-  INSPECTION_CRITERION_OUTCOME_LABELS,
-  INSPECTION_DOMAINS,
-  INSPECTION_DOMAIN_LABELS,
-  type InspectionCriterionOutcome,
-} from '@/lib/inspection-standard-presentation';
+import { type InspectionCriterionOutcome } from '@/lib/inspection-standard-presentation';
 import {
   gtc45ConsequenceOptions,
   gtc45DeficiencyOptions,
@@ -64,9 +59,15 @@ import {
 import { useDashboardData } from './use-app-data';
 import { TechnicalDetails } from './technical-details';
 import { WorkspaceInspector } from './workspace';
-import type { InspectionStandardPolicy } from './inspection-standards-ui';
+import { InspectionPreparation } from './inspection-preparation';
+import { useRealRequestFeedback } from './use-real-request-feedback';
+import { InspectionCompletionSummary } from './inspection-completion-summary';
+import {
+  InspectionCriterionExecution,
+  InspectionLiveContext,
+} from './inspection-criterion-execution';
 
-type ContextData = {
+export type ContextData = {
   workCenters: Array<{
     id: string;
     name: string;
@@ -83,6 +84,7 @@ type ActionEvidence = {
   note?: string;
   externalUrl?: string;
   createdAt?: string;
+  createdBy?: { id: string; displayName: string };
 };
 
 type Action = {
@@ -134,6 +136,21 @@ type Finding = {
   workCenter?: { id?: string; name: string };
   workArea?: { id?: string; name: string };
   inspection?: { id: string; title: string; status: string; isDemo: boolean };
+  criterionResult?: {
+    id: string;
+    outcome: InspectionCriterionOutcome;
+    note?: string | null;
+    evidenceReferences: unknown;
+    criterion: {
+      title: string;
+      guidance: string;
+      sourceLocator?: string | null;
+      standardVersion: {
+        editionLabel: string;
+        source: { name: string; originCountry?: string | null };
+      };
+    };
+  } | null;
   actions: Action[];
   alerts?: Array<{
     id: string;
@@ -169,7 +186,7 @@ type Finding = {
   };
 };
 
-type Inspection = {
+export type Inspection = {
   id: string;
   title: string;
   description?: string;
@@ -188,6 +205,18 @@ type Inspection = {
   inspectionDepth?: 'BASIC' | 'TECHNICAL' | 'SYSTEMIC' | null;
   inspectionDepthVersion?: string | null;
   riskMethodSnapshot?: Record<string, unknown>;
+  inspectionBasisSnapshot?: {
+    definition: { name: string };
+    technicalSources: Array<{
+      role: string;
+      source: { name: string; jurisdiction?: string | null };
+      version: { id: string; edition: string; code: string; digest: string };
+    }>;
+  } | null;
+  standardSnapshot?: {
+    source: { name: string };
+    version: { editionLabel: string; versionCode: string; contentDigest: string };
+  } | null;
   riskMethodVersion: {
     id: string;
     semanticVersion: string;
@@ -266,6 +295,10 @@ type Inspection = {
     note?: string | null;
     evidenceReferences: unknown;
     updatedAt: string;
+    observedAt: string;
+    hasRecordedResult: boolean;
+    canMarkNotApplicable: boolean;
+    notApplicableReason?: string | null;
     actor: { displayName: string };
     finding?: { id: string; title: string; status: string } | null;
     criterion: {
@@ -277,6 +310,7 @@ type Inspection = {
       section?: { id: string; title: string } | null;
       sourceLocator?: string | null;
       standardVersion?: {
+        id: string;
         versionCode: string;
         editionLabel: string;
         source: { name: string; originCountry?: string | null; referenceUrl?: string | null };
@@ -293,7 +327,7 @@ type RiskCriterion = {
   cues?: Array<{ key: string; label: string }>;
 };
 
-type RiskMethodCatalogItem = {
+export type RiskMethodCatalogItem = {
   id: string;
   methodKey: 'DEMO_5X5' | 'GUIDED_5X5' | 'GTC45_2010';
   semanticVersion: string;
@@ -501,7 +535,7 @@ function Gtc45HumanResult({ result }: { result?: Record<string, unknown> | null 
   if (!presentation) return null;
   return (
     <Card className="inspection-summary-card">
-      <p className="eyebrow">Lectura humana GTC 45</p>
+      <p className="eyebrow">Lectura humana GTC 45 · calculada por el servidor</p>
       <h3>{presentation.intervention}</h3>
       <dl className="inspection-action-meta">
         <div>
@@ -529,8 +563,16 @@ function Gtc45HumanResult({ result }: { result?: Record<string, unknown> | null 
           <dd>{presentation.intervention}</dd>
         </div>
       </dl>
+      <p>
+        NP = ND × NE · NR = NP × NC. Cuando ND no tiene valor, NP y NR tampoco llevan un valor
+        numérico.
+      </p>
       <p>{presentation.interpretation}</p>
-      <small>Provenance de metodología: {presentation.methodology}</small>
+      <p>
+        Interpretación profesional pendiente de revisión técnica y legal. Este método candidato no
+        declara una obligación legal.
+      </p>
+      <small>Origen de la metodología: {presentation.methodology}</small>
       <p className="inspection-invariant-note">
         Método candidato pendiente de revisión profesional. Esta lectura conserva los valores y la
         fórmula registrados.
@@ -581,6 +623,8 @@ function useInspectionApi() {
       auth.request<T>(path, init, organization.activeId!),
   };
 }
+
+export type InspectionApi = ReturnType<typeof useInspectionApi>;
 
 function useInspectionContext(api: ReturnType<typeof useInspectionApi>, enabled = true) {
   const organizationId = api.organizationId;
@@ -932,486 +976,25 @@ export function InspectionsDashboard({ filters = {} }: { filters?: InspectionsDa
   );
 }
 
-type InspectionForm = {
-  inspectionDomain: InspectionDomainKey | '';
-  resourceId: string;
-  workCenterId: string;
-  workAreaId: string;
-  title: string;
-  description: string;
-  scheduledFor: string;
-  riskMethodVersionId: string;
-  inspectionDepth: 'BASIC' | 'TECHNICAL' | 'SYSTEMIC';
-};
-
-type ActiveInspectionBasis = {
-  id: string;
-  version: number;
-  definition: { name: string };
-  technicalSources: Array<{
-    role: 'PRIMARY_TECHNICAL' | 'SUPPLEMENTAL_TECHNICAL' | 'INTERNAL_ORGANIZATION';
-    standardVersion: {
-      id: string;
-      editionLabel: string;
-      source: { name: string; originCountry?: string | null };
-    };
-  }>;
-  regulatoryUnits: unknown[];
-};
-
 export function NewInspection() {
   const api = useInspectionApi();
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const context = useInspectionContext(api);
-  const methods = useRiskMethods(api);
-  const form = useForm<InspectionForm>({
-    mode: 'onBlur',
-    defaultValues: {
-      inspectionDomain: '',
-      resourceId: '',
-      workCenterId: '',
-      workAreaId: '',
-      title: '',
-      description: '',
-      scheduledFor: '',
-      riskMethodVersionId: '',
-      inspectionDepth: 'BASIC',
-    },
-  });
-  const centerId = form.watch('workCenterId');
-  const inspectionDomain = form.watch('inspectionDomain');
-  const standardPolicy = useQuery({
-    queryKey: queryKeys.organization.inspectionStandardPolicy(api.organizationId ?? 'inactive'),
-    queryFn: ({ signal }) =>
-      api.request<InspectionStandardPolicy>('/inspection-standards/organization/policy', {
-        signal,
-      }),
-    enabled: Boolean(api.organizationId && api.moduleEnabled),
-    retry: shouldRetryGet,
-  });
-  const selectedBinding = standardPolicy.data?.current?.bindings.find(
-    (binding) => binding.inspectionDomain === inspectionDomain,
-  );
-  const activeBasis = useQuery({
-    queryKey: queryKeys.organization.inspectionBasisActive(
-      api.organizationId ?? 'inactive',
-      inspectionDomain || 'none',
-    ),
-    queryFn: async ({ signal }) => {
-      try {
-        return await api.request<ActiveInspectionBasis>(
-          `/inspection-bases/active/${inspectionDomain}`,
-          { signal },
-        );
-      } catch (error) {
-        if (error instanceof ApiClientError && error.status === 404) return null;
-        throw error;
-      }
-    },
-    enabled: Boolean(api.organizationId && api.moduleEnabled && inspectionDomain),
-    retry: shouldRetryGet,
-  });
-  const selectedStandardVersionId =
-    activeBasis.data?.technicalSources.find(({ role }) => role === 'PRIMARY_TECHNICAL')
-      ?.standardVersion.id ?? selectedBinding?.standardVersion.id;
-  const resourceCatalog = useQuery({
-    queryKey: queryKeys.organization.inspectionResources(
-      api.organizationId ?? 'inactive',
-      inspectionDomain || 'none',
-      selectedStandardVersionId ?? 'none',
-    ),
-    queryFn: ({ signal }) =>
-      api.request<{
-        id: string;
-        version: number;
-        taxonomy: { name: string };
-        resources: Array<{ id: string; name: string; level: string }>;
-        mappingVersions: Array<{ id: string; version: number }>;
-      } | null>(
-        `/inspection-resources?domain=${inspectionDomain}&standardVersionId=${selectedStandardVersionId}`,
-        { signal },
-      ),
-    enabled: Boolean(
-      api.organizationId && api.moduleEnabled && inspectionDomain && selectedStandardVersionId,
-    ),
-    retry: shouldRetryGet,
-  });
-  const areas = context.data?.workCenters.find((center) => center.id === centerId)?.workAreas ?? [];
-  useEffect(() => {
-    if (!areas.some(({ id }) => id === form.getValues('workAreaId')))
-      form.setValue('workAreaId', '');
-  }, [areas, form]);
-  useEffect(() => {
-    form.setValue('resourceId', '');
-  }, [form, inspectionDomain, selectedStandardVersionId]);
-  const mutation = useMutation({
-    mutationFn: (values: InspectionForm) =>
-      api.request<Inspection>('/inspections', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...values,
-          workAreaId: values.workAreaId || undefined,
-          scheduledFor: values.scheduledFor || undefined,
-          description: values.description || undefined,
-          resourceId: values.resourceId || undefined,
-        }),
-      }),
-    onSuccess: async (created) => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.organization.inspections(api.organizationId!),
-      });
-      router.push(`/app/inspections/${created.id}`);
-    },
-  });
-
   return (
     <AccessGate api={api}>
       <div className="inspection-task-page">
         <InspectionPageHeader
           eyebrow="Nueva inspección"
           title="Planifica el recorrido"
-          description="Define el lugar y el objetivo. La inspección se crea como borrador; iniciar el trabajo es un acto separado."
+          description="Elige el lugar, el recurso y la base que define lo que vas a verificar."
           context={<ContextLine>{api.organizationName ?? 'Organización activa'}</ContextLine>}
         />
-        <InspectionDemoNotice compact />
         {!canWriteInspections(api.role) ? (
           <PermissionState
             role={api.role}
             capability="crear una inspección"
             authorizedRoles={WRITE_ROLE_COPY}
           />
-        ) : context.isLoading ||
-          methods.isLoading ||
-          standardPolicy.isLoading ||
-          activeBasis.isLoading ||
-          resourceCatalog.isLoading ? (
-          <InspectionSkeleton label="Cargando centros y áreas" />
-        ) : context.isError ||
-          methods.isError ||
-          standardPolicy.isError ||
-          activeBasis.isError ||
-          resourceCatalog.isError ? (
-          <PageQueryError
-            retry={() =>
-              void Promise.all([
-                context.refetch(),
-                methods.refetch(),
-                standardPolicy.refetch(),
-                activeBasis.refetch(),
-                resourceCatalog.refetch(),
-              ])
-            }
-          />
-        ) : context.data?.workCenters.length === 0 ? (
-          <InspectionState
-            kind="empty"
-            title="No hay centros configurados"
-            description="Configura un centro de trabajo antes de crear la inspección."
-            action={
-              <Link className="button secondary" href="/app/settings/organization">
-                Ir a Organización
-              </Link>
-            }
-          />
         ) : (
-          <Card className="inspection-form-card">
-            <form
-              className="inspection-form"
-              noValidate
-              onSubmit={form.handleSubmit((values) => {
-                if (!mutation.isPending) mutation.mutate(values);
-              })}
-            >
-              <div className="inspection-form-intro">
-                <p className="eyebrow">Contexto operacional</p>
-                <h2>Ubicación y alcance</h2>
-                <p>Los centros y áreas pertenecen a la organización activa.</p>
-              </div>
-              <div className="field">
-                <label htmlFor="inspection-domain">Dominio de inspección</label>
-                <select
-                  id="inspection-domain"
-                  aria-invalid={Boolean(form.formState.errors.inspectionDomain)}
-                  {...form.register('inspectionDomain', {
-                    required: 'Selecciona qué tipo de condiciones vas a inspeccionar.',
-                  })}
-                >
-                  <option value="">Selecciona un dominio</option>
-                  {INSPECTION_DOMAINS.map((domain) => (
-                    <option key={domain} value={domain}>
-                      {INSPECTION_DOMAIN_LABELS[domain]}
-                    </option>
-                  ))}
-                </select>
-                {form.formState.errors.inspectionDomain ? (
-                  <p className="field-error">{form.formState.errors.inspectionDomain.message}</p>
-                ) : null}
-              </div>
-              {inspectionDomain ? (
-                activeBasis.data ? (
-                  <Card className="inspection-standard-basis" role="status">
-                    <p className="eyebrow">Base de inspección</p>
-                    <h2>{activeBasis.data.definition.name}</h2>
-                    <p>
-                      Versión {activeBasis.data.version} · Base técnica principal:{' '}
-                      {
-                        activeBasis.data.technicalSources.find(
-                          ({ role }) => role === 'PRIMARY_TECHNICAL',
-                        )?.standardVersion.source.name
-                      }
-                    </p>
-                    <small>
-                      {activeBasis.data.technicalSources.length} fuentes técnicas/internas ·{' '}
-                      {activeBasis.data.regulatoryUnits.length} unidades regulatorias
-                    </small>
-                    <p className="inspection-invariant-note">
-                      Esta composición no es una ley, metodología de riesgo ni protocolo.
-                    </p>
-                  </Card>
-                ) : selectedBinding ? (
-                  <Card className="inspection-standard-basis" role="status">
-                    <p className="eyebrow">Base técnica de inspección</p>
-                    <h2>{selectedBinding.standardVersion.source.name}</h2>
-                    <p>
-                      {selectedBinding.standardVersion.editionLabel} · versión{' '}
-                      {selectedBinding.standardVersion.versionCode}
-                    </p>
-                    <small>Origen: Configuración SST de la organización.</small>
-                    <p className="inspection-invariant-note">
-                      Esta base define qué se verifica; no determina por sí sola una infracción
-                      legal ni la valoración del riesgo.
-                    </p>
-                  </Card>
-                ) : (
-                  <InspectionState
-                    kind="info"
-                    title={`Configura el estándar de inspección para ${INSPECTION_DOMAIN_LABELS[inspectionDomain]} antes de iniciar esta inspección.`}
-                    description="No se aplicará un estándar de demostración de forma automática."
-                    action={
-                      <Link className="button secondary" href="/app/settings/inspection-standards">
-                        Ir a Estándares de inspección
-                      </Link>
-                    }
-                  />
-                )
-              ) : null}
-              {resourceCatalog.data ? (
-                resourceCatalog.data.mappingVersions.length ? (
-                  <div className="field">
-                    <label htmlFor="inspection-resource">Recurso a inspeccionar</label>
-                    <select
-                      id="inspection-resource"
-                      aria-invalid={Boolean(form.formState.errors.resourceId)}
-                      {...form.register('resourceId', {
-                        required: 'Selecciona el recurso exacto que vas a inspeccionar.',
-                      })}
-                    >
-                      <option value="">Selecciona un recurso</option>
-                      {(['MINOR', 'MAJOR', 'INDUSTRIAL_SERVICE'] as const).map((level) => (
-                        <optgroup
-                          key={level}
-                          label={
-                            level === 'MINOR'
-                              ? 'Recurso menor'
-                              : level === 'MAJOR'
-                                ? 'Instalación mayor'
-                                : 'Servicio industrial'
-                          }
-                        >
-                          {resourceCatalog.data?.resources
-                            .filter((resource) => resource.level === level)
-                            .map((resource) => (
-                              <option key={resource.id} value={resource.id}>
-                                {resource.name}
-                              </option>
-                            ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                    {form.formState.errors.resourceId ? (
-                      <p className="field-error">{form.formState.errors.resourceId.message}</p>
-                    ) : null}
-                    <small>
-                      Taxonomía v{resourceCatalog.data.version}. Los criterios se resolverán desde
-                      el mapping exacto y quedarán congelados en la inspección.
-                    </small>
-                  </div>
-                ) : (
-                  <InspectionState
-                    kind="info"
-                    title="Falta el mapping del recurso para esta base"
-                    description="No se aplicará un conjunto genérico ni una selección silenciosa."
-                    action={
-                      <Link className="button secondary" href="/app/settings/inspection-resources">
-                        Revisar Alcance de recursos
-                      </Link>
-                    }
-                  />
-                )
-              ) : null}
-              <div className="inspection-form-grid">
-                <div className="field">
-                  <label htmlFor="center">Centro de trabajo</label>
-                  <select
-                    id="center"
-                    aria-invalid={Boolean(form.formState.errors.workCenterId)}
-                    {...form.register('workCenterId', {
-                      required: 'Selecciona un centro de trabajo.',
-                    })}
-                  >
-                    <option value="">Selecciona un centro</option>
-                    {context.data?.workCenters.map((center) => (
-                      <option key={center.id} value={center.id}>
-                        {center.name}
-                      </option>
-                    ))}
-                  </select>
-                  {form.formState.errors.workCenterId ? (
-                    <p className="field-error">{form.formState.errors.workCenterId.message}</p>
-                  ) : null}
-                </div>
-                <div className="field">
-                  <label htmlFor="area">Área (opcional)</label>
-                  <select id="area" disabled={!centerId} {...form.register('workAreaId')}>
-                    <option value="">Sin área específica</option>
-                    {areas.map((area) => (
-                      <option key={area.id} value={area.id}>
-                        {area.name}
-                      </option>
-                    ))}
-                  </select>
-                  {!centerId ? <small>Selecciona primero un centro.</small> : null}
-                </div>
-              </div>
-              <div className="field">
-                <label htmlFor="inspection-title">Título</label>
-                <input
-                  id="inspection-title"
-                  placeholder="Ej. Recorrido de seguridad en Planta A"
-                  aria-invalid={Boolean(form.formState.errors.title)}
-                  {...form.register('title', {
-                    required: 'Escribe un título para identificar el recorrido.',
-                    minLength: { value: 3, message: 'Usa al menos 3 caracteres.' },
-                    maxLength: { value: 160, message: 'Usa como máximo 160 caracteres.' },
-                  })}
-                />
-                {form.formState.errors.title ? (
-                  <p className="field-error">{form.formState.errors.title.message}</p>
-                ) : null}
-              </div>
-              <div className="field">
-                <label htmlFor="inspection-description">Descripción (opcional)</label>
-                <textarea
-                  id="inspection-description"
-                  rows={4}
-                  placeholder="Objetivo y límites del recorrido"
-                  {...form.register('description', {
-                    maxLength: { value: 2000, message: 'Usa como máximo 2000 caracteres.' },
-                  })}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="scheduled">Fecha programada (opcional)</label>
-                <input id="scheduled" type="datetime-local" {...form.register('scheduledFor')} />
-              </div>
-              <fieldset className="risk-method-selection">
-                <legend>Profundidad de inspección</legend>
-                <p>
-                  Orienta el alcance profesional sin reemplazar la base, los recursos, la
-                  metodología de riesgo ni la aplicabilidad.
-                </p>
-                <div className="risk-method-card-grid">
-                  {(
-                    [
-                      ['BASIC', 'Básica', 'Verificación visible o de primera línea.'],
-                      ['TECHNICAL', 'Técnica', 'Revisión especializada con mayor profundidad.'],
-                      [
-                        'SYSTEMIC',
-                        'Sistémica',
-                        'Programas, recurrencia y controles transversales.',
-                      ],
-                    ] as const
-                  ).map(([value, label, description]) => (
-                    <label className="risk-method-card" key={value}>
-                      <input
-                        type="radio"
-                        value={value}
-                        {...form.register('inspectionDepth', { required: true })}
-                      />
-                      <span>
-                        <strong>{label}</strong>
-                        <span>{description}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-              <fieldset className="risk-method-selection">
-                <legend>Metodología de valoración</legend>
-                <p>
-                  Selecciona explícitamente la metodología que se usará para todos los hallazgos y
-                  sus valoraciones residuales en esta inspección.
-                </p>
-                <div className="risk-method-card-grid">
-                  {methods.data?.map((method) => (
-                    <label className="risk-method-card" key={method.id}>
-                      <input
-                        type="radio"
-                        value={method.id}
-                        {...form.register('riskMethodVersionId', {
-                          required: 'Selecciona una metodología de valoración.',
-                        })}
-                      />
-                      <span>
-                        <strong>{method.displayName}</strong>
-                        <small>
-                          Versión {method.semanticVersion} ·{' '}
-                          {method.publicationStatus === 'PUBLISHED'
-                            ? 'Histórica publicada'
-                            : 'Candidata para revisión'}
-                        </small>
-                        <span>{method.purpose}</span>
-                        <em>{method.disclaimer}</em>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-                {form.formState.errors.riskMethodVersionId ? (
-                  <p className="field-error">{form.formState.errors.riskMethodVersionId.message}</p>
-                ) : null}
-                <Link href="/app/risk-methods">Ver metodologías y fuentes</Link>
-              </fieldset>
-              <p className="inspection-invariant-note">
-                Guardar el borrador no inicia la inspección.
-              </p>
-              {mutation.isError ? (
-                <InlineRequestState>
-                  No pudimos crear la inspección. Tus datos permanecen en el formulario; vuelve a
-                  intentarlo.
-                </InlineRequestState>
-              ) : null}
-              <div className="inspection-sticky-actions">
-                <Link className="button secondary" href="/app/inspections">
-                  Cancelar
-                </Link>
-                <button
-                  className="button"
-                  disabled={
-                    mutation.isPending ||
-                    !inspectionDomain ||
-                    (!activeBasis.data && !selectedBinding) ||
-                    Boolean(resourceCatalog.data && !form.watch('resourceId')) ||
-                    Boolean(
-                      resourceCatalog.data && resourceCatalog.data.mappingVersions.length === 0,
-                    )
-                  }
-                >
-                  {mutation.isPending ? 'Creando borrador…' : 'Crear inspección'}
-                </button>
-              </div>
-            </form>
-          </Card>
+          <InspectionPreparation api={api} />
         )}
       </div>
     </AccessGate>
@@ -1508,165 +1091,6 @@ export function RiskMethodLibrary() {
   );
 }
 
-type CriterionResult = NonNullable<Inspection['criterionResults']>[number];
-
-function evidenceReferencesText(value: unknown) {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string').join('\n')
-    : '';
-}
-
-function CriterionResultCard({
-  api,
-  inspectionId,
-  result,
-  editable,
-}: {
-  api: ReturnType<typeof useInspectionApi>;
-  inspectionId: string;
-  result: CriterionResult;
-  editable: boolean;
-}) {
-  const queryClient = useQueryClient();
-  const [outcome, setOutcome] = useState<CriterionResult['outcome']>(result.outcome);
-  const [note, setNote] = useState(result.note ?? '');
-  const [evidence, setEvidence] = useState(() => evidenceReferencesText(result.evidenceReferences));
-  const mutation = useMutation({
-    mutationFn: () =>
-      api.request(`/inspections/${inspectionId}/criteria/${result.criterion.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          outcome,
-          note: note.trim() || undefined,
-          evidenceReferences: evidence
-            .split('\n')
-            .map((item) => item.trim())
-            .filter(Boolean),
-        }),
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.organization.inspection(api.organizationId!, inspectionId),
-      });
-    },
-  });
-  const noConformeWithoutNote = outcome === 'NO_CONFORME' && note.trim().length === 0;
-
-  return (
-    <Card className="inspection-criterion-card">
-      <div className="inspection-criterion-heading">
-        <div>
-          <p className="eyebrow">Criterio de inspección</p>
-          <h3>{result.criterion.title}</h3>
-        </div>
-        <span className={`criterion-outcome criterion-outcome--${result.outcome.toLowerCase()}`}>
-          {INSPECTION_CRITERION_OUTCOME_LABELS[result.outcome]}
-        </span>
-      </div>
-      <p>{result.criterion.guidance}</p>
-      {result.criterion.standardVersion ? (
-        <p className="muted">
-          Fuente: {result.criterion.standardVersion.source.name} ·{' '}
-          {result.criterion.standardVersion.editionLabel}
-          {result.criterion.sourceLocator ? ` · ${result.criterion.sourceLocator}` : ''}
-        </p>
-      ) : null}
-      {result.criterion.evidenceExpectation ? (
-        <p className="inspection-criterion-evidence">
-          <strong>Evidencia esperada:</strong> {result.criterion.evidenceExpectation}
-        </p>
-      ) : null}
-      <div className="inspection-form-grid">
-        <label className="field">
-          <span>Resultado observado</span>
-          <select
-            value={outcome}
-            disabled={!editable || mutation.isPending}
-            onChange={(event) => setOutcome(event.target.value as CriterionResult['outcome'])}
-          >
-            {Object.entries(INSPECTION_CRITERION_OUTCOME_LABELS).map(([value, label]) => (
-              <option
-                key={value}
-                value={value}
-                disabled={value === 'NO_APLICA' && !result.criterion.notApplicableAllowed}
-              >
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Observación {outcome === 'NO_CONFORME' ? '(obligatoria)' : '(opcional)'}</span>
-          <textarea
-            rows={3}
-            maxLength={2000}
-            value={note}
-            disabled={!editable || mutation.isPending}
-            aria-invalid={noConformeWithoutNote}
-            onChange={(event) => setNote(event.target.value)}
-          />
-          {noConformeWithoutNote ? (
-            <small className="field-error">
-              Describe la condición observada antes de guardar No conforme.
-            </small>
-          ) : null}
-        </label>
-      </div>
-      <label className="field">
-        <span>Referencias de evidencia (una por línea, opcional)</span>
-        <textarea
-          rows={2}
-          value={evidence}
-          disabled={!editable || mutation.isPending}
-          onChange={(event) => setEvidence(event.target.value)}
-          placeholder="Ej. Foto del tablero · registro interno 2026-08-31"
-        />
-      </label>
-      <p className="inspection-invariant-note">
-        “No conforme” describe la condición frente a este criterio técnico; no declara
-        automáticamente una infracción legal.
-      </p>
-      {mutation.isError ? (
-        <InlineRequestState>
-          No pudimos guardar el resultado. El contenido permanece en esta tarjeta.
-        </InlineRequestState>
-      ) : null}
-      <div className="inspection-dialog-actions">
-        {editable ? (
-          <button
-            className="button secondary"
-            type="button"
-            disabled={mutation.isPending || noConformeWithoutNote}
-            onClick={() => mutation.mutate()}
-          >
-            {mutation.isPending ? 'Guardando…' : 'Guardar resultado'}
-          </button>
-        ) : null}
-        {result.finding ? (
-          <Link
-            className="button secondary"
-            href={`/app/inspections/${inspectionId}/findings/${result.finding.id}`}
-          >
-            Ver hallazgo vinculado
-          </Link>
-        ) : result.outcome === 'NO_CONFORME' ? (
-          <Link
-            className="button"
-            href={`/app/inspections/${inspectionId}/findings/new?criterionResultId=${result.id}`}
-          >
-            Crear hallazgo
-          </Link>
-        ) : null}
-      </div>
-      {result.outcome !== 'NO_VERIFICADO' ? (
-        <small>
-          Último registro: {result.actor.displayName} · {formatDate(result.updatedAt)}
-        </small>
-      ) : null}
-    </Card>
-  );
-}
-
 export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
   const api = useInspectionApi();
   const queryClient = useQueryClient();
@@ -1702,6 +1126,8 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
       ]);
     },
   });
+
+  const transitionPendingFeedback = useRealRequestFeedback(transition.isPending);
 
   return (
     <AccessGate api={api}>
@@ -1747,7 +1173,7 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
                       disabled={transition.isPending}
                       onClick={() => transition.mutate('start')}
                     >
-                      {transition.isPending ? 'Iniciando…' : 'Iniciar inspección'}
+                      {transitionPendingFeedback ? 'Iniciando…' : 'Iniciar inspección'}
                     </button>
                   ) : null}
                   {query.data.status === 'IN_PROGRESS' ? (
@@ -1827,139 +1253,34 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
           ) : (
             <InspectionState
               kind="info"
-              title="Inspección histórica sin alcance de recurso"
-              description="Este registro conserva su semántica original y no fue completado de forma retroactiva."
+              title="Alcance general sin recurso"
+              description="Conserva todos los criterios de su base. No tiene un mapeo por recurso ni se le asignará uno retrospectivamente."
             />
           )}
+          {query.data.status === 'COMPLETED' ? (
+            <Card className="inspection-summary-card">
+              <InspectionCompletionSummary inspection={query.data} />
+              <p>Completada: {formatDate(query.data.completedAt)}</p>
+            </Card>
+          ) : null}
           <div className="inspection-standard-workspace">
-            <section aria-labelledby="inspection-criteria-title">
-              <div className="inspection-section-heading">
-                <div>
-                  <p className="eyebrow">Lista de verificación</p>
-                  <h2 id="inspection-criteria-title">
-                    Criterios <span>{query.data.criterionResults?.length ?? 0}</span>
-                  </h2>
-                </div>
-              </div>
-              {query.data.standardVersion && query.data.criterionResults?.length ? (
-                <div className="inspection-criteria-list">
-                  {query.data.criterionResults.map((result) => (
-                    <CriterionResultCard
-                      key={result.id}
-                      api={api}
-                      inspectionId={query.data.id}
-                      result={result}
-                      editable={
-                        query.data.status === 'IN_PROGRESS' && canWriteInspections(api.role)
-                      }
-                    />
-                  ))}
-                </div>
-              ) : (
-                <InspectionState
-                  kind="info"
-                  title="Inspección anterior a Estándares de inspección V1"
-                  description="Este registro histórico sigue siendo válido y no se le asignó retrospectivamente un estándar de demostración."
-                />
-              )}
-            </section>
-            <WorkspaceInspector label="Base técnica y contexto">
-              {query.data.inspectionBasisVersion && query.data.inspectionDomain ? (
-                <>
-                  <section>
-                    <p className="eyebrow">Base de inspección</p>
-                    <h2>{query.data.inspectionBasisVersion.definition.name}</h2>
-                    <p>
-                      Versión {query.data.inspectionBasisVersion.version} ·{' '}
-                      {INSPECTION_DOMAIN_LABELS[query.data.inspectionDomain]}
-                    </p>
-                    <small>Snapshot inmutable de la composición seleccionada.</small>
-                  </section>
-                  <section>
-                    <h3>Fuentes técnicas</h3>
-                    {query.data.inspectionBasisVersion.technicalSources.map((link) => (
-                      <p key={link.id}>
-                        <strong>
-                          {link.role === 'PRIMARY_TECHNICAL'
-                            ? 'Base técnica principal'
-                            : link.role === 'SUPPLEMENTAL_TECHNICAL'
-                              ? 'Referencia suplementaria'
-                              : 'Fuente interna'}
-                          :
-                        </strong>{' '}
-                        {link.standardVersion.source.name} · {link.standardVersion.editionLabel} ·{' '}
-                        {link.standardVersion.source.originCountry ?? 'Jurisdicción no indicada'}
-                      </p>
-                    ))}
-                  </section>
-                  <section>
-                    <h3>Fundamento normativo</h3>
-                    {query.data.inspectionBasisVersion.regulatoryUnits.length ? (
-                      query.data.inspectionBasisVersion.regulatoryUnits.map(
-                        ({ id, regulatoryUnit }) => (
-                          <p key={id}>
-                            {regulatoryUnit.sourceVersion.source.canonicalTitle} ·{' '}
-                            {regulatoryUnit.identifier} ·{' '}
-                            {regulatoryUnit.sourceVersion.source.countryCode}
-                          </p>
-                        ),
-                      )
-                    ) : (
-                      <p>
-                        Esta base no fuerza un vínculo legal cuando no existe una relación
-                        defendible.
-                      </p>
-                    )}
-                  </section>
-                  <section>
-                    <p>
-                      La Base de inspección no es una ley, una metodología de riesgo ni un
-                      protocolo.
-                    </p>
-                  </section>
-                </>
-              ) : query.data.standardVersion && query.data.inspectionDomain ? (
-                <>
-                  <section>
-                    <p className="eyebrow">Base técnica de inspección</p>
-                    <h2>{query.data.standardVersion.source.name}</h2>
-                    <p>
-                      {query.data.standardVersion.editionLabel} · versión{' '}
-                      {query.data.standardVersion.versionCode}
-                    </p>
-                    <p>{INSPECTION_DOMAIN_LABELS[query.data.inspectionDomain]}</p>
-                    <small>
-                      Configuración SST · política versión{' '}
-                      {query.data.standardPolicyVersion?.version ?? 'registrada'}
-                    </small>
-                  </section>
-                  <section>
-                    <h3>Alcance de esta base</h3>
-                    <p>
-                      Define los criterios observados en el recorrido. No equivale por sí sola a una
-                      obligación legal ni a una certificación.
-                    </p>
-                  </section>
-                </>
-              ) : (
-                <p>Registro histórico sin estándar técnico asociado.</p>
-              )}
-              <section>
-                <p className="eyebrow">Metodología de valoración del riesgo</p>
-                <h3>{query.data.riskMethodVersion.displayName}</h3>
-                <p>
-                  Se aplica al crear y valorar un hallazgo; no modifica los criterios del estándar.
-                </p>
-                <Link href="/app/risk-methods">Consultar metodología</Link>
-              </section>
-              <section>
-                <p className="eyebrow">Fundamento normativo</p>
-                <p>
-                  Se muestra por separado en cada hallazgo cuando existe un vínculo regulatorio
-                  explícito. El estándar de inspección no se convierte automáticamente en ley.
-                </p>
-              </section>
-            </WorkspaceInspector>
+            {query.data.criterionResults?.length ? (
+              <InspectionCriterionExecution
+                api={api}
+                inspection={query.data}
+                editable={query.data.status === 'IN_PROGRESS' && canWriteInspections(api.role)}
+              />
+            ) : (
+              <InspectionState
+                kind="info"
+                title="Registro histórico sin criterios asociados"
+                description="Conserva sus datos originales. No se asignan criterios de demostración retrospectivamente."
+              />
+            )}
+            <InspectionLiveContext
+              inspection={query.data}
+              organizationName={api.organizationName}
+            />
           </div>
           <section aria-labelledby="inspection-findings-title">
             <div className="inspection-section-heading">
@@ -2032,6 +1353,7 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
               if (!transition.isPending) setShowComplete(false);
             }}
           >
+            <InspectionCompletionSummary inspection={query.data} />
             <div className="inspection-dialog-actions">
               <button
                 className="button secondary"
@@ -2047,7 +1369,7 @@ export function InspectionDetail({ inspectionId }: { inspectionId: string }) {
                 disabled={transition.isPending}
                 onClick={() => transition.mutate('complete')}
               >
-                {transition.isPending ? 'Completando…' : 'Completar inspección'}
+                {transitionPendingFeedback ? 'Completando…' : 'Completar inspección'}
               </button>
             </div>
           </InspectionDialog>
@@ -2080,7 +1402,7 @@ type RiskInputForm = {
 type FindingForm = RiskInputForm & {
   title: string;
   description: string;
-  category: FindingCategory;
+  category: FindingCategory | '';
 };
 
 function findingMethodInput(methodKey: string, input: RiskInputForm) {
@@ -2140,6 +1462,7 @@ export function NewFinding({
   const [step, setStep] = useState(1);
   const [created, setCreated] = useState<CreatedFinding | null>(null);
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  const prefilledCriterion = useRef<string | null>(null);
   const inspection = useQuery({
     queryKey: queryKeys.organization.inspection(organizationId ?? 'inactive', inspectionId),
     queryFn: ({ signal }) => api.request<Inspection>(`/inspections/${inspectionId}`, { signal }),
@@ -2151,7 +1474,7 @@ export function NewFinding({
     defaultValues: {
       title: '',
       description: '',
-      category: 'ELECTRICAL',
+      category: '',
       likelihood: undefined,
       consequence: undefined,
       guidedProbability: undefined,
@@ -2175,6 +1498,14 @@ export function NewFinding({
   const linkedCriterion = inspection.data?.criterionResults?.find(
     (result) => result.id === criterionResultId,
   );
+  useEffect(() => {
+    if (!linkedCriterion || prefilledCriterion.current === linkedCriterion.id) return;
+    if (!form.getFieldState('title').isDirty)
+      form.setValue('title', linkedCriterion.criterion.title);
+    if (!form.getFieldState('description').isDirty && linkedCriterion.note)
+      form.setValue('description', linkedCriterion.note);
+    prefilledCriterion.current = linkedCriterion.id;
+  }, [linkedCriterion, form]);
   const mutation = useMutation({
     mutationFn: (input: FindingForm) =>
       api.request<CreatedFinding>(`/inspections/${inspectionId}/findings`, {
@@ -2231,6 +1562,8 @@ export function NewFinding({
     if (valid) setStep((current) => Math.min(current + 1, 5));
   }
 
+  const pendingFeedback = useRealRequestFeedback(mutation.isPending);
+
   if (created) {
     const createdMethod = presentInspectionRiskMethod(
       created.riskMethodKey ?? 'DEMO_5X5',
@@ -2283,6 +1616,9 @@ export function NewFinding({
               </p>
             </div>
           </Card>
+          {created.riskMethodKey === 'GTC45_2010' ? (
+            <Gtc45HumanResult result={created.initialMethodResult} />
+          ) : null}
           <InspectionDemoNotice
             methodName={createdMethod.displayName}
             disclaimer={createdMethod.contextSummary}
@@ -2350,8 +1686,23 @@ export function NewFinding({
             </Link>
           }
         />
+      ) : criterionResultId &&
+        inspection.data &&
+        (!linkedCriterion ||
+          linkedCriterion.outcome !== 'NO_CONFORME' ||
+          linkedCriterion.finding) ? (
+        <InspectionState
+          kind="info"
+          title="Este criterio no admite otro hallazgo"
+          description="Debe tener un resultado No conforme registrado y no tener un hallazgo vinculado."
+          action={
+            <Link className="button secondary" href={`/app/inspections/${inspectionId}`}>
+              Volver a la inspección
+            </Link>
+          }
+        />
       ) : inspection.data ? (
-        <div className="inspection-field-capture">
+        <div className="inspection-field-capture inspection-continuity-capture">
           <InspectionPageHeader
             eyebrow={`Paso ${step} de 5 · Nuevo hallazgo`}
             title={
@@ -2384,431 +1735,475 @@ export function NewFinding({
               ))}
             </div>
           </div>
-          <Card className="inspection-wizard-card">
-            <form
-              noValidate
-              onSubmit={form.handleSubmit((input) => {
-                if (!mutation.isPending) mutation.mutate(input);
-              })}
-            >
-              <h2 className="sr-only" ref={stepHeadingRef} tabIndex={-1}>
-                Paso {step} de 5
-              </h2>
-              {step === 1 ? (
-                <div className="inspection-review-list">
-                  <div>
-                    <span>Inspección</span>
-                    <strong>{inspection.data.title}</strong>
-                  </div>
-                  <div>
-                    <span>Centro</span>
-                    <strong>{inspection.data.workCenter.name}</strong>
-                  </div>
-                  <div>
-                    <span>Área</span>
-                    <strong>{inspection.data.workArea?.name ?? 'Sin área específica'}</strong>
-                  </div>
-                  {linkedCriterion ? (
+          <div className="inspection-standard-workspace">
+            <Card className="inspection-wizard-card">
+              <form
+                noValidate
+                onSubmit={form.handleSubmit((input) => {
+                  if (!mutation.isPending) mutation.mutate(input);
+                })}
+              >
+                <h2 className="sr-only" ref={stepHeadingRef} tabIndex={-1}>
+                  Paso {step} de 5
+                </h2>
+                {step === 1 ? (
+                  <div className="inspection-review-list">
                     <div>
-                      <span>Origen del hallazgo</span>
-                      <strong>Criterio no conforme: {linkedCriterion.criterion.title}</strong>
+                      <span>Inspección</span>
+                      <strong>{inspection.data.title}</strong>
                     </div>
-                  ) : null}
-                  <p className="inspection-invariant-note">
-                    Este contexto proviene de la inspección y no se envía como una organización
-                    arbitraria.
-                  </p>
-                </div>
-              ) : null}
-              {step === 2 ? (
-                <div className="inspection-form">
-                  <div className="field">
-                    <label htmlFor="finding-title">Título del hallazgo</label>
-                    <input
-                      id="finding-title"
-                      autoFocus
-                      aria-invalid={Boolean(form.formState.errors.title)}
-                      {...form.register('title', {
-                        required: 'Escribe un título para el hallazgo.',
-                        minLength: { value: 3, message: 'Usa al menos 3 caracteres.' },
-                        maxLength: { value: 160, message: 'Usa como máximo 160 caracteres.' },
-                      })}
-                    />
-                    {form.formState.errors.title ? (
-                      <p className="field-error">{form.formState.errors.title.message}</p>
-                    ) : null}
-                  </div>
-                  <div className="field">
-                    <label htmlFor="finding-description">Descripción</label>
-                    <textarea
-                      id="finding-description"
-                      rows={6}
-                      aria-invalid={Boolean(form.formState.errors.description)}
-                      {...form.register('description', {
-                        required: 'Describe lo observado.',
-                        minLength: { value: 3, message: 'Usa al menos 3 caracteres.' },
-                        maxLength: { value: 4000, message: 'Usa como máximo 4000 caracteres.' },
-                      })}
-                    />
-                    {form.formState.errors.description ? (
-                      <p className="field-error">{form.formState.errors.description.message}</p>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-              {step === 3 ? (
-                <div className="inspection-form">
-                  <div className="field">
-                    <label htmlFor="finding-category">Categoría del hallazgo</label>
-                    <select id="finding-category" autoFocus {...form.register('category')}>
-                      {FINDING_CATEGORIES.map((category) => (
-                        <option key={category} value={category}>
-                          {FINDING_CATEGORY_LABELS[category]}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <p className="inspection-invariant-note">
-                    La categoría organiza la operación. No constituye por sí sola una clasificación
-                    legal.
-                  </p>
-                </div>
-              ) : null}
-              {step === 4 ? (
-                <div className="inspection-form">
-                  <div className="inspection-method-heading">
-                    <span>Metodología utilizada</span>
-                    <strong>{inspection.data.riskMethodVersion.displayName}</strong>
-                    <small>Versión {inspection.data.riskMethodVersion.semanticVersion}</small>
-                  </div>
-                  {inspection.data.riskMethodVersion.methodDefinition.methodKey === 'GUIDED_5X5' ? (
-                    <>
-                      <fieldset className="risk-method-options">
-                        <legend>Probabilidad · ¿qué nivel describe mejor la situación?</legend>
-                        {guidedProbabilityCriteria.map((criterion) => (
-                          <label key={criterion.value}>
-                            <input
-                              type="radio"
-                              value={criterion.value}
-                              {...form.register('guidedProbability', {
-                                required: 'Selecciona un nivel de probabilidad.',
-                                valueAsNumber: true,
-                              })}
-                            />
-                            <span>
-                              <strong>{criterion.label}</strong>
-                              <small>{criterion.meaning}</small>
-                            </span>
-                          </label>
-                        ))}
-                        {form.formState.errors.guidedProbability ? (
-                          <p className="field-error">
-                            {form.formState.errors.guidedProbability.message}
+                    <div>
+                      <span>Centro</span>
+                      <strong>{inspection.data.workCenter.name}</strong>
+                    </div>
+                    <div>
+                      <span>Área</span>
+                      <strong>{inspection.data.workArea?.name ?? 'Sin área específica'}</strong>
+                    </div>
+                    {linkedCriterion ? (
+                      <div>
+                        <span>Origen del hallazgo</span>
+                        <strong>Criterio no conforme: {linkedCriterion.criterion.title}</strong>
+                        <p>{linkedCriterion.note}</p>
+                        <p>
+                          {linkedCriterion.criterion.standardVersion?.source.name} ·{' '}
+                          {linkedCriterion.criterion.standardVersion?.editionLabel} ·{' '}
+                          {linkedCriterion.criterion.standardVersion?.source.originCountry ??
+                            'Jurisdicción no indicada'}
+                        </p>
+                        {Array.isArray(linkedCriterion.evidenceReferences) ? (
+                          <p>
+                            Referencias:{' '}
+                            {linkedCriterion.evidenceReferences.join(' · ') ||
+                              'Sin referencias registradas'}
                           </p>
                         ) : null}
-                      </fieldset>
-                      <details className="risk-method-cues">
-                        <summary>¿Por qué elegir este nivel? Ver señales de decisión</summary>
-                        {guidedProbabilityCriteria
-                          .flatMap(({ cues }) => cues)
-                          .map((cue) => (
-                            <label key={cue.key}>
+                        <p>
+                          La nota y el título se proponen como contexto editable. Crear el hallazgo
+                          conserva No conforme en este criterio; no declara una infracción legal.
+                        </p>
+                      </div>
+                    ) : null}
+                    <p className="inspection-invariant-note">
+                      Este contexto proviene de la inspección y no se envía como una organización
+                      arbitraria.
+                    </p>
+                  </div>
+                ) : null}
+                {step === 2 ? (
+                  <div className="inspection-form">
+                    <div className="field">
+                      <label htmlFor="finding-title">Título del hallazgo</label>
+                      <input
+                        id="finding-title"
+                        autoFocus
+                        aria-invalid={Boolean(form.formState.errors.title)}
+                        {...form.register('title', {
+                          required: 'Escribe un título para el hallazgo.',
+                          minLength: { value: 3, message: 'Usa al menos 3 caracteres.' },
+                          maxLength: { value: 160, message: 'Usa como máximo 160 caracteres.' },
+                        })}
+                      />
+                      {form.formState.errors.title ? (
+                        <p className="field-error">{form.formState.errors.title.message}</p>
+                      ) : null}
+                    </div>
+                    <div className="field">
+                      <label htmlFor="finding-description">Descripción</label>
+                      <textarea
+                        id="finding-description"
+                        rows={6}
+                        aria-invalid={Boolean(form.formState.errors.description)}
+                        {...form.register('description', {
+                          required: 'Describe lo observado.',
+                          minLength: { value: 3, message: 'Usa al menos 3 caracteres.' },
+                          maxLength: { value: 4000, message: 'Usa como máximo 4000 caracteres.' },
+                        })}
+                      />
+                      {form.formState.errors.description ? (
+                        <p className="field-error">{form.formState.errors.description.message}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                {step === 3 ? (
+                  <div className="inspection-form">
+                    <div className="field">
+                      <label htmlFor="finding-category">Categoría del hallazgo</label>
+                      <select
+                        id="finding-category"
+                        aria-invalid={Boolean(form.formState.errors.category)}
+                        aria-describedby={
+                          form.formState.errors.category ? 'finding-category-error' : undefined
+                        }
+                        autoFocus
+                        {...form.register('category', { required: 'Selecciona una categoría.' })}
+                      >
+                        <option value="">Selecciona una categoría</option>
+                        {FINDING_CATEGORIES.map((category) => (
+                          <option key={category} value={category}>
+                            {FINDING_CATEGORY_LABELS[category]}
+                          </option>
+                        ))}
+                      </select>
+                      {form.formState.errors.category ? (
+                        <small id="finding-category-error" className="field-error">
+                          {form.formState.errors.category.message}
+                        </small>
+                      ) : null}
+                    </div>
+                    <p className="inspection-invariant-note">
+                      La categoría organiza la operación. No constituye por sí sola una
+                      clasificación legal.
+                    </p>
+                  </div>
+                ) : null}
+                {step === 4 ? (
+                  <div className="inspection-form">
+                    <div className="inspection-method-heading">
+                      <span>Metodología utilizada</span>
+                      <strong>{inspection.data.riskMethodVersion.displayName}</strong>
+                      <small>Versión {inspection.data.riskMethodVersion.semanticVersion}</small>
+                    </div>
+                    {inspection.data.riskMethodVersion.methodDefinition.methodKey ===
+                    'GUIDED_5X5' ? (
+                      <>
+                        <fieldset className="risk-method-options">
+                          <legend>Probabilidad · ¿qué nivel describe mejor la situación?</legend>
+                          {guidedProbabilityCriteria.map((criterion) => (
+                            <label key={criterion.value}>
                               <input
-                                type="checkbox"
-                                value={cue.key}
-                                {...form.register('guidedProbabilityCues')}
+                                type="radio"
+                                value={criterion.value}
+                                {...form.register('guidedProbability', {
+                                  required: 'Selecciona un nivel de probabilidad.',
+                                  valueAsNumber: true,
+                                })}
                               />
-                              {cue.label}
+                              <span>
+                                <strong>{criterion.label}</strong>
+                                <small>{criterion.meaning}</small>
+                              </span>
                             </label>
                           ))}
-                      </details>
-                      <fieldset className="risk-method-options">
-                        <legend>Severidad humana · peor consecuencia razonable</legend>
-                        {guidedHumanSeverityCriteria.map((criterion) => (
-                          <label key={criterion.value}>
-                            <input
-                              type="radio"
-                              value={criterion.value}
-                              {...form.register('guidedSeverity', {
-                                required: 'Selecciona una severidad humana.',
+                          {form.formState.errors.guidedProbability ? (
+                            <p className="field-error">
+                              {form.formState.errors.guidedProbability.message}
+                            </p>
+                          ) : null}
+                        </fieldset>
+                        <details className="risk-method-cues">
+                          <summary>¿Por qué elegir este nivel? Ver señales de decisión</summary>
+                          {guidedProbabilityCriteria
+                            .flatMap(({ cues }) => cues)
+                            .map((cue) => (
+                              <label key={cue.key}>
+                                <input
+                                  type="checkbox"
+                                  value={cue.key}
+                                  {...form.register('guidedProbabilityCues')}
+                                />
+                                {cue.label}
+                              </label>
+                            ))}
+                        </details>
+                        <fieldset className="risk-method-options">
+                          <legend>Severidad humana · peor consecuencia razonable</legend>
+                          {guidedHumanSeverityCriteria.map((criterion) => (
+                            <label key={criterion.value}>
+                              <input
+                                type="radio"
+                                value={criterion.value}
+                                {...form.register('guidedSeverity', {
+                                  required: 'Selecciona una severidad humana.',
+                                  valueAsNumber: true,
+                                })}
+                              />
+                              <span>
+                                <strong>{criterion.label}</strong>
+                                <small>{criterion.meaning}</small>
+                              </span>
+                            </label>
+                          ))}
+                        </fieldset>
+                        <details className="risk-method-cues">
+                          <summary>¿Por qué elegir esta severidad? Ver señales</summary>
+                          {guidedHumanSeverityCriteria
+                            .flatMap(({ cues }) => cues)
+                            .map((cue) => (
+                              <label key={cue.key}>
+                                <input
+                                  type="checkbox"
+                                  value={cue.key}
+                                  {...form.register('guidedSeverityCues')}
+                                />
+                                {cue.label}
+                              </label>
+                            ))}
+                        </details>
+                      </>
+                    ) : inspection.data.riskMethodVersion.methodDefinition.methodKey ===
+                      'GTC45_2010' ? (
+                      <>
+                        <div className="inspection-form-grid">
+                          <div className="field">
+                            <label htmlFor="gtc-deficiency">Nivel de deficiencia</label>
+                            <select
+                              id="gtc-deficiency"
+                              {...form.register('gtcDeficiency', {
+                                required: 'Selecciona el nivel de deficiencia.',
+                              })}
+                            >
+                              <option value="">Selecciona una opción</option>
+                              {gtc45DeficiencyOptions.map((option) => (
+                                <option key={option.key} value={option.key}>
+                                  {option.label}
+                                  {option.value === null ? ' · tratamiento especial IV' : ''}
+                                </option>
+                              ))}
+                            </select>
+                            <small>Bajo no se convierte en ND=0.</small>
+                          </div>
+                          <div className="field">
+                            <label htmlFor="gtc-exposure">Nivel de exposición</label>
+                            <select
+                              id="gtc-exposure"
+                              {...form.register('gtcExposure', {
+                                required: 'Selecciona el nivel de exposición.',
                                 valueAsNumber: true,
                               })}
-                            />
-                            <span>
-                              <strong>{criterion.label}</strong>
-                              <small>{criterion.meaning}</small>
-                            </span>
-                          </label>
-                        ))}
-                      </fieldset>
-                      <details className="risk-method-cues">
-                        <summary>¿Por qué elegir esta severidad? Ver señales</summary>
-                        {guidedHumanSeverityCriteria
-                          .flatMap(({ cues }) => cues)
-                          .map((cue) => (
-                            <label key={cue.key}>
-                              <input
-                                type="checkbox"
-                                value={cue.key}
-                                {...form.register('guidedSeverityCues')}
-                              />
-                              {cue.label}
-                            </label>
-                          ))}
-                      </details>
-                    </>
-                  ) : inspection.data.riskMethodVersion.methodDefinition.methodKey ===
-                    'GTC45_2010' ? (
-                    <>
-                      <div className="inspection-form-grid">
-                        <div className="field">
-                          <label htmlFor="gtc-deficiency">Nivel de deficiencia</label>
-                          <select
-                            id="gtc-deficiency"
-                            {...form.register('gtcDeficiency', {
-                              required: 'Selecciona el nivel de deficiencia.',
-                            })}
-                          >
-                            <option value="">Selecciona una opción</option>
-                            {gtc45DeficiencyOptions.map((option) => (
-                              <option key={option.key} value={option.key}>
-                                {option.label}
-                                {option.value === null ? ' · tratamiento especial IV' : ''}
-                              </option>
-                            ))}
-                          </select>
-                          <small>Bajo no se convierte en ND=0.</small>
+                            >
+                              <option value="">Selecciona una opción</option>
+                              {gtc45ExposureOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label} · {option.value} — {option.meaning}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
+                        <fieldset className="risk-control-locations">
+                          <legend>Controles existentes</legend>
+                          <div className="field">
+                            <label htmlFor="control-source">Control en la fuente</label>
+                            <textarea id="control-source" {...form.register('controlSource')} />
+                          </div>
+                          <div className="field">
+                            <label htmlFor="control-medium">Control en el medio</label>
+                            <textarea id="control-medium" {...form.register('controlMedium')} />
+                          </div>
+                          <div className="field">
+                            <label htmlFor="control-individual">
+                              Control relacionado con la persona
+                            </label>
+                            <textarea
+                              id="control-individual"
+                              {...form.register('controlIndividual')}
+                            />
+                          </div>
+                        </fieldset>
+                        <details className="risk-method-cues">
+                          <summary>¿Por qué? Abrir guía experta candidata</summary>
+                          <div className="field">
+                            <label htmlFor="guidance-source">
+                              ¿Qué condición en la fuente observaste?
+                            </label>
+                            <textarea
+                              id="guidance-source"
+                              {...form.register('guidanceSourceConditions')}
+                            />
+                          </div>
+                          <div className="field">
+                            <label htmlFor="guidance-controls">
+                              ¿Qué evidencia observaste sobre efectividad de controles?
+                            </label>
+                            <textarea
+                              id="guidance-controls"
+                              {...form.register('guidanceControlEffectiveness')}
+                            />
+                          </div>
+                          <div className="field">
+                            <label htmlFor="guidance-history">
+                              ¿Qué antecedentes de eventos son relevantes?
+                            </label>
+                            <textarea
+                              id="guidance-history"
+                              {...form.register('guidanceEventHistory')}
+                            />
+                          </div>
+                          <p>Esta guía no asigna ND, NE ni NC y no modifica el cálculo.</p>
+                        </details>
                         <div className="field">
-                          <label htmlFor="gtc-exposure">Nivel de exposición</label>
+                          <label htmlFor="gtc-consequence">Nivel de consecuencia</label>
                           <select
-                            id="gtc-exposure"
-                            {...form.register('gtcExposure', {
-                              required: 'Selecciona el nivel de exposición.',
+                            id="gtc-consequence"
+                            {...form.register('gtcConsequence', {
+                              required: 'Selecciona el nivel de consecuencia.',
                               valueAsNumber: true,
                             })}
                           >
                             <option value="">Selecciona una opción</option>
-                            {gtc45ExposureOptions.map((option) => (
+                            {gtc45ConsequenceOptions.map((option) => (
                               <option key={option.value} value={option.value}>
                                 {option.label} · {option.value} — {option.meaning}
                               </option>
                             ))}
                           </select>
                         </div>
-                      </div>
-                      <fieldset className="risk-control-locations">
-                        <legend>Controles existentes</legend>
-                        <div className="field">
-                          <label htmlFor="control-source">Control en la fuente</label>
-                          <textarea id="control-source" {...form.register('controlSource')} />
-                        </div>
-                        <div className="field">
-                          <label htmlFor="control-medium">Control en el medio</label>
-                          <textarea id="control-medium" {...form.register('controlMedium')} />
-                        </div>
-                        <div className="field">
-                          <label htmlFor="control-individual">
-                            Control relacionado con la persona
-                          </label>
-                          <textarea
-                            id="control-individual"
-                            {...form.register('controlIndividual')}
-                          />
-                        </div>
-                      </fieldset>
-                      <details className="risk-method-cues">
-                        <summary>¿Por qué? Abrir guía experta candidata</summary>
-                        <div className="field">
-                          <label htmlFor="guidance-source">
-                            ¿Qué condición en la fuente observaste?
-                          </label>
-                          <textarea
-                            id="guidance-source"
-                            {...form.register('guidanceSourceConditions')}
-                          />
-                        </div>
-                        <div className="field">
-                          <label htmlFor="guidance-controls">
-                            ¿Qué evidencia observaste sobre efectividad de controles?
-                          </label>
-                          <textarea
-                            id="guidance-controls"
-                            {...form.register('guidanceControlEffectiveness')}
-                          />
-                        </div>
-                        <div className="field">
-                          <label htmlFor="guidance-history">
-                            ¿Qué antecedentes de eventos son relevantes?
-                          </label>
-                          <textarea
-                            id="guidance-history"
-                            {...form.register('guidanceEventHistory')}
-                          />
-                        </div>
-                        <p>Esta guía no asigna ND, NE ni NC y no modifica el cálculo.</p>
-                      </details>
+                      </>
+                    ) : (
+                      <>
+                        <QuestionScale
+                          name="likelihood"
+                          title="Probabilidad"
+                          descriptions={likelihoodDescriptions}
+                          register={form.register}
+                          error={form.formState.errors.likelihood?.message}
+                        />
+                        <QuestionScale
+                          name="consequence"
+                          title="Consecuencia"
+                          descriptions={consequenceDescriptions}
+                          register={form.register}
+                          error={form.formState.errors.consequence?.message}
+                        />
+                      </>
+                    )}
+                    {inspection.data.riskMethodVersion.methodDefinition.methodKey !== 'DEMO_5X5' ? (
                       <div className="field">
-                        <label htmlFor="gtc-consequence">Nivel de consecuencia</label>
-                        <select
-                          id="gtc-consequence"
-                          {...form.register('gtcConsequence', {
-                            required: 'Selecciona el nivel de consecuencia.',
-                            valueAsNumber: true,
+                        <label htmlFor="selection-rationale">Justificación profesional</label>
+                        <textarea
+                          id="selection-rationale"
+                          rows={4}
+                          maxLength={1000}
+                          {...form.register('selectionRationale', {
+                            required: 'Explica brevemente por qué elegiste estos criterios.',
+                            minLength: { value: 10, message: 'Usa al menos 10 caracteres.' },
                           })}
-                        >
-                          <option value="">Selecciona una opción</option>
-                          {gtc45ConsequenceOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label} · {option.value} — {option.meaning}
-                            </option>
-                          ))}
-                        </select>
+                        />
+                        {form.formState.errors.selectionRationale ? (
+                          <p className="field-error">
+                            {form.formState.errors.selectionRationale.message}
+                          </p>
+                        ) : null}
                       </div>
-                    </>
+                    ) : null}
+                    <div className="inspection-server-calculation" role="status">
+                      <strong>Valoración preparada</strong>
+                      <span>
+                        El resultado se calculará y guardará al continuar. La interfaz no estima el
+                        nivel.
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
+                {step === 5 ? (
+                  <div className="inspection-review-list">
+                    <div>
+                      <span>Hallazgo</span>
+                      <strong>{values.title}</strong>
+                    </div>
+                    <div>
+                      <span>Descripción</span>
+                      <strong>{values.description}</strong>
+                    </div>
+                    <div>
+                      <span>Categoría</span>
+                      <strong>
+                        {values.category
+                          ? FINDING_CATEGORY_LABELS[values.category]
+                          : 'Sin seleccionar'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Metodología</span>
+                      <strong>
+                        {inspection.data.riskMethodVersion.displayName} · v
+                        {inspection.data.riskMethodVersion.semanticVersion}
+                      </strong>
+                    </div>
+                    {inspection.data.riskMethodVersion.methodDefinition.methodKey ===
+                    'GTC45_2010' ? (
+                      <div>
+                        <span>Criterios seleccionados</span>
+                        <strong>
+                          Deficiencia {selectedGtcDeficiencyLabel(values.gtcDeficiency)} ·
+                          Exposición {selectedGtcExposureLabel(values.gtcExposure)} · Consecuencia{' '}
+                          {selectedGtcConsequenceLabel(values.gtcConsequence)}
+                        </strong>
+                      </div>
+                    ) : inspection.data.riskMethodVersion.methodDefinition.methodKey ===
+                      'GUIDED_5X5' ? (
+                      <div>
+                        <span>Criterios seleccionados</span>
+                        <strong>
+                          Probabilidad {values.guidedProbability} · Severidad humana{' '}
+                          {values.guidedSeverity}
+                        </strong>
+                      </div>
+                    ) : (
+                      <div>
+                        <span>Criterios seleccionados</span>
+                        <strong>
+                          Probabilidad {values.likelihood} · Consecuencia {values.consequence}
+                        </strong>
+                      </div>
+                    )}
+                    <p className="inspection-invariant-note">
+                      Guardar registra el hallazgo. No completa la inspección.
+                    </p>
+                  </div>
+                ) : null}
+                {mutation.isError ? (
+                  <InlineRequestState>
+                    No pudimos guardar el hallazgo. Todas tus respuestas se conservaron; vuelve a
+                    intentarlo.
+                  </InlineRequestState>
+                ) : null}
+                <div className="inspection-sticky-actions">
+                  {step === 1 ? (
+                    <Link className="button secondary" href={`/app/inspections/${inspectionId}`}>
+                      Cancelar
+                    </Link>
                   ) : (
-                    <>
-                      <QuestionScale
-                        name="likelihood"
-                        title="Probabilidad"
-                        descriptions={likelihoodDescriptions}
-                        register={form.register}
-                        error={form.formState.errors.likelihood?.message}
-                      />
-                      <QuestionScale
-                        name="consequence"
-                        title="Consecuencia"
-                        descriptions={consequenceDescriptions}
-                        register={form.register}
-                        error={form.formState.errors.consequence?.message}
-                      />
-                    </>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() => setStep((current) => Math.max(1, current - 1))}
+                    >
+                      Atrás
+                    </button>
                   )}
-                  {inspection.data.riskMethodVersion.methodDefinition.methodKey !== 'DEMO_5X5' ? (
-                    <div className="field">
-                      <label htmlFor="selection-rationale">Justificación profesional</label>
-                      <textarea
-                        id="selection-rationale"
-                        rows={4}
-                        maxLength={1000}
-                        {...form.register('selectionRationale', {
-                          required: 'Explica brevemente por qué elegiste estos criterios.',
-                          minLength: { value: 10, message: 'Usa al menos 10 caracteres.' },
-                        })}
-                      />
-                      {form.formState.errors.selectionRationale ? (
-                        <p className="field-error">
-                          {form.formState.errors.selectionRationale.message}
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <div className="inspection-server-calculation" role="status">
-                    <strong>Valoración preparada</strong>
-                    <span>
-                      El resultado se calculará y guardará al continuar. La interfaz no estima el
-                      nivel.
-                    </span>
-                  </div>
-                </div>
-              ) : null}
-              {step === 5 ? (
-                <div className="inspection-review-list">
-                  <div>
-                    <span>Hallazgo</span>
-                    <strong>{values.title}</strong>
-                  </div>
-                  <div>
-                    <span>Descripción</span>
-                    <strong>{values.description}</strong>
-                  </div>
-                  <div>
-                    <span>Categoría</span>
-                    <strong>{FINDING_CATEGORY_LABELS[values.category]}</strong>
-                  </div>
-                  <div>
-                    <span>Metodología</span>
-                    <strong>
-                      {inspection.data.riskMethodVersion.displayName} · v
-                      {inspection.data.riskMethodVersion.semanticVersion}
-                    </strong>
-                  </div>
-                  {inspection.data.riskMethodVersion.methodDefinition.methodKey === 'GTC45_2010' ? (
-                    <div>
-                      <span>Criterios seleccionados</span>
-                      <strong>
-                        Deficiencia {selectedGtcDeficiencyLabel(values.gtcDeficiency)} · Exposición{' '}
-                        {selectedGtcExposureLabel(values.gtcExposure)} · Consecuencia{' '}
-                        {selectedGtcConsequenceLabel(values.gtcConsequence)}
-                      </strong>
-                    </div>
-                  ) : inspection.data.riskMethodVersion.methodDefinition.methodKey ===
-                    'GUIDED_5X5' ? (
-                    <div>
-                      <span>Criterios seleccionados</span>
-                      <strong>
-                        Probabilidad {values.guidedProbability} · Severidad humana{' '}
-                        {values.guidedSeverity}
-                      </strong>
-                    </div>
+                  {step < 5 ? (
+                    <button
+                      key="continue-finding"
+                      type="button"
+                      className="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        void continueStep();
+                      }}
+                    >
+                      Continuar
+                    </button>
                   ) : (
-                    <div>
-                      <span>Criterios seleccionados</span>
-                      <strong>
-                        Probabilidad {values.likelihood} · Consecuencia {values.consequence}
-                      </strong>
-                    </div>
+                    <button
+                      key="save-finding"
+                      type="submit"
+                      className="button"
+                      disabled={mutation.isPending}
+                    >
+                      {pendingFeedback ? 'Guardando…' : 'Guardar hallazgo'}
+                    </button>
                   )}
-                  <p className="inspection-invariant-note">
-                    Guardar registra el hallazgo. No completa la inspección.
-                  </p>
                 </div>
-              ) : null}
-              {mutation.isError ? (
-                <InlineRequestState>
-                  No pudimos guardar el hallazgo. Todas tus respuestas se conservaron; vuelve a
-                  intentarlo.
-                </InlineRequestState>
-              ) : null}
-              <div className="inspection-sticky-actions">
-                {step === 1 ? (
-                  <Link className="button secondary" href={`/app/inspections/${inspectionId}`}>
-                    Cancelar
-                  </Link>
-                ) : (
-                  <button
-                    type="button"
-                    className="button secondary"
-                    onClick={() => setStep((current) => Math.max(1, current - 1))}
-                  >
-                    Atrás
-                  </button>
-                )}
-                {step < 5 ? (
-                  <button
-                    key="continue-finding"
-                    type="button"
-                    className="button"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      void continueStep();
-                    }}
-                  >
-                    Continuar
-                  </button>
-                ) : (
-                  <button
-                    key="save-finding"
-                    type="submit"
-                    className="button"
-                    disabled={mutation.isPending}
-                  >
-                    {mutation.isPending ? 'Guardando…' : 'Guardar hallazgo'}
-                  </button>
-                )}
-              </div>
-            </form>
-          </Card>
+              </form>
+            </Card>
+            <InspectionLiveContext
+              inspection={inspection.data}
+              organizationName={api.organizationName}
+            />
+          </div>
         </div>
       ) : null}
     </AccessGate>
@@ -2832,9 +2227,11 @@ type VerifyForm = RiskInputForm & {
 export function FindingDetail({
   inspectionId,
   findingId,
+  actionId,
 }: {
   inspectionId: string;
   findingId: string;
+  actionId?: string;
 }) {
   const api = useInspectionApi();
   const queryClient = useQueryClient();
@@ -2851,6 +2248,26 @@ export function FindingDetail({
     retry: shouldRetryGet,
   });
   const context = useInspectionContext(api);
+  const inspectionContext = useQuery({
+    queryKey: queryKeys.organization.inspection(organizationId ?? 'inactive', inspectionId),
+    queryFn: ({ signal }) => api.request<Inspection>(`/inspections/${inspectionId}`, { signal }),
+    enabled: Boolean(organizationId && api.moduleEnabled),
+    retry: shouldRetryGet,
+  });
+  const focusedAction = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      !actionId ||
+      focusedAction.current === actionId ||
+      !finding.data?.actions.some(({ id }) => id === actionId)
+    )
+      return;
+    const target = document.getElementById(`inspection-action-${actionId}`);
+    if (!target) return;
+    target.scrollIntoView({ block: 'start' });
+    target.focus({ preventScroll: true });
+    focusedAction.current = actionId;
+  }, [actionId, finding.data]);
   const actionForm = useForm<ActionForm>({
     mode: 'onBlur',
     defaultValues: {
@@ -2920,7 +2337,7 @@ export function FindingDetail({
         body: JSON.stringify({
           ...input,
           assignedToUserId: input.assignedToUserId || undefined,
-          dueAt: input.dueAt || undefined,
+          dueAt: input.dueAt ? new Date(input.dueAt).toISOString() : undefined,
           description: input.description || undefined,
         }),
       }),
@@ -2996,6 +2413,9 @@ export function FindingDetail({
     },
   });
 
+  const actionPendingFeedback = useRealRequestFeedback(createAction.isPending);
+  const evidencePendingFeedback = useRealRequestFeedback(addEvidence.isPending);
+  const verificationPendingFeedback = useRealRequestFeedback(verify.isPending);
   const mutationError =
     createAction.isError ||
     updateAction.isError ||
@@ -3140,6 +2560,30 @@ export function FindingDetail({
 
           <div className="inspection-finding-layout">
             <div className="stack">
+              {finding.data.criterionResult ? (
+                <Card className="inspection-summary-card">
+                  <p className="eyebrow">Origen del hallazgo · criterio No conforme</p>
+                  <h2>{finding.data.criterionResult.criterion.title}</h2>
+                  <p>{finding.data.criterionResult.note}</p>
+                  <p>
+                    {finding.data.criterionResult.criterion.standardVersion.source.name} ·{' '}
+                    {finding.data.criterionResult.criterion.standardVersion.editionLabel} ·{' '}
+                    {finding.data.criterionResult.criterion.standardVersion.source.originCountry ??
+                      'Jurisdicción no indicada'}
+                  </p>
+                  {Array.isArray(finding.data.criterionResult.evidenceReferences) ? (
+                    <p>
+                      Referencias:{' '}
+                      {finding.data.criterionResult.evidenceReferences.join(' · ') ||
+                        'Sin referencias registradas'}
+                    </p>
+                  ) : null}
+                  <p className="inspection-invariant-note">
+                    El hallazgo conserva su valoración inicial. La verificación residual se registra
+                    por separado.
+                  </p>
+                </Card>
+              ) : null}
               <section aria-labelledby="risk-pair-title">
                 <div className="inspection-section-heading">
                   <div>
@@ -3272,14 +2716,6 @@ export function FindingDetail({
                       <p className="field-error">{actionForm.formState.errors.title.message}</p>
                     ) : null}
                   </div>
-                  <div className="field">
-                    <label htmlFor="action-description">Descripción (opcional)</label>
-                    <textarea
-                      id="action-description"
-                      rows={4}
-                      {...actionForm.register('description')}
-                    />
-                  </div>
                   <div className="inspection-form-grid">
                     <div className="field">
                       <label htmlFor="assignee">Responsable</label>
@@ -3306,6 +2742,16 @@ export function FindingDetail({
                     <label htmlFor="due">Fecha límite (opcional)</label>
                     <input id="due" type="datetime-local" {...actionForm.register('dueAt')} />
                   </div>
+                  <TechnicalDetails summary="Descripción opcional de la acción">
+                    <div className="field">
+                      <label htmlFor="action-description">Descripción (opcional)</label>
+                      <textarea
+                        id="action-description"
+                        rows={4}
+                        {...actionForm.register('description')}
+                      />
+                    </div>
+                  </TechnicalDetails>
                   <div className="inspection-dialog-actions">
                     <button
                       className="button secondary"
@@ -3315,7 +2761,7 @@ export function FindingDetail({
                       Cancelar
                     </button>
                     <button className="button" disabled={createAction.isPending}>
-                      {createAction.isPending ? 'Guardando…' : 'Guardar acción'}
+                      {actionPendingFeedback ? 'Guardando…' : 'Guardar acción'}
                     </button>
                   </div>
                 </form>
@@ -3346,7 +2792,12 @@ export function FindingDetail({
                         assignedToUserId: action.assignedToUserId ?? action.assignedTo?.id,
                       });
                       return (
-                        <Card className="inspection-action-card" key={action.id}>
+                        <Card
+                          className="inspection-action-card"
+                          key={action.id}
+                          id={`inspection-action-${action.id}`}
+                          tabIndex={-1}
+                        >
                           <div className="inspection-action-topline">
                             <DomainStatusBadge domain="action" status={action.status} />
                             {action.overdue ? <span className="overdue-chip">Vencida</span> : null}
@@ -3392,6 +2843,11 @@ export function FindingDetail({
                                   <span aria-hidden="true">
                                     {evidence.type === 'NOTE' ? '≡' : '↗'}
                                   </span>
+                                  <small>
+                                    {evidence.type === 'NOTE' ? 'Nota' : 'Enlace externo'} ·{' '}
+                                    {evidence.createdBy?.displayName ?? 'Autor registrado'} ·{' '}
+                                    {formatDate(evidence.createdAt)}
+                                  </small>
                                   {evidence.type === 'NOTE' ? (
                                     <span>{evidence.note}</span>
                                   ) : (
@@ -3400,7 +2856,7 @@ export function FindingDetail({
                                       target="_blank"
                                       rel="noopener noreferrer"
                                     >
-                                      Abrir enlace externo
+                                      {evidence.externalUrl}
                                     </a>
                                   )}
                                 </div>
@@ -3485,16 +2941,19 @@ export function FindingDetail({
                                   Cancelar
                                 </button>
                                 <button className="button" disabled={addEvidence.isPending}>
-                                  {addEvidence.isPending ? 'Guardando…' : 'Guardar evidencia'}
+                                  {evidencePendingFeedback ? 'Guardando…' : 'Guardar evidencia'}
                                 </button>
                               </div>
                             </form>
                           ) : null}
                           <div className="inspection-action-controls">
-                            {canWriteInspections(api.role) && finding.data.status !== 'CLOSED' ? (
+                            {canWriteInspections(api.role) &&
+                            finding.data.status !== 'CLOSED' &&
+                            evidenceActionId !== action.id ? (
                               <button
                                 className="button secondary"
                                 type="button"
+                                disabled={addEvidence.isPending}
                                 onClick={() => {
                                   evidenceForm.reset();
                                   setEvidenceActionId(action.id);
@@ -3577,6 +3036,12 @@ export function FindingDetail({
               className="inspection-context-rail focus-dim"
               label="Contexto del hallazgo"
             >
+              {inspectionContext.data ? (
+                <InspectionLiveContext
+                  inspection={inspectionContext.data}
+                  organizationName={api.organizationName}
+                />
+              ) : null}
               <Card>
                 <h2>Progreso del hallazgo</h2>
                 <ol className="inspection-workflow-steps">
@@ -3585,7 +3050,7 @@ export function FindingDetail({
                     Acción correctiva creada
                   </li>
                   <li className={actionProgress.state}>{actionProgress.label}</li>
-                  <li className={finding.data.residualScore ? 'done' : 'current'}>
+                  <li className={finding.data.residualMethodResult ? 'done' : 'current'}>
                     Riesgo residual verificado
                   </li>
                   <li className={finding.data.status === 'CLOSED' ? 'done' : ''}>
@@ -3609,7 +3074,7 @@ export function FindingDetail({
                   >
                     Acciones no canceladas verificadas
                   </li>
-                  <li data-complete={Boolean(finding.data.residualScore)}>
+                  <li data-complete={Boolean(finding.data.residualMethodResult)}>
                     Riesgo residual registrado
                   </li>
                 </ul>
@@ -3926,7 +3391,7 @@ export function FindingDetail({
                   Cancelar
                 </button>
                 <button className="button" disabled={verify.isPending}>
-                  {verify.isPending ? 'Verificando…' : 'Verificar riesgo residual'}
+                  {verificationPendingFeedback ? 'Verificando…' : 'Verificar riesgo residual'}
                 </button>
               </div>
             </form>

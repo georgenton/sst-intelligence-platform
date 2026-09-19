@@ -129,6 +129,12 @@ export class InspectionsService {
     context: Context,
   ) {
     await this.assertLocation(organizationId, input.workCenterId, input.workAreaId);
+    if (input.resourceId && !input.inspectionDomain) {
+      throw new BadRequestException({
+        code: 'INSPECTION_RESOURCE_DOMAIN_REQUIRED',
+        message: 'Selecciona un dominio configurado para resolver el recurso de la inspección.',
+      });
+    }
     const inspectionDepth = input.inspectionDepth;
     const methodVersion = await this.riskMethods.requireAvailableVersion(input.riskMethodVersionId);
     const organization = await this.prisma.organization.findUniqueOrThrow({
@@ -161,80 +167,89 @@ export class InspectionsService {
       : (resolvedStandard?.standardVersion.criteria ?? []);
     const selectedCriterionIds = new Set(resolvedResource?.criterionIds ?? []);
     const criteria = resolvedResource
-      ? allCriteria.filter(({ id }) => selectedCriterionIds.has(id))
+      ? allCriteria
+          .filter(({ id }) => selectedCriterionIds.has(id))
+          .sort(
+            (left, right) =>
+              resolvedResource.criterionIds.indexOf(left.id) -
+              resolvedResource.criterionIds.indexOf(right.id),
+          )
       : allCriteria;
-    const inspection = await this.prisma.inspection.create({
-      data: {
-        organizationId,
-        workCenterId: input.workCenterId,
-        workAreaId: input.workAreaId,
-        title: input.title.trim(),
-        description: input.description?.trim(),
-        scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : undefined,
-        inspectorUserId: userId,
-        isDemo: organization.status === 'DEMO',
-        riskMethodVersionId: methodVersion.id,
-        riskMethodSnapshot: this.riskMethods.snapshot(methodVersion),
-        inspectionDepth,
-        inspectionDepthVersion: inspectionDepthSnapshot(inspectionDepth).version,
-        inspectionDepthSnapshot: inspectionDepthSnapshot(inspectionDepth),
-        inspectionDomain: input.inspectionDomain,
-        standardPolicyVersionId: resolvedStandard?.policy.id,
-        standardVersionId:
-          primarySource?.standardVersion.id ?? resolvedStandard?.standardVersion.id,
-        standardSnapshot: primarySource
-          ? this.inspectionStandards.snapshot(primarySource.standardVersion)
-          : resolvedStandard
-            ? this.inspectionStandards.snapshot(resolvedStandard.standardVersion)
+    return this.prisma.$transaction(async (tx) => {
+      const inspection = await tx.inspection.create({
+        data: {
+          organizationId,
+          workCenterId: input.workCenterId,
+          workAreaId: input.workAreaId,
+          title: input.title.trim(),
+          description: input.description?.trim(),
+          scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : undefined,
+          inspectorUserId: userId,
+          isDemo: organization.status === 'DEMO',
+          riskMethodVersionId: methodVersion.id,
+          riskMethodSnapshot: this.riskMethods.snapshot(methodVersion),
+          inspectionDepth,
+          inspectionDepthVersion: inspectionDepthSnapshot(inspectionDepth).version,
+          inspectionDepthSnapshot: inspectionDepthSnapshot(inspectionDepth),
+          inspectionDomain: input.inspectionDomain,
+          standardPolicyVersionId: resolvedStandard?.policy.id,
+          standardVersionId:
+            primarySource?.standardVersion.id ?? resolvedStandard?.standardVersion.id,
+          standardSnapshot: primarySource
+            ? this.inspectionStandards.snapshot(primarySource.standardVersion)
+            : resolvedStandard
+              ? this.inspectionStandards.snapshot(resolvedStandard.standardVersion)
+              : undefined,
+          inspectionBasisVersionId: resolvedBasis?.id,
+          inspectionBasisSnapshot: resolvedBasis
+            ? this.inspectionBases.snapshot(resolvedBasis)
             : undefined,
-        inspectionBasisVersionId: resolvedBasis?.id,
-        inspectionBasisSnapshot: resolvedBasis
-          ? this.inspectionBases.snapshot(resolvedBasis)
-          : undefined,
-        resourceTaxonomyVersionId: resolvedResource?.taxonomyVersion.id,
-        resourceMappingVersionId: resolvedResource?.mappingVersion.id,
-        resourceScopeSnapshot: resolvedResource?.snapshot,
-        criterionResults: criteria.length
-          ? {
-              create: criteria.map((criterion) => ({
-                organizationId,
-                criterionId: criterion.id,
-                actorUserId: userId,
-                outcome: 'NO_VERIFICADO',
-                evidenceReferences: [],
-              })),
-            }
-          : undefined,
-      },
-      include: {
-        workCenter: { select: { id: true, name: true } },
-        workArea: { select: { id: true, name: true } },
-        standardVersion: { include: { source: true } },
-        inspectionBasisVersion: { include: { definition: true } },
-        criterionResults: true,
-      },
+          resourceTaxonomyVersionId: resolvedResource?.taxonomyVersion.id,
+          resourceMappingVersionId: resolvedResource?.mappingVersion.id,
+          resourceScopeSnapshot: resolvedResource?.snapshot,
+          criterionResults: criteria.length
+            ? {
+                create: criteria.map((criterion) => ({
+                  organizationId,
+                  criterionId: criterion.id,
+                  actorUserId: userId,
+                  outcome: 'NO_VERIFICADO',
+                  evidenceReferences: [],
+                })),
+              }
+            : undefined,
+        },
+        include: {
+          workCenter: { select: { id: true, name: true } },
+          workArea: { select: { id: true, name: true } },
+          standardVersion: { include: { source: true } },
+          inspectionBasisVersion: { include: { definition: true } },
+          criterionResults: true,
+        },
+      });
+      await this.record(
+        organizationId,
+        userId,
+        'INSPECTION_CREATED',
+        'Inspection',
+        inspection.id,
+        {
+          workCenterId: inspection.workCenterId,
+          isDemo: inspection.isDemo,
+          riskMethodVersionId: methodVersion.id,
+          inspectionDomain: inspection.inspectionDomain,
+          standardVersionId: inspection.standardVersionId,
+          inspectionBasisVersionId: inspection.inspectionBasisVersionId,
+          resourceTaxonomyVersionId: inspection.resourceTaxonomyVersionId,
+          resourceMappingVersionId: inspection.resourceMappingVersionId,
+          inspectionDepth: inspection.inspectionDepth,
+          inspectionDepthVersion: inspection.inspectionDepthVersion,
+        },
+        context,
+        tx,
+      );
+      return inspection;
     });
-    await this.record(
-      organizationId,
-      userId,
-      'INSPECTION_CREATED',
-      'Inspection',
-      inspection.id,
-      {
-        workCenterId: inspection.workCenterId,
-        isDemo: inspection.isDemo,
-        riskMethodVersionId: methodVersion.id,
-        inspectionDomain: inspection.inspectionDomain,
-        standardVersionId: inspection.standardVersionId,
-        inspectionBasisVersionId: inspection.inspectionBasisVersionId,
-        resourceTaxonomyVersionId: inspection.resourceTaxonomyVersionId,
-        resourceMappingVersionId: inspection.resourceMappingVersionId,
-        inspectionDepth: inspection.inspectionDepth,
-        inspectionDepthVersion: inspection.inspectionDepthVersion,
-      },
-      context,
-    );
-    return inspection;
   }
 
   async get(organizationId: string, inspectionId: string) {
@@ -311,15 +326,46 @@ export class InspectionsService {
         ({ standardVersionId }, index) => [standardVersionId, index],
       ),
     );
+    const snapshot = inspection.resourceScopeSnapshot as {
+      mapping?: { criterionIds?: string[] };
+    } | null;
+    const frozenOrder = new Map(
+      (snapshot?.mapping?.criterionIds ?? []).map((id, index) => [id, index]),
+    );
+    // observedAt has a database default even on untouched NO_VERIFICADO rows.
+    // A recorded NV is distinguished by the existing mandatory audit event.
+    const recordings = await this.prisma.auditLog.findMany({
+      where: {
+        organizationId,
+        action: 'INSPECTION_CRITERION_RECORDED',
+        entityType: 'InspectionCriterionResult',
+        entityId: { in: inspection.criterionResults.map(({ id }) => id) },
+      },
+      select: { entityId: true },
+    });
+    const recordedIds = new Set(recordings.map(({ entityId }) => entityId));
     return {
       ...inspection,
-      criterionResults: [...inspection.criterionResults].sort(
-        (left, right) =>
-          (sourceOrder.get(left.criterion.standardVersionId) ?? 0) -
-            (sourceOrder.get(right.criterion.standardVersionId) ?? 0) ||
-          left.criterion.displayOrder - right.criterion.displayOrder ||
-          left.criterion.code.localeCompare(right.criterion.code),
-      ),
+      criterionResults: [...inspection.criterionResults]
+        .map((result) => ({
+          ...result,
+          hasRecordedResult: result.outcome !== 'NO_VERIFICADO' || recordedIds.has(result.id),
+          canMarkNotApplicable: canUseCriterionOutcome(
+            'NO_APLICA',
+            result.criterion.notApplicableAllowed,
+          ),
+          notApplicableReason: result.criterion.notApplicableAllowed
+            ? null
+            : 'Este criterio requiere verificación y no admite No aplica.',
+        }))
+        .sort(
+          (left, right) =>
+            (frozenOrder.get(left.criterionId) ?? 0) - (frozenOrder.get(right.criterionId) ?? 0) ||
+            (sourceOrder.get(left.criterion.standardVersionId) ?? 0) -
+              (sourceOrder.get(right.criterion.standardVersionId) ?? 0) ||
+            left.criterion.displayOrder - right.criterion.displayOrder ||
+            left.criterion.code.localeCompare(right.criterion.code),
+        ),
       findings: inspection.findings.map((finding) => ({
         ...finding,
         actions: finding.actions.map((action) => ({
@@ -366,25 +412,28 @@ export class InspectionsService {
         message: `No se puede cambiar de ${inspection.status} a ${target}.`,
       });
     }
-    const updated = await this.prisma.inspection.update({
-      where: { id: inspectionId },
-      data: {
-        status: target,
-        startedAt: target === 'IN_PROGRESS' ? new Date() : undefined,
-        completedAt: target === 'COMPLETED' ? new Date() : undefined,
-      },
-      select: { id: true, status: true, startedAt: true, completedAt: true },
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.inspection.update({
+        where: { id: inspectionId },
+        data: {
+          status: target,
+          startedAt: target === 'IN_PROGRESS' ? new Date() : undefined,
+          completedAt: target === 'COMPLETED' ? new Date() : undefined,
+        },
+        select: { id: true, status: true, startedAt: true, completedAt: true },
+      });
+      await this.record(
+        organizationId,
+        userId,
+        target === 'IN_PROGRESS' ? 'INSPECTION_STARTED' : 'INSPECTION_COMPLETED',
+        'Inspection',
+        inspectionId,
+        {},
+        context,
+        tx,
+      );
+      return updated;
     });
-    await this.record(
-      organizationId,
-      userId,
-      target === 'IN_PROGRESS' ? 'INSPECTION_STARTED' : 'INSPECTION_COMPLETED',
-      'Inspection',
-      inspectionId,
-      {},
-      context,
-    );
-    return updated;
   }
 
   async updateCriterionResult(
@@ -430,31 +479,44 @@ export class InspectionsService {
           'El criterio conserva el resultado No conforme porque ya tiene un hallazgo vinculado.',
       });
     }
-    const updated = await this.prisma.inspectionCriterionResult.update({
-      where: { id: result.id },
-      data: {
-        outcome: input.data.outcome,
-        note: input.data.note,
-        evidenceReferences: input.data.evidenceReferences,
-        actorUserId: userId,
-        observedAt: new Date(),
-      },
-      include: {
-        criterion: { include: { section: true } },
-        actor: { select: { id: true, displayName: true } },
-        finding: { select: { id: true, title: true, status: true } },
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.inspectionCriterionResult.update({
+        where: { id: result.id },
+        data: {
+          outcome: input.data.outcome,
+          note: input.data.note,
+          evidenceReferences: input.data.evidenceReferences,
+          actorUserId: userId,
+          observedAt: new Date(),
+        },
+        include: {
+          criterion: { include: { section: true } },
+          actor: { select: { id: true, displayName: true } },
+          finding: { select: { id: true, title: true, status: true } },
+        },
+      });
+      await this.record(
+        organizationId,
+        userId,
+        'INSPECTION_CRITERION_RECORDED',
+        'InspectionCriterionResult',
+        updated.id,
+        { inspectionId, criterionId, outcome: updated.outcome },
+        context,
+        tx,
+      );
+      return {
+        ...updated,
+        hasRecordedResult: true,
+        canMarkNotApplicable: canUseCriterionOutcome(
+          'NO_APLICA',
+          updated.criterion.notApplicableAllowed,
+        ),
+        notApplicableReason: updated.criterion.notApplicableAllowed
+          ? null
+          : 'Este criterio requiere verificación y no admite No aplica.',
+      };
     });
-    await this.record(
-      organizationId,
-      userId,
-      'INSPECTION_CRITERION_RECORDED',
-      'InspectionCriterionResult',
-      updated.id,
-      { inspectionId, criterionId, outcome: updated.outcome },
-      context,
-    );
-    return updated;
   }
 
   async listFindings(organizationId: string, inspectionId: string, query: InspectionQueryDto) {
@@ -532,104 +594,122 @@ export class InspectionsService {
     };
     const risk = this.riskMethods.calculate(methodVersion, methodInput);
     const guidance = inspection.riskMethodVersion.guidanceVersions[0];
-    const created = await this.prisma.inspectionFinding.create({
-      data: {
-        organizationId,
-        inspectionId,
-        workCenterId: inspection.workCenterId,
-        workAreaId: inspection.workAreaId,
-        category: input.category,
-        title: input.title.trim(),
-        description: input.description.trim(),
-        riskMethodKey: inspection.riskMethodVersion.methodDefinition.methodKey,
-        riskMethodVersion: methodVersion.semanticVersion,
-        riskMethodVersionId: methodVersion.id,
-        riskMethodSnapshot: this.riskMethods.snapshot(methodVersion),
-        initialMethodInput: risk.input as Prisma.InputJsonValue,
-        initialMethodResult: risk.result as Prisma.InputJsonValue,
-        guidanceVersionId: guidance?.id,
-        guidanceSnapshot: guidance?.manifest ?? undefined,
-        initialLikelihood: risk.likelihood,
-        initialConsequence: risk.consequence,
-        initialScore: risk.score,
-        initialRiskLevel: risk.semanticLevel,
-        initialResultLabel: risk.resultLabel,
-        createdById: userId,
-        criterionResultId: criterionResult?.id,
-      },
-    });
-    const since = new Date(created.createdAt.getTime() - this.windowDays() * 86_400_000);
-    const previous = await this.prisma.inspectionFinding.findMany({
-      where: {
-        organizationId,
-        id: { not: created.id },
-        workCenterId: created.workCenterId,
-        category: created.category,
-        createdAt: { gte: since, lt: created.createdAt },
-      },
-      select: { id: true },
-    });
-    const status = recurrenceStatus(previous.length);
-    const finding = await this.prisma.inspectionFinding.update({
-      where: { id: created.id },
-      data: { recurrenceCount: previous.length, recurrenceStatus: status },
-      include: { workCenter: { select: { name: true } }, workArea: { select: { name: true } } },
-    });
-    await this.record(
-      organizationId,
-      userId,
-      'FINDING_CREATED',
-      'InspectionFinding',
-      finding.id,
-      {
-        category: finding.category,
-        initialRiskLevel: finding.initialRiskLevel,
-        riskMethodVersion: finding.riskMethodVersion,
-        riskMethodVersionId: finding.riskMethodVersionId,
-      },
-      context,
-    );
-    if (status !== 'NONE')
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.inspectionFinding.create({
+        data: {
+          organizationId,
+          inspectionId,
+          workCenterId: inspection.workCenterId,
+          workAreaId: inspection.workAreaId,
+          category: input.category,
+          title: input.title.trim(),
+          description: input.description.trim(),
+          riskMethodKey: inspection.riskMethodVersion.methodDefinition.methodKey,
+          riskMethodVersion: methodVersion.semanticVersion,
+          riskMethodVersionId: methodVersion.id,
+          riskMethodSnapshot: this.riskMethods.snapshot(methodVersion),
+          initialMethodInput: risk.input as Prisma.InputJsonValue,
+          initialMethodResult: risk.result as Prisma.InputJsonValue,
+          guidanceVersionId: guidance?.id,
+          guidanceSnapshot: guidance?.manifest ?? undefined,
+          initialLikelihood: risk.likelihood,
+          initialConsequence: risk.consequence,
+          initialScore: risk.score,
+          initialRiskLevel: risk.semanticLevel,
+          initialResultLabel: risk.resultLabel,
+          createdById: userId,
+          criterionResultId: criterionResult?.id,
+        },
+      });
+      const since = new Date(created.createdAt.getTime() - this.windowDays() * 86_400_000);
+      const previous = await tx.inspectionFinding.findMany({
+        where: {
+          organizationId,
+          id: { not: created.id },
+          workCenterId: created.workCenterId,
+          category: created.category,
+          createdAt: { gte: since, lt: created.createdAt },
+        },
+        select: { id: true },
+      });
+      const status = recurrenceStatus(previous.length);
+      const finding = await tx.inspectionFinding.update({
+        where: { id: created.id },
+        data: { recurrenceCount: previous.length, recurrenceStatus: status },
+        include: { workCenter: { select: { name: true } }, workArea: { select: { name: true } } },
+      });
       await this.record(
         organizationId,
         userId,
-        status === 'SYSTEMIC_REVIEW_RECOMMENDED'
-          ? 'SYSTEMIC_REVIEW_RECOMMENDED'
-          : 'RECURRENCE_DETECTED',
+        'FINDING_CREATED',
         'InspectionFinding',
         finding.id,
         {
           category: finding.category,
-          workCenterId: finding.workCenterId,
-          previousCount: previous.length,
-          windowDays: this.windowDays(),
+          initialRiskLevel: finding.initialRiskLevel,
+          riskMethodVersion: finding.riskMethodVersion,
+          riskMethodVersionId: finding.riskMethodVersionId,
         },
         context,
+        tx,
       );
-    if (status === 'SYSTEMIC_REVIEW_RECOMMENDED')
-      await this.prisma.inspectionAlert.upsert({
-        where: { findingId_type: { findingId: finding.id, type: 'RECURRENCE' } },
-        update: {},
-        create: {
+      if (status !== 'NONE')
+        await this.record(
           organizationId,
-          findingId: finding.id,
-          type: 'RECURRENCE',
-          severity: 'WARNING',
-          message: `Se registraron varios hallazgos de categoría ${FINDING_CATEGORY_LABELS[finding.category as FindingCategory]} en este centro durante los últimos ${this.windowDays()} días. Se recomienda revisar si las acciones puntuales son suficientes y evaluar posibles factores sistémicos.`,
-        },
-      });
-    return {
-      ...finding,
-      previousFindingIds: previous.map(({ id }) => id),
-      recurrenceWindowDays: this.windowDays(),
-    };
+          userId,
+          status === 'SYSTEMIC_REVIEW_RECOMMENDED'
+            ? 'SYSTEMIC_REVIEW_RECOMMENDED'
+            : 'RECURRENCE_DETECTED',
+          'InspectionFinding',
+          finding.id,
+          {
+            category: finding.category,
+            workCenterId: finding.workCenterId,
+            previousCount: previous.length,
+            windowDays: this.windowDays(),
+          },
+          context,
+          tx,
+        );
+      if (status === 'SYSTEMIC_REVIEW_RECOMMENDED')
+        await tx.inspectionAlert.upsert({
+          where: { findingId_type: { findingId: finding.id, type: 'RECURRENCE' } },
+          update: {},
+          create: {
+            organizationId,
+            findingId: finding.id,
+            type: 'RECURRENCE',
+            severity: 'WARNING',
+            message: `Se registraron varios hallazgos de categoría ${FINDING_CATEGORY_LABELS[finding.category as FindingCategory]} en este centro durante los últimos ${this.windowDays()} días. Se recomienda revisar si las acciones puntuales son suficientes y evaluar posibles factores sistémicos.`,
+          },
+        });
+      return {
+        ...finding,
+        previousFindingIds: previous.map(({ id }) => id),
+        recurrenceWindowDays: this.windowDays(),
+      };
+    });
   }
 
   async getFinding(organizationId: string, inspectionId: string, findingId: string) {
     const finding = await this.prisma.inspectionFinding.findFirst({
       where: { id: findingId, inspectionId, organizationId },
       include: {
-        inspection: { select: { id: true, title: true, status: true, isDemo: true } },
+        inspection: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            isDemo: true,
+            inspectionDomain: true,
+            resourceScopeSnapshot: true,
+            inspectionBasisSnapshot: true,
+            standardSnapshot: true,
+          },
+        },
+        criterionResult: {
+          include: { criterion: { include: { standardVersion: { include: { source: true } } } } },
+        },
         workCenter: { select: { id: true, name: true } },
         workArea: { select: { id: true, name: true } },
         actions: {
@@ -638,7 +718,11 @@ export class InspectionsService {
           include: {
             assignedTo: { select: { id: true, displayName: true } },
             verifiedBy: { select: { id: true, displayName: true } },
-            evidence: { where: { organizationId }, orderBy: { createdAt: 'desc' } },
+            evidence: {
+              where: { organizationId },
+              orderBy: { createdAt: 'desc' },
+              include: { createdBy: { select: { id: true, displayName: true } } },
+            },
           },
         },
         alerts: {
@@ -745,17 +829,18 @@ export class InspectionsService {
         where: { id: findingId },
         data: { status: 'ACTION_IN_PROGRESS' },
       });
+      await this.record(
+        organizationId,
+        userId,
+        'CORRECTIVE_ACTION_CREATED',
+        'CorrectiveAction',
+        created.id,
+        { findingId, priority: created.priority, hasAssignee: Boolean(created.assignedToUserId) },
+        context,
+        tx,
+      );
       return created;
     });
-    await this.record(
-      organizationId,
-      userId,
-      'CORRECTIVE_ACTION_CREATED',
-      'CorrectiveAction',
-      action.id,
-      { findingId, priority: action.priority, hasAssignee: Boolean(action.assignedToUserId) },
-      context,
-    );
     return { ...action, overdue: isCorrectiveActionOverdue(action.status, action.dueAt) };
   }
 
@@ -773,28 +858,31 @@ export class InspectionsService {
     const current = await this.requireAction(organizationId, inspectionId, findingId, actionId);
     if (input.status) this.assertActionTransition(current.status, input.status);
     await this.assertAssignee(organizationId, input.assignedToUserId);
-    const action = await this.prisma.correctiveAction.update({
-      where: { id: actionId },
-      data: {
-        title: input.title?.trim(),
-        description: input.description?.trim(),
-        assignedToUserId: input.assignedToUserId,
-        priority: input.priority,
-        dueAt: input.dueAt ? new Date(input.dueAt) : undefined,
-        status: input.status,
-      },
-      include: { assignedTo: { select: { id: true, displayName: true } } },
+    return this.prisma.$transaction(async (tx) => {
+      const action = await tx.correctiveAction.update({
+        where: { id: actionId },
+        data: {
+          title: input.title?.trim(),
+          description: input.description?.trim(),
+          assignedToUserId: input.assignedToUserId,
+          priority: input.priority,
+          dueAt: input.dueAt ? new Date(input.dueAt) : undefined,
+          status: input.status,
+        },
+        include: { assignedTo: { select: { id: true, displayName: true } } },
+      });
+      await this.record(
+        organizationId,
+        userId,
+        'CORRECTIVE_ACTION_UPDATED',
+        'CorrectiveAction',
+        actionId,
+        { status: action.status, priority: action.priority },
+        context,
+        tx,
+      );
+      return { ...action, overdue: isCorrectiveActionOverdue(action.status, action.dueAt) };
     });
-    await this.record(
-      organizationId,
-      userId,
-      'CORRECTIVE_ACTION_UPDATED',
-      'CorrectiveAction',
-      actionId,
-      { status: action.status, priority: action.priority },
-      context,
-    );
-    return { ...action, overdue: isCorrectiveActionOverdue(action.status, action.dueAt) };
   }
 
   async addEvidence(
@@ -850,17 +938,18 @@ export class InspectionsService {
         where: { id: findingId },
         data: { status: 'PENDING_VERIFICATION' },
       });
+      await this.record(
+        organization.id,
+        userId,
+        'CORRECTIVE_ACTION_COMPLETED',
+        'CorrectiveAction',
+        actionId,
+        { findingId },
+        context,
+        tx,
+      );
       return result;
     });
-    await this.record(
-      organization.id,
-      userId,
-      'CORRECTIVE_ACTION_COMPLETED',
-      'CorrectiveAction',
-      actionId,
-      { findingId },
-      context,
-    );
     return updated;
   }
 
@@ -992,40 +1081,42 @@ export class InspectionsService {
             message: `El riesgo residual permanece ${residual.semanticLevel === 'CRITICAL' ? 'crítico' : 'alto'}. Revise la eficacia de las acciones antes de considerar controles adicionales.`,
           },
         });
-      return result;
-    });
-    await Promise.all(
-      pending.map((action) =>
-        this.record(
+      await Promise.all(
+        pending.map((action) =>
+          this.record(
+            organizationId,
+            userId,
+            'CORRECTIVE_ACTION_VERIFIED',
+            'CorrectiveAction',
+            action.id,
+            {
+              findingId,
+              residualRiskLevel: residual.semanticLevel,
+              riskMethodVersionId: finding.riskMethodVersionId,
+              verificationBasis: input.basis,
+              selfVerification: action.assignedToUserId === userId,
+            },
+            context,
+            tx,
+          ),
+        ),
+      );
+      if (closure.allowed)
+        await this.record(
           organizationId,
           userId,
-          'CORRECTIVE_ACTION_VERIFIED',
-          'CorrectiveAction',
-          action.id,
+          'FINDING_CLOSED',
+          'InspectionFinding',
+          findingId,
           {
-            findingId,
             residualRiskLevel: residual.semanticLevel,
             riskMethodVersionId: finding.riskMethodVersionId,
-            verificationBasis: input.basis,
-            selfVerification: action.assignedToUserId === userId,
           },
           context,
-        ),
-      ),
-    );
-    if (closure.allowed)
-      await this.record(
-        organizationId,
-        userId,
-        'FINDING_CLOSED',
-        'InspectionFinding',
-        findingId,
-        {
-          residualRiskLevel: residual.semanticLevel,
-          riskMethodVersionId: finding.riskMethodVersionId,
-        },
-        context,
-      );
+          tx,
+        );
+      return result;
+    });
     return {
       ...updated,
       residualAssessment: residual,
@@ -1592,15 +1683,19 @@ export class InspectionsService {
     entityId: string,
     metadata: Prisma.InputJsonValue,
     context: Context,
+    transaction: Prisma.TransactionClient = this.prisma,
   ) {
-    return this.audit.record({
-      organizationId,
-      actorUserId,
-      action,
-      entityType,
-      entityId,
-      metadata,
-      ...context,
-    });
+    return this.audit.record(
+      {
+        organizationId,
+        actorUserId,
+        action,
+        entityType,
+        entityId,
+        metadata,
+        ...context,
+      },
+      transaction,
+    );
   }
 }

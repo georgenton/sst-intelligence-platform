@@ -122,14 +122,14 @@ test('inspección, hallazgo, acción, verificación y recurrencia demo', async (
   await expect(page).toHaveURL(/\/app\/inspections$/);
   await expect(page.getByRole('heading', { name: 'Inspecciones', exact: true })).toBeVisible();
   await page.getByRole('link', { name: 'Nueva inspección' }).click();
-  await page.getByLabel('Dominio de inspección').selectOption('ELECTRICAL');
-  await page.getByLabel('Recurso a inspeccionar').selectOption({ label: 'Tomacorriente' });
-  await expect(page.getByRole('heading', { name: 'Demo Electrical Standard A' })).toBeVisible();
   await page
     .getByLabel('Centro de trabajo')
     .selectOption({ label: 'Centro Guayaquil (demostración)' });
+  await page.getByRole('radio', { name: /Instalaciones eléctricas/ }).check();
+  await page.getByRole('radio', { name: /Tomacorriente/ }).check();
   await page.getByLabel('Área (opcional)').selectOption({ label: 'Planta A' });
   await page.getByLabel('Título').fill(`Inspección de campo ${suffix}`);
+  await page.getByText('Descripción y programación opcionales', { exact: true }).click();
   await page.getByLabel('Descripción').fill('Recorrido operacional E2E.');
   await page.getByRole('radio', { name: /Técnica/ }).check();
   await page.getByRole('radio', { name: /Matriz demostrativa 5×5 histórica/ }).check();

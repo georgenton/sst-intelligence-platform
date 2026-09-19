@@ -187,6 +187,11 @@ async function referenceSnapshot(prisma) {
   ]);
   return {
     organizationBaseline: await organizationBaselineSnapshot(prisma),
+    solutionEntryFlows: await prisma.guidedFlowDefinition.findMany({
+      where: { key: 'solution-finder' },
+      orderBy: { id: 'asc' },
+    }),
+    solutionEntryModules: await prisma.moduleDefinition.findMany({ orderBy: { key: 'asc' } }),
     sources,
     sourceVersions,
     definitions,
@@ -731,6 +736,46 @@ async function verifyReadiness(scopedDatabaseUrl) {
         const prisma = clientFor(scopedDatabaseUrl);
         try {
           await verifyOrganizationCreationWithoutSeed(`http://127.0.0.1:${port}`, prisma);
+          assert.equal(
+            await prisma.guidedFlowDefinition.count({
+              where: { key: 'solution-finder', active: true },
+            }),
+            1,
+          );
+          assert.deepEqual(
+            (
+              await prisma.moduleDefinition.findMany({
+                select: { key: true },
+                orderBy: { key: 'asc' },
+              })
+            )
+              .map(({ key }) => key)
+              .sort(),
+            [
+              'COMPLIANCE',
+              'CORE',
+              'INSPECTIONS_INTELLIGENCE',
+              'PSYCHOSOCIAL',
+              'TECHNICAL_RISK',
+              'WORK_PERMITS',
+            ],
+          );
+          const entry = await globalThis.fetch(
+            `http://127.0.0.1:${port}/api/v1/solution-finder/sessions`,
+            {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: '{}',
+            },
+          );
+          assert.equal(
+            entry.status,
+            201,
+            'Fresh public demo entry must work without a development seed',
+          );
+          const session = await entry.json();
+          assert.equal(session.flowVersion, '1.0.0');
+          assert.equal(typeof session.resumeToken, 'string');
         } finally {
           await prisma.$disconnect();
         }
@@ -905,6 +950,32 @@ try {
     assert.deepEqual(secondSnapshot, firstSnapshot);
     assert.deepEqual(await operationalCounts(fresh.prisma), operationalAfterUserJourney);
     evidence.repeatedSync = true;
+    const configuredFlow = await fresh.prisma.guidedFlowDefinition.update({
+      where: { key_version: { key: 'solution-finder', version: '1.0.0' } },
+      data: {
+        active: false,
+        schema: { steps: ['company'], fixture: 'preserve-explicit-configuration' },
+      },
+    });
+    const configuredModule = await fresh.prisma.moduleDefinition.update({
+      where: { key: 'INSPECTIONS_INTELLIGENCE' },
+      data: {
+        name: 'Configured synthetic inspection module',
+        demoContent: { fixture: 'preserve-explicit-configuration' },
+      },
+    });
+    runPackageScript('reference:sync', fresh.url);
+    assert.deepEqual(
+      await fresh.prisma.guidedFlowDefinition.findUniqueOrThrow({
+        where: { id: configuredFlow.id },
+      }),
+      configuredFlow,
+    );
+    assert.deepEqual(
+      await fresh.prisma.moduleDefinition.findUniqueOrThrow({ where: { id: configuredModule.id } }),
+      configuredModule,
+    );
+    assert.deepEqual(await operationalCounts(fresh.prisma), operationalAfterUserJourney);
   } finally {
     await fresh.prisma.$disconnect();
   }

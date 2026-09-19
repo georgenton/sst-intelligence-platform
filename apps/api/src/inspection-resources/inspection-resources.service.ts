@@ -113,7 +113,13 @@ export class InspectionResourcesService {
       domain: domain as InspectionResourceQueryDto['domain'],
       standardVersionId,
     });
-    if (!catalog) return null;
+    if (!catalog) {
+      throw new BadRequestException({
+        code: 'INSPECTION_RESOURCE_NOT_AVAILABLE',
+        message:
+          'Este dominio no tiene un catálogo de recursos activo. Elige explícitamente una inspección general sin recurso.',
+      });
+    }
     const resource = catalog.resources.find(({ id }) => id === resourceId);
     if (!resource) {
       throw new BadRequestException({
