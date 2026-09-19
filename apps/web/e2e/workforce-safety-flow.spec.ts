@@ -282,7 +282,7 @@ test.describe.serial('workforce safety operations', () => {
       page.getByText('Trabajador registrado sin crear un asiento de acceso.'),
     ).toBeVisible();
 
-    await page.getByRole('link', { name: 'Protección personal', exact: true }).click();
+    await page.getByRole('link', { name: 'EPP', exact: true }).click();
     await page.getByRole('link', { name: 'Catálogo', exact: true }).click();
     await page.getByRole('button', { name: 'Agregar elemento' }).click();
     await page.getByLabel('Nombre del elemento').fill(itemName);
