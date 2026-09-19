@@ -294,7 +294,10 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByLabel('Categoría de protección').selectOption('HEAD');
     await page.getByLabel('Descripción (opcional)').fill('Elemento sintético para prueba E2E.');
     await page.getByRole('button', { name: 'Agregar al catálogo', exact: true }).click();
-    await expect(page.getByText('Elemento agregado al catálogo.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('dialog')).toBeHidden();
+    await page.getByLabel('Buscar elemento').fill(itemName);
+    await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+    await expect(page.getByRole('button', { name: `Ver elemento ${itemName}` })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('epp-catalog.png'), fullPage: true });
 
     await page.getByRole('link', { name: 'Cargos', exact: true }).click();
@@ -306,8 +309,9 @@ test.describe.serial('workforce safety operations', () => {
       .getByLabel('Descripción del riesgo')
       .fill('Contacto eléctrico durante mantenimiento autorizado.');
     await page.getByRole('button', { name: 'Registrar y revisar contexto' }).click();
+    await expect(page.getByRole('dialog')).toBeHidden();
     await expect(
-      page.getByText('Riesgo registrado. Revisa las protecciones a considerar.'),
+      page.getByText('Contacto eléctrico durante mantenimiento autorizado.', { exact: true }),
     ).toBeVisible();
     await page.getByRole('button', { name: /Cabeza para/ }).click();
     await page.getByLabel('Buscar elemento').fill(itemName);
@@ -316,7 +320,8 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByRole('button', { name: 'Seleccionar profesionalmente' }).click();
     await page.getByLabel('Motivo profesional').fill('Decisión sintética explícita.');
     await page.getByRole('button', { name: 'Registrar selección' }).click();
-    await expect(page.getByText('Selección profesional registrada.')).toBeVisible();
+    await expect(page.getByRole('dialog')).toBeHidden();
+    await expect(page.getByRole('heading', { name: itemName, exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('epp-position.png'), fullPage: true });
 
     await page.getByRole('link', { name: 'Personas / Trabajadores', exact: true }).click();
@@ -330,9 +335,7 @@ test.describe.serial('workforce safety operations', () => {
       .getByLabel('Motivo de la asignación individual')
       .fill('Aplicación sintética del requisito.');
     await page.getByRole('button', { name: 'Añadir requisito a esta persona' }).click();
-    await expect(
-      page.getByText('Requisito registrado para la persona seleccionada.'),
-    ).toBeVisible();
+    await expect(page.getByRole('dialog')).toBeHidden();
     await expect(page.getByText('1 requisitos pendientes')).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('epp-worker.png'), fullPage: true });
     await page.getByRole('button', { name: 'Preparar entrega' }).click();
@@ -341,20 +344,23 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByLabel('Referencia del elemento (opcional)').fill(`EPP-${suffix}`);
     await page.getByLabel('Nota').fill('Entrega presencial registrada.');
     await page.getByRole('button', { name: 'Registrar entrega' }).click();
-    await expect(page.getByText('Entrega registrada. Confirmación pendiente.')).toBeVisible();
+    await expect(page.getByRole('dialog')).toBeHidden();
     const issuedCard = page.locator('[id^="epp-issue-"]').filter({ hasText: itemName }).first();
+    await expect(issuedCard).toBeVisible();
+    await expect(issuedCard.getByRole('button', { name: 'Confirmar entrega' })).toBeVisible();
     await issuedCard.getByRole('button', { name: 'Confirmar entrega' }).click();
     await page
       .getByLabel('Nota de confirmación')
       .fill('La entrega fue confirmada presencialmente por el actor autenticado.');
     await page.getByRole('button', { name: 'Confirmar y pasar a servicio' }).click();
-    await expect(page.getByText('Entrega confirmada. El elemento está en servicio.')).toBeVisible();
+    await expect(page.getByRole('dialog')).toBeHidden();
     await issuedCard.getByRole('button', { name: 'Revisar condición' }).click();
     await page.getByLabel('Condición').selectOption('UNSERVICEABLE');
     await page.getByLabel('Fecha de revisión').fill('2026-08-31T10:00');
     await page.getByLabel('Nota (opcional)').fill('El elemento no debe continuar en servicio.');
     await page.getByRole('button', { name: 'Registrar condición' }).click();
-    await expect(page.getByText('Condición registrada.')).toBeVisible();
+    await expect(page.getByRole('dialog')).toBeHidden();
+    await expect(issuedCard).toContainText('UNSERVICEABLE');
     await page.screenshot({ path: testInfo.outputPath('epp-condition.png'), fullPage: true });
 
     await page.getByRole('link', { name: 'Cola de trabajo', exact: true }).click();
@@ -368,9 +374,7 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByLabel('Fecha de la nueva entrega').fill('2026-08-31T12:00');
     await page.getByLabel('Nota').fill('Reemplazo físico registrado con nueva entrega.');
     await page.getByRole('button', { name: 'Registrar reemplazo' }).click();
-    await expect(
-      page.getByText('Reemplazo registrado. La continuidad queda en la historia.'),
-    ).toBeVisible();
+    await expect(page.getByRole('dialog')).toBeHidden();
     await expect(page.getByText(/registro anterior permanece/)).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('epp-replacement.png'), fullPage: true });
 
