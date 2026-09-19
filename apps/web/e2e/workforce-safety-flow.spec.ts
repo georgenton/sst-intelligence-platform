@@ -331,9 +331,7 @@ test.describe.serial('workforce safety operations', () => {
       page.getByRole('heading', { name: 'Protección de la persona', exact: true }),
     ).toBeVisible();
     await page.getByRole('button', { name: 'Aplicar requisito a esta persona' }).click();
-    await page
-      .getByLabel('Motivo de la asignación individual')
-      .fill('Aplicación sintética del requisito.');
+    await page.getByRole('dialog').getByRole('textbox').fill('Aplicación sintética del requisito.');
     await page.getByRole('button', { name: 'Añadir requisito a esta persona' }).click();
     await expect(page.getByRole('dialog')).toBeHidden();
     await expect(page.getByText('1 requisitos pendientes')).toBeVisible();
