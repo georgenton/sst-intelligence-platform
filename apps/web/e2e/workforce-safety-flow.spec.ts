@@ -293,7 +293,7 @@ test.describe.serial('workforce safety operations', () => {
     await page.getByLabel('Nombre del elemento').fill(itemName);
     await page.getByLabel('Categoría de protección').selectOption('HEAD');
     await page.getByLabel('Descripción (opcional)').fill('Elemento sintético para prueba E2E.');
-    await page.getByRole('button', { name: 'Agregar elemento' }).last().click();
+    await page.getByRole('button', { name: 'Agregar al catálogo', exact: true }).click();
     await expect(page.getByText('Elemento agregado al catálogo.', { exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('epp-catalog.png'), fullPage: true });
 
