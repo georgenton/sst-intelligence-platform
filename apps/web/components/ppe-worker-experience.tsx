@@ -117,6 +117,16 @@ function WorkerPpeExperience({
       .filter((item) => item.status !== 'CANCELLED' && item.positionRequirementId)
       .map((item) => item.positionRequirementId),
   );
+  const openIssueDialog = async (
+    value:
+      | { type: 'ack'; issue: PpeIssue }
+      | { type: 'condition'; issue: PpeIssue }
+      | { type: 'replacement'; issue: PpeIssue },
+  ) => {
+    const refreshed = await workspace.refetch();
+    const issue = refreshed.data?.issues.find((item) => item.id === value.issue.id) ?? value.issue;
+    setDialog({ ...value, issue });
+  };
   const availablePositionRequirements = (positionRequirements.data ?? []).filter(
     (item) =>
       item.position.id === worker.positionId && !assignedPositionRequirementIds.has(item.id),
@@ -242,7 +252,7 @@ function WorkerPpeExperience({
                 issue={issue}
                 canWrite={canWrite}
                 canReplace={canReplace}
-                onAction={setDialog}
+                onAction={openIssueDialog}
               />
             ))}
           </div>
@@ -255,9 +265,9 @@ function WorkerPpeExperience({
           api={api}
           workerId={workerId}
           onClose={() => setDialog(null)}
-          onSaved={() => {
+          onSaved={async () => {
+            await workspace.refetch();
             setDialog(null);
-            void workspace.refetch();
           }}
         />
       ) : null}
@@ -272,10 +282,9 @@ function WorkerPpeExperience({
             position: worker.position,
           }}
           onClose={() => setDialog(null)}
-          onApplied={() => {
+          onApplied={async () => {
+            await Promise.all([workspace.refetch(), positionRequirements.refetch()]);
             setDialog(null);
-            void workspace.refetch();
-            void positionRequirements.refetch();
           }}
         />
       ) : null}
@@ -285,9 +294,9 @@ function WorkerPpeExperience({
           workerId={workerId}
           requirement={dialog.requirement}
           onClose={() => setDialog(null)}
-          onSaved={() => {
+          onSaved={async () => {
+            await workspace.refetch();
             setDialog(null);
-            void workspace.refetch();
           }}
         />
       ) : null}
@@ -296,9 +305,9 @@ function WorkerPpeExperience({
           api={api}
           issue={dialog.issue}
           onClose={() => setDialog(null)}
-          onSaved={() => {
+          onSaved={async () => {
+            await workspace.refetch();
             setDialog(null);
-            void workspace.refetch();
           }}
         />
       ) : null}
@@ -307,9 +316,9 @@ function WorkerPpeExperience({
           api={api}
           issue={dialog.issue}
           onClose={() => setDialog(null)}
-          onSaved={() => {
+          onSaved={async () => {
+            await workspace.refetch();
             setDialog(null);
-            void workspace.refetch();
           }}
         />
       ) : null}
@@ -319,9 +328,9 @@ function WorkerPpeExperience({
           issue={dialog.issue}
           workerId={workerId}
           onClose={() => setDialog(null)}
-          onSaved={() => {
+          onSaved={async () => {
+            await workspace.refetch();
             setDialog(null);
-            void workspace.refetch();
           }}
         />
       ) : null}
@@ -343,7 +352,7 @@ function IssueCard({
       | { type: 'ack'; issue: PpeIssue }
       | { type: 'condition'; issue: PpeIssue }
       | { type: 'replacement'; issue: PpeIssue },
-  ) => void;
+  ) => void | Promise<void>;
 }) {
   const historical = ['REPLACED', 'RETIRED'].includes(issue.status);
   return (
@@ -412,7 +421,7 @@ function IssueCard({
             <button
               type="button"
               className="button secondary"
-              onClick={() => onAction({ type: 'ack', issue })}
+              onClick={() => void onAction({ type: 'ack', issue })}
             >
               Confirmar entrega
             </button>
@@ -421,7 +430,7 @@ function IssueCard({
             <button
               type="button"
               className="button secondary"
-              onClick={() => onAction({ type: 'condition', issue })}
+              onClick={() => void onAction({ type: 'condition', issue })}
             >
               Revisar condición
             </button>
@@ -430,7 +439,7 @@ function IssueCard({
             <button
               type="button"
               className="button"
-              onClick={() => onAction({ type: 'replacement', issue })}
+              onClick={() => void onAction({ type: 'replacement', issue })}
             >
               Preparar reemplazo
             </button>
@@ -450,7 +459,7 @@ function RequirementDialog({
   api: ReturnType<typeof usePpeApi>;
   workerId: string;
   onClose(): void;
-  onSaved(): void;
+  onSaved(): void | Promise<void>;
 }) {
   const [item, setItem] = useState<CatalogItem | null>(null);
   const form = useForm<{ reason: string }>({ defaultValues: { reason: '' } });
@@ -511,7 +520,7 @@ function DeliveryDialog({
   workerId: string;
   requirement: PpeRequirement;
   onClose(): void;
-  onSaved(): void;
+  onSaved(): void | Promise<void>;
 }) {
   const form = useForm<{
     issuedAt: string;
@@ -610,7 +619,7 @@ function AcknowledgementDialog({
   api: ReturnType<typeof usePpeApi>;
   issue: PpeIssue;
   onClose(): void;
-  onSaved(): void;
+  onSaved(): void | Promise<void>;
 }) {
   const form = useForm<{ note: string }>({ defaultValues: { note: '' } });
   const command = usePpeCommand(api, 'Entrega confirmada. El elemento está en servicio.', onSaved);
@@ -656,7 +665,7 @@ function ConditionDialog({
   api: ReturnType<typeof usePpeApi>;
   issue: PpeIssue;
   onClose(): void;
-  onSaved(): void;
+  onSaved(): void | Promise<void>;
 }) {
   const form = useForm<{
     condition: 'SERVICEABLE' | 'REVIEW_REQUIRED' | 'UNSERVICEABLE';
@@ -731,7 +740,7 @@ function ReplacementDialog({
   issue: PpeIssue;
   workerId: string;
   onClose(): void;
-  onSaved(): void;
+  onSaved(): void | Promise<void>;
 }) {
   const form = useForm<{
     reason: keyof typeof REPLACEMENT_REASON_LABELS;

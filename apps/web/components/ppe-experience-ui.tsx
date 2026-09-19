@@ -85,7 +85,7 @@ export type PpeApi = ReturnType<typeof usePpeApi>;
 export function usePpeCommand<T = { id: string }>(
   api: PpeApi,
   success: string,
-  after?: (result: T) => void,
+  after?: (result: T) => void | Promise<void>,
 ) {
   const announce = usePpeAnnouncement();
   const queries = useQueryClient();
@@ -94,13 +94,13 @@ export function usePpeCommand<T = { id: string }>(
     mutationFn: ({ path, body }: { path: string; body: Record<string, unknown> }) =>
       api.request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
     retry: false,
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       // A failed refresh must not turn a committed command into a save error.
       void queries
         .invalidateQueries({ queryKey: queryKeys.organization.scope(api.organizationId) })
         .catch(() => undefined);
       announce(success);
-      after?.(result);
+      await after?.(result);
     },
     onError: () => announce(''),
   });

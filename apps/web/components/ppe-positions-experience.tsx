@@ -589,13 +589,13 @@ export function ApplyPositionRequirement({
   requirement: PositionRequirement;
   worker?: WorkerChoice;
   onClose(): void;
-  onApplied?(): void;
+  onApplied?(): void | Promise<void>;
 }) {
   const router = useRouter();
   const [worker, setWorker] = useState<WorkerChoice | null>(fixedWorker ?? null);
   const form = useForm<{ reason: string }>({ defaultValues: { reason: '' } });
   const command = usePpeCommand(api, 'Requisito registrado para la persona seleccionada.', () => {
-    if (onApplied) onApplied();
+    if (onApplied) return onApplied();
     else if (worker) router.push(`/app/workers/${worker.id}#epp`);
     onClose();
   });
