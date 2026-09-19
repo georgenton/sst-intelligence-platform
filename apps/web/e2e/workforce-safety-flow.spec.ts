@@ -330,7 +330,7 @@ test.describe.serial('workforce safety operations', () => {
     await expect(
       page.getByRole('heading', { name: 'Protección de la persona', exact: true }),
     ).toBeVisible();
-    await page.getByRole('button', { name: 'Aplicar requisito a una persona' }).click();
+    await page.getByRole('button', { name: 'Aplicar requisito a esta persona' }).click();
     await page
       .getByLabel('Motivo de la asignación individual')
       .fill('Aplicación sintética del requisito.');
