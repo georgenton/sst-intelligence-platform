@@ -70,6 +70,10 @@ function WorkerPpeExperience({
     queryFn: ({ signal }) =>
       api.request<PositionRequirement[]>('/ppe/position-requirements', { signal }),
     enabled: Boolean(workspace.data?.worker.positionId),
+    // A position decision can be created immediately before opening a worker
+    // workspace. Always refresh this shared list on mount so a cached empty
+    // result never hides a newly persisted decision from the continuity flow.
+    refetchOnMount: 'always',
   });
   const [dialog, setDialog] = useState<
     | { type: 'requirement' }
@@ -147,7 +151,25 @@ function WorkerPpeExperience({
         </Card>
       ) : null}
 
-      {canWrite && availablePositionRequirements.length ? (
+      {canWrite && positionRequirements.isPending ? (
+        <p role="status">Consultando decisiones del cargo…</p>
+      ) : null}
+      {canWrite && positionRequirements.isError ? (
+        <div role="alert" className={styles.warning}>
+          <p>No pudimos cargar las decisiones del cargo.</p>
+          <button
+            className="button secondary"
+            type="button"
+            onClick={() => void positionRequirements.refetch()}
+          >
+            Reintentar decisiones
+          </button>
+        </div>
+      ) : null}
+      {canWrite &&
+      !positionRequirements.isPending &&
+      !positionRequirements.isError &&
+      availablePositionRequirements.length ? (
         <section className={styles.stack} aria-labelledby={`decisions-${workerId}`}>
           <h3 id={`decisions-${workerId}`}>Decisiones del cargo</h3>
           <p>
