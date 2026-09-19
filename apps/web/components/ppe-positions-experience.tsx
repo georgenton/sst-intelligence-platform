@@ -648,9 +648,10 @@ export function ApplyPositionRequirement({
             });
         })}
       >
-        <label className="field">
+        <label className="field" htmlFor="ppe-apply-requirement-reason">
           <span>Motivo de la asignación individual</span>
           <textarea
+            id="ppe-apply-requirement-reason"
             required
             minLength={3}
             maxLength={2000}
