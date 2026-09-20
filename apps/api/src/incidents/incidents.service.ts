@@ -179,7 +179,7 @@ export class IncidentsService {
           },
           _count: { select: { actions: true, contributingFactors: true } },
         },
-        orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }],
+        orderBy: [{ occurredAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
       }),
