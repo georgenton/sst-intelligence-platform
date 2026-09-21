@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { ModuleKey, type Prisma } from '@prisma/client';
 import {
   DEMO_TECHNICAL_RISK_METHOD,
   calculateDemoRisk,
@@ -12,6 +12,7 @@ import { ExplanationService } from '../ai/explanation.service';
 import { AuditService, type AuditEvent } from '../audit/audit.service';
 import { EntitlementService } from '../catalog/entitlement.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { DemoCapabilityProvisioningService } from '../capability-access/demo-capability-provisioning.service';
 import {
   createPublicSessionToken,
   publicSessionTokenMatches,
@@ -26,6 +27,7 @@ export class SolutionFinderService {
     private readonly explanation: ExplanationService,
     private readonly audit: AuditService,
     private readonly entitlements: EntitlementService,
+    private readonly provisioning: DemoCapabilityProvisioningService,
   ) {}
 
   private assertToken(expectedHash: string, token: string | undefined) {
@@ -217,10 +219,6 @@ export class SolutionFinderService {
     const expiresAt = new Date(startsAt.getTime() + durationDays * 86_400_000);
     const recommendation = recommendationSchema.parse(session.recommendation.result);
     const moduleKeys = recommendation.recommendedModules.map((item) => item.moduleKey);
-    const moduleDefinitions = await this.prisma.moduleDefinition.findMany({
-      where: { key: { in: moduleKeys } },
-      select: { id: true, key: true },
-    });
 
     return this.prisma.$transaction(async (tx) => {
       const activated = await tx.guidedFlowSession.updateMany({
@@ -250,161 +248,29 @@ export class SolutionFinderService {
         where: { id: organizationId },
         data: { status: 'DEMO', demoStartedAt: startsAt, demoExpiresAt: expiresAt },
       });
-      for (const module of moduleDefinitions) {
-        const isCore = module.key === 'CORE';
-        await tx.organizationModule.upsert({
-          where: { organizationId_moduleId: { organizationId, moduleId: module.id } },
-          update: isCore ? {} : { status: 'DEMO', source: 'RECOMMENDATION', startsAt, expiresAt },
-          create: {
-            organizationId,
-            moduleId: module.id,
-            status: isCore ? 'ACTIVE' : 'DEMO',
-            source: isCore ? 'PLAN' : 'RECOMMENDATION',
-            startsAt,
-            expiresAt: isCore ? null : expiresAt,
-            metadata: { label: 'Demostración conceptual', synthetic: true },
-          },
-        });
-        if (!isCore) {
-          await tx.auditLog.create({
-            data: {
-              organizationId,
-              actorUserId: userId,
-              action: 'MODULE_ACTIVATED',
-              entityType: 'OrganizationModule',
-              entityId: module.id,
-              metadata: { moduleKey: module.key, status: 'DEMO', synthetic: true },
-              ...context,
-            },
-          });
-        }
-      }
-      const guayaquil = await tx.workCenter.upsert({
-        where: {
-          organizationId_name: { organizationId, name: 'Centro Guayaquil (demostración)' },
-        },
-        update: { isDemo: true },
-        create: {
-          organizationId,
-          name: 'Centro Guayaquil (demostración)',
-          city: 'Guayaquil',
-          isDemo: true,
-        },
+      await this.provisioning.provision({
+        tx,
+        organizationId,
+        userId,
+        moduleKeys: moduleKeys as ModuleKey[],
+        capabilityMetadata: new Map(
+          moduleKeys.map((moduleKey) => [
+            moduleKey as ModuleKey,
+            { label: 'Demostración conceptual', synthetic: true },
+          ]),
+        ),
+        startsAt,
+        expiresAt,
       });
-      await tx.workCenter.upsert({
-        where: { organizationId_name: { organizationId, name: 'Centro Quito (demostración)' } },
-        update: { isDemo: true },
-        create: {
-          organizationId,
-          name: 'Centro Quito (demostración)',
-          city: 'Quito',
-          isDemo: true,
-        },
+      const { guayaquil, electricalArea } = await this.provisioning.ensureDemoTopology({
+        tx,
+        organizationId,
+        userId,
+        moduleKeys: moduleKeys as ModuleKey[],
+        capabilityMetadata: new Map(),
+        startsAt,
+        expiresAt,
       });
-      const electricalArea = await tx.workArea.upsert({
-        where: {
-          organizationId_workCenterId_name: {
-            organizationId,
-            workCenterId: guayaquil.id,
-            name: 'Planta A',
-          },
-        },
-        update: { isActive: true },
-        create: {
-          organizationId,
-          workCenterId: guayaquil.id,
-          name: 'Planta A',
-        },
-      });
-      if (moduleKeys.includes('INSPECTIONS_INTELLIGENCE')) {
-        const existingStandardPolicy =
-          await tx.organizationInspectionStandardPolicyVersion.findFirst({
-            where: { organizationId },
-            select: { id: true },
-          });
-        if (!existingStandardPolicy) {
-          await tx.organizationInspectionStandardPolicyVersion.create({
-            data: {
-              organizationId,
-              version: 1,
-              createdById: userId,
-              reason: 'Configuración inicial de demostración conceptual.',
-              bindings: {
-                create: [
-                  {
-                    inspectionDomain: 'ELECTRICAL',
-                    standardVersionId: '57100000-0000-4000-8000-000000000001',
-                  },
-                  {
-                    inspectionDomain: 'FIRE_PROTECTION',
-                    standardVersionId: '57100000-0000-4000-8000-000000000003',
-                  },
-                ],
-              },
-            },
-          });
-        }
-        const risk = calculateDemoRisk(4, 4);
-        const baseTime = startsAt.getTime();
-        for (let index = 0; index < 3; index += 1) {
-          const title = `Inspección eléctrica demostrativa ${index + 1}`;
-          const alreadyExists = await tx.inspection.findFirst({
-            where: { organizationId, title, isDemo: true },
-            select: { id: true },
-          });
-          if (alreadyExists) continue;
-          const occurredAt = new Date(baseTime - (30 - index * 10) * 86_400_000);
-          const inspection = await tx.inspection.create({
-            data: {
-              organizationId,
-              workCenterId: guayaquil.id,
-              workAreaId: electricalArea.id,
-              inspectorUserId: userId,
-              title,
-              description: 'Registro sintético para demostrar recurrencia determinística.',
-              status: 'COMPLETED',
-              startedAt: occurredAt,
-              completedAt: occurredAt,
-              isDemo: true,
-              createdAt: occurredAt,
-            },
-          });
-          const finding = await tx.inspectionFinding.create({
-            data: {
-              organizationId,
-              inspectionId: inspection.id,
-              workCenterId: guayaquil.id,
-              workAreaId: electricalArea.id,
-              category: 'ELECTRICAL',
-              title: `Hallazgo eléctrico sintético ${index + 1}`,
-              description: 'Dato sintético sin información personal.',
-              riskMethodKey: risk.methodKey,
-              riskMethodVersion: risk.methodVersion,
-              initialLikelihood: risk.likelihood,
-              initialConsequence: risk.consequence,
-              initialScore: risk.score,
-              initialRiskLevel: risk.level,
-              recurrenceCount: index,
-              recurrenceStatus:
-                index === 0 ? 'NONE' : index === 1 ? 'REPEATED' : 'SYSTEMIC_REVIEW_RECOMMENDED',
-              createdById: userId,
-              createdAt: occurredAt,
-            },
-          });
-          if (index === 2) {
-            await tx.inspectionAlert.create({
-              data: {
-                organizationId,
-                findingId: finding.id,
-                type: 'RECURRENCE',
-                severity: 'WARNING',
-                message:
-                  'Se registraron varios hallazgos de categoría Eléctrico en este centro durante los últimos 90 días. Se recomienda revisar si las acciones puntuales son suficientes y evaluar posibles factores sistémicos.',
-              },
-            });
-          }
-        }
-      }
       if (moduleKeys.includes('TECHNICAL_RISK')) {
         const methodVersion = await tx.technicalMethodVersion.findFirst({
           where: {

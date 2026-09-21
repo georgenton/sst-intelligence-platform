@@ -19,6 +19,21 @@ export const SOLUTION_ENTRY_MODULES = [
     'Prepara la trazabilidad de actividades críticas.',
   ],
   [
+    ModuleKey.INCIDENTS,
+    'Accidentes e incidentes',
+    'Registra eventos, personas involucradas, evidencia y seguimiento.',
+  ],
+  [
+    ModuleKey.PPE,
+    'Equipos de protección personal',
+    'Gestiona requisitos, entregas, reemplazos y trazabilidad de EPP.',
+  ],
+  [
+    ModuleKey.TRAINING,
+    'Capacitación y competencia',
+    'Traza necesidades, sesiones y seguimiento de competencias.',
+  ],
+  [
     ModuleKey.PSYCHOSOCIAL,
     'Gestión psicosocial',
     'Organiza campañas y seguimiento agregado no clínico.',

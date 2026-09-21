@@ -252,9 +252,17 @@ export function AssessmentResults({
         ) : null}
         <h3>Diagnóstico listo</h3>
         <p>
-          El siguiente paso será configurar tu espacio. Todavía no activamos módulos ni generamos un
-          plan de trabajo.
+          El siguiente paso será configurar tu espacio. La evaluación no activa módulos ni genera un
+          plan de trabajo hasta que una persona confirme una acción.
         </p>
+        {channel === 'AUTHENTICATED' && finalized && capabilityEvaluation ? (
+          <Link
+            className="button"
+            href={`/app/modules?assessment=${encodeURIComponent(sessionId)}&setup=base`}
+          >
+            Revisar y activar demostración
+          </Link>
+        ) : null}
         {channel === 'PUBLIC' && continuation === 'public' ? (
           <div className="assessment-actions">
             <Link className="button" href={`/auth/register?next=${encodeURIComponent(claimPath)}`}>

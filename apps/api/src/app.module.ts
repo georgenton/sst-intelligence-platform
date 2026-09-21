@@ -9,6 +9,7 @@ import { ApplicabilityModule } from './applicability/applicability.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { CapabilityAccessModule } from './capability-access/capability-access.module';
 import { ConsultantPortfolioModule } from './consultant-portfolio/consultant-portfolio.module';
 import { ConversationalOperationsModule } from './conversational-operations/conversational-operations.module';
 import { EntitlementsModule } from './catalog/entitlements.module';
@@ -110,6 +111,7 @@ import { WorkersModule } from './workers/workers.module';
     OperationalPlansModule,
     OperationalSearchModule,
     CatalogModule,
+    CapabilityAccessModule,
     ConsultantPortfolioModule,
     ConversationalOperationsModule,
     AiModule,

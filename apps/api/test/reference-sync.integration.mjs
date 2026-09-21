@@ -754,9 +754,12 @@ async function verifyReadiness(scopedDatabaseUrl) {
             [
               'COMPLIANCE',
               'CORE',
+              'INCIDENTS',
               'INSPECTIONS_INTELLIGENCE',
+              'PPE',
               'PSYCHOSOCIAL',
               'TECHNICAL_RISK',
+              'TRAINING',
               'WORK_PERMITS',
             ],
           );

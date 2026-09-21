@@ -293,3 +293,18 @@ export function isNavigationItemVisible(
   if (!features) return true;
   return features?.[item.requiredFeature] === true;
 }
+
+/** Mature capabilities stay discoverable while the backend remains authoritative. */
+export function isNavigationItemDiscoverable(
+  _item: AppNavigationItem,
+  _features: Record<string, boolean | number | string> | undefined,
+) {
+  return true;
+}
+
+export function isNavigationItemLocked(
+  item: AppNavigationItem,
+  features: Record<string, boolean | number | string> | undefined,
+) {
+  return Boolean(item.requiredFeature && features && features[item.requiredFeature] !== true);
+}
