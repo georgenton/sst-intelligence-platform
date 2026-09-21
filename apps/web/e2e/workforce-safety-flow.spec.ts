@@ -462,7 +462,12 @@ test.describe.serial('workforce safety operations', () => {
     ]) {
       await expect(needSource.locator(`option[value="${sourceType}"]`)).toHaveCount(1);
     }
-    await page.getByLabel('Capacitación').first().selectOption({ label: trainingTitle });
+    await page
+      .locator('label.field')
+      .filter({ hasText: 'Capacitación' })
+      .first()
+      .locator('select')
+      .selectOption({ label: trainingTitle });
     await page
       .getByLabel('Justificación profesional')
       .fill('Necesidad sintética decidida por el profesional SST.');
