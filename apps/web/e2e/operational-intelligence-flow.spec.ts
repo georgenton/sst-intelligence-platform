@@ -91,7 +91,7 @@ test('deriva una señal operativa explicable y la proyecta a la cola', async ({ 
   await expect(signalButton).toContainText(centers[0]!.name);
 
   await page.getByRole('link', { name: 'Cola de trabajo', exact: true }).click();
-  await page.getByLabel('Módulo').selectOption('INTELLIGENCE');
+  await page.locator('select[name="module"]').selectOption('INTELLIGENCE');
   await page.getByRole('button', { name: 'Aplicar', exact: true }).click();
   const queueItem = page
     .getByRole('listitem')
