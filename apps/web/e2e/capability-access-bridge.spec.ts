@@ -156,9 +156,18 @@ test('finalized assessment opens explicit recommended and exploration demo acces
   });
   expect(organizationAfter.status).toBe('DEMO');
   const enabledModules = organizationAfter.modules
-    .filter(({ module }) => ['INSPECTIONS_INTELLIGENCE', 'PPE'].includes(module.key))
-    .map(({ module, status }): [string, string] => [module.key, status]);
-  expect(enabledModules.sort((left, right) => left[0].localeCompare(right[0]))).toEqual([
+    .filter((row: { module: { key: string } }) =>
+      ['INSPECTIONS_INTELLIGENCE', 'PPE'].includes(row.module.key),
+    )
+    .map((row: { module: { key: string }; status: string }): [string, string] => [
+      row.module.key,
+      row.status,
+    ]);
+  expect(
+    enabledModules.sort((left: [string, string], right: [string, string]) =>
+      left[0].localeCompare(right[0]),
+    ),
+  ).toEqual([
     ['INSPECTIONS_INTELLIGENCE', 'DEMO'],
     ['PPE', 'DEMO'],
   ]);
