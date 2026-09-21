@@ -57,13 +57,15 @@ export function AppSidebar({
                 {items.map((item) => {
                   const active = item.id === activeItem?.id;
                   const locked = isNavigationItemLocked(item, features);
+                  const lockedLabel =
+                    item.id === 'inspection-resources' ? 'Recursos de inspección' : item.label;
                   return (
                     <Link
                       href={
                         locked ? `/app/modules?focus=${encodeURIComponent(item.id)}` : item.href
                       }
                       aria-current={active ? 'page' : undefined}
-                      aria-label={locked ? `${item.label} (acceso no activo)` : item.label}
+                      aria-label={locked ? `${lockedLabel} (acceso no activo)` : item.label}
                       data-locked={locked ? 'true' : undefined}
                       data-active={active}
                       key={item.id}
