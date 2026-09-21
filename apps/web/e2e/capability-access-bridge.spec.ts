@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { createE2eOrganization } from './support/e2e-api';
 import { activateE2eUserSession, registerE2eUser } from './support/register-e2e-user';
 
@@ -64,6 +64,17 @@ function administrativeAnswers() {
   return answers;
 }
 
+async function assertCapabilityViewport(page: Page, width: number, height = 900) {
+  await page.setViewportSize({ width, height });
+  const metrics = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(metrics.scrollWidth, `${width}px viewport overflow`).toBeLessThanOrEqual(
+    metrics.clientWidth,
+  );
+}
+
 test('finalized assessment opens explicit recommended and exploration demo access', async ({
   page,
   request,
@@ -123,6 +134,12 @@ test('finalized assessment opens explicit recommended and exploration demo acces
   await expect(
     page.getByRole('heading', { name: 'Tu diagnóstico SST', exact: true }),
   ).toBeVisible();
+  const finalCta = page.getByRole('link', { name: 'Revisar y activar demostración' });
+  for (const width of [320, 390, 768, 1280]) {
+    await assertCapabilityViewport(page, width);
+    await expect(finalCta).toBeVisible();
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByRole('link', { name: 'Revisar y activar demostración' }).click();
   await expect(page).toHaveURL(
     new RegExp(`/app/modules[?]assessment=${assessment.id}&setup=base$`),
@@ -134,6 +151,24 @@ test('finalized assessment opens explicit recommended and exploration demo acces
     page.getByText('Disponible para explorar; no fue recomendada por esta evaluación.').first(),
   ).toBeVisible();
 
+  for (const width of [320, 390, 768, 1280]) {
+    await assertCapabilityViewport(page, width);
+    await expect(
+      page.getByRole('heading', { name: 'Explora las capacidades propuestas' }),
+    ).toBeVisible();
+    await expect(page.getByRole('checkbox').first()).toBeVisible();
+  }
+
+  await page.setViewportSize({ width: 320, height: 900 });
+  const navigationToggle = page.locator('.app-navigation-toggle');
+  if ((await navigationToggle.getAttribute('aria-expanded')) !== 'true') {
+    await navigationToggle.click();
+  }
+  const primaryNavigation = page.getByRole('navigation', { name: 'Navegación principal' });
+  await expect(
+    primaryNavigation.locator('a[data-locked="true"]').filter({ hasText: 'Permisos de trabajo' }),
+  ).toBeVisible();
+
   const inspectionCard = page
     .getByRole('heading', { name: 'Inspecciones inteligentes' })
     .locator('..')
@@ -143,12 +178,77 @@ test('finalized assessment opens explicit recommended and exploration demo acces
     .locator('..')
     .locator('..');
   await inspectionCard.getByRole('checkbox').check();
+  const activationButton = page.getByRole('button', {
+    name: 'Activar demostración',
+    exact: true,
+  });
+  expect(
+    await activationButton.evaluate((element) => element.getBoundingClientRect().height),
+  ).toBeGreaterThanOrEqual(44);
+  await activationButton.click();
+  const dialog = page.getByRole('dialog', { name: 'Activar demostración' });
+  await expect(dialog).toBeVisible();
+  const dialogBox = await dialog.boundingBox();
+  expect(dialogBox).not.toBeNull();
+  expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
+  expect(dialogBox!.y).toBeGreaterThanOrEqual(0);
+  expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(320);
+  expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(900);
+  await assertCapabilityViewport(page, 320);
+  await expect(dialog).toContainText('Esto no cambia tu plan');
+  await expect(
+    dialog.getByRole('button', { name: 'Confirmar activación', exact: true }),
+  ).toBeFocused();
+  await dialog.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Activar demostración', exact: true }),
+  ).toBeFocused();
+  await page.getByRole('button', { name: 'Activar demostración', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Activar demostración' })).toBeVisible();
+  await page
+    .getByRole('dialog', { name: 'Activar demostración' })
+    .getByRole('button', { name: 'Confirmar activación', exact: true })
+    .click();
+  await expect(page.getByRole('status').filter({ hasText: 'Demostración activada' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Explora las capacidades propuestas' }),
+  ).toBeFocused();
+
+  await expect(inspectionCard.getByText('Demo temporal').first()).toBeVisible();
+  await expect(ppeCard.getByRole('checkbox')).toBeVisible();
+  await expect(
+    primaryNavigation.locator('a[data-locked="true"]').filter({ hasText: 'Permisos de trabajo' }),
+  ).toBeVisible();
+  await expect(
+    primaryNavigation.locator('a[data-locked="true"]').filter({ hasText: 'Inspecciones' }),
+  ).toHaveCount(0);
+
   await ppeCard.getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Activar demostración', exact: true }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toContainText('Esto no cambia tu plan');
-  await dialog.getByRole('button', { name: 'Confirmar activación', exact: true }).click();
+  const secondDialog = page.getByRole('dialog', { name: 'Activar demostración' });
+  await expect(
+    secondDialog.getByRole('button', { name: 'Confirmar activación', exact: true }),
+  ).toBeFocused();
+  await secondDialog.getByRole('button', { name: 'Confirmar activación', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Demostración activada' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Explora las capacidades propuestas' }),
+  ).toBeFocused();
+  await expect(ppeCard.getByText('Demo temporal').first()).toBeVisible();
+  await expect(
+    primaryNavigation.locator('a[data-locked="true"]').filter({ hasText: 'EPP' }),
+  ).toHaveCount(0);
+  for (const label of [
+    'Permisos de trabajo',
+    'Accidentes e Incidentes',
+    'Capacitación',
+    'Riesgo técnico',
+  ]) {
+    await expect(
+      primaryNavigation.locator('a[data-locked="true"]').filter({ hasText: label }),
+    ).toBeVisible();
+  }
 
   const organizationAfter = await prisma.organization.findUniqueOrThrow({
     where: { id: organization.organization.id },

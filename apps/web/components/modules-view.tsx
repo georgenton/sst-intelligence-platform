@@ -4,7 +4,7 @@ import { Card, StatusBadge } from '@sst/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { queryKeys } from '@/lib/query-keys';
 import { useAuth } from './auth-provider';
 import { useOrganization } from './app-shell';
@@ -34,7 +34,7 @@ type CapabilityAccess = {
     currentAccess: 'CORE' | 'PLAN' | 'ACTIVE' | 'DEMO' | 'LOCKED';
     demoEligible: boolean;
     accessExpiresAt?: string;
-    capabilityOrigin: 'ASSESSMENT_RECOMMENDED' | 'EXPLORATION_SELECTED';
+    capabilityOrigin: 'ASSESSMENT_RECOMMENDED' | 'EXPLORATION_SELECTED' | null;
   }>;
 };
 
@@ -48,8 +48,36 @@ export function ModulesView() {
   const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState('');
   const idempotencyKey = useRef<string | null>(null);
+  const confirmationTrigger = useRef<HTMLButtonElement>(null);
+  const confirmationDialog = useRef<HTMLDivElement>(null);
+  const capabilityAccessTitle = useRef<HTMLHeadingElement>(null);
+  const restoreFocus = useRef(false);
   const organizationId = organization.activeId;
   const assessmentId = searchParams.get('assessment') ?? '';
+  useEffect(() => {
+    let frame: number | undefined;
+    if (confirming) {
+      frame = window.requestAnimationFrame(() => {
+        confirmationDialog.current?.querySelector<HTMLElement>('button')?.focus();
+      });
+    } else if (restoreFocus.current) {
+      restoreFocus.current = false;
+      frame = window.requestAnimationFrame(() => {
+        if (confirmationTrigger.current && !confirmationTrigger.current.disabled) {
+          confirmationTrigger.current.focus();
+        } else {
+          capabilityAccessTitle.current?.focus();
+        }
+      });
+    }
+    return () => {
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+    };
+  }, [confirming]);
+  const closeConfirmation = () => {
+    restoreFocus.current = true;
+    setConfirming(false);
+  };
   const catalog = useQuery({
     queryKey: queryKeys.global.moduleCatalog(),
     queryFn: ({ signal }) => auth.request<CatalogItem[]>('/module-catalog', { signal }),
@@ -82,7 +110,7 @@ export function ModulesView() {
         organizationId!,
       ),
     onSuccess: async () => {
-      setConfirming(false);
+      closeConfirmation();
       idempotencyKey.current = null;
       setMessage('Demostración activada. Las capacidades seleccionadas ya están disponibles.');
       setSelected([]);
@@ -120,7 +148,9 @@ export function ModulesView() {
         <section className="stack" aria-labelledby="capability-access-title">
           <div>
             <p className="eyebrow">Decisión humana</p>
-            <h2 id="capability-access-title">Explora las capacidades propuestas</h2>
+            <h2 id="capability-access-title" ref={capabilityAccessTitle} tabIndex={-1}>
+              Explora las capacidades propuestas
+            </h2>
             <p className="muted">
               La evaluación propone; una persona decide qué abrir temporalmente. Esto no cambia el
               plan ni el resultado del diagnóstico.
@@ -188,6 +218,7 @@ export function ModulesView() {
                 className="button"
                 type="button"
                 disabled={!selected.length || activate.isPending}
+                ref={confirmationTrigger}
                 onClick={() => {
                   idempotencyKey.current = crypto.randomUUID();
                   setConfirming(true);
@@ -202,6 +233,7 @@ export function ModulesView() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="demo-confirm-title"
+              ref={confirmationDialog}
               className="stack"
             >
               <h3 id="demo-confirm-title">Activar demostración</h3>
@@ -223,7 +255,7 @@ export function ModulesView() {
                   type="button"
                   onClick={() => {
                     idempotencyKey.current = null;
-                    setConfirming(false);
+                    closeConfirmation();
                   }}
                 >
                   Cancelar

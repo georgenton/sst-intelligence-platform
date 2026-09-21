@@ -28,6 +28,7 @@ type Recommendation = {
   priority?: string;
   reasons?: string[];
 };
+type CapabilityOrigin = 'ASSESSMENT_RECOMMENDED' | 'EXPLORATION_SELECTED';
 type CapabilityEvaluation = {
   engineVersion: string;
   outputHash: string;
@@ -36,6 +37,24 @@ type CapabilityEvaluation = {
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+function persistedCapabilityOrigin(
+  metadata: unknown,
+  capabilityKey: CapabilityAccessKey,
+): CapabilityOrigin | null {
+  if (!isRecord(metadata)) return null;
+  if (
+    metadata.accessType !== 'DEMO' ||
+    typeof metadata.assessmentId !== 'string' ||
+    metadata.capabilityKey !== capabilityKey
+  ) {
+    return null;
+  }
+  return metadata.capabilityOrigin === 'ASSESSMENT_RECOMMENDED' ||
+    metadata.capabilityOrigin === 'EXPLORATION_SELECTED'
+    ? metadata.capabilityOrigin
+    : null;
+}
 
 function storedEvaluation(latestResult: unknown): CapabilityEvaluation | null {
   if (!isRecord(latestResult) || !isRecord(latestResult.capabilityEvaluation)) return null;
@@ -109,6 +128,7 @@ export class CapabilityAccessService {
             source: true,
             startsAt: true,
             expiresAt: true,
+            metadata: true,
             module: { select: { key: true } },
           },
         },
@@ -161,7 +181,9 @@ export class CapabilityAccessService {
         demoEligible: definition.demoEligible,
         accessExpiresAt: row?.expiresAt ?? undefined,
         source: row?.source ?? undefined,
-        capabilityOrigin: recommendation ? 'ASSESSMENT_RECOMMENDED' : 'EXPLORATION_SELECTED',
+        capabilityOrigin: row
+          ? persistedCapabilityOrigin(row.metadata, definition.capabilityKey)
+          : null,
       };
     });
     const demoActive =

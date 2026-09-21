@@ -175,9 +175,6 @@ export class EntitlementService {
       if (feature && active) features[feature] = true;
     }
     const demoActive = isDemoActive(organization.demoExpiresAt, now);
-    if (isWorkPermitsDemoPreviewActive(organization.status, organization.demoExpiresAt, now)) {
-      features[WORK_PERMITS_FEATURE_KEY] = true;
-    }
     // Before explicit capability provenance existed, active demo organizations
     // received the three workforce preview capabilities as a compatibility
     // fallback. Legacy rows and explicit bridge metadata keep that behavior
@@ -186,6 +183,9 @@ export class EntitlementService {
       isExplicitCapabilitySelection(source, metadata),
     );
     if (demoActive && !hasExplicitCapabilitySelection) {
+      if (isWorkPermitsDemoPreviewActive(organization.status, organization.demoExpiresAt, now)) {
+        features[WORK_PERMITS_FEATURE_KEY] = true;
+      }
       for (const featureKey of WORKFORCE_PREVIEW_FEATURE_KEYS) features[featureKey] = true;
     }
     return {

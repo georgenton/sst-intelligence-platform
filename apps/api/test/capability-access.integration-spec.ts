@@ -5,6 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { ApiExceptionFilter } from '../src/common/api-exception.filter';
+import { EntitlementService } from '../src/catalog/entitlement.service';
 import { syncOrganizationBaseline } from '../src/reference-data/organization-baseline-reference-data';
 import { syncSolutionEntryReferences } from '../src/reference-data/solution-entry-reference-sync';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -175,6 +176,92 @@ describe('capability access bridge', () => {
     ).toEqual(assessmentBefore);
   });
 
+  it('keeps partial bridge access exact and records explicit provenance', async () => {
+    const f = await fixture();
+    const first = await api(f)
+      .post('/capability-access/demo')
+      .set('Idempotency-Key', randomUUID())
+      .send({ assessmentId: f.assessment.id, capabilityKeys: ['INSPECTIONS'] })
+      .expect(201);
+
+    const entitlements = await app.get(EntitlementService).effective(f.organizationId);
+    const modules = await prisma.organizationModule.findMany({
+      where: { organizationId: f.organizationId },
+      include: { module: true },
+    });
+    expect(entitlements.features['module.inspections']).toBe(true);
+    expect(entitlements.features['module.technical_risk']).not.toBe(true);
+    expect(entitlements.features['module.work_permits']).not.toBe(true);
+    expect(entitlements.features['module.incidents']).not.toBe(true);
+    expect(entitlements.features['module.ppe']).not.toBe(true);
+    expect(entitlements.features['module.training']).not.toBe(true);
+    expect(modules.filter(({ module }) => module.key === 'WORK_PERMITS')).toHaveLength(0);
+
+    expect(first.body.access.capabilities).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          capabilityKey: 'INSPECTIONS',
+          recommended: true,
+          currentAccess: 'DEMO',
+          capabilityOrigin: 'ASSESSMENT_RECOMMENDED',
+        }),
+        expect.objectContaining({
+          capabilityKey: 'PPE',
+          recommended: true,
+          currentAccess: 'LOCKED',
+          capabilityOrigin: null,
+        }),
+        expect.objectContaining({
+          capabilityKey: 'WORK_PERMITS',
+          recommended: false,
+          currentAccess: 'LOCKED',
+          capabilityOrigin: null,
+        }),
+      ]),
+    );
+
+    const expiry = first.body.access.demo.expiresAt as string;
+    const second = await api(f)
+      .post('/capability-access/demo')
+      .set('Idempotency-Key', randomUUID())
+      .send({ assessmentId: f.assessment.id, capabilityKeys: ['WORK_PERMITS'] })
+      .expect(201);
+    expect(second.body.access.demo.expiresAt).toBe(expiry);
+    expect(second.body.access.capabilities).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          capabilityKey: 'WORK_PERMITS',
+          recommended: false,
+          currentAccess: 'DEMO',
+          capabilityOrigin: 'EXPLORATION_SELECTED',
+        }),
+        expect.objectContaining({
+          capabilityKey: 'PPE',
+          recommended: true,
+          currentAccess: 'LOCKED',
+          capabilityOrigin: null,
+        }),
+      ]),
+    );
+    const workPermit = await prisma.organizationModule.findFirstOrThrow({
+      where: { organizationId: f.organizationId, module: { key: 'WORK_PERMITS' } },
+      include: { module: true },
+    });
+    expect(workPermit).toMatchObject({
+      status: 'DEMO',
+      source: 'RECOMMENDATION',
+      expiresAt: new Date(expiry),
+      metadata: expect.objectContaining({
+        accessType: 'DEMO',
+        assessmentId: f.assessment.id,
+        capabilityKey: 'WORK_PERMITS',
+        capabilityOrigin: 'EXPLORATION_SELECTED',
+        capabilityEngineVersion: '1.2.0',
+        capabilityOutputHash: capabilityEvaluation.outputHash,
+      }),
+    });
+  });
+
   it('rejects a retry with the same key but a different selection without changing access', async () => {
     const f = await fixture();
     const idempotencyKey = randomUUID();
@@ -208,13 +295,13 @@ describe('capability access bridge', () => {
 
   it('does not downgrade an existing active module when a demo selection is added', async () => {
     const f = await fixture();
-    const technicalRisk = await prisma.moduleDefinition.findUniqueOrThrow({
-      where: { key: 'TECHNICAL_RISK' },
+    const workPermits = await prisma.moduleDefinition.findUniqueOrThrow({
+      where: { key: 'WORK_PERMITS' },
     });
     await prisma.organizationModule.create({
       data: {
         organizationId: f.organizationId,
-        moduleId: technicalRisk.id,
+        moduleId: workPermits.id,
         status: 'ACTIVE',
         source: 'PLAN',
       },
@@ -222,14 +309,34 @@ describe('capability access bridge', () => {
     await api(f)
       .post('/capability-access/demo')
       .set('Idempotency-Key', randomUUID())
-      .send({ assessmentId: f.assessment.id, capabilityKeys: ['TECHNICAL_RISK'] })
+      .send({ assessmentId: f.assessment.id, capabilityKeys: ['INSPECTIONS'] })
       .expect(201);
+    await expect(app.get(EntitlementService).effective(f.organizationId)).resolves.toMatchObject({
+      features: expect.objectContaining({ 'module.work_permits': true }),
+    });
     await expect(
       prisma.organizationModule.findUniqueOrThrow({
         where: {
-          organizationId_moduleId: { organizationId: f.organizationId, moduleId: technicalRisk.id },
+          organizationId_moduleId: { organizationId: f.organizationId, moduleId: workPermits.id },
         },
       }),
-    ).resolves.toMatchObject({ status: 'ACTIVE', source: 'PLAN' });
+    ).resolves.toMatchObject({ status: 'ACTIVE', source: 'PLAN', metadata: null });
+  });
+
+  it('preserves legacy demo preview access without bridge provenance', async () => {
+    const f = await fixture();
+    await prisma.organization.update({
+      where: { id: f.organizationId },
+      data: {
+        status: 'DEMO',
+        demoStartedAt: new Date(),
+        demoExpiresAt: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const entitlements = await app.get(EntitlementService).effective(f.organizationId);
+    expect(entitlements.features['module.work_permits']).toBe(true);
+    expect(entitlements.features['module.incidents']).toBe(true);
+    expect(entitlements.features['module.ppe']).toBe(true);
+    expect(entitlements.features['module.training']).toBe(true);
   });
 });
