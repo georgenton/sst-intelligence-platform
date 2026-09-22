@@ -23,17 +23,11 @@ export const MODULE_FEATURES: Record<string, string> = {
   COMPLIANCE: 'module.compliance',
 };
 
-function isExplicitCapabilitySelection(source: string, metadata: unknown) {
-  if (source !== 'RECOMMENDATION' || typeof metadata !== 'object' || metadata === null)
-    return false;
-  const record = metadata as Record<string, unknown>;
-  return typeof record.assessmentId === 'string' && record.accessType === 'DEMO';
-}
-
 type EffectiveEntitlementSource = {
   id: string;
   status: string;
   demoExpiresAt: Date | null;
+  auditLogs: Array<{ id: string }>;
   subscriptions: Array<{
     plan: {
       key: string;
@@ -69,6 +63,11 @@ export class EntitlementService {
         id: true,
         status: true,
         demoExpiresAt: true,
+        auditLogs: {
+          where: { action: 'CAPABILITY_DEMO_ACCESS_ACTIVATED' },
+          take: 1,
+          select: { id: true },
+        },
         subscriptions: {
           where: {
             OR: [
@@ -115,6 +114,11 @@ export class EntitlementService {
         id: true,
         status: true,
         demoExpiresAt: true,
+        auditLogs: {
+          where: { action: 'CAPABILITY_DEMO_ACCESS_ACTIVATED' },
+          take: 1,
+          select: { id: true },
+        },
         subscriptions: {
           where: {
             OR: [
@@ -177,11 +181,11 @@ export class EntitlementService {
     const demoActive = isDemoActive(organization.demoExpiresAt, now);
     // Before explicit capability provenance existed, active demo organizations
     // received the three workforce preview capabilities as a compatibility
-    // fallback. Legacy rows and explicit bridge metadata keep that behavior
-    // distinguishable from a partial human selection.
-    const hasExplicitCapabilitySelection = organization.modules.some(({ metadata, source }) =>
-      isExplicitCapabilitySelection(source, metadata),
-    );
+    // fallback. The transactional bridge audit is the organization-level
+    // marker that a human has selected capabilities; module metadata remains
+    // provenance for each selected module, including rows preserved from a
+    // plan or trial grant.
+    const hasExplicitCapabilitySelection = organization.auditLogs.length > 0;
     if (demoActive && !hasExplicitCapabilitySelection) {
       if (isWorkPermitsDemoPreviewActive(organization.status, organization.demoExpiresAt, now)) {
         features[WORK_PERMITS_FEATURE_KEY] = true;

@@ -135,6 +135,9 @@ export function ModulesView() {
       (item) => item.demoEligible && item.currentAccess === 'LOCKED',
     ) ?? [];
   const recommended = selectable.filter((item) => item.recommended);
+  const selectedCapabilityTitles = selected
+    .map((key) => access.data?.capabilities.find((item) => item.capabilityKey === key)?.title)
+    .filter((title): title is string => Boolean(title));
   return (
     <div className="stack">
       <div>
@@ -233,11 +236,25 @@ export function ModulesView() {
               role="dialog"
               aria-modal="true"
               aria-labelledby="demo-confirm-title"
+              aria-describedby="demo-confirm-description demo-confirm-capabilities"
               ref={confirmationDialog}
               className="stack"
             >
               <h3 id="demo-confirm-title">Activar demostración</h3>
-              <p>Activarás acceso temporal a las capacidades seleccionadas.</p>
+              <p id="demo-confirm-description">
+                Activarás acceso temporal a las capacidades seleccionadas.
+              </p>
+              <div>
+                <p id="demo-confirm-capabilities-label">Capacidades seleccionadas:</p>
+                <ul
+                  aria-labelledby="demo-confirm-capabilities-label"
+                  id="demo-confirm-capabilities"
+                >
+                  {selectedCapabilityTitles.map((title) => (
+                    <li key={title}>{title}</li>
+                  ))}
+                </ul>
+              </div>
               <p className="muted">
                 Esto no cambia tu plan ni modifica el resultado de la evaluación.
               </p>

@@ -178,6 +178,7 @@ test('finalized assessment opens explicit recommended and exploration demo acces
     .locator('..')
     .locator('..');
   await inspectionCard.getByRole('checkbox').check();
+  await ppeCard.getByRole('checkbox').check();
   const activationButton = page.getByRole('button', {
     name: 'Activar demostración',
     exact: true,
@@ -196,6 +197,9 @@ test('finalized assessment opens explicit recommended and exploration demo acces
   expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(900);
   await assertCapabilityViewport(page, 320);
   await expect(dialog).toContainText('Esto no cambia tu plan');
+  await expect(dialog).toContainText('Inspecciones inteligentes');
+  await expect(dialog).toContainText('Equipos de protección personal');
+  await expect(dialog).not.toContainText('Permisos de trabajo');
   await expect(
     dialog.getByRole('button', { name: 'Confirmar activación', exact: true }),
   ).toBeFocused();
@@ -204,8 +208,12 @@ test('finalized assessment opens explicit recommended and exploration demo acces
   await expect(
     page.getByRole('button', { name: 'Activar demostración', exact: true }),
   ).toBeFocused();
+  await ppeCard.getByRole('checkbox').uncheck();
   await page.getByRole('button', { name: 'Activar demostración', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Activar demostración' })).toBeVisible();
+  const inspectionDialog = page.getByRole('dialog', { name: 'Activar demostración' });
+  await expect(inspectionDialog).toBeVisible();
+  await expect(inspectionDialog).toContainText('Inspecciones inteligentes');
+  await expect(inspectionDialog).not.toContainText('Equipos de protección personal');
   await page
     .getByRole('dialog', { name: 'Activar demostración' })
     .getByRole('button', { name: 'Confirmar activación', exact: true })
