@@ -188,7 +188,7 @@ test('perfil versionado, evaluación explícita y trace de aplicabilidad', async
   await page.getByRole('link', { name: 'Volver al catálogo' }).click();
   await expect(page.getByRole('heading', { name: 'Biblioteca normativa' })).toBeVisible();
   await page.getByRole('button', { name: 'Limpiar filtros' }).click();
-  await page.getByLabel('Buscar').fill('MDT-2024-196');
+  await page.getByRole('searchbox', { name: 'Buscar' }).fill('MDT-2024-196');
   await page
     .locator('a[href="/app/applicability/sources/EC_MDT_2024_196"]')
     .getByText('Abrir documento', { exact: true })

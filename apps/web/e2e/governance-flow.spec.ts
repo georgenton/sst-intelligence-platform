@@ -59,7 +59,7 @@ test('registra reunión, decisión, compromiso y evidencia de gobernanza', async
   await expect(page.getByRole('status')).toContainText('Registro actualizado');
 
   await page.getByRole('link', { name: 'Cola de trabajo', exact: true }).click();
-  await page.getByLabel('Módulo').selectOption('GOVERNANCE');
+  await page.locator('select[name="module"]').selectOption('GOVERNANCE');
   await page.getByRole('button', { name: 'Aplicar', exact: true }).click();
   const queueItem = page.getByRole('listitem').filter({ hasText: actionTitle });
   await expect(queueItem).toBeVisible();

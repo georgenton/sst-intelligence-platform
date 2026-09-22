@@ -160,6 +160,8 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'invitations'] as const,
     entitlements: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'entitlements'] as const,
+    capabilityAccess: (organizationId: string, assessmentId = '') =>
+      [...privateRoot, 'org', organizationId, 'capability-access', assessmentId] as const,
     subscription: (organizationId: string) =>
       [...privateRoot, 'org', organizationId, 'subscription'] as const,
     inspectionContext: (organizationId: string) =>

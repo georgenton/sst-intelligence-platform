@@ -462,7 +462,12 @@ test.describe.serial('workforce safety operations', () => {
     ]) {
       await expect(needSource.locator(`option[value="${sourceType}"]`)).toHaveCount(1);
     }
-    await page.getByLabel('Capacitación').first().selectOption({ label: trainingTitle });
+    await page
+      .locator('label.field')
+      .filter({ hasText: 'Capacitación' })
+      .first()
+      .locator('select')
+      .selectOption({ label: trainingTitle });
     await page
       .getByLabel('Justificación profesional')
       .fill('Necesidad sintética decidida por el profesional SST.');
@@ -493,7 +498,7 @@ test.describe.serial('workforce safety operations', () => {
     await page
       .getByRole('combobox', { name: 'Centro de trabajo', exact: true })
       .selectOption({ index: 1 });
-    await page.getByLabel('Inicio').fill('2026-01-10T08:00');
+    await page.getByRole('textbox', { name: 'Inicio', exact: true }).fill('2026-01-10T08:00');
     await page.getByLabel('Fin', { exact: true }).fill('2026-01-10T10:00');
     await page.getByLabel('Modalidad').selectOption('IN_PERSON');
     await page.getByLabel('Responsable o facilitador').fill('Profesional SST E2E');
@@ -541,7 +546,7 @@ test.describe.serial('workforce safety operations', () => {
     await expect(page.getByText('Vencida', { exact: true }).first()).toBeVisible();
 
     await page.getByRole('link', { name: 'Capacitación', exact: true }).click();
-    await page.getByLabel('Inicio').fill('2026-08-31T08:00');
+    await page.getByRole('textbox', { name: 'Inicio', exact: true }).fill('2026-08-31T08:00');
     await page.getByLabel('Fin', { exact: true }).fill('2026-08-31T10:00');
     await page.getByLabel('Modalidad').selectOption('HYBRID');
     await page.getByLabel('Capacitación').last().selectOption({ label: trainingTitle });

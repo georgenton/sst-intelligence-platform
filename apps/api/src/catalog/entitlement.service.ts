@@ -1,18 +1,24 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  INCIDENTS_FEATURE_KEY,
   isDemoActive,
   isModuleAccessActive,
   isWorkPermitsDemoPreviewActive,
   parseEntitlement,
+  PPE_FEATURE_KEY,
+  TRAINING_FEATURE_KEY,
   WORKFORCE_PREVIEW_FEATURE_KEYS,
   WORK_PERMITS_FEATURE_KEY,
 } from './entitlement';
 
-const MODULE_FEATURES: Record<string, string> = {
+export const MODULE_FEATURES: Record<string, string> = {
   INSPECTIONS_INTELLIGENCE: 'module.inspections',
   TECHNICAL_RISK: 'module.technical_risk',
   WORK_PERMITS: WORK_PERMITS_FEATURE_KEY,
+  INCIDENTS: INCIDENTS_FEATURE_KEY,
+  PPE: PPE_FEATURE_KEY,
+  TRAINING: TRAINING_FEATURE_KEY,
   PSYCHOSOCIAL: 'module.psychosocial',
   COMPLIANCE: 'module.compliance',
 };
@@ -20,7 +26,9 @@ const MODULE_FEATURES: Record<string, string> = {
 type EffectiveEntitlementSource = {
   id: string;
   status: string;
+  demoStartedAt: Date | null;
   demoExpiresAt: Date | null;
+  bridgeAudits: Array<{ metadata: unknown }>;
   subscriptions: Array<{
     plan: {
       key: string;
@@ -28,7 +36,13 @@ type EffectiveEntitlementSource = {
       planFeatures: Array<{ value: string; feature: { key: string } }>;
     };
   }>;
-  modules: Array<{ status: string; expiresAt: Date | null; module: { key: string } }>;
+  modules: Array<{
+    status: string;
+    source: string;
+    expiresAt: Date | null;
+    metadata: unknown;
+    module: { key: string };
+  }>;
 };
 
 export type EffectiveEntitlements = {
@@ -49,7 +63,12 @@ export class EntitlementService {
       select: {
         id: true,
         status: true,
+        demoStartedAt: true,
         demoExpiresAt: true,
+        auditLogs: {
+          where: { action: 'CAPABILITY_DEMO_ACCESS_ACTIVATED' },
+          select: { metadata: true },
+        },
         subscriptions: {
           where: {
             OR: [
@@ -71,11 +90,17 @@ export class EntitlementService {
         },
         modules: {
           where: { status: { in: ['ACTIVE', 'TRIAL', 'DEMO'] } },
-          select: { status: true, expiresAt: true, module: { select: { key: true } } },
+          select: {
+            status: true,
+            source: true,
+            expiresAt: true,
+            metadata: true,
+            module: { select: { key: true } },
+          },
         },
       },
     });
-    return this.resolveEffective(organization, now);
+    return this.resolveEffective({ ...organization, bridgeAudits: organization.auditLogs }, now);
   }
 
   async effectiveMany(
@@ -89,7 +114,12 @@ export class EntitlementService {
       select: {
         id: true,
         status: true,
+        demoStartedAt: true,
         demoExpiresAt: true,
+        auditLogs: {
+          where: { action: 'CAPABILITY_DEMO_ACCESS_ACTIVATED' },
+          select: { metadata: true },
+        },
         subscriptions: {
           where: {
             OR: [
@@ -111,14 +141,20 @@ export class EntitlementService {
         },
         modules: {
           where: { status: { in: ['ACTIVE', 'TRIAL', 'DEMO'] } },
-          select: { status: true, expiresAt: true, module: { select: { key: true } } },
+          select: {
+            status: true,
+            source: true,
+            expiresAt: true,
+            metadata: true,
+            module: { select: { key: true } },
+          },
         },
       },
     });
     return new Map(
       organizations.map((organization) => [
         organization.id,
-        this.resolveEffective(organization, now),
+        this.resolveEffective({ ...organization, bridgeAudits: organization.auditLogs }, now),
       ]),
     );
   }
@@ -144,10 +180,29 @@ export class EntitlementService {
       if (feature && active) features[feature] = true;
     }
     const demoActive = isDemoActive(organization.demoExpiresAt, now);
-    if (isWorkPermitsDemoPreviewActive(organization.status, organization.demoExpiresAt, now)) {
-      features[WORK_PERMITS_FEATURE_KEY] = true;
-    }
-    if (demoActive) {
+    // Before explicit capability provenance existed, active demo organizations
+    // received the three workforce preview capabilities as a compatibility
+    // fallback. The transactional bridge audit is the organization-level
+    // marker that a human has selected capabilities; module metadata remains
+    // provenance for each selected module, including rows preserved from a
+    // plan or trial grant.
+    const lifecycleStartedAt = organization.demoStartedAt?.toISOString();
+    const hasExplicitCapabilitySelection =
+      lifecycleStartedAt !== undefined &&
+      organization.bridgeAudits.some((audit) => {
+        if (
+          !audit.metadata ||
+          typeof audit.metadata !== 'object' ||
+          Array.isArray(audit.metadata)
+        ) {
+          return false;
+        }
+        return (audit.metadata as { demoStartedAt?: unknown }).demoStartedAt === lifecycleStartedAt;
+      });
+    if (demoActive && !hasExplicitCapabilitySelection) {
+      if (isWorkPermitsDemoPreviewActive(organization.status, organization.demoExpiresAt, now)) {
+        features[WORK_PERMITS_FEATURE_KEY] = true;
+      }
       for (const featureKey of WORKFORCE_PREVIEW_FEATURE_KEYS) features[featureKey] = true;
     }
     return {

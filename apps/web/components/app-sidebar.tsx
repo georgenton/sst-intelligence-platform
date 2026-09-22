@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
   appNavigationGroups,
-  isNavigationItemVisible,
+  isNavigationItemDiscoverable,
+  isNavigationItemLocked,
   resolveActiveNavigationItem,
 } from '@/lib/app-navigation';
 
@@ -46,7 +47,7 @@ export function AppSidebar({
         aria-label="Navegación principal"
       >
         {appNavigationGroups.map((group) => {
-          const items = group.items.filter((item) => isNavigationItemVisible(item, features));
+          const items = group.items.filter((item) => isNavigationItemDiscoverable(item, features));
           if (items.length === 0) return null;
           const groupActive = items.some((item) => item.id === activeItem?.id);
           return (
@@ -55,15 +56,22 @@ export function AppSidebar({
               <div>
                 {items.map((item) => {
                   const active = item.id === activeItem?.id;
+                  const locked = isNavigationItemLocked(item, features);
+                  const lockedLabel =
+                    item.id === 'inspection-resources' ? 'Recursos de inspección' : item.label;
                   return (
                     <Link
-                      href={item.href}
+                      href={
+                        locked ? `/app/modules?focus=${encodeURIComponent(item.id)}` : item.href
+                      }
                       aria-current={active ? 'page' : undefined}
+                      aria-label={locked ? `${lockedLabel} (acceso no activo)` : item.label}
+                      data-locked={locked ? 'true' : undefined}
                       data-active={active}
                       key={item.id}
                     >
                       <span aria-hidden="true" className="app-navigation__marker" />
-                      {item.label}
+                      {locked ? `${item.label} · acceso` : item.label}
                     </Link>
                   );
                 })}

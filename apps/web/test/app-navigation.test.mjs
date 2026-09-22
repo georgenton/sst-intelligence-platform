@@ -4,6 +4,8 @@ import test from 'node:test';
 import { fileURLToPath, URL } from 'node:url';
 import {
   appNavigationItems,
+  isNavigationItemDiscoverable,
+  isNavigationItemLocked,
   isNavigationItemVisible,
   resolveActiveNavigationItem,
 } from '../lib/app-navigation.ts';
@@ -68,4 +70,12 @@ test('domain links follow effective feature visibility while management stays av
   assert.equal(isNavigationItemVisible(ppe, { 'module.ppe': false }), false);
   assert.equal(isNavigationItemVisible(training, { 'module.training': false }), false);
   assert.equal(isNavigationItemVisible(modules, undefined), true);
+});
+
+test('mature locked capabilities remain discoverable without bypassing entitlements', () => {
+  const inspections = appNavigationItems.find((item) => item.id === 'inspections');
+  assert.ok(inspections);
+  assert.equal(isNavigationItemDiscoverable(inspections, { 'module.inspections': false }), true);
+  assert.equal(isNavigationItemLocked(inspections, { 'module.inspections': false }), true);
+  assert.equal(isNavigationItemLocked(inspections, { 'module.inspections': true }), false);
 });
