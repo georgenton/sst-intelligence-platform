@@ -26,8 +26,9 @@ export const MODULE_FEATURES: Record<string, string> = {
 type EffectiveEntitlementSource = {
   id: string;
   status: string;
+  demoStartedAt: Date | null;
   demoExpiresAt: Date | null;
-  auditLogs: Array<{ id: string }>;
+  bridgeAudits: Array<{ metadata: unknown }>;
   subscriptions: Array<{
     plan: {
       key: string;
@@ -62,11 +63,11 @@ export class EntitlementService {
       select: {
         id: true,
         status: true,
+        demoStartedAt: true,
         demoExpiresAt: true,
         auditLogs: {
           where: { action: 'CAPABILITY_DEMO_ACCESS_ACTIVATED' },
-          take: 1,
-          select: { id: true },
+          select: { metadata: true },
         },
         subscriptions: {
           where: {
@@ -99,7 +100,7 @@ export class EntitlementService {
         },
       },
     });
-    return this.resolveEffective(organization, now);
+    return this.resolveEffective({ ...organization, bridgeAudits: organization.auditLogs }, now);
   }
 
   async effectiveMany(
@@ -113,11 +114,11 @@ export class EntitlementService {
       select: {
         id: true,
         status: true,
+        demoStartedAt: true,
         demoExpiresAt: true,
         auditLogs: {
           where: { action: 'CAPABILITY_DEMO_ACCESS_ACTIVATED' },
-          take: 1,
-          select: { id: true },
+          select: { metadata: true },
         },
         subscriptions: {
           where: {
@@ -153,7 +154,7 @@ export class EntitlementService {
     return new Map(
       organizations.map((organization) => [
         organization.id,
-        this.resolveEffective(organization, now),
+        this.resolveEffective({ ...organization, bridgeAudits: organization.auditLogs }, now),
       ]),
     );
   }
@@ -185,7 +186,19 @@ export class EntitlementService {
     // marker that a human has selected capabilities; module metadata remains
     // provenance for each selected module, including rows preserved from a
     // plan or trial grant.
-    const hasExplicitCapabilitySelection = organization.auditLogs.length > 0;
+    const lifecycleStartedAt = organization.demoStartedAt?.toISOString();
+    const hasExplicitCapabilitySelection =
+      lifecycleStartedAt !== undefined &&
+      organization.bridgeAudits.some((audit) => {
+        if (
+          !audit.metadata ||
+          typeof audit.metadata !== 'object' ||
+          Array.isArray(audit.metadata)
+        ) {
+          return false;
+        }
+        return (audit.metadata as { demoStartedAt?: unknown }).demoStartedAt === lifecycleStartedAt;
+      });
     if (demoActive && !hasExplicitCapabilitySelection) {
       if (isWorkPermitsDemoPreviewActive(organization.status, organization.demoExpiresAt, now)) {
         features[WORK_PERMITS_FEATURE_KEY] = true;

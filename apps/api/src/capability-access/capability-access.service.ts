@@ -286,8 +286,8 @@ export class CapabilityAccessService {
       const recommended = new Set(
         assessment.evaluation.recommendations.map(({ capabilityKey }) => capabilityKey),
       );
-      const startsAt = organization.demoStartedAt ?? now;
       const firstActivation = !organization.demoExpiresAt || organization.status !== 'DEMO';
+      const startsAt = firstActivation ? now : (organization.demoStartedAt ?? now);
       const durationDaysValue = featureAccess.features['demo.duration_days'];
       const durationDays =
         typeof durationDaysValue === 'number'
@@ -339,6 +339,7 @@ export class CapabilityAccessService {
             explorationCapabilityKeys: capabilityKeys.filter((key) => !recommended.has(key)),
             engineVersion: assessment.evaluation.engineVersion,
             outputHash: assessment.evaluation.outputHash,
+            demoStartedAt: startsAt.toISOString(),
             expiresAt,
             idempotencyKeyHash: keyHash,
             fingerprint,

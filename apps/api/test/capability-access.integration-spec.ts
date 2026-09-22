@@ -32,6 +32,37 @@ const capabilityEvaluation = {
   ],
 };
 
+const legacySolutionAnswers = {
+  country: 'Ecuador',
+  sector: 'Manufactura',
+  workerRange: '51_200',
+  workCenters: 3,
+  criticalActivities: true,
+  workAtHeight: true,
+  hotWork: true,
+  electricity: false,
+  chemicals: false,
+  drivers: true,
+  fireRisk: true,
+  criticalAssets: true,
+  contractors: true,
+  managementSystem: 'SPREADSHEETS',
+  inspectionFrequency: 'MONTHLY',
+  manualPermits: true,
+  evidenceDifficulty: true,
+  overdueActions: true,
+  recurringFindings: true,
+  psychosocialEvaluation: true,
+  multipleShifts: true,
+  stressExposedRoles: false,
+  organizationalCampaigns: false,
+  objectives: ['COMPLIANCE', 'TRACKING'],
+  urgency: 'HIGH',
+  estimatedUsers: 12,
+  budgetRange: 'LOW',
+  rolloutPreference: 'GRADUAL',
+};
+
 describe('capability access bridge', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -500,6 +531,22 @@ describe('capability access bridge', () => {
         where: { organizationId: f.organizationId, action: 'CAPABILITY_DEMO_ACCESS_ACTIVATED' },
       }),
     ).toBe(2);
+    const lifecycle = await prisma.organization.findUniqueOrThrow({
+      where: { id: f.organizationId },
+      select: { demoStartedAt: true },
+    });
+    const bridgeAudits = await prisma.auditLog.findMany({
+      where: { organizationId: f.organizationId, action: 'CAPABILITY_DEMO_ACCESS_ACTIVATED' },
+      select: { metadata: true },
+    });
+    expect(bridgeAudits).toHaveLength(2);
+    expect(
+      bridgeAudits.every(
+        ({ metadata }) =>
+          (metadata as { demoStartedAt?: string }).demoStartedAt ===
+          lifecycle.demoStartedAt?.toISOString(),
+      ),
+    ).toBe(true);
     const entitlements = await app.get(EntitlementService).effective(f.organizationId);
     expect(entitlements.features['module.inspections']).toBe(true);
     expect(entitlements.features['module.ppe']).toBe(true);
@@ -510,6 +557,16 @@ describe('capability access bridge', () => {
 
   it('preserves legacy demo preview access without bridge provenance', async () => {
     const f = await fixture();
+    await prisma.auditLog.create({
+      data: {
+        organizationId: f.organizationId,
+        action: 'CAPABILITY_DEMO_ACCESS_ACTIVATED',
+        entityType: 'Organization',
+        entityId: f.organizationId,
+        requestId: randomUUID(),
+        metadata: { legacyFixture: true },
+      },
+    });
     await prisma.organization.update({
       where: { id: f.organizationId },
       data: {
@@ -523,6 +580,9 @@ describe('capability access bridge', () => {
     expect(entitlements.features['module.incidents']).toBe(true);
     expect(entitlements.features['module.ppe']).toBe(true);
     expect(entitlements.features['module.training']).toBe(true);
+    expect(
+      (await app.get(EntitlementService).effectiveMany([f.organizationId])).get(f.organizationId),
+    ).toEqual(entitlements);
   });
 
   it('does not treat module metadata alone as a bridge marker', async () => {
@@ -565,5 +625,118 @@ describe('capability access bridge', () => {
         where: { organizationId: f.organizationId, action: 'CAPABILITY_DEMO_ACCESS_ACTIVATED' },
       }),
     ).toBe(0);
+  });
+
+  it('does not let an expired bridge lifecycle suppress a later legacy demo', async () => {
+    const f = await fixture();
+    await api(f)
+      .post('/capability-access/demo')
+      .set('Idempotency-Key', randomUUID())
+      .send({ assessmentId: f.assessment.id, capabilityKeys: ['INSPECTIONS'] })
+      .expect(201);
+    const cycleA = await prisma.organization.findUniqueOrThrow({
+      where: { id: f.organizationId },
+      select: { demoStartedAt: true },
+    });
+    const bridgeAudit = await prisma.auditLog.findFirstOrThrow({
+      where: { organizationId: f.organizationId, action: 'CAPABILITY_DEMO_ACCESS_ACTIVATED' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect((bridgeAudit.metadata as { demoStartedAt: string }).demoStartedAt).toBe(
+      cycleA.demoStartedAt?.toISOString(),
+    );
+    await prisma.organization.update({
+      where: { id: f.organizationId },
+      data: { demoExpiresAt: new Date(Date.now() - 1_000) },
+    });
+    await prisma.organizationModule.updateMany({
+      where: { organizationId: f.organizationId, status: 'DEMO' },
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/solution-finder/sessions')
+      .expect(201);
+    const sessionId = created.body.id as string;
+    const sessionToken = created.body.resumeToken as string;
+    await request(app.getHttpServer())
+      .patch(`/api/v1/solution-finder/sessions/${sessionId}`)
+      .set('x-session-token', sessionToken)
+      .send({ answers: legacySolutionAnswers, currentStep: 6 })
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/solution-finder/sessions/${sessionId}/complete`)
+      .set('x-session-token', sessionToken)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/solution-finder/sessions/${sessionId}/claim`)
+      .set('Authorization', `Bearer ${f.token}`)
+      .set('x-organization-id', f.organizationId)
+      .set('x-session-token', sessionToken)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/solution-finder/sessions/${sessionId}/activate-demo`)
+      .set('Authorization', `Bearer ${f.token}`)
+      .set('x-organization-id', f.organizationId)
+      .set('x-session-token', sessionToken)
+      .expect(201);
+
+    const cycleB = await prisma.organization.findUniqueOrThrow({
+      where: { id: f.organizationId },
+      select: { demoStartedAt: true },
+    });
+    expect(cycleB.demoStartedAt?.getTime()).toBeGreaterThan(cycleA.demoStartedAt!.getTime());
+    const entitlements = await app.get(EntitlementService).effective(f.organizationId);
+    expect(entitlements.features['module.work_permits']).toBe(true);
+    expect(entitlements.features['module.incidents']).toBe(true);
+    expect(entitlements.features['module.ppe']).toBe(true);
+    expect(entitlements.features['module.training']).toBe(true);
+    expect(
+      (await app.get(EntitlementService).effectiveMany([f.organizationId])).get(f.organizationId),
+    ).toEqual(entitlements);
+  });
+
+  it('converts an active legacy lifecycle to exact bridge selection semantics', async () => {
+    const f = await fixture();
+    const legacyStartedAt = new Date(Date.now() - 60_000);
+    await prisma.organization.update({
+      where: { id: f.organizationId },
+      data: {
+        status: 'DEMO',
+        demoStartedAt: legacyStartedAt,
+        demoExpiresAt: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const before = await app.get(EntitlementService).effective(f.organizationId);
+    expect(before.features['module.work_permits']).toBe(true);
+    expect(before.features['module.incidents']).toBe(true);
+    expect(before.features['module.ppe']).toBe(true);
+    expect(before.features['module.training']).toBe(true);
+
+    await api(f)
+      .post('/capability-access/demo')
+      .set('Idempotency-Key', randomUUID())
+      .send({ assessmentId: f.assessment.id, capabilityKeys: ['INSPECTIONS'] })
+      .expect(201);
+
+    const organization = await prisma.organization.findUniqueOrThrow({
+      where: { id: f.organizationId },
+      select: { demoStartedAt: true, demoExpiresAt: true },
+    });
+    expect(organization.demoStartedAt).toEqual(legacyStartedAt);
+    const bridgeAudit = await prisma.auditLog.findFirstOrThrow({
+      where: { organizationId: f.organizationId, action: 'CAPABILITY_DEMO_ACCESS_ACTIVATED' },
+    });
+    expect((bridgeAudit.metadata as { demoStartedAt: string }).demoStartedAt).toBe(
+      legacyStartedAt.toISOString(),
+    );
+    const after = await app.get(EntitlementService).effective(f.organizationId);
+    expect(after.features['module.inspections']).toBe(true);
+    expect(after.features['module.work_permits']).not.toBe(true);
+    expect(after.features['module.incidents']).not.toBe(true);
+    expect(after.features['module.ppe']).not.toBe(true);
+    expect(after.features['module.training']).not.toBe(true);
+    expect(after.demoExpiresAt).toEqual(organization.demoExpiresAt);
   });
 });

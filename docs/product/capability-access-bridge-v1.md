@@ -37,10 +37,14 @@ Inspection demo fixtures remain synthetic and identifiable. PPE, incident and tr
 only opens the implemented modules; it does not create professional selections, incidents,
 training needs, attendance or regulatory rules. Plan Operativo remains an independent flow.
 
-Existing active demo organizations without bridge provenance retain the legacy workforce preview
-fallback. A new bridge activation writes `accessType: DEMO` and the assessment id into each
-selected module's metadata; those explicit rows are authoritative, so a partial human selection
-stays partial.
+The `CAPABILITY_DEMO_ACCESS_ACTIVATED` audit marker is scoped to the current demo lifecycle by
+the exact `Organization.demoStartedAt` ISO value stored in its metadata. Historical bridge audits
+cannot suppress a later legacy Solution Finder demo. An active legacy demo can be converted to
+exact-selection semantics when a human uses the bridge during that same lifecycle; the bridge
+reuses the existing lifecycle start and does not extend expiry. A new bridge activation writes
+`accessType: DEMO` and the assessment id into each selected module's metadata; those explicit rows
+are authoritative, so a partial human selection stays partial. Existing active demo organizations
+without a matching current-lifecycle bridge marker retain the legacy workforce preview fallback.
 
 Migration 35 only adds `INCIDENTS`, `PPE` and `TRAINING` to `ModuleKey`. Canonical reference sync
 provisions their module definitions idempotently; development seed is not required. No real
