@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+  <title id="title">Captura sintética de shell del piloto Anita</title>
+  <desc id="desc">Wireframe documental, no screenshot de producción.</desc>
+  <rect width="1200" height="720" fill="#f7f8fa"/>
+  <rect x="0" y="0" width="250" height="720" fill="#14202b"/>
+  <text x="28" y="44" fill="#ffffff" font-family="sans-serif" font-size="22" font-weight="700">SST Intelligence</text>
+  <text x="28" y="83" fill="#b7c4cf" font-family="sans-serif" font-size="13">ORGANIZACIÓN · CENTRO ACTIVO</text>
+  <g font-family="sans-serif" font-size="16" fill="#edf2f5">
+    <text x="28" y="145">Inicio</text><text x="28" y="190">Evaluación SST</text><text x="28" y="235">Plan operativo</text><text x="28" y="280">Inspecciones</text><text x="28" y="325">EPP</text>
+  </g>
+  <rect x="278" y="36" width="870" height="76" rx="12" fill="#ffffff" stroke="#d7dfe5"/>
+  <text x="310" y="68" fill="#14202b" font-family="sans-serif" font-size="20" font-weight="700">Inicio · Piloto Anita</text>
+  <text x="310" y="94" fill="#647482" font-family="sans-serif" font-size="14">Estado, centros y próximas decisiones operativas</text>
+  <g font-family="sans-serif">
+    <rect x="278" y="142" width="270" height="150" rx="12" fill="#ffffff" stroke="#d7dfe5"/><text x="302" y="178" fill="#647482" font-size="13">CENTRO ACTIVO</text><text x="302" y="214" fill="#14202b" font-size="24" font-weight="700">Centro 1</text><text x="302" y="252" fill="#647482" font-size="14">267 personas asignadas</text>
+    <rect x="570" y="142" width="270" height="150" rx="12" fill="#ffffff" stroke="#d7dfe5"/><text x="594" y="178" fill="#647482" font-size="13">EVALUACIÓN</text><text x="594" y="214" fill="#14202b" font-size="24" font-weight="700">En revisión</text><text x="594" y="252" fill="#647482" font-size="14">motor 1.2.0 · fuente visible</text>
+    <rect x="862" y="142" width="286" height="150" rx="12" fill="#ffffff" stroke="#d7dfe5"/><text x="886" y="178" fill="#647482" font-size="13">COLA DE TRABAJO</text><text x="886" y="214" fill="#14202b" font-size="24" font-weight="700">12 tareas</text><text x="886" y="252" fill="#647482" font-size="14">acciones e inspecciones</text>
+  </g>
+  <rect x="278" y="328" width="870" height="286" rx="12" fill="#ffffff" stroke="#d7dfe5"/>
+  <text x="310" y="370" fill="#14202b" font-family="sans-serif" font-size="18" font-weight="700">Recorrido del piloto</text>
+  <g font-family="sans-serif" font-size="15"><circle cx="340" cy="424" r="18" fill="#3178a7"/><text x="334" y="430" fill="#fff">1</text><text x="376" y="430" fill="#14202b">Evaluar</text><line x1="430" y1="424" x2="570" y2="424" stroke="#9eb5c5" stroke-width="2"/><circle cx="590" cy="424" r="18" fill="#3178a7"/><text x="584" y="430" fill="#fff">2</text><text x="626" y="430" fill="#14202b">Planificar</text><line x1="700" y1="424" x2="840" y2="424" stroke="#9eb5c5" stroke-width="2"/><circle cx="860" cy="424" r="18" fill="#3178a7"/><text x="854" y="430" fill="#fff">3</text><text x="896" y="430" fill="#14202b">Inspeccionar</text><line x1="995" y1="424" x2="1040" y2="424" stroke="#9eb5c5" stroke-width="2"/><circle cx="1060" cy="424" r="18" fill="#3178a7"/><text x="1054" y="430" fill="#fff">4</text><text x="1100" y="430" fill="#14202b">Proteger</text></g>
+  <text x="310" y="560" fill="#647482" font-family="sans-serif" font-size="14">CAPTURA SINTÉTICA · no representa una sesión ni datos de producción</text>
+</svg>
