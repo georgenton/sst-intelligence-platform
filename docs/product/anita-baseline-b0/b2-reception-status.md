@@ -88,7 +88,11 @@ escriben organizaciones reales. El documento local
 `docs/product/inspection-intelligence-deep-audit-2026-09.md` permanece fuera de
 este cambio.
 
-## Cierre focal de recepción y preview
+## Previous verification evidence
+
+Esta sección conserva la evidencia focal y las fichas de decisión producidas antes del
+ajuste final de identificadores. Se mantiene para trazabilidad histórica; los valores
+canónicos de esta entrega están únicamente en `CURRENT FINAL EVIDENCE`.
 
 Este corte se hizo sobre el HEAD recibido y conserva los estados históricos de B0/B1.
 La aclaración de A19-06 es de experiencia de entrevista: el aviso de mínimo se anuncia una
@@ -136,20 +140,26 @@ publicadas, `REGULATORY_SOURCE_DENOMINATOR=15`, `REGULATORY_UNITS_AND_DRAFTS_DEL
 sin cambio`, `UNIT_DECISION_SHEETS=5 fichas concretas`. Las unidades independientes ya
 sustentadas no se bloquean por estas cinco interpretaciones; ninguna aprobación se simula.
 
-## Cierre focal y preview operativo
+## CURRENT FINAL EVIDENCE
 
-- `START_HEAD=e74dfcbdf7427dc88fd41cc8b71b7062703d40c2`.
-- `END_HEAD=bae18db282e5f9cf8619b8a9adec8e70185b9b43` (cierre documental posterior al despliegue funcional).
-- `PR55=OPEN/DRAFT`; no se hizo merge, despliegue productivo ni escritura en una organización real.
-- `QUALITY_GATE_RUN=36173648756`; `QUALITY_GATE_STATUS=SUCCESS`; `QUALITY_GATE_ATTEMPT=1`; el run corresponde exactamente a `END_HEAD`.
-- El gate pasó lint, typecheck, tests, contratos/escenarios SST, validación adaptativa, revisión del corpus regulatorio, integración, build, reference sync, runtime image y E2E (workers 1, retries 0).
-- `MIGRATION_COUNT=36`; la migración 36 es funcional (`Organization.navigationProfile`), no una reparación de drift. No se creó una migración adicional.
-- `A19_06_TECHNICAL=PASS`: el aviso de información mínima usa `role=status`/`aria-live=polite`, ocurre una sola vez por sesión, no se repite tras recarga o retorno y el contexto adicional sigue siendo opcional. `USER_FATIGUE_EFFECT=NOT_MEASURED`; la aceptación humana del copy queda separada.
-- `REGULATORY_DOCUMENTARY_USABILITY=PASS`; `REGULATORY_EXECUTABLE_RULES=0`; cinco fichas de decisión concretas permanecen pendientes sin simular aprobación.
-- `VERCEL_STAGING_SHA=72c76fd19cf9b1e386f33b784f949c6c4be669d0`; deployment `dpl_EteHnqgtQDXXcQygj3Qw76q9oB6S`, `READY`; URL de revisión: `https://sst-intelligence-staging-jo7gxm478-georgentons-projects.vercel.app/evaluacion-sst`.
-- El proyecto Vercel de staging tiene `API_ORIGIN` de preview apuntando a `https://sst-api-staging-staging.up.railway.app`; el valor se comparó solo por host, sin exponer el secreto.
-- `RAILWAY_STAGING_DEPLOYMENT=28a98da9-87ea-4f70-9b54-b46c09be4441`; `SUCCESS`; imagen `sha256:711a0cbead4746ac816c99780d44d63dacd5464abc88c4a921114b617de3ce38`; `/api/v1/health` respondió 200. El predeploy canónico `pnpm --filter @sst/api production:release` está configurado; el servicio no expone un conteo remoto de filas.
-- Cuenta sintética normal de staging: registro, sesión de evaluación, guardado de `Ecuador` y reanudación tras recarga verificados por interfaz; consola sin errores. No se realizó un workflow de cliente real. El único 401 fue un refresh de sesión caducada durante la revisión.
-- `FRONTEND_PROXY_BACKEND_DB=PASS` para esa secuencia sintética; `REMOTE_NORMAL_ACCOUNT_REVIEW=PASS` con cuenta sintética aislada. La URL queda abierta para revisión; no se reutilizan credenciales ni se publican tokens.
-- `ENGINEERING_BLOCKERS=NONE_CONFIRMED`. Pendientes de aceptación: copy A19-01/A19-03/A19-06, fixture A19-04, ampliación A19-05 y efecto subjetivo de fatiga. Pendientes profesionales: las cinco fichas de A19-07 descritas arriba.
-- `B2_IMPLEMENTATION=PARTIAL`: la base funcional y la trazabilidad documental están verificadas; la publicación de reglas ejecutables y las aceptaciones humanas permanecen pendientes. `B3_SISAT_PSICOSOCIAL=NOT_IMPLEMENTED`.
+Esta es la única sección canónica para los identificadores finales de PR55.
+
+- `ALIGNMENT_START_HEAD=89e27105012e3523e7a120918aed37342c193e2e`.
+- `B2_START_HEAD=e74dfcbdf7427dc88fd41cc8b71b7062703d40c2`.
+- `CURRENT_FINAL_HEAD=89e27105012e3523e7a120918aed37342c193e2e`.
+- `PR55=OPEN`; `PR55_DRAFT=YES`; `PR55_MERGED=NO`.
+- `QUALITY_GATE_RUN=36174899750`; `QUALITY_GATE_ATTEMPT=1`; `QUALITY_GATE_STATUS=SUCCESS`; `QUALITY_GATE_SHA=89e27105012e3523e7a120918aed37342c193e2e`.
+- `FRONTEND_PREVIEW=READY`.
+- `STAGING_DEPLOYMENT=dpl_8XnYT4CXn2SqnB2EzsEAddTVxeTN`.
+- `STAGING_URL=https://sst-intelligence-staging-1fegfyzk7-georgentons-projects.vercel.app/evaluacion-sst`.
+- `STAGING_VERCEL_SHA=89e27105012e3523e7a120918aed37342c193e2e`.
+- `RAILWAY_STAGING_DEPLOYMENT=28a98da9-87ea-4f70-9b54-b46c09be4441`.
+- `RAILWAY_API_HEALTH=200` (verificado directamente en `https://sst-api-staging-staging.up.railway.app/api/v1/health`).
+- `VERCEL_PREVIEW_HEALTH_PUBLICLY_PROBEABLE=NO/SSO_PROTECTED`: una comprobación no autenticada del preview puede redirigir a Vercel SSO; no se presenta como health público 200.
+- El `API_ORIGIN` de preview se comparó solo por host y apunta a `sst-api-staging-staging.up.railway.app`; no se expuso el valor sensible.
+- `MIGRATION_COUNT=36`; no hubo cambios de migración en esta alineación documental.
+- `ENGINEERING_BLOCKERS=0`.
+- `PRODUCT_ACCEPTANCE_PENDING=A19-01,A19-03,A19-04,A19-05,A19-06` (copy, fixture, ampliación de cobertura y efecto subjetivo no medido).
+- `PROFESSIONAL_REGULATORY_DECISIONS_PENDING=5 unit decision sheets`; son decisiones de unidad, mapeo y publicación, no una nueva ratificación general del corpus.
+- `REGULATORY_EXECUTABLE_RULES=0`; `publishedRules=0`. La ratificación comunicada se conserva como alcance comunicado, no como firma, aprobación por unidad ni publicación automática.
+- `B2_IMPLEMENTATION=PARTIAL`; `B3_SISAT_PSICOSOCIAL=NOT_IMPLEMENTED`.
