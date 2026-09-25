@@ -135,3 +135,21 @@ Estado resultante: `REGULATORY_DOCUMENTARY_USABILITY=PASS`, `REGULATORY_EXECUTAB
 publicadas, `REGULATORY_SOURCE_DENOMINATOR=15`, `REGULATORY_UNITS_AND_DRAFTS_DELTA=5 drafts
 sin cambio`, `UNIT_DECISION_SHEETS=5 fichas concretas`. Las unidades independientes ya
 sustentadas no se bloquean por estas cinco interpretaciones; ninguna aprobación se simula.
+
+## Cierre focal y preview operativo
+
+- `START_HEAD=e74dfcbdf7427dc88fd41cc8b71b7062703d40c2`.
+- `END_HEAD=72c76fd19cf9b1e386f33b784f949c6c4be669d0`.
+- `PR55=OPEN/DRAFT`; no se hizo merge, despliegue productivo ni escritura en una organización real.
+- `QUALITY_GATE_RUN=36171643062`; `QUALITY_GATE_STATUS=SUCCESS`; `QUALITY_GATE_ATTEMPT=1`; el run corresponde exactamente a `END_HEAD`.
+- El gate pasó lint, typecheck, tests, contratos/escenarios SST, validación adaptativa, revisión del corpus regulatorio, integración, build, reference sync, runtime image y E2E (workers 1, retries 0).
+- `MIGRATION_COUNT=36`; la migración 36 es funcional (`Organization.navigationProfile`), no una reparación de drift. No se creó una migración adicional.
+- `A19_06_TECHNICAL=PASS`: el aviso de información mínima usa `role=status`/`aria-live=polite`, ocurre una sola vez por sesión, no se repite tras recarga o retorno y el contexto adicional sigue siendo opcional. `USER_FATIGUE_EFFECT=NOT_MEASURED`; la aceptación humana del copy queda separada.
+- `REGULATORY_DOCUMENTARY_USABILITY=PASS`; `REGULATORY_EXECUTABLE_RULES=0`; cinco fichas de decisión concretas permanecen pendientes sin simular aprobación.
+- `VERCEL_STAGING_SHA=72c76fd19cf9b1e386f33b784f949c6c4be669d0`; deployment `dpl_EteHnqgtQDXXcQygj3Qw76q9oB6S`, `READY`; URL de revisión: `https://sst-intelligence-staging-jo7gxm478-georgentons-projects.vercel.app/evaluacion-sst`.
+- El proyecto Vercel de staging tiene `API_ORIGIN` de preview apuntando a `https://sst-api-staging-staging.up.railway.app`; el valor se comparó solo por host, sin exponer el secreto.
+- `RAILWAY_STAGING_DEPLOYMENT=28a98da9-87ea-4f70-9b54-b46c09be4441`; `SUCCESS`; imagen `sha256:711a0cbead4746ac816c99780d44d63dacd5464abc88c4a921114b617de3ce38`; `/api/v1/health` respondió 200. El predeploy canónico `pnpm --filter @sst/api production:release` está configurado; el servicio no expone un conteo remoto de filas.
+- Cuenta sintética normal de staging: registro, sesión de evaluación, guardado de `Ecuador` y reanudación tras recarga verificados por interfaz; consola sin errores. No se realizó un workflow de cliente real. El único 401 fue un refresh de sesión caducada durante la revisión.
+- `FRONTEND_PROXY_BACKEND_DB=PASS` para esa secuencia sintética; `REMOTE_NORMAL_ACCOUNT_REVIEW=PASS` con cuenta sintética aislada. La URL queda abierta para revisión; no se reutilizan credenciales ni se publican tokens.
+- `ENGINEERING_BLOCKERS=NONE_CONFIRMED`. Pendientes de aceptación: copy A19-01/A19-03/A19-06, fixture A19-04, ampliación A19-05 y efecto subjetivo de fatiga. Pendientes profesionales: las cinco fichas de A19-07 descritas arriba.
+- `B2_IMPLEMENTATION=PARTIAL`: la base funcional y la trazabilidad documental están verificadas; la publicación de reglas ejecutables y las aceptaciones humanas permanecen pendientes. `B3_SISAT_PSICOSOCIAL=NOT_IMPLEMENTED`.
