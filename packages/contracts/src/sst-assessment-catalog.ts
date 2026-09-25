@@ -108,6 +108,20 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     30,
   ),
   definition(
+    'organization.complementaryActivityDescription',
+    'Perfil organizacional',
+    'ORGANIZATION',
+    'SHORT_TEXT',
+    '¿Qué actividades complementarias también realiza la organización?',
+    31,
+    {
+      helpText:
+        'Sepáralas de la actividad principal. Si no existen o todavía no están confirmadas, indícalo.',
+      maxLength: 2_000,
+      collectionPolicy: 'CONTEXT_RECOMMENDED',
+    },
+  ),
+  definition(
     'organization.totalWorkerCount',
     'Personas y operación',
     'ORGANIZATION',
@@ -566,6 +580,25 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     'BOOLEAN',
     '¿En este centro existen procesos con sustancias químicas?',
     1060,
+  ),
+  definition(
+    'workCenter.chemicalUseContexts',
+    'Exposiciones operativas',
+    'WORK_CENTER',
+    'MULTI_CHOICE',
+    '¿En qué contextos se usan sustancias químicas en este centro?',
+    1061,
+    {
+      choices: choices(
+        ['CLEANING', 'Limpieza o mantenimiento'],
+        ['INDUSTRIAL_PROCESS', 'Proceso industrial'],
+        ['STORAGE_OR_HANDLING', 'Almacenamiento o manipulación'],
+        ['UNKNOWN_CONTEXT', 'Contexto aún no confirmado'],
+      ),
+      helpText:
+        'Distingue la limpieza química de un proceso industrial para no inferir una exposición que no fue confirmada.',
+      collectionPolicy: 'CONTEXT_RECOMMENDED',
+    },
   ),
   definition(
     'workCenter.hasHighEnergyOperations',

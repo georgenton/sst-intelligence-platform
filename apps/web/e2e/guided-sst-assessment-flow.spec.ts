@@ -1,4 +1,4 @@
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
 import {
   createE2eOrganizationProfile,
   createE2eOrganization,
@@ -281,7 +281,32 @@ test('guided setup keeps multi-center context human, editable and capability-saf
     path: testInfo.outputPath('cloud-question-center-1.png'),
     fullPage: true,
   });
-  await page.getByRole('radio', { name: 'Presencial', exact: true }).check();
+  const presencial = page.getByRole('radio', { name: 'Presencial', exact: true });
+  const remota = page.getByRole('radio', { name: 'Remota', exact: true });
+  const presencialCard = page.locator('label.assessment-option').filter({ hasText: 'Presencial' });
+  const remotaCard = page.locator('label.assessment-option').filter({ hasText: 'Remota' });
+  for (const card of [presencialCard, remotaCard]) {
+    const box = await card.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    await expect(card.locator('.assessment-option__label')).toBeVisible();
+  }
+  await presencial.check();
+  await expect(presencial).toBeChecked();
+  const clickCenter = async (locator: Locator) => {
+    const box = await locator.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  };
+  await clickCenter(remotaCard.locator('.assessment-option__marker'));
+  await expect(remota).toBeChecked();
+  await clickCenter(presencialCard.locator('.assessment-option__label'));
+  await expect(presencial).toBeChecked();
+  await clickCenter(remotaCard);
+  await expect(remota).toBeChecked();
+  await presencial.focus();
+  await page.keyboard.press('Space');
+  await expect(presencial).toBeChecked();
   await page.getByRole('button', { name: 'Continuar', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Ahora revisaremos Centro 2' })).toBeFocused();
   await waitForAssessmentMotion(page);
@@ -437,6 +462,10 @@ test('guided setup keeps multi-center context human, editable and capability-saf
   await expect(
     page.getByText('Información mínima para el diagnóstico completada').first(),
   ).toBeVisible();
+  await expect(page.locator('.assessment-review__notice[role="status"]')).toContainText(
+    'No podemos comparar todavía estas magnitudes',
+  );
+  await expect(page.getByRole('button', { name: 'Aclarar datos de personas' })).toBeVisible();
   await expect(page.getByText(/Objetivos que buscas con la plataforma/i)).toHaveCount(0);
   await page.getByRole('button', { name: 'Añadir contexto opcional' }).click();
   await expect(page.locator('[data-question-id]')).toBeVisible();

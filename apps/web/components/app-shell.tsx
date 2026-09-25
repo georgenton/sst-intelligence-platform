@@ -33,6 +33,7 @@ import { SetupShell } from './sst-assessment/setup-shell';
 type Organization = {
   id: string;
   name: string;
+  navigationProfile?: 'PILOT' | 'FULL';
   status: string;
   demoExpiresAt?: string;
   memberships: Array<{ role: string }>;
@@ -293,7 +294,7 @@ export function AppShell({ children }: PropsWithChildren) {
           pathname={pathname}
           features={{
             ...(entitlements.data?.features ?? {}),
-            'navigation.profile': process.env.NEXT_PUBLIC_SST_NAVIGATION_PROFILE ?? 'FULL',
+            'navigation.profile': current?.navigationProfile ?? 'FULL',
           }}
         />
         <div className="app-main">

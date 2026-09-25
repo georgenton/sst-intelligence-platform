@@ -282,6 +282,82 @@ export function assessmentWorkerCountMismatch(
     : `La suma informada por centros es ${new Intl.NumberFormat('es-EC').format(comparison.sum)}, mientras que el total de la organización es ${new Intl.NumberFormat('es-EC').format(comparison.total)}. Puedes continuar y corregirlo después.`;
 }
 
+export type AssessmentWorkerCountClarification = {
+  reason:
+    | 'MISSING_METADATA'
+    | 'MEANING_MISMATCH'
+    | 'PERIOD_MISMATCH'
+    | 'COVERAGE_MISMATCH'
+    | 'OVERLAP_UNCONFIRMED'
+    | 'INVALID_MAGNITUDE';
+  message: string;
+  factKeys: readonly string[];
+};
+
+const headcountMetadataKeys = [
+  'organization.totalWorkerCount',
+  'organization.headcountMeaning',
+  'organization.headcountPeriod',
+  'organization.headcountCoverage',
+  'organization.headcountOverlap',
+] as const;
+
+const headcountReasonMessages: Record<
+  Exclude<AssessmentWorkerCountClarification['reason'], 'MISSING_METADATA'>,
+  string
+> = {
+  INVALID_MAGNITUDE: 'Las cifras deben ser números válidos para poder compararlas.',
+  MEANING_MISMATCH:
+    'Las cifras usan significados distintos (por ejemplo, nómina y presencia habitual).',
+  PERIOD_MISMATCH: 'Las cifras corresponden a fechas o periodos distintos.',
+  COVERAGE_MISMATCH: 'Las cifras cubren poblaciones distintas.',
+  OVERLAP_UNCONFIRMED:
+    'No está confirmado que una persona aparezca una sola vez entre los centros.',
+};
+
+/** Explains why E-02 cannot reconcile the organization total with its centers and offers a correction path. */
+export function assessmentWorkerCountClarification(
+  facts: readonly SstAssessmentFact[],
+  scopes: readonly SstAssessmentScope[],
+): AssessmentWorkerCountClarification | null {
+  const known = (scopeKey: string, factKey: string) =>
+    facts.some(
+      (fact) =>
+        fact.scopeKey === scopeKey && fact.factKey === factKey && fact.answerState === 'KNOWN',
+    );
+  const factKeys = scopes
+    .filter(({ kind }) => kind === 'WORK_CENTER')
+    .flatMap(({ scopeKey }) => [
+      `${scopeKey}:workCenter.workerCount`,
+      `${scopeKey}:workCenter.headcountMeaning`,
+      `${scopeKey}:workCenter.headcountPeriod`,
+      `${scopeKey}:workCenter.headcountCoverage`,
+    ]);
+  const required = [
+    ...headcountMetadataKeys.map((factKey) => `organization:${factKey}`),
+    ...factKeys,
+  ];
+  const missing = required.filter((identity) => {
+    const separator = identity.indexOf(':');
+    return !known(identity.slice(0, separator), identity.slice(separator + 1));
+  });
+  const comparison = assessmentWorkerCountComparison(facts, scopes);
+  if (!comparison) {
+    return {
+      reason: 'MISSING_METADATA',
+      message:
+        'Para comparar el total con los centros necesitamos confirmar qué mide cada cifra, su periodo, cobertura y solapamiento.',
+      factKeys: missing,
+    };
+  }
+  if (comparison.comparable) return null;
+  return {
+    reason: comparison.reason,
+    message: headcountReasonMessages[comparison.reason],
+    factKeys: [...headcountMetadataKeys.map((factKey) => `organization:${factKey}`), ...factKeys],
+  };
+}
+
 export function assessmentWorkerCountComparison(
   facts: readonly SstAssessmentFact[],
   scopes: readonly SstAssessmentScope[],
