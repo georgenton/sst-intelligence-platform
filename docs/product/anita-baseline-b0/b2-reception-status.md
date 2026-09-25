@@ -139,9 +139,9 @@ sustentadas no se bloquean por estas cinco interpretaciones; ninguna aprobación
 ## Cierre focal y preview operativo
 
 - `START_HEAD=e74dfcbdf7427dc88fd41cc8b71b7062703d40c2`.
-- `END_HEAD=72c76fd19cf9b1e386f33b784f949c6c4be669d0`.
+- `END_HEAD=bae18db282e5f9cf8619b8a9adec8e70185b9b43` (cierre documental posterior al despliegue funcional).
 - `PR55=OPEN/DRAFT`; no se hizo merge, despliegue productivo ni escritura en una organización real.
-- `QUALITY_GATE_RUN=36171643062`; `QUALITY_GATE_STATUS=SUCCESS`; `QUALITY_GATE_ATTEMPT=1`; el run corresponde exactamente a `END_HEAD`.
+- `QUALITY_GATE_RUN=36173648756`; `QUALITY_GATE_STATUS=SUCCESS`; `QUALITY_GATE_ATTEMPT=1`; el run corresponde exactamente a `END_HEAD`.
 - El gate pasó lint, typecheck, tests, contratos/escenarios SST, validación adaptativa, revisión del corpus regulatorio, integración, build, reference sync, runtime image y E2E (workers 1, retries 0).
 - `MIGRATION_COUNT=36`; la migración 36 es funcional (`Organization.navigationProfile`), no una reparación de drift. No se creó una migración adicional.
 - `A19_06_TECHNICAL=PASS`: el aviso de información mínima usa `role=status`/`aria-live=polite`, ocurre una sola vez por sesión, no se repite tras recarga o retorno y el contexto adicional sigue siendo opcional. `USER_FATIGUE_EFFECT=NOT_MEASURED`; la aceptación humana del copy queda separada.
