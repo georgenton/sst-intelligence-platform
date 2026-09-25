@@ -5,10 +5,12 @@ export function AssessmentProgress({
   progress,
   activeTopic,
   diagnosisReady = false,
+  readinessAnnouncement = false,
 }: {
   progress: SstAssessmentProgress;
   activeTopic?: string;
   diagnosisReady?: boolean;
+  readinessAnnouncement?: boolean;
 }) {
   const humanProgress = aggregateAssessmentProgress(progress, activeTopic);
   return (
@@ -19,6 +21,17 @@ export function AssessmentProgress({
             ? 'Información mínima para el diagnóstico completada'
             : `${humanProgress.completedTopics} de ${humanProgress.totalTopics} áreas de contexto con información suficiente`}
         </strong>
+        {readinessAnnouncement ? (
+          <p
+            className="assessment-progress__readiness-announcement"
+            role="status"
+            aria-live="polite"
+            data-readiness-announcement="true"
+          >
+            Ya tenemos la información mínima para generar tu diagnóstico. Puedes revisar lo
+            confirmado o añadir contexto opcional.
+          </p>
+        ) : null}
         <div className="assessment-progress__support" aria-hidden="true">
           <span
             style={{

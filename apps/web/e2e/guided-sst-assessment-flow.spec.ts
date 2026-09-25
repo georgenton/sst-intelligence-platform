@@ -462,6 +462,8 @@ test('guided setup keeps multi-center context human, editable and capability-saf
   await expect(
     page.getByText('Información mínima para el diagnóstico completada').first(),
   ).toBeVisible();
+  await page.reload();
+  await expect(page.locator('[data-readiness-announcement="true"]')).toHaveCount(0);
   await expect(page.locator('.assessment-review__notice[role="status"]')).toContainText(
     'No podemos comparar todavía estas magnitudes',
   );

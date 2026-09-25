@@ -1150,6 +1150,10 @@ h2 {
 .assessment-progress__summary strong {
   color: var(--text-primary);
 }
+.assessment-progress__readiness-announcement {
+  margin: 0.65rem 0 0;
+  color: var(--text-primary);
+}
 .assessment-progress__support {
   flex: 1;
   min-width: 48px;
