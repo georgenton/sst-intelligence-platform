@@ -1332,14 +1332,27 @@ h2 {
     background var(--motion-fast) var(--motion-ease);
 }
 .assessment-option input[type='radio'] {
-  flex: 0 0 auto;
-  width: 18px;
-  min-height: 0;
-  height: 18px;
-  margin: 0;
-  accent-color: var(--interactive-primary);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
 }
-.assessment-option span {
+.assessment-option__marker {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+.assessment-option[data-selected='true'] .assessment-option__marker {
+  border: 4px solid var(--interactive-primary);
+}
+.assessment-option__label {
   overflow-wrap: anywhere;
 }
 .assessment-option:has(:focus-visible) {

@@ -289,7 +289,13 @@ export function AppShell({ children }: PropsWithChildren) {
         Saltar al contenido principal
       </a>
       <div className="app-layout">
-        <AppSidebar pathname={pathname} features={entitlements.data?.features} />
+        <AppSidebar
+          pathname={pathname}
+          features={{
+            ...(entitlements.data?.features ?? {}),
+            'navigation.profile': process.env.NEXT_PUBLIC_SST_NAVIGATION_PROFILE ?? 'FULL',
+          }}
+        />
         <div className="app-main">
           <AppTopbar
             activeId={activeId}

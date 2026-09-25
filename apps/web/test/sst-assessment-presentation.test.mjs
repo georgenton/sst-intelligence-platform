@@ -276,7 +276,7 @@ test('allows public declarations for country and sector to be corrected without 
   assert.equal(editableQuestionForFact(organizationFact, scope), null);
 });
 
-test('reports a non-blocking organization and center worker-count mismatch', () => {
+test('does not compare worker counts until every magnitude is semantically aligned', () => {
   const scopes = [
     { scopeKey: 'organization', kind: 'ORGANIZATION', order: 0, displayName: 'Organización' },
     { scopeKey: 'center:1', kind: 'WORK_CENTER', order: 1, displayName: 'Centro 1' },
@@ -289,7 +289,7 @@ test('reports a non-blocking organization and center worker-count mismatch', () 
     value,
     provenance: { source: 'PUBLIC_DECLARATION' },
   });
-  assert.match(
+  assert.equal(
     assessmentWorkerCountMismatch(
       [
         fact('organization.totalWorkerCount', 'organization', 60),
@@ -298,8 +298,39 @@ test('reports a non-blocking organization and center worker-count mismatch', () 
       ],
       scopes,
     ),
-    /55.*60/,
+    null,
   );
+});
+
+test('reports a non-blocking mismatch only for aligned headcount measures', () => {
+  const scopes = [
+    { scopeKey: 'organization', kind: 'ORGANIZATION', order: 0, displayName: 'Organización' },
+    { scopeKey: 'center:1', kind: 'WORK_CENTER', order: 1, displayName: 'Centro 1' },
+    { scopeKey: 'center:2', kind: 'WORK_CENTER', order: 2, displayName: 'Centro 2' },
+  ];
+  const fact = (factKey, scopeKey, value) => ({
+    factKey,
+    scopeKey,
+    answerState: 'KNOWN',
+    value,
+    provenance: { source: 'PUBLIC_DECLARATION' },
+  });
+  const facts = [
+    fact('organization.totalWorkerCount', 'organization', 60),
+    fact('organization.headcountMeaning', 'organization', 'USUAL_PRESENCE'),
+    fact('organization.headcountPeriod', 'organization', '2026-09'),
+    fact('organization.headcountCoverage', 'organization', 'ALL_ACTIVE_WORKERS'),
+    fact('organization.headcountOverlap', 'organization', false),
+    fact('workCenter.workerCount', 'center:1', 40),
+    fact('workCenter.workerCount', 'center:2', 15),
+    fact('workCenter.headcountMeaning', 'center:1', 'USUAL_PRESENCE'),
+    fact('workCenter.headcountMeaning', 'center:2', 'USUAL_PRESENCE'),
+    fact('workCenter.headcountPeriod', 'center:1', '2026-09'),
+    fact('workCenter.headcountPeriod', 'center:2', '2026-09'),
+    fact('workCenter.headcountCoverage', 'center:1', 'ALL_ACTIVE_WORKERS'),
+    fact('workCenter.headcountCoverage', 'center:2', 'ALL_ACTIVE_WORKERS'),
+  ];
+  assert.match(assessmentWorkerCountMismatch(facts, scopes), /55.*60/);
 });
 
 test('humanizes choices, multi-choice values, unknowns, facts and topics without exposing raw keys', () => {

@@ -107,7 +107,7 @@ describe('unified SST capability recommendation engine', () => {
     expect(forward.engineVersion).toBe(SST_CAPABILITY_ENGINE_VERSION);
     // Version identity does not participate in the existing input hash.
     expect(forward.inputHash).toBe(
-      'sha256:3c62ebf0acf91502a3f10ec25b06ad6b70ee15c6703a857953e0a402e16be6f1',
+      'sha256:d3fcd594001e869214a7f2de13df50c7a374b3f99b2265cd4fcd8c07affd7a3c',
     );
     expect(forward.recommendations.map(({ capabilityKey }) => capabilityKey)).toEqual(
       expect.arrayContaining([

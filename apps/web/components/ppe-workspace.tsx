@@ -1,11 +1,11 @@
 'use client';
 
 import { Card } from '@sst/ui';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
 import { queryKeys } from '@/lib/query-keys';
-import type { WorkerChoice } from '@/lib/ppe-presentation';
+import type { PpeAggregateResponse, WorkerChoice } from '@/lib/ppe-presentation';
 import { useOrganization } from './app-shell';
 import { WorkspaceHeader, WorkspaceSection, WorkspaceShell } from './workspace';
 import { PpeFlow, usePpeApi, type PpeApi } from './ppe-experience-ui';
@@ -108,6 +108,11 @@ function Metric({
 }
 function Landing({ api }: { api: PpeApi }) {
   const positions = usePpePositions(api);
+  const aggregate = useQuery({
+    queryKey: queryKeys.organization.ppeAggregate(api.organizationId),
+    queryFn: ({ signal }) => api.request<PpeAggregateResponse>('/ppe/aggregate', { signal }),
+    retry: 1,
+  });
   const replacements = useAttention(api, 'REPLACEMENT_DUE');
   const reviews = useAttention(api, 'REVIEW_REQUIRED');
   const attentionReady =
@@ -147,6 +152,7 @@ function Landing({ api }: { api: PpeApi }) {
           retry={() => void reviews.refetch()}
         />
       </div>
+      <AggregateSummary aggregate={aggregate} />
       <WorkspaceSection title="¿Qué necesitas hacer?">
         <div className={styles.grid}>
           <article className={styles.primary}>
@@ -230,6 +236,80 @@ function Landing({ api }: { api: PpeApi }) {
         </Link>
       </Card>
     </>
+  );
+}
+
+function AggregateSummary({ aggregate }: { aggregate: UseQueryResult<PpeAggregateResponse> }) {
+  return (
+    <WorkspaceSection
+      title="Resumen completo de protección"
+      description="La plataforma calcula estas cantidades en el servidor sobre todos los registros del contexto activo. El stock y la caducidad certificada no están registrados en este modelo."
+    >
+      {aggregate.isError ? (
+        <div role="alert">
+          <p>No pudimos cargar el resumen completo. No mostramos totales parciales.</p>
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => void aggregate.refetch()}
+          >
+            Reintentar resumen
+          </button>
+        </div>
+      ) : aggregate.isPending || aggregate.isFetching ? (
+        <p>Consultando todos los registros…</p>
+      ) : aggregate.data?.complete ? (
+        <>
+          <dl className={styles.facts}>
+            <div>
+              <dt>Requisitos asignados</dt>
+              <dd>{aggregate.data.totals.requiredQuantity}</dd>
+            </div>
+            <div>
+              <dt>Unidades actuales</dt>
+              <dd>{aggregate.data.totals.currentQuantity}</dd>
+            </div>
+            <div>
+              <dt>Reemplazos requeridos</dt>
+              <dd>{aggregate.data.totals.replacementDueQuantity}</dd>
+            </div>
+            <div>
+              <dt>Condiciones por revisar</dt>
+              <dd>{aggregate.data.totals.reviewRequiredQuantity}</dd>
+            </div>
+            <div>
+              <dt>Unidades históricas</dt>
+              <dd>{aggregate.data.totals.historicalQuantity}</dd>
+            </div>
+          </dl>
+          {aggregate.data.groups.length ? (
+            <>
+              <p>
+                Mostrando {Math.min(aggregate.data.groups.length, 8)} de{' '}
+                {aggregate.data.totals.groupCount} combinaciones de elemento y centro.
+              </p>
+              <ul className={styles.list}>
+                {aggregate.data.groups.slice(0, 8).map((group) => (
+                  <li key={group.key} className={styles.row}>
+                    <div>
+                      <strong>{group.catalogItem.name}</strong>
+                      <p>{group.workCenter?.name ?? 'Sin centro asignado'}</p>
+                    </div>
+                    <span>
+                      {group.currentQuantity} actuales · {group.requiredQuantity} requeridas
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p>No hay requisitos ni entregas registradas en este contexto.</p>
+          )}
+        </>
+      ) : (
+        <p>El resumen no está disponible.</p>
+      )}
+    </WorkspaceSection>
   );
 }
 function People({ api }: { api: PpeApi }) {

@@ -8,6 +8,7 @@ import {
   type SstCapabilityPendingInformation,
 } from '@sst/contracts';
 import { SST_ASSESSMENT_FACT_CATALOG } from '@sst/contracts/sst-assessment-catalog';
+import { compareHeadcountMeasures, type HeadcountComparison } from '@sst/contracts/sst-headcount';
 import { ApiClientError } from '@sst/api-client';
 
 const definitions = new Map(SST_ASSESSMENT_FACT_CATALOG.map((item) => [item.factKey, item]));
@@ -274,37 +275,66 @@ export function assessmentWorkerCountMismatch(
   facts: readonly SstAssessmentFact[],
   scopes: readonly SstAssessmentScope[],
 ) {
-  const organizationTotal = facts.find(
-    ({ scopeKey, factKey, answerState }) =>
-      scopeKey === 'organization' &&
-      factKey === 'organization.totalWorkerCount' &&
-      answerState === 'KNOWN',
-  );
-  if (organizationTotal?.answerState !== 'KNOWN' || typeof organizationTotal.value !== 'number')
-    return null;
-  const centerCounts = scopes
-    .filter(({ kind }) => kind === 'WORK_CENTER')
-    .map((scope) =>
-      facts.find(
-        ({ scopeKey, factKey, answerState }) =>
-          scopeKey === scope.scopeKey &&
-          factKey === 'workCenter.workerCount' &&
-          answerState === 'KNOWN',
-      ),
-    );
-  if (
-    centerCounts.length === 0 ||
-    centerCounts.some((fact) => fact?.answerState !== 'KNOWN' || typeof fact.value !== 'number')
-  )
-    return null;
-  const centerTotal = centerCounts.reduce(
-    (total, fact) =>
-      total + (fact?.answerState === 'KNOWN' && typeof fact.value === 'number' ? fact.value : 0),
-    0,
-  );
-  return centerTotal === organizationTotal.value
+  const comparison = assessmentWorkerCountComparison(facts, scopes);
+  if (!comparison?.comparable || comparison.difference === 0) return null;
+  return comparison.sum === comparison.total
     ? null
-    : `La suma informada por centros es ${new Intl.NumberFormat('es-EC').format(centerTotal)}, mientras que el total de la organización es ${new Intl.NumberFormat('es-EC').format(organizationTotal.value)}. Puedes continuar y corregirlo después.`;
+    : `La suma informada por centros es ${new Intl.NumberFormat('es-EC').format(comparison.sum)}, mientras que el total de la organización es ${new Intl.NumberFormat('es-EC').format(comparison.total)}. Puedes continuar y corregirlo después.`;
+}
+
+export function assessmentWorkerCountComparison(
+  facts: readonly SstAssessmentFact[],
+  scopes: readonly SstAssessmentScope[],
+): HeadcountComparison | null {
+  const known = (scopeKey: string, factKey: string) => {
+    const fact = facts.find(
+      (candidate) =>
+        candidate.scopeKey === scopeKey &&
+        candidate.factKey === factKey &&
+        candidate.answerState === 'KNOWN',
+    );
+    return fact?.answerState === 'KNOWN' ? fact.value : undefined;
+  };
+  const total = known('organization', 'organization.totalWorkerCount');
+  const meaning = known('organization', 'organization.headcountMeaning');
+  const period = known('organization', 'organization.headcountPeriod');
+  const coverage = known('organization', 'organization.headcountCoverage');
+  const overlap = known('organization', 'organization.headcountOverlap');
+  const centers = scopes
+    .filter(({ kind }) => kind === 'WORK_CENTER')
+    .map((scope) => ({
+      value: known(scope.scopeKey, 'workCenter.workerCount'),
+      meaning: known(scope.scopeKey, 'workCenter.headcountMeaning'),
+      period: known(scope.scopeKey, 'workCenter.headcountPeriod'),
+      coverage: known(scope.scopeKey, 'workCenter.headcountCoverage'),
+    }));
+  if (
+    typeof total !== 'number' ||
+    typeof meaning !== 'string' ||
+    typeof period !== 'string' ||
+    typeof coverage !== 'string' ||
+    typeof overlap !== 'boolean' ||
+    centers.length === 0 ||
+    centers.some(
+      (center) =>
+        typeof center.value !== 'number' ||
+        typeof center.meaning !== 'string' ||
+        typeof center.period !== 'string' ||
+        typeof center.coverage !== 'string',
+    )
+  ) {
+    return null;
+  }
+  return compareHeadcountMeasures(
+    { value: total, meaning, period, coverage, overlap },
+    centers.map((center) => ({
+      value: center.value as number,
+      meaning: center.meaning as string,
+      period: center.period as string,
+      coverage: center.coverage as string,
+      overlap,
+    })),
+  );
 }
 
 export function editableQuestionForFact(

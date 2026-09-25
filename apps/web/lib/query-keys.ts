@@ -102,6 +102,8 @@ export const queryKeys = {
       [...privateRoot, 'org', organizationId, 'training', 'plan'] as const,
     ppeCatalog: (organizationId: string, filters = '') =>
       [...privateRoot, 'org', organizationId, 'ppe', 'catalog', filters] as const,
+    ppeAggregate: (organizationId: string, filters = '') =>
+      [...privateRoot, 'org', organizationId, 'ppe', 'aggregate', filters] as const,
     workerPpe: (organizationId: string, workerId: string) =>
       [...privateRoot, 'org', organizationId, 'ppe', 'worker', workerId] as const,
     trainingDefinitions: (organizationId: string, filters = '') =>
