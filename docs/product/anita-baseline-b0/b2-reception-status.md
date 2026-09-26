@@ -142,21 +142,33 @@ sustentadas no se bloquean por estas cinco interpretaciones; ninguna aprobación
 
 ## CURRENT FINAL EVIDENCE
 
-Esta es la única sección canónica para los identificadores finales de PR55.
+Esta es la única sección canónica para los identificadores finales de PR55. Las
+identificaciones funcionales y las de documentación se mantienen separadas para no
+convertir una validación anterior en evidencia de un HEAD distinto.
 
-- `ALIGNMENT_START_HEAD=89e27105012e3523e7a120918aed37342c193e2e`.
+### Functional validation evidence
+
+- `BASE_MAIN_SHA=d20d2ff7f10871271587571b1825f409b7b534e0`.
 - `B2_START_HEAD=e74dfcbdf7427dc88fd41cc8b71b7062703d40c2`.
-- `CURRENT_FINAL_HEAD=89e27105012e3523e7a120918aed37342c193e2e`.
+- `FUNCTIONAL_VALIDATION_HEAD=89e27105012e3523e7a120918aed37342c193e2e`.
+- `FUNCTIONAL_QUALITY_GATE_RUN=36174899750`; `FUNCTIONAL_QUALITY_GATE_STATUS=SUCCESS`.
+- `FUNCTIONAL_STAGING_DEPLOYMENT=dpl_8XnYT4CXn2SqnB2EzsEAddTVxeTN`.
+- `FUNCTIONAL_STAGING_URL=https://sst-intelligence-staging-1fegfyzk7-georgentons-projects.vercel.app/evaluacion-sst`.
+- `FUNCTIONAL_RAILWAY_STAGING_DEPLOYMENT=28a98da9-87ea-4f70-9b54-b46c09be4441`.
+- `FUNCTIONAL_RAILWAY_HEALTH=200` (verificado directamente en `https://sst-api-staging-staging.up.railway.app/api/v1/health`).
+
+### Current final documentation evidence
+
+- `CURRENT_FINAL_HEAD=114789aabcb734856bd1beee0f1d89ed8f297f64`.
+- `FINAL_DOCUMENTATION_QUALITY_GATE_RUN=36182083049`; `FINAL_DOCUMENTATION_QUALITY_GATE_STATUS=SUCCESS`; `FINAL_DOCUMENTATION_QUALITY_GATE_ATTEMPT=1`; `FINAL_DOCUMENTATION_QUALITY_GATE_SHA=114789aabcb734856bd1beee0f1d89ed8f297f64`.
+- `STAGING_DOCUMENTATION_DEPLOYMENT=dpl_G5SiMmJjxY4CnG8RxEBQ7xNi8Zer`; `STAGING_DOCUMENTATION_URL=https://sst-intelligence-staging-qu8lcf004-georgentons-projects.vercel.app`; `STAGING_DOCUMENTATION_STATUS=READY`.
+- `PLATFORM_DOCUMENTATION_DEPLOYMENT=dpl_5tEghYYC3TYc8bDcZ24Rmy3FgNeB`; `PLATFORM_DOCUMENTATION_STATUS=READY`.
+- `DEMO_DOCUMENTATION_DEPLOYMENT=dpl_2etC4wLz7zmWRkqAeeChKWFw23JG`; `DEMO_DOCUMENTATION_STATUS=READY`.
+- `APPLICATION_CODE_DELTA_FROM_FUNCTIONAL_HEAD=NO`.
+- `AUTHENTICATED_SMOKE_REUSED_FROM_FUNCTIONAL_HEAD=YES`: el delta posterior al HEAD funcional es documental, por lo que no se repitió el recorrido autenticado.
+- `RAILWAY_API_HEALTH=200` corresponde a la comprobación funcional anterior. `VERCEL_PREVIEW_HEALTH_PUBLICLY_PROBEABLE=NO/SSO_PROTECTED`: el preview protegido puede redirigir a Vercel SSO y no se presenta como health público 200.
+- El `API_ORIGIN` del preview se comparó solo por host y apunta a `sst-api-staging-staging.up.railway.app`; no se expuso el valor sensible.
 - `PR55=OPEN`; `PR55_DRAFT=YES`; `PR55_MERGED=NO`.
-- `QUALITY_GATE_RUN=36174899750`; `QUALITY_GATE_ATTEMPT=1`; `QUALITY_GATE_STATUS=SUCCESS`; `QUALITY_GATE_SHA=89e27105012e3523e7a120918aed37342c193e2e`.
-- `FRONTEND_PREVIEW=READY`.
-- `STAGING_DEPLOYMENT=dpl_8XnYT4CXn2SqnB2EzsEAddTVxeTN`.
-- `STAGING_URL=https://sst-intelligence-staging-1fegfyzk7-georgentons-projects.vercel.app/evaluacion-sst`.
-- `STAGING_VERCEL_SHA=89e27105012e3523e7a120918aed37342c193e2e`.
-- `RAILWAY_STAGING_DEPLOYMENT=28a98da9-87ea-4f70-9b54-b46c09be4441`.
-- `RAILWAY_API_HEALTH=200` (verificado directamente en `https://sst-api-staging-staging.up.railway.app/api/v1/health`).
-- `VERCEL_PREVIEW_HEALTH_PUBLICLY_PROBEABLE=NO/SSO_PROTECTED`: una comprobación no autenticada del preview puede redirigir a Vercel SSO; no se presenta como health público 200.
-- El `API_ORIGIN` de preview se comparó solo por host y apunta a `sst-api-staging-staging.up.railway.app`; no se expuso el valor sensible.
 - `MIGRATION_COUNT=36`; no hubo cambios de migración en esta alineación documental.
 - `ENGINEERING_BLOCKERS=0`.
 - `PRODUCT_ACCEPTANCE_PENDING=A19-01,A19-03,A19-04,A19-05,A19-06` (copy, fixture, ampliación de cobertura y efecto subjetivo no medido).
