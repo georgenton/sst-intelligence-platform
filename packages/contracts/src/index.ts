@@ -27,3 +27,4 @@ export * from './inspection-resource-scope.js';
 export * from './adaptive-field-intelligence.js';
 export * from './sst-assessment.js';
 export * from './sst-capability-recommendation.js';
+export * from './sst-headcount.js';

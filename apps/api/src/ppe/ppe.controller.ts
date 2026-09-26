@@ -18,6 +18,7 @@ import {
   CreatePositionPpeRequirementDto,
   InspectPpeIssueDto,
   PpeCatalogQueryDto,
+  PpeAggregateQueryDto,
   ReplacePpeIssueDto,
 } from './dto';
 import { PPE_REVIEW_ROLES, PPE_WRITE_ROLES } from './ppe-policy';
@@ -34,6 +35,14 @@ export class PpeController {
   @Get('catalog')
   catalog(@OrganizationContext() organization: { id: string }, @Query() query: PpeCatalogQueryDto) {
     return this.ppe.catalog(organization.id, query);
+  }
+
+  @Get('aggregate')
+  aggregate(
+    @OrganizationContext() organization: { id: string },
+    @Query() query: PpeAggregateQueryDto,
+  ) {
+    return this.ppe.aggregate(organization.id, query);
   }
 
   @Post('catalog')

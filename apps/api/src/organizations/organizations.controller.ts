@@ -66,8 +66,13 @@ export class OrganizationsController {
   @OrganizationIdParam()
   @Roles('ORG_OWNER', 'ORG_ADMIN')
   @UseGuards(OrganizationGuard, RolesGuard)
-  update(@OrganizationContext() organization: { id: string }, @Body() body: UpdateOrganizationDto) {
-    return this.organizations.update(organization.id, body);
+  update(
+    @OrganizationContext() organization: { id: string },
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: UpdateOrganizationDto,
+    @Req() request: ApiRequest,
+  ) {
+    return this.organizations.update(organization.id, user.id, body, requestMetadata(request));
   }
 
   @Get(':id/members')

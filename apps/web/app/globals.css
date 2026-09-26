@@ -1150,6 +1150,10 @@ h2 {
 .assessment-progress__summary strong {
   color: var(--text-primary);
 }
+.assessment-progress__readiness-announcement {
+  margin: 0.65rem 0 0;
+  color: var(--text-primary);
+}
 .assessment-progress__support {
   flex: 1;
   min-width: 48px;
@@ -1331,15 +1335,31 @@ h2 {
     border-color var(--motion-fast) var(--motion-ease),
     background var(--motion-fast) var(--motion-ease);
 }
-.assessment-option input[type='radio'] {
-  flex: 0 0 auto;
-  width: 18px;
-  min-height: 0;
-  height: 18px;
-  margin: 0;
-  accent-color: var(--interactive-primary);
+.assessment-option {
+  position: relative;
 }
-.assessment-option span {
+.assessment-option input[type='radio'] {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.assessment-option__marker {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.assessment-option[data-selected='true'] .assessment-option__marker {
+  border: 4px solid var(--interactive-primary);
+}
+.assessment-option__label {
   overflow-wrap: anywhere;
 }
 .assessment-option:has(:focus-visible) {

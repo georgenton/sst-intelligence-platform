@@ -92,6 +92,16 @@ test('diagnosis readiness stays sufficient while additional context remains opti
   assert.match(html, /profundizar de forma opcional/);
   assert.doesNotMatch(html, /0 de 1 áreas de contexto con información suficiente/);
 });
+test('readiness explanation is a single polite announcement separate from the persistent state', () => {
+  const html = render(AssessmentProgress, {
+    diagnosisReady: true,
+    readinessAnnouncement: true,
+    progress: { topics: [{ topic: topics[0], answered: 0, total: 1, complete: false }] },
+  });
+  assert.equal((html.match(/data-readiness-announcement="true"/g) ?? []).length, 1);
+  assert.match(html, /role="status" aria-live="polite"/);
+  assert.match(html, /añadir contexto opcional/);
+});
 test('local diff distinguishes additions and corrections, ignores provenance and hides sensitive values', () => {
   const before = [fact('organization', 'organization.country', 'Ecuador')];
   const after = [
