@@ -15,6 +15,7 @@ import type {
   CreatePpeRequirementDto,
   CreatePositionPpeRequirementDto,
   InspectPpeIssueDto,
+  PpeAggregateQueryDto,
   PpeCatalogQueryDto,
   ReplacePpeIssueDto,
 } from './dto';
@@ -102,6 +103,180 @@ export class PpeService {
       this.prisma.ppeCatalogItem.count({ where }),
     ]);
     return { items, total, page: query.page, pageSize: query.pageSize };
+  }
+
+  /**
+   * Returns one complete server-side projection for the PPE workspace. The
+   * client receives totals that were calculated from the tenant's full set of
+   * requirements, issues and latest inspections; it never derives totals from
+   * a paginated prefix. Stock and certification expiry are explicit
+   * non-registered dimensions because this schema does not model either one.
+   */
+  async aggregate(organizationId: string, query: PpeAggregateQueryDto) {
+    const from = query.from ? new Date(query.from) : undefined;
+    const to = query.to ? new Date(query.to) : undefined;
+    if (from && to && from > to) {
+      throw new BadRequestException('El inicio del periodo debe ser anterior al final.');
+    }
+    const [requirements, issues] = await Promise.all([
+      this.prisma.workerPpeRequirement.findMany({
+        where: {
+          organizationId,
+          status: { in: ['REQUIRED', 'FULFILLED'] },
+          ...(query.workCenterId
+            ? {
+                OR: [
+                  { workCenterId: query.workCenterId },
+                  { workCenterId: null, worker: { workCenterId: query.workCenterId } },
+                ],
+              }
+            : {}),
+        },
+        select: {
+          ppeCatalogItemId: true,
+          workCenterId: true,
+          worker: { select: { status: true, workCenterId: true } },
+          ppeCatalogItem: { select: { id: true, name: true, category: true, status: true } },
+          workCenter: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.ppeIssue.findMany({
+        where: {
+          organizationId,
+          ...(query.from || query.to
+            ? {
+                issuedAt: {
+                  ...(from ? { gte: from } : {}),
+                  ...(to ? { lte: to } : {}),
+                },
+              }
+            : {}),
+          ...(query.workCenterId ? { worker: { workCenterId: query.workCenterId } } : {}),
+        },
+        select: {
+          id: true,
+          ppeCatalogItemId: true,
+          quantity: true,
+          status: true,
+          expectedReplacementAt: true,
+          worker: { select: { status: true, workCenterId: true } },
+          ppeCatalogItem: { select: { id: true, name: true, category: true, status: true } },
+          inspections: {
+            select: { condition: true, inspectedAt: true, createdAt: true, id: true },
+            orderBy: [{ inspectedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+          },
+        },
+      }),
+    ]);
+    const workCenterIds = new Set<string>();
+    for (const requirement of requirements) {
+      const id = requirement.workCenterId ?? requirement.worker.workCenterId;
+      if (id) workCenterIds.add(id);
+    }
+    for (const issue of issues)
+      if (issue.worker.workCenterId) workCenterIds.add(issue.worker.workCenterId);
+    const workCenters = await this.prisma.workCenter.findMany({
+      where: { organizationId, id: { in: [...workCenterIds] } },
+      select: { id: true, name: true },
+    });
+    const workCenterById = new Map(workCenters.map((center) => [center.id, center]));
+    type Aggregate = {
+      key: string;
+      catalogItem: { id: string; name: string; category: string; status: string };
+      workCenter: { id: string; name: string } | null;
+      requiredQuantity: number;
+      requiredWorkerCount: number;
+      currentQuantity: number;
+      currentIssueCount: number;
+      replacementDueQuantity: number;
+      reviewRequiredQuantity: number;
+      historicalQuantity: number;
+      historicalIssueCount: number;
+    };
+    const groups = new Map<string, Aggregate>();
+    const ensure = (catalogItem: Aggregate['catalogItem'], workCenter: Aggregate['workCenter']) => {
+      const key = `${catalogItem.id}:${workCenter?.id ?? 'unassigned'}`;
+      const current = groups.get(key);
+      if (current) return current;
+      const next: Aggregate = {
+        key,
+        catalogItem,
+        workCenter,
+        requiredQuantity: 0,
+        requiredWorkerCount: 0,
+        currentQuantity: 0,
+        currentIssueCount: 0,
+        replacementDueQuantity: 0,
+        reviewRequiredQuantity: 0,
+        historicalQuantity: 0,
+        historicalIssueCount: 0,
+      };
+      groups.set(key, next);
+      return next;
+    };
+    for (const requirement of requirements) {
+      if (requirement.worker.status !== 'ACTIVE') continue;
+      const centerId = requirement.workCenterId ?? requirement.worker.workCenterId;
+      if (query.workCenterId && centerId !== query.workCenterId) continue;
+      const group = ensure(
+        requirement.ppeCatalogItem,
+        centerId ? (workCenterById.get(centerId) ?? null) : null,
+      );
+      group.requiredQuantity += 1;
+      group.requiredWorkerCount += 1;
+    }
+    const now = new Date();
+    for (const issue of issues) {
+      const centerId = issue.worker.workCenterId;
+      if (query.workCenterId && centerId !== query.workCenterId) continue;
+      const workCenter = centerId ? (workCenterById.get(centerId) ?? null) : null;
+      const group = ensure(issue.ppeCatalogItem, workCenter);
+      const quantity = issue.quantity;
+      if (['REPLACED', 'RETIRED'].includes(issue.status)) {
+        group.historicalQuantity += quantity;
+        group.historicalIssueCount += 1;
+        continue;
+      }
+      group.currentQuantity += quantity;
+      group.currentIssueCount += 1;
+      const due =
+        issue.status === 'REPLACEMENT_DUE' ||
+        (issue.expectedReplacementAt !== null && issue.expectedReplacementAt <= now);
+      if (due) group.replacementDueQuantity += quantity;
+      if (issue.inspections[0]?.condition === 'REVIEW_REQUIRED') {
+        group.reviewRequiredQuantity += quantity;
+      }
+    }
+    const rows = [...groups.values()]
+      .sort(
+        (left, right) =>
+          left.catalogItem.name.localeCompare(right.catalogItem.name, 'es') ||
+          (left.workCenter?.name ?? '').localeCompare(right.workCenter?.name ?? '', 'es'),
+      )
+      .map(({ key, ...row }) => ({ key, ...row }));
+    return {
+      complete: true,
+      generatedAt: now.toISOString(),
+      filters: {
+        workCenterId: query.workCenterId ?? null,
+        from: query.from ?? null,
+        to: query.to ?? null,
+      },
+      totals: {
+        groupCount: rows.length,
+        requiredQuantity: rows.reduce((sum, row) => sum + row.requiredQuantity, 0),
+        requiredWorkerCount: rows.reduce((sum, row) => sum + row.requiredWorkerCount, 0),
+        currentQuantity: rows.reduce((sum, row) => sum + row.currentQuantity, 0),
+        replacementDueQuantity: rows.reduce((sum, row) => sum + row.replacementDueQuantity, 0),
+        reviewRequiredQuantity: rows.reduce((sum, row) => sum + row.reviewRequiredQuantity, 0),
+        historicalQuantity: rows.reduce((sum, row) => sum + row.historicalQuantity, 0),
+      },
+      groups: rows,
+      unavailable: {
+        stock: 'NOT_REGISTERED',
+        certifiedExpiry: 'NOT_REGISTERED',
+      },
+    };
   }
 
   async createCatalogItem(

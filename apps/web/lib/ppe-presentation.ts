@@ -24,6 +24,35 @@ export type CatalogItem = {
   status: 'ACTIVE' | 'INACTIVE';
 };
 export type CatalogResponse = { items: CatalogItem[]; total: number };
+export type PpeAggregateGroup = {
+  key: string;
+  catalogItem: Pick<CatalogItem, 'id' | 'name' | 'category' | 'status'>;
+  workCenter: { id: string; name: string } | null;
+  requiredQuantity: number;
+  requiredWorkerCount: number;
+  currentQuantity: number;
+  currentIssueCount: number;
+  replacementDueQuantity: number;
+  reviewRequiredQuantity: number;
+  historicalQuantity: number;
+  historicalIssueCount: number;
+};
+export type PpeAggregateResponse = {
+  complete: true;
+  generatedAt: string;
+  filters: { workCenterId: string | null; from: string | null; to: string | null };
+  totals: {
+    groupCount: number;
+    requiredQuantity: number;
+    requiredWorkerCount: number;
+    currentQuantity: number;
+    replacementDueQuantity: number;
+    reviewRequiredQuantity: number;
+    historicalQuantity: number;
+  };
+  groups: PpeAggregateGroup[];
+  unavailable: { stock: 'NOT_REGISTERED'; certifiedExpiry: 'NOT_REGISTERED' };
+};
 export type Position = {
   id: string;
   name: string;

@@ -56,6 +56,7 @@ export function GuidedSstAssessmentExperience({
   const [checkpointTopic, setCheckpointTopic] = useState<string | null>(null);
   const [processingAnswer, setProcessingAnswer] = useState<string>();
   const [savedMessage, setSavedMessage] = useState<string>();
+  const [readinessAnnouncement, setReadinessAnnouncement] = useState(false);
   const [changes, setChanges] = useState<AssessmentContextChange[]>([]);
   const [relay, setRelay] = useState<ReturnType<typeof assessmentCenterRelay>>(null);
   const sceneTitleRef = useRef<HTMLHeadingElement>(null);
@@ -89,6 +90,17 @@ export function GuidedSstAssessmentExperience({
   useEffect(() => {
     if (relay || checkpointTopic) sceneTitleRef.current?.focus({ preventScroll: true });
   }, [relay, checkpointTopic]);
+  useEffect(() => {
+    if (session.status !== 'DIAGNOSIS_READY') {
+      setReadinessAnnouncement(false);
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    const key = `sst-assessment-readiness-announced:${session.id}`;
+    if (window.sessionStorage.getItem(key)) return;
+    window.sessionStorage.setItem(key, 'true');
+    setReadinessAnnouncement(true);
+  }, [session.id, session.status]);
 
   function edit(question: SstAssessmentQuestion) {
     setCheckpointTopic(null);
@@ -221,7 +233,13 @@ export function GuidedSstAssessmentExperience({
         title="Revisa antes de finalizar"
         description="Puedes corregir cualquier respuesta. El diagnóstico se genera solo cuando confirmas."
         aside={aside}
-        progress={<AssessmentProgress progress={session.progress} diagnosisReady />}
+        progress={
+          <AssessmentProgress
+            progress={session.progress}
+            diagnosisReady
+            readinessAnnouncement={readinessAnnouncement}
+          />
+        }
       >
         <AssessmentReview
           facts={session.snapshot.facts}
@@ -265,6 +283,7 @@ export function GuidedSstAssessmentExperience({
           progress={session.progress}
           activeTopic={checkpointTopic ?? displayedQuestion?.topic}
           diagnosisReady={session.status === 'DIAGNOSIS_READY'}
+          readinessAnnouncement={readinessAnnouncement}
         />
       }
     >

@@ -1121,6 +1121,7 @@ model Organization {
   name                          String
   country                       String
   sector                        String?
+  navigationProfile             String                                        @default("FULL") @db.VarChar(8)
   status                        OrganizationStatus                            @default(ACTIVE)
   demoStartedAt                 DateTime?
   demoExpiresAt                 DateTime?

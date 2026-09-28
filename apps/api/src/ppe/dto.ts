@@ -28,6 +28,12 @@ export class PpeCatalogQueryDto {
   @IsOptional() @IsString() @Length(1, 120) search?: string;
 }
 
+export class PpeAggregateQueryDto {
+  @IsOptional() @IsUUID() workCenterId?: string;
+  @IsOptional() @IsDateString() from?: string;
+  @IsOptional() @IsDateString() to?: string;
+}
+
 export class CreatePpeCatalogItemDto {
   @IsString() @Length(2, 200) name!: string;
   @IsEnum(PpeCategory) category!: PpeCategory;

@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, Length } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsIn, IsOptional, IsString, Length } from 'class-validator';
 import { MembershipRole } from '@prisma/client';
 import { Transform } from 'class-transformer';
 
@@ -27,6 +27,10 @@ export class UpdateOrganizationDto {
   @IsString()
   @Length(2, 120)
   sector?: string;
+
+  @IsOptional()
+  @IsIn(['PILOT', 'FULL'])
+  navigationProfile?: 'PILOT' | 'FULL';
 }
 
 export class InviteMemberDto {

@@ -108,6 +108,20 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     30,
   ),
   definition(
+    'organization.complementaryActivityDescription',
+    'Perfil organizacional',
+    'ORGANIZATION',
+    'SHORT_TEXT',
+    '¿Qué actividades complementarias también realiza la organización?',
+    31,
+    {
+      helpText:
+        'Sepáralas de la actividad principal. Si no existen o todavía no están confirmadas, indícalo.',
+      maxLength: 2_000,
+      collectionPolicy: 'CONTEXT_RECOMMENDED',
+    },
+  ),
+  definition(
     'organization.totalWorkerCount',
     'Personas y operación',
     'ORGANIZATION',
@@ -115,6 +129,61 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     '¿Cuántas personas trabajan en total?',
     40,
     { min: 1, max: 10_000_000, collectionPolicy: 'FOUNDATION_REQUIRED' },
+  ),
+  definition(
+    'organization.headcountMeaning',
+    'Personas y operación',
+    'ORGANIZATION',
+    'SINGLE_CHOICE',
+    '¿Qué representa la cifra total de personas?',
+    41,
+    {
+      choices: choices(
+        ['ASSIGNED_TO_ORGANIZATION', 'Personas asignadas a la organización'],
+        ['USUAL_PRESENCE', 'Presencia habitual en la operación'],
+        ['PAYROLL_SNAPSHOT', 'Corte de nómina'],
+        ['OTHER', 'Otro significado'],
+      ),
+      helpText:
+        'Usa el mismo significado al informar cada centro. Si no está confirmado, indícalo como “No lo sé”.',
+    },
+  ),
+  definition(
+    'organization.headcountPeriod',
+    'Personas y operación',
+    'ORGANIZATION',
+    'SHORT_TEXT',
+    '¿A qué fecha o periodo corresponde la cifra total?',
+    42,
+    { maxLength: 120 },
+  ),
+  definition(
+    'organization.headcountCoverage',
+    'Personas y operación',
+    'ORGANIZATION',
+    'SINGLE_CHOICE',
+    '¿Qué cobertura tiene la cifra total?',
+    43,
+    {
+      choices: choices(
+        ['ALL_ACTIVE_WORKERS', 'Todas las personas activas'],
+        ['SCHEDULED_WORKERS', 'Personas programadas en el periodo'],
+        ['PAYROLL_SNAPSHOT', 'Personas incluidas en el corte de nómina'],
+        ['OTHER', 'Otra cobertura'],
+      ),
+    },
+  ),
+  definition(
+    'organization.headcountOverlap',
+    'Personas y operación',
+    'ORGANIZATION',
+    'BOOLEAN',
+    '¿Una persona puede estar contada en más de un centro?',
+    44,
+    {
+      helpText:
+        'Solo responde “No” cuando la organización haya confirmado que los centros no se solapan.',
+    },
   ),
   definition(
     'organization.workCenterCount',
@@ -397,6 +466,47 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     { min: 1, max: 10_000_000, collectionPolicy: 'CONTEXT_RECOMMENDED' },
   ),
   definition(
+    'workCenter.headcountMeaning',
+    'Centro de trabajo',
+    'WORK_CENTER',
+    'SINGLE_CHOICE',
+    '¿Qué representa la cifra de personas de este centro?',
+    1001,
+    {
+      choices: choices(
+        ['ASSIGNED_TO_ORGANIZATION', 'Personas asignadas a la organización'],
+        ['USUAL_PRESENCE', 'Presencia habitual en la operación'],
+        ['PAYROLL_SNAPSHOT', 'Corte de nómina'],
+        ['OTHER', 'Otro significado'],
+      ),
+    },
+  ),
+  definition(
+    'workCenter.headcountPeriod',
+    'Centro de trabajo',
+    'WORK_CENTER',
+    'SHORT_TEXT',
+    '¿A qué fecha o periodo corresponde esta cifra?',
+    1002,
+    { maxLength: 120 },
+  ),
+  definition(
+    'workCenter.headcountCoverage',
+    'Centro de trabajo',
+    'WORK_CENTER',
+    'SINGLE_CHOICE',
+    '¿Qué cobertura tiene la cifra de este centro?',
+    1003,
+    {
+      choices: choices(
+        ['ALL_ACTIVE_WORKERS', 'Todas las personas activas'],
+        ['SCHEDULED_WORKERS', 'Personas programadas en el periodo'],
+        ['PAYROLL_SNAPSHOT', 'Personas incluidas en el corte de nómina'],
+        ['OTHER', 'Otra cobertura'],
+      ),
+    },
+  ),
+  definition(
     'workCenter.activityDescription',
     'Centro de trabajo',
     'WORK_CENTER',
@@ -470,6 +580,25 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     'BOOLEAN',
     '¿En este centro existen procesos con sustancias químicas?',
     1060,
+  ),
+  definition(
+    'workCenter.chemicalUseContexts',
+    'Exposiciones operativas',
+    'WORK_CENTER',
+    'MULTI_CHOICE',
+    '¿En qué contextos se usan sustancias químicas en este centro?',
+    1061,
+    {
+      choices: choices(
+        ['CLEANING', 'Limpieza o mantenimiento'],
+        ['INDUSTRIAL_PROCESS', 'Proceso industrial'],
+        ['STORAGE_OR_HANDLING', 'Almacenamiento o manipulación'],
+        ['UNKNOWN_CONTEXT', 'Contexto aún no confirmado'],
+      ),
+      helpText:
+        'Distingue la limpieza química de un proceso industrial para no inferir una exposición que no fue confirmada.',
+      collectionPolicy: 'CONTEXT_RECOMMENDED',
+    },
   ),
   definition(
     'workCenter.hasHighEnergyOperations',

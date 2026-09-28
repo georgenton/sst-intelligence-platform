@@ -93,6 +93,7 @@ describe('organization creation on a canonical release database without developm
       },
     });
     expect(organization).toMatchObject({ ...input, demoStartedAt: null, demoExpiresAt: null });
+    expect(organization.navigationProfile).toBe('FULL');
     expect(organization.memberships).toHaveLength(1);
     expect(organization.memberships[0]).toMatchObject({
       userId: owner.id,
@@ -105,6 +106,23 @@ describe('organization creation on a canonical release database without developm
     expect(organization.modules.map(({ module }) => module.key)).toEqual(['CORE']);
     expect(organization.modules[0]).toMatchObject({ status: 'ACTIVE', source: 'PLAN' });
     expect(await prisma.auditLog.count({ where: { organizationId: organization.id } })).toBe(2);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/organizations/${organization.id}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ navigationProfile: 'PILOT' })
+      .expect(200)
+      .expect(({ body }) => expect(body.navigationProfile).toBe('PILOT'));
+    await request(app.getHttpServer())
+      .get('/api/v1/organizations')
+      .set('Authorization', `Bearer ${owner.token}`)
+      .expect(200)
+      .expect(({ body }) => expect(body[0].navigationProfile).toBe('PILOT'));
+    await request(app.getHttpServer())
+      .patch(`/api/v1/organizations/${organization.id}`)
+      .set('Authorization', `Bearer ${owner.token}`)
+      .send({ navigationProfile: 'FULL' })
+      .expect(200);
   });
 
   it('replays concurrent and later retries exactly once and rejects changed data or another actor', async () => {

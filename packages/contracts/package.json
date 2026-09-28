@@ -15,6 +15,11 @@
       "types": "./dist/sst-assessment-catalog.d.ts",
       "require": "./dist/sst-assessment-catalog.js",
       "default": "./dist/sst-assessment-catalog.js"
+    },
+    "./sst-headcount": {
+      "types": "./dist/sst-headcount.d.ts",
+      "require": "./dist/sst-headcount.js",
+      "default": "./dist/sst-headcount.js"
     }
   },
   "scripts": {

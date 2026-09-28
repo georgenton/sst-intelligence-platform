@@ -117,7 +117,8 @@ export function AssessmentQuestionControl({
                 disabled={disabled}
                 onChange={() => setValue(choice.value)}
               />
-              <span>{choice.label}</span>
+              <span className="assessment-option__marker" aria-hidden="true" />
+              <span className="assessment-option__label">{choice.label}</span>
             </label>
           ))}
         </div>

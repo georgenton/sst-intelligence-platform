@@ -15,6 +15,33 @@ export type AppNavigationItem = {
     | 'module.training';
 };
 
+export const PILOT_NAVIGATION_PROFILE = 'PILOT' as const;
+export const FULL_NAVIGATION_PROFILE = 'FULL' as const;
+export type AppNavigationProfile = typeof PILOT_NAVIGATION_PROFILE | typeof FULL_NAVIGATION_PROFILE;
+
+/**
+ * Presentation-only pilot scope. It keeps module access pages available for
+ * review while leaving the API entitlement guards authoritative.
+ */
+export const pilotNavigationItemIds = new Set([
+  'home',
+  'sst-evaluation',
+  'operational-plans',
+  'inspections',
+  'ppe',
+  'work-queue',
+  'field',
+  'search',
+  'workers',
+  'incidents',
+  'safety-observations',
+  'governance',
+  'organization-settings',
+  'members',
+  'evidence-packages',
+  'modules',
+]);
+
 export type AppNavigationGroup = {
   id: AppNavigationGroupId;
   label: string;
@@ -296,10 +323,11 @@ export function isNavigationItemVisible(
 
 /** Mature capabilities stay discoverable while the backend remains authoritative. */
 export function isNavigationItemDiscoverable(
-  _item: AppNavigationItem,
-  _features: Record<string, boolean | number | string> | undefined,
+  item: AppNavigationItem,
+  features: Record<string, boolean | number | string> | undefined,
 ) {
-  return true;
+  const profile = features?.['navigation.profile'];
+  return profile === PILOT_NAVIGATION_PROFILE ? pilotNavigationItemIds.has(item.id) : true;
 }
 
 export function isNavigationItemLocked(

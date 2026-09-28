@@ -8,6 +8,7 @@ import {
   type SstCapabilityPendingInformation,
 } from '@sst/contracts';
 import { SST_ASSESSMENT_FACT_CATALOG } from '@sst/contracts/sst-assessment-catalog';
+import { compareHeadcountMeasures, type HeadcountComparison } from '@sst/contracts/sst-headcount';
 import { ApiClientError } from '@sst/api-client';
 
 const definitions = new Map(SST_ASSESSMENT_FACT_CATALOG.map((item) => [item.factKey, item]));
@@ -274,37 +275,142 @@ export function assessmentWorkerCountMismatch(
   facts: readonly SstAssessmentFact[],
   scopes: readonly SstAssessmentScope[],
 ) {
-  const organizationTotal = facts.find(
-    ({ scopeKey, factKey, answerState }) =>
-      scopeKey === 'organization' &&
-      factKey === 'organization.totalWorkerCount' &&
-      answerState === 'KNOWN',
-  );
-  if (organizationTotal?.answerState !== 'KNOWN' || typeof organizationTotal.value !== 'number')
-    return null;
-  const centerCounts = scopes
-    .filter(({ kind }) => kind === 'WORK_CENTER')
-    .map((scope) =>
-      facts.find(
-        ({ scopeKey, factKey, answerState }) =>
-          scopeKey === scope.scopeKey &&
-          factKey === 'workCenter.workerCount' &&
-          answerState === 'KNOWN',
-      ),
-    );
-  if (
-    centerCounts.length === 0 ||
-    centerCounts.some((fact) => fact?.answerState !== 'KNOWN' || typeof fact.value !== 'number')
-  )
-    return null;
-  const centerTotal = centerCounts.reduce(
-    (total, fact) =>
-      total + (fact?.answerState === 'KNOWN' && typeof fact.value === 'number' ? fact.value : 0),
-    0,
-  );
-  return centerTotal === organizationTotal.value
+  const comparison = assessmentWorkerCountComparison(facts, scopes);
+  if (!comparison?.comparable || comparison.difference === 0) return null;
+  return comparison.sum === comparison.total
     ? null
-    : `La suma informada por centros es ${new Intl.NumberFormat('es-EC').format(centerTotal)}, mientras que el total de la organización es ${new Intl.NumberFormat('es-EC').format(organizationTotal.value)}. Puedes continuar y corregirlo después.`;
+    : `La suma informada por centros es ${new Intl.NumberFormat('es-EC').format(comparison.sum)}, mientras que el total de la organización es ${new Intl.NumberFormat('es-EC').format(comparison.total)}. Puedes continuar y corregirlo después.`;
+}
+
+export type AssessmentWorkerCountClarification = {
+  reason:
+    | 'MISSING_METADATA'
+    | 'MEANING_MISMATCH'
+    | 'PERIOD_MISMATCH'
+    | 'COVERAGE_MISMATCH'
+    | 'OVERLAP_UNCONFIRMED'
+    | 'INVALID_MAGNITUDE';
+  message: string;
+  factKeys: readonly string[];
+};
+
+const headcountMetadataKeys = [
+  'organization.totalWorkerCount',
+  'organization.headcountMeaning',
+  'organization.headcountPeriod',
+  'organization.headcountCoverage',
+  'organization.headcountOverlap',
+] as const;
+
+const headcountReasonMessages: Record<
+  Exclude<AssessmentWorkerCountClarification['reason'], 'MISSING_METADATA'>,
+  string
+> = {
+  INVALID_MAGNITUDE: 'Las cifras deben ser números válidos para poder compararlas.',
+  MEANING_MISMATCH:
+    'Las cifras usan significados distintos (por ejemplo, nómina y presencia habitual).',
+  PERIOD_MISMATCH: 'Las cifras corresponden a fechas o periodos distintos.',
+  COVERAGE_MISMATCH: 'Las cifras cubren poblaciones distintas.',
+  OVERLAP_UNCONFIRMED:
+    'No está confirmado que una persona aparezca una sola vez entre los centros.',
+};
+
+/** Explains why E-02 cannot reconcile the organization total with its centers and offers a correction path. */
+export function assessmentWorkerCountClarification(
+  facts: readonly SstAssessmentFact[],
+  scopes: readonly SstAssessmentScope[],
+): AssessmentWorkerCountClarification | null {
+  const known = (scopeKey: string, factKey: string) =>
+    facts.some(
+      (fact) =>
+        fact.scopeKey === scopeKey && fact.factKey === factKey && fact.answerState === 'KNOWN',
+    );
+  const factKeys = scopes
+    .filter(({ kind }) => kind === 'WORK_CENTER')
+    .flatMap(({ scopeKey }) => [
+      `${scopeKey}:workCenter.workerCount`,
+      `${scopeKey}:workCenter.headcountMeaning`,
+      `${scopeKey}:workCenter.headcountPeriod`,
+      `${scopeKey}:workCenter.headcountCoverage`,
+    ]);
+  const required = [
+    ...headcountMetadataKeys.map((factKey) => `organization:${factKey}`),
+    ...factKeys,
+  ];
+  const missing = required.filter((identity) => {
+    const separator = identity.indexOf(':');
+    return !known(identity.slice(0, separator), identity.slice(separator + 1));
+  });
+  const comparison = assessmentWorkerCountComparison(facts, scopes);
+  if (!comparison) {
+    return {
+      reason: 'MISSING_METADATA',
+      message:
+        'Para comparar el total con los centros necesitamos confirmar qué mide cada cifra, su periodo, cobertura y solapamiento.',
+      factKeys: missing,
+    };
+  }
+  if (comparison.comparable) return null;
+  return {
+    reason: comparison.reason,
+    message: headcountReasonMessages[comparison.reason],
+    factKeys: [...headcountMetadataKeys.map((factKey) => `organization:${factKey}`), ...factKeys],
+  };
+}
+
+export function assessmentWorkerCountComparison(
+  facts: readonly SstAssessmentFact[],
+  scopes: readonly SstAssessmentScope[],
+): HeadcountComparison | null {
+  const known = (scopeKey: string, factKey: string) => {
+    const fact = facts.find(
+      (candidate) =>
+        candidate.scopeKey === scopeKey &&
+        candidate.factKey === factKey &&
+        candidate.answerState === 'KNOWN',
+    );
+    return fact?.answerState === 'KNOWN' ? fact.value : undefined;
+  };
+  const total = known('organization', 'organization.totalWorkerCount');
+  const meaning = known('organization', 'organization.headcountMeaning');
+  const period = known('organization', 'organization.headcountPeriod');
+  const coverage = known('organization', 'organization.headcountCoverage');
+  const overlap = known('organization', 'organization.headcountOverlap');
+  const centers = scopes
+    .filter(({ kind }) => kind === 'WORK_CENTER')
+    .map((scope) => ({
+      value: known(scope.scopeKey, 'workCenter.workerCount'),
+      meaning: known(scope.scopeKey, 'workCenter.headcountMeaning'),
+      period: known(scope.scopeKey, 'workCenter.headcountPeriod'),
+      coverage: known(scope.scopeKey, 'workCenter.headcountCoverage'),
+    }));
+  if (
+    typeof total !== 'number' ||
+    typeof meaning !== 'string' ||
+    typeof period !== 'string' ||
+    typeof coverage !== 'string' ||
+    typeof overlap !== 'boolean' ||
+    centers.length === 0 ||
+    centers.some(
+      (center) =>
+        typeof center.value !== 'number' ||
+        typeof center.meaning !== 'string' ||
+        typeof center.period !== 'string' ||
+        typeof center.coverage !== 'string',
+    )
+  ) {
+    return null;
+  }
+  return compareHeadcountMeasures(
+    { value: total, meaning, period, coverage, overlap },
+    centers.map((center) => ({
+      value: center.value as number,
+      meaning: center.meaning as string,
+      period: center.period as string,
+      coverage: center.coverage as string,
+      overlap,
+    })),
+  );
 }
 
 export function editableQuestionForFact(

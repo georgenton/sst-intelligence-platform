@@ -37,6 +37,7 @@ export class OrganizationsService {
         name: true,
         country: true,
         sector: true,
+        navigationProfile: true,
         status: true,
         demoExpiresAt: true,
         memberships: { where: { userId }, select: { role: true } },
@@ -63,7 +64,14 @@ export class OrganizationsService {
       ? createHash('sha256').update(`${userId}:${creationKey.toLowerCase()}`).digest('hex')
       : null;
     const fingerprint = createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
-    const select = { id: true, name: true, country: true, sector: true, status: true } as const;
+    const select = {
+      id: true,
+      name: true,
+      country: true,
+      sector: true,
+      navigationProfile: true,
+      status: true,
+    } as const;
     try {
       return await this.prisma.$transaction(async (tx) => {
         if (keyHash) {
@@ -172,6 +180,7 @@ export class OrganizationsService {
         name: true,
         country: true,
         sector: true,
+        navigationProfile: true,
         status: true,
         demoStartedAt: true,
         demoExpiresAt: true,
@@ -193,11 +202,47 @@ export class OrganizationsService {
     });
   }
 
-  update(organizationId: string, input: { name?: string; sector?: string }) {
-    return this.prisma.organization.update({
-      where: { id: organizationId },
-      data: { name: input.name?.trim(), sector: input.sector?.trim() },
-      select: { id: true, name: true, country: true, sector: true },
+  update(
+    organizationId: string,
+    actorUserId: string,
+    input: { name?: string; sector?: string; navigationProfile?: 'PILOT' | 'FULL' },
+    context: Context,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await tx.organization.findUniqueOrThrow({
+        where: { id: organizationId },
+        select: { navigationProfile: true },
+      });
+      const updated = await tx.organization.update({
+        where: { id: organizationId },
+        data: {
+          name: input.name?.trim(),
+          sector: input.sector?.trim(),
+          navigationProfile: input.navigationProfile,
+        },
+        select: { id: true, name: true, country: true, sector: true, navigationProfile: true },
+      });
+      if (
+        input.navigationProfile !== undefined &&
+        input.navigationProfile !== before.navigationProfile
+      ) {
+        await this.audit.record(
+          {
+            organizationId,
+            actorUserId,
+            action: 'ORGANIZATION_NAVIGATION_PROFILE_CHANGED',
+            entityType: 'Organization',
+            entityId: organizationId,
+            metadata: {
+              from: before.navigationProfile,
+              to: input.navigationProfile,
+            },
+            ...context,
+          },
+          tx,
+        );
+      }
+      return updated;
     });
   }
 

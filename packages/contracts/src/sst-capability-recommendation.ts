@@ -308,8 +308,15 @@ export function evaluateSstCapabilityRecommendations(
   const factsByIdentity = new Map(
     diagnosticSnapshot.facts.map((fact) => [`${fact.scopeKey}:${fact.factKey}`, fact] as const),
   );
+  // Context-only B2 clarifications must not change the capability engine's
+  // historical input identity or recommendation semantics.
+  const contextOnlyFactKeys = new Set([
+    'organization.complementaryActivityDescription',
+    'workCenter.chemicalUseContexts',
+  ]);
   const normalizedApplicableQuestions = applicableQuestions
     .filter(({ collectionPolicy }) => collectionPolicy !== 'COMMERCIAL_OPTIONAL')
+    .filter(({ factKey }) => !contextOnlyFactKeys.has(factKey))
     .map(({ scopeKey, factKey, collectionPolicy }) => ({ scopeKey, factKey, collectionPolicy }))
     .filter(
       (question, index, questions) =>

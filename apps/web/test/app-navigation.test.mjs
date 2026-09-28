@@ -7,6 +7,7 @@ import {
   isNavigationItemDiscoverable,
   isNavigationItemLocked,
   isNavigationItemVisible,
+  pilotNavigationItemIds,
   resolveActiveNavigationItem,
 } from '../lib/app-navigation.ts';
 
@@ -78,4 +79,21 @@ test('mature locked capabilities remain discoverable without bypassing entitleme
   assert.equal(isNavigationItemDiscoverable(inspections, { 'module.inspections': false }), true);
   assert.equal(isNavigationItemLocked(inspections, { 'module.inspections': false }), true);
   assert.equal(isNavigationItemLocked(inspections, { 'module.inspections': true }), false);
+});
+
+test('pilot navigation is reversible presentation scope and keeps access management visible', () => {
+  assert.equal(
+    isNavigationItemDiscoverable({ id: 'sst-evaluation' }, { 'navigation.profile': 'PILOT' }),
+    true,
+  );
+  assert.equal(
+    isNavigationItemDiscoverable({ id: 'modules' }, { 'navigation.profile': 'PILOT' }),
+    true,
+  );
+  assert.equal(
+    isNavigationItemDiscoverable({ id: 'training' }, { 'navigation.profile': 'PILOT' }),
+    false,
+  );
+  assert.equal(isNavigationItemDiscoverable({ id: 'training' }, undefined), true);
+  assert.equal(pilotNavigationItemIds.has('modules'), true);
 });

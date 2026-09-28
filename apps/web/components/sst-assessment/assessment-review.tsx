@@ -2,6 +2,7 @@ import type { SstAssessmentFact, SstAssessmentQuestion, SstAssessmentScope } fro
 import type { ReactNode } from 'react';
 import {
   assessmentWorkerCountMismatch,
+  assessmentWorkerCountClarification,
   editableQuestionForFact,
   groupAssessmentContext,
   assessmentTopicLabel,
@@ -32,6 +33,26 @@ export function AssessmentReview({
 }) {
   const groups = groupAssessmentContext(facts, scopes);
   const workerCountMismatch = assessmentWorkerCountMismatch(facts, scopes);
+  const workerCountClarification = assessmentWorkerCountClarification(facts, scopes);
+  const clarificationQuestion = workerCountClarification
+    ? (optionalQuestions.find((question) =>
+        workerCountClarification.factKeys.some(
+          (factKey) => `${question.scopeKey}:${question.factKey}` === factKey,
+        ),
+      ) ??
+      facts
+        .map((fact) => {
+          const scope = scopes.find(({ scopeKey }) => scopeKey === fact.scopeKey);
+          return scope ? editableQuestionForFact(fact, scope) : null;
+        })
+        .find(
+          (question) =>
+            question &&
+            workerCountClarification.factKeys.some(
+              (factKey) => `${question.scopeKey}:${question.factKey}` === factKey,
+            ),
+        ))
+    : null;
   return (
     <section
       className="assessment-review"
@@ -39,8 +60,8 @@ export function AssessmentReview({
       aria-busy={busy}
     >
       <div className="assessment-review__ready">
-        <strong>✓ Información mínima para el diagnóstico completada</strong>
-        <p>Puedes confirmar ahora. Profundizar el contexto es opcional.</p>
+        <strong>Revisión lista</strong>
+        <p>Confirma cuando estés conforme. El contexto adicional sigue siendo opcional.</p>
       </div>
       <h2 id="assessment-review-title">Esto es lo que entendimos de tu empresa</h2>
       <div className="assessment-review__columns">
@@ -99,6 +120,17 @@ export function AssessmentReview({
         <p className="assessment-review__notice">
           <strong>Revisa la distribución de personas.</strong> {workerCountMismatch}
         </p>
+      ) : null}
+      {workerCountClarification ? (
+        <div className="assessment-review__notice" role="status">
+          <strong>No podemos comparar todavía estas magnitudes.</strong>{' '}
+          {workerCountClarification.message}
+          {clarificationQuestion ? (
+            <button type="button" disabled={busy} onClick={() => onEdit(clarificationQuestion)}>
+              Aclarar datos de personas
+            </button>
+          ) : null}
+        </div>
       ) : null}
       <p className="assessment-context__note">
         El diagnóstico es orientativo. La configuración del espacio es un paso posterior y
