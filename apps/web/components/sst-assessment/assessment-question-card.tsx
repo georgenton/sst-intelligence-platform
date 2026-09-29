@@ -16,6 +16,12 @@ import {
 } from '@/lib/sst-assessment-presentation';
 import { AssessmentQuestionControl } from './assessment-question-control';
 
+function jurisdictionLabel(code: string) {
+  const labels: Record<string, string> = { EC: 'Ecuador', CO: 'Colombia' };
+  const normalized = code.trim().toUpperCase();
+  return labels[normalized] ?? (normalized || 'esta jurisdicción');
+}
+
 function AssessmentQuestionLegalBasis({
   legalBasis,
 }: {
@@ -25,7 +31,7 @@ function AssessmentQuestionLegalBasis({
     return (
       <div className="assessment-legal-basis">
         <p className="assessment-legal-basis__label">
-          <strong>Fundamento legal · Ecuador</strong>
+          <strong>Fundamento legal · {jurisdictionLabel(legalBasis.jurisdictionCode)}</strong>
         </p>
         <details>
           <summary>Ver fundamento</summary>

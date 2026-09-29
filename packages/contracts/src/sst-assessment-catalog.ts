@@ -38,7 +38,7 @@ const QUESTION_PURPOSES: Record<string, string> = {
   'organization.complementaryActivityDescription':
     'Las actividades complementarias pueden abrir líneas de revisión distintas de la actividad principal.',
   'organization.totalWorkerCount':
-    'La cantidad total de trabajadores cambia las obligaciones SST que debemos revisar en Ecuador.',
+    'La cantidad total de trabajadores puede cambiar las obligaciones SST que debemos revisar según la jurisdicción aplicable.',
   'organization.headcountMeaning':
     'El significado de la cifra evita comparar nómina, presencia habitual y asignaciones como si fueran la misma magnitud.',
   'organization.headcountPeriod':
@@ -118,7 +118,7 @@ const QUESTION_PURPOSES: Record<string, string> = {
   'workCenter.hasHotWork':
     'Esta respuesta orienta si conviene profundizar en controles para trabajos en caliente.',
   'workCenter.hasElectricalWorkOrExposure':
-    'Confirmar exposición eléctrica permite revisar el fundamento técnico y legal correspondiente en Ecuador.',
+    'Confirmar exposición eléctrica permite determinar si corresponde revisar un fundamento técnico y legal específico.',
   'workCenter.hasConfinedSpaces':
     'Esta respuesta orienta si conviene profundizar en controles para espacios confinados.',
   'workCenter.hasExternalWorkforce':

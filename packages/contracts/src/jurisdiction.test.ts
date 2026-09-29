@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeJurisdictionCode } from './jurisdiction';
+import {
+  isSupportedJurisdiction,
+  isSupportedJurisdictionCode,
+  normalizeJurisdictionCode,
+} from './jurisdiction';
 import { SST_ASSESSMENT_FACT_CATALOG } from './sst-assessment-catalog';
 
 describe('jurisdiction normalization', () => {
@@ -9,6 +13,15 @@ describe('jurisdiction normalization', () => {
     expect(normalizeJurisdictionCode('Colombia')).toBe('CO');
     expect(normalizeJurisdictionCode('co')).toBe('CO');
     expect(normalizeJurisdictionCode('Perú')).toBe('PERÚ');
+  });
+
+  it('narrows only normalized jurisdiction codes', () => {
+    const normalized = normalizeJurisdictionCode('Ecuador');
+    expect(normalized).toBe('EC');
+    expect(isSupportedJurisdictionCode(normalized!)).toBe(true);
+    expect(isSupportedJurisdiction('Ecuador')).toBe(true);
+    expect(isSupportedJurisdiction('CO')).toBe(false);
+    expect(isSupportedJurisdictionCode('Ecuador')).toBe(false);
   });
 });
 
@@ -22,5 +35,16 @@ describe('assessment purpose copy', () => {
     expect(SST_ASSESSMENT_FACT_CATALOG.every(({ purpose }) => purpose.trim().length > 20)).toBe(
       true,
     );
+  });
+
+  it('keeps operational purposes neutral across jurisdictions', () => {
+    for (const factKey of [
+      'organization.totalWorkerCount',
+      'workCenter.hasElectricalWorkOrExposure',
+    ]) {
+      const definition = SST_ASSESSMENT_FACT_CATALOG.find((item) => item.factKey === factKey);
+      expect(definition?.purpose).toBeDefined();
+      expect(definition?.purpose).not.toContain('Ecuador');
+    }
   });
 });

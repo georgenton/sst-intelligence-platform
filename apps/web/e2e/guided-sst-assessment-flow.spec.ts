@@ -261,6 +261,7 @@ test('guided setup keeps multi-center context human, editable and capability-saf
   );
   await page.getByRole('button', { name: 'Todo correcto, continuar' }).click();
   const workerCountInput = page.getByLabel('Respuesta numérica');
+  await expect(page.locator('.assessment-why')).not.toContainText('Ecuador');
   await workerCountInput.fill('-1');
   await page.getByRole('button', { name: 'Continuar', exact: true }).click();
   await expect(workerCountInput).toHaveAttribute('aria-invalid', 'true');
@@ -1043,14 +1044,17 @@ test('mobile guided question has no horizontal overflow and keeps its context ac
   const checkpoint = page.getByRole('button', { name: 'Todo correcto, continuar' });
   if (await checkpoint.isVisible()) await checkpoint.click();
   await expect(question).toBeVisible();
+  await answerCurrentQuestion(page);
   await contextTrigger.click();
   await dialog
     .locator('.assessment-context__facts > div')
-    .filter({ hasText: 'País' })
+    .filter({ hasText: 'Cuántas personas trabajan en total' })
     .getByRole('button', { name: 'Corregir' })
     .click();
   await expect(dialog).not.toBeVisible();
-  const editedQuestion = page.locator('[data-question-id="organization:organization.country"]');
+  const editedQuestion = page.locator(
+    '[data-question-id="organization:organization.totalWorkerCount"]',
+  );
   await expect(editedQuestion).toBeVisible();
   await expect
     .poll(() => editedQuestion.evaluate((element) => element.contains(document.activeElement)))

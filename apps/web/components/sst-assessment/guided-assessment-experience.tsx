@@ -127,7 +127,7 @@ export function GuidedSstAssessmentExperience({
   const confirmed = visibleFactSummaries(session.snapshot.facts, presentationScopes);
   const checkpointFacts = session.snapshot.facts.filter((fact) => {
     const scope = presentationScopes.find(({ scopeKey }) => scopeKey === fact.scopeKey);
-    const question = scope ? editableQuestionForFact(fact, scope) : null;
+    const question = scope ? editableQuestionForFact(fact, scope, session.questions) : null;
     return (
       question &&
       assessmentTopicLabel(question.topic) === assessmentTopicLabel(checkpointTopic ?? '')
@@ -213,6 +213,7 @@ export function GuidedSstAssessmentExperience({
     <AssessmentContextPanel
       facts={session.snapshot.facts}
       scopes={presentationScopes}
+      questions={session.questions}
       readOnly={session.status === 'FINALIZED'}
       onEdit={edit}
       activeScopeKey={displayedQuestion?.scopeKey}
@@ -259,6 +260,7 @@ export function GuidedSstAssessmentExperience({
         <AssessmentReview
           facts={session.snapshot.facts}
           scopes={presentationScopes}
+          questions={session.questions}
           busy={busy}
           hasOptionalContext={optionalQuestions.length > 0}
           optionalQuestions={optionalQuestions}
@@ -385,7 +387,7 @@ export function GuidedSstAssessmentExperience({
                   const scope = presentationScopes.find(
                     ({ scopeKey }) => scopeKey === fact.scopeKey,
                   )!;
-                  const question = editableQuestionForFact(fact, scope);
+                  const question = editableQuestionForFact(fact, scope, session.questions);
                   if (question) edit(question);
                 }}
               >

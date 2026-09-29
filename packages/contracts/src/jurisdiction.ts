@@ -14,6 +14,11 @@ export function normalizeJurisdictionCode(value: unknown): string | null {
   return normalized.length <= 80 ? normalized.toUpperCase() : normalized.slice(0, 80).toUpperCase();
 }
 
-export function isSupportedJurisdiction(value: unknown): value is SupportedJurisdiction {
-  return normalizeJurisdictionCode(value) === 'EC';
+export function isSupportedJurisdictionCode(value: string): value is SupportedJurisdiction {
+  return (SUPPORTED_JURISDICTIONS as readonly string[]).includes(value);
+}
+
+export function isSupportedJurisdiction(value: unknown): boolean {
+  const normalized = normalizeJurisdictionCode(value);
+  return normalized !== null && isSupportedJurisdictionCode(normalized);
 }

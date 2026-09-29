@@ -438,6 +438,7 @@ export function assessmentWorkerCountComparison(
 export function editableQuestionForFact(
   fact: SstAssessmentFact,
   scope: SstAssessmentScope,
+  sourceQuestions: readonly SstAssessmentQuestion[] = [],
 ): SstAssessmentQuestion | null {
   const definition = definitions.get(fact.factKey);
   if (
@@ -446,6 +447,9 @@ export function editableQuestionForFact(
     fact.factKey === 'organization.workCenterCount'
   )
     return null;
+  const sourceQuestion = sourceQuestions.find(
+    (question) => question.scopeKey === scope.scopeKey && question.factKey === fact.factKey,
+  );
   return {
     questionId: `${scope.scopeKey}:${definition.factKey}`,
     factKey: definition.factKey,
@@ -464,6 +468,7 @@ export function editableQuestionForFact(
     collectionPolicy: definition.collectionPolicy,
     relevancePolicy: definition.relevancePolicy,
     blocking: definition.blocksReadiness,
+    ...(sourceQuestion?.legalBasis ? { legalBasis: sourceQuestion.legalBasis } : {}),
   };
 }
 

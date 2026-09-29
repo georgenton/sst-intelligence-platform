@@ -13,12 +13,14 @@ function GroupDetails({
   scopeKey,
   facts,
   scopes,
+  questions,
   readOnly,
   onEdit,
 }: {
   scopeKey?: string;
   facts: readonly SstAssessmentFact[];
   scopes: readonly SstAssessmentScope[];
+  questions: readonly SstAssessmentQuestion[];
   readOnly: boolean;
   onEdit(question: SstAssessmentQuestion): void;
 }) {
@@ -35,7 +37,7 @@ function GroupDetails({
             factScopeKey === item.scopeKey && factKey === item.factKey,
         )!;
         const scope = scopeMap.get(item.scopeKey)!;
-        const editable = readOnly ? null : editableQuestionForFact(fact, scope);
+        const editable = readOnly ? null : editableQuestionForFact(fact, scope, questions);
         return (
           <div key={item.identity}>
             <strong>{item.label}</strong>
@@ -55,6 +57,7 @@ function GroupDetails({
 export function AssessmentContextPanel({
   facts,
   scopes,
+  questions,
   onEdit,
   readOnly = false,
   activeScopeKey,
@@ -63,6 +66,7 @@ export function AssessmentContextPanel({
 }: {
   facts: readonly SstAssessmentFact[];
   scopes: readonly SstAssessmentScope[];
+  questions: readonly SstAssessmentQuestion[];
   onEdit(question: SstAssessmentQuestion): void;
   readOnly?: boolean;
   activeScopeKey?: string;
@@ -210,6 +214,7 @@ export function AssessmentContextPanel({
             scopeKey={selectedGroup.scopeKey}
             facts={facts}
             scopes={scopes}
+            questions={questions}
             readOnly={readOnly}
             onEdit={(question) => {
               dialogRef.current?.close();
@@ -226,6 +231,7 @@ export function AssessmentContextPanel({
                 scopeKey={group.scopeKey}
                 facts={facts}
                 scopes={scopes}
+                questions={questions}
                 readOnly={readOnly}
                 onEdit={(question) => {
                   dialogRef.current?.close();

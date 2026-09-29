@@ -11,6 +11,7 @@ import {
 export function AssessmentReview({
   facts,
   scopes,
+  questions,
   busy,
   hasOptionalContext,
   onConfirm,
@@ -22,6 +23,7 @@ export function AssessmentReview({
 }: {
   facts: readonly SstAssessmentFact[];
   scopes: readonly SstAssessmentScope[];
+  questions: readonly SstAssessmentQuestion[];
   busy: boolean;
   hasOptionalContext: boolean;
   onConfirm(): void;
@@ -43,7 +45,7 @@ export function AssessmentReview({
       facts
         .map((fact) => {
           const scope = scopes.find(({ scopeKey }) => scopeKey === fact.scopeKey);
-          return scope ? editableQuestionForFact(fact, scope) : null;
+          return scope ? editableQuestionForFact(fact, scope, questions) : null;
         })
         .find(
           (question) =>
@@ -72,7 +74,7 @@ export function AssessmentReview({
               const scope = scopes.find(({ scopeKey }) => scopeKey === group.scopeKey)!;
               const editable = facts
                 .filter(({ scopeKey }) => scopeKey === group.scopeKey)
-                .map((fact) => editableQuestionForFact(fact, scope))
+                .map((fact) => editableQuestionForFact(fact, scope, questions))
                 .find((question) => question !== null);
               return (
                 <div key={group.scopeKey}>

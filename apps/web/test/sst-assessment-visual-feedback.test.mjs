@@ -216,6 +216,38 @@ test('verified legal basis is a collapsed accessible disclosure with human copy'
   assert.match(html, /Artículo 18/);
   assert.match(html, /Ver fuente oficial/);
   assert.equal((html.match(/<details/g) ?? []).length, 1);
+  const colombiaHtml = render(AssessmentQuestionCard, {
+    question: {
+      questionId: 'headcount-colombia',
+      factKey: 'organization.totalWorkerCount',
+      scopeKey: 'organization',
+      topic: 'Personas y operación',
+      questionText: '¿Cuántas personas trabajan en total?',
+      valueType: 'INTEGER',
+      unknownAllowed: true,
+      purpose: 'La cantidad total cambia las obligaciones que debemos revisar.',
+      helpText: 'Ayuda',
+      choices: [],
+      relatedRuleKeys: [],
+      relatedTargetKeys: [],
+      collectionPolicy: 'FOUNDATION_REQUIRED',
+      relevancePolicy: 'ALWAYS',
+      blocking: true,
+      legalBasis: {
+        jurisdictionCode: 'CO',
+        status: 'VERIFIED',
+        explanation: 'Cobertura futura.',
+        sources: [],
+      },
+    },
+    disabled: false,
+    onAnswer: noop,
+    onSkip: noop,
+    facts: [],
+    scopes,
+  });
+  assert.match(colombiaHtml, /Fundamento legal · Colombia/);
+  assert.doesNotMatch(colombiaHtml, /Fundamento legal · Ecuador/);
   assert.equal(
     assessmentJurisdictionContext([fact('organization', 'organization.country', 'Colombia')]).label,
     'Marco de evaluación · Colombia',
