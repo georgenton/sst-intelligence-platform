@@ -155,6 +155,10 @@ export function InspectionStandardsSettings() {
   const queryClient = useQueryClient();
   const organizationId = organization.activeId;
   const activeOrganization = organization.organizations.find(({ id }) => id === organizationId);
+  const demoActive = Boolean(
+    activeOrganization?.demoExpiresAt &&
+    new Date(activeOrganization.demoExpiresAt).getTime() > Date.now(),
+  );
   const role = activeOrganization?.memberships[0]?.role;
   const moduleEnabled = dashboard.data?.entitlements.features['module.inspections'] === true;
   const canManage = Boolean(role && POLICY_ROLES.has(role));
@@ -283,7 +287,9 @@ export function InspectionStandardsSettings() {
               const options =
                 catalog.data?.filter(
                   (standard) =>
-                    standard.inspectionDomain === domain && standard.status === 'AVAILABLE',
+                    standard.inspectionDomain === domain &&
+                    standard.status === 'AVAILABLE' &&
+                    (demoActive || standard.source.rightsType !== 'DEMO_SYNTHETIC'),
                 ) ?? [];
               const selected = catalog.data?.find(({ id }) => id === selections[domain]);
               return (

@@ -266,6 +266,16 @@ export type SstAssessmentResult = {
     missingFactKeys: string[];
     professionalReviewRequired: boolean;
     traces: AdaptiveRuleTrace[];
+    regulatoryFoundation?: {
+      status: 'OFFICIAL_ARTIFACT_VERIFIED' | 'SOURCE_CONTEXT_REQUIRED' | 'NO_EXACT_SOURCE_MAPPING';
+      sourceKey?: string;
+      sourceVersionId?: string;
+      officialUrl?: string;
+      officialDocumentSha256?: string;
+      unitIds?: string[];
+      unitLocators?: string[];
+      interpretationStatus: 'PROFESSIONAL_REVIEW_REQUIRED';
+    };
   }>;
   specialistTraces: Array<{
     specialist: 'ADAPTIVE_CONFIGURATION' | 'REGULATORY_CANDIDATE';
@@ -517,6 +527,13 @@ export function planSstAssessmentQuestions(
     return fact?.answerState === 'KNOWN' ? fact.value : undefined;
   };
   const isRelevant = (scope: SstAssessmentScope, fact: SstAssessmentFactDefinition) => {
+    if (fact.factKey === 'workCenter.highEnergySourceTypes') {
+      const highEnergy = snapshot.facts.find(
+        (item) =>
+          item.scopeKey === scope.scopeKey && item.factKey === 'workCenter.hasHighEnergyOperations',
+      );
+      return highEnergy?.answerState === 'KNOWN' && highEnergy.value === true;
+    }
     switch (fact.relevancePolicy) {
       case 'ALWAYS':
         return true;

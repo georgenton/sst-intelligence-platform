@@ -549,10 +549,27 @@ export function professionalFoundation(
           'Centro de trabajo'),
     authority:
       item.authority === 'DEMO'
-        ? 'Criterio demostrativo'
+        ? 'Lógica determinística de producto'
         : item.authority === 'CANDIDATE'
-          ? 'Criterio regulatorio en revisión'
-          : 'Criterio publicado',
+          ? 'Fundamento normativo oficial · interpretación en revisión'
+          : 'Regla publicada',
+    regulatoryFoundation: item.regulatoryFoundation
+      ? {
+          status:
+            item.regulatoryFoundation.status === 'OFFICIAL_ARTIFACT_VERIFIED'
+              ? 'Fuente oficial verificada · interpretación en revisión'
+              : item.regulatoryFoundation.status === 'SOURCE_CONTEXT_REQUIRED'
+                ? 'Falta confirmar el tipo de fuente de energía'
+                : 'No existe un mapeo normativo exacto para la fuente confirmada',
+          sourceLabel:
+            item.regulatoryFoundation.sourceKey === 'EC_MDT_2024_196_ANNEX_3'
+              ? 'MDT-2024-196 · Anexo 3 · Capítulo III'
+              : item.regulatoryFoundation.sourceKey,
+          sourceKey: item.regulatoryFoundation.sourceKey,
+          officialUrl: item.regulatoryFoundation.officialUrl,
+          unitLocators: item.regulatoryFoundation.unitLocators ?? [],
+        }
+      : null,
     review: item.professionalReviewRequired
       ? 'Revisión profesional requerida'
       : 'Revisión profesional no requerida para este resultado',

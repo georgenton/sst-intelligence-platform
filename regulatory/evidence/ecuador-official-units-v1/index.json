@@ -66,6 +66,14 @@
       "expectedUnitCount": 201,
       "articleCount": 147,
       "pageCount": 70
+    },
+    {
+      "sourceKey": "EC_MDT_2024_196_ANNEX_3",
+      "file": "ec-mdt-2024-196-annex-3.json",
+      "sourceVersionId": "a2000000-0000-4000-8000-000000000015",
+      "expectedUnitCount": 10,
+      "articleCount": 9,
+      "pageCount": 102
     }
   ]
 }

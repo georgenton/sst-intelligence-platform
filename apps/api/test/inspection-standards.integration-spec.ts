@@ -115,7 +115,7 @@ describe('inspection standards integration', () => {
       .get('/inspection-standards/catalog')
       .expect(200)
       .expect(({ body }) => {
-        expect(body).toHaveLength(7);
+        expect(body).toHaveLength(8);
         expect(body).toEqual(
           expect.arrayContaining([
             expect.objectContaining({
@@ -129,6 +129,15 @@ describe('inspection standards integration', () => {
             }),
             expect.objectContaining({ id: electricalStandardBId }),
             expect.objectContaining({ id: fireStandardAId }),
+            expect.objectContaining({
+              versionCode: 'MDT-2024-196-ANEXO-3-CAP-III-1.0.0',
+              inspectionDomain: 'ELECTRICAL',
+              source: expect.objectContaining({
+                code: 'EC_MDT_2024_196_ANNEX_3_ELECTRICAL',
+                rightsType: 'PUBLIC_OFFICIAL',
+                originCountry: 'Ecuador (EC)',
+              }),
+            }),
             expect.objectContaining({
               versionCode: 'RES-40284-2026-PILOT-1',
               inspectionDomain: 'ELECTRICAL',

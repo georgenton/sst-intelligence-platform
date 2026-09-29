@@ -142,6 +142,8 @@ export class DemoCapabilityProvisioningService {
   private async provisionInspectionDemo(input: ProvisioningInput) {
     const { guayaquil, electricalArea } = await this.ensureDemoTopology(input);
 
+    // This synthetic policy is restricted to the explicit demo activation flow. It is not
+    // a regulatory foundation and is never created by ordinary organization onboarding.
     const existingStandardPolicy =
       await input.tx.organizationInspectionStandardPolicyVersion.findFirst({
         where: { organizationId: input.organizationId },

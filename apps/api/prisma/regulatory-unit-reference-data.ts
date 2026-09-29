@@ -20,7 +20,7 @@ type RegulatoryUnitEvidenceFile = {
   officialDocumentSha256: string;
   officialUrl: string;
   pageCount: number;
-  textExtractionStatus: 'COMPLETE';
+  textExtractionStatus: 'COMPLETE' | 'PARTIAL';
   expectedIdentifiers: string[];
   units: RegulatoryUnitRecord[];
 };
@@ -96,7 +96,7 @@ export async function syncRegulatoryUnitReferenceData(
       sourceVersion.officialDocumentSha256 !== manifest.officialDocumentSha256 ||
       sourceVersion.officialUrl !== manifest.officialUrl ||
       sourceVersion.artifactVerificationStatus !== 'OFFICIAL_ARTIFACT_VERIFIED' ||
-      sourceVersion.textExtractionStatus !== 'COMPLETE' ||
+      sourceVersion.textExtractionStatus !== manifest.textExtractionStatus ||
       sourceVersion.artifactPageCount !== manifest.pageCount
     )
       throw new Error(`REGULATORY_UNIT_SOURCE_VERSION_DRIFT:${manifest.sourceKey}`);

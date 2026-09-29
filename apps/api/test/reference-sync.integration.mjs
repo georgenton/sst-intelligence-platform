@@ -338,10 +338,10 @@ function assertExpectedReferences(snapshot) {
   assert.equal(snapshot.contexts.length, 2);
   assert.equal(snapshot.regulatorySources.length, 15);
   assert.equal(snapshot.regulatorySourceVersions.length, 25);
-  assert.equal(snapshot.regulatoryUnits.length, 1112);
+  assert.equal(snapshot.regulatoryUnits.length, 1122);
   assert.equal(
     snapshot.regulatoryUnits.filter(({ unitType }) => unitType === 'ARTICLE').length,
-    893,
+    902,
   );
   assert.equal(snapshot.regulatoryProvisions.length, 2);
   assert.equal(snapshot.regulatoryProvisionUnits.length, 2);
@@ -366,10 +366,10 @@ function assertExpectedReferences(snapshot) {
     [{ key: 'module.work_permits', description: 'Módulo de permisos', valueType: 'BOOLEAN' }],
   );
   assert.equal(snapshot.workPermitPlanFeatures.length, 0);
-  assert.equal(snapshot.inspectionStandardSources.length, 8);
-  assert.equal(snapshot.inspectionStandardVersions.length, 9);
-  assert.equal(snapshot.inspectionStandardSections.length, 9);
-  assert.equal(snapshot.inspectionStandardCriteria.length, 16);
+  assert.equal(snapshot.inspectionStandardSources.length, 9);
+  assert.equal(snapshot.inspectionStandardVersions.length, 10);
+  assert.equal(snapshot.inspectionStandardSections.length, 10);
+  assert.equal(snapshot.inspectionStandardCriteria.length, 25);
   assert.equal(snapshot.inspectionResourceTaxonomies.length, 1);
   assert.equal(snapshot.inspectionResourceTaxonomyVersions.length, 1);
   assert.equal(snapshot.inspectionResources.length, 21);
@@ -464,6 +464,7 @@ function assertExpectedReferences(snapshot) {
     ({ rightsType }) => rightsType === 'PUBLIC_OFFICIAL',
   );
   assert.deepEqual(officialPilots.map(({ code }) => code).sort(), [
+    'EC_MDT_2024_196_ANNEX_3_ELECTRICAL',
     'PILOT_CLP_EU_1272_2008',
     'PILOT_REBT_ES_2002',
     'PILOT_RETIE_CO_2026',
@@ -476,7 +477,7 @@ function assertExpectedReferences(snapshot) {
   const officialVersions = snapshot.inspectionStandardVersions.filter(({ sourceId }) =>
     officialPilots.some(({ id }) => id === sourceId),
   );
-  assert.equal(officialVersions.length, 5);
+  assert.equal(officialVersions.length, 6);
   assert.equal(
     officialVersions.filter(
       ({ metadata }) =>
@@ -493,7 +494,7 @@ function assertExpectedReferences(snapshot) {
     snapshot.inspectionStandardCriteria.filter(({ standardVersionId }) =>
       officialVersions.some(({ id }) => id === standardVersionId),
     ).length,
-    6,
+    15,
   );
   const nfpaReference = snapshot.inspectionStandardSources.find(
     ({ code }) => code === 'REFERENCE_NFPA_70E_2024',

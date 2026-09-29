@@ -118,7 +118,10 @@ export function InspectionBasisSettings() {
     enabled: Boolean(organizationId && regulatorySearch.trim().length >= 2),
   });
   const domainStandards = useMemo(
-    () => (catalog.data ?? []).filter((item) => item.inspectionDomain === domain),
+    () =>
+      (catalog.data ?? []).filter(
+        (item) => item.inspectionDomain === domain && item.source.rightsType !== 'DEMO_SYNTHETIC',
+      ),
     [catalog.data, domain],
   );
   const internalStandards = domainStandards.filter(
