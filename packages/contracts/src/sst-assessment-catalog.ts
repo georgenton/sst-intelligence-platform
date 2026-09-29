@@ -28,6 +28,109 @@ const SPECIALIST_REQUIRED_FACT_KEYS = new Set([
   'workCenter.hasFireExposure',
 ]);
 
+const QUESTION_PURPOSES: Record<string, string> = {
+  'organization.country':
+    'El país determina qué marco legal puede utilizar SST Intelligence. Nunca mezclamos normas de distintas jurisdicciones.',
+  'organization.sector':
+    'La actividad económica ayuda a interpretar la operación y a identificar requisitos sectoriales que conviene revisar después.',
+  'organization.activityDescription':
+    'La actividad principal permite reconocer exposiciones operativas y orientar las siguientes preguntas.',
+  'organization.complementaryActivityDescription':
+    'Las actividades complementarias pueden abrir líneas de revisión distintas de la actividad principal.',
+  'organization.totalWorkerCount':
+    'La cantidad total de trabajadores cambia las obligaciones SST que debemos revisar en Ecuador.',
+  'organization.headcountMeaning':
+    'El significado de la cifra evita comparar nómina, presencia habitual y asignaciones como si fueran la misma magnitud.',
+  'organization.headcountPeriod':
+    'El periodo permite saber si el total representa el mismo momento que las cifras de cada centro.',
+  'organization.headcountCoverage':
+    'La cobertura aclara qué población está incluida para interpretar el total sin suposiciones.',
+  'organization.headcountOverlap':
+    'Saber si una persona aparece en más de un centro evita sumar dos veces la misma población.',
+  'organization.workCenterCount':
+    'Necesitamos conocer cómo se distribuye la operación para evaluar cada centro en su propio contexto.',
+  'organization.strategicProtectionPriorities':
+    'Tus prioridades ayudan a ordenar el contexto de gestión sin convertir la selección en una conclusión legal.',
+  'organization.managementSystem':
+    'La forma actual de gestionar la información muestra qué tan trazable es el trabajo SST que revisaremos.',
+  'organization.inspectionPractice':
+    'Conocer cómo se inspecciona hoy permite orientar el seguimiento y decidir si hace falta más contexto.',
+  'organization.inspectionFrequency':
+    'La frecuencia ayuda a entender el ritmo actual de revisión sin asumir que una frecuencia por sí sola demuestra cumplimiento.',
+  'organization.manualPermits':
+    'Saber cómo se autorizan los trabajos críticos orienta la revisión de controles existentes.',
+  'organization.evidenceDifficulty':
+    'Esta respuesta ayuda a identificar si conviene ordenar la evidencia y su trazabilidad.',
+  'organization.overdueActions':
+    'Las acciones atrasadas muestran dónde puede ser útil revisar responsables, fechas y seguimiento.',
+  'organization.recurringFindings':
+    'Las recurrencias orientan el análisis de seguimiento sin afirmar por sí solas que exista un incidente.',
+  'organization.hasExistingSstWorkPlan':
+    'Conocer si existe un plan permite distinguir entre organizar el trabajo y revisar su ejecución.',
+  'organization.multipleShifts':
+    'Los turnos pueden cambiar cómo se distribuyen las personas, la supervisión y la información SST.',
+  'organization.psychosocialReviewNeeded':
+    'Esta señal organizacional ayuda a decidir si conviene profundizar en prevención psicosocial, sin pedir datos clínicos.',
+  'organization.stressExposedRolesPresent':
+    'Identificar funciones con presión sostenida orienta una revisión preventiva sin diagnosticar a personas.',
+  'organization.organizationalCampaigns':
+    'Las campañas existentes ayudan a comprender cómo se comunica y sostiene la prevención.',
+  'organization.productObjectives':
+    'Tus objetivos permiten ordenar la siguiente etapa de trabajo sin activar capacidades automáticamente.',
+  'organization.implementationUrgency':
+    'El momento en que deseas iniciar ayuda a ordenar la ruta de trabajo y sus próximos pasos.',
+  'organization.estimatedUsers':
+    'La cantidad estimada de usuarios ayuda a dimensionar la colaboración inicial en la plataforma.',
+  'organization.budgetRange':
+    'El rango previsto ayuda a orientar una conversación comercial posterior, sin cambiar la evaluación SST.',
+  'organization.rolloutPreference':
+    'La preferencia de despliegue ayuda a organizar una posible adopción por etapas.',
+  'organization.additionalContext':
+    'El contexto adicional permite registrar información operativa que no encaja en las preguntas anteriores.',
+  'workCenter.workerCount':
+    'La cantidad de personas de este centro participa en la determinación de la gestión preventiva requerida; también necesitamos el nivel de riesgo y otros datos para interpretar sus límites.',
+  'workCenter.headcountMeaning':
+    'El significado de la cifra permite comparar este centro con el total usando magnitudes compatibles.',
+  'workCenter.headcountPeriod':
+    'El periodo permite saber si la cifra de este centro puede compararse con el total informado.',
+  'workCenter.headcountCoverage':
+    'La cobertura aclara qué población representa la cifra del centro.',
+  'workCenter.activityDescription':
+    'Las actividades realizadas aquí determinan qué exposiciones y especialistas deben revisarse.',
+  'workCenter.workArrangement':
+    'La modalidad de trabajo aporta contexto sobre las condiciones físicas y los controles que conviene revisar.',
+  'workCenter.activityCategories':
+    'Las categorías de actividad ayudan a ordenar el contexto operativo de este centro.',
+  'workCenter.facilityTypes':
+    'El tipo de instalación orienta las exposiciones y controles que pueden ser relevantes.',
+  'workCenter.hasDistinctOperationalZones':
+    'Las zonas diferenciadas muestran si este centro necesita revisiones separadas por operación.',
+  'workCenter.hasChemicalProcesses':
+    'Confirmar procesos químicos permite decidir si debemos profundizar en exposición, almacenamiento y controles asociados.',
+  'workCenter.chemicalUseContexts':
+    'El contexto de uso ayuda a distinguir limpieza, proceso y almacenamiento sin inferir una exposición no confirmada.',
+  'workCenter.hasHighEnergyOperations':
+    'Confirmar fuentes de alta energía indica si debemos pedir una clasificación técnica antes de mostrar un fundamento específico.',
+  'workCenter.highEnergySourceTypes':
+    'Necesitamos conocer el tipo de energía presente para determinar qué fundamento técnico y legal corresponde.',
+  'workCenter.hasWorkAtHeight':
+    'Esta respuesta orienta si conviene profundizar en controles para trabajos en altura.',
+  'workCenter.hasHotWork':
+    'Esta respuesta orienta si conviene profundizar en controles para trabajos en caliente.',
+  'workCenter.hasElectricalWorkOrExposure':
+    'Confirmar exposición eléctrica permite revisar el fundamento técnico y legal correspondiente en Ecuador.',
+  'workCenter.hasConfinedSpaces':
+    'Esta respuesta orienta si conviene profundizar en controles para espacios confinados.',
+  'workCenter.hasExternalWorkforce':
+    'La presencia de personal externo ayuda a revisar coordinación, responsabilidades y evidencias de control.',
+  'workCenter.hasCriticalMachinery':
+    'La maquinaria crítica orienta qué controles de operación y mantenimiento deben revisarse.',
+  'workCenter.hasDriversOrTransport':
+    'Las operaciones de transporte ayudan a identificar si hace falta revisar riesgos y controles específicos.',
+  'workCenter.hasFireExposure':
+    'La exposición a incendio orienta si conviene profundizar en prevención, respuesta y continuidad.',
+};
+
 const definition = (
   factKey: string,
   topic: string,
@@ -52,7 +155,9 @@ const definition = (
     'Responde con la información disponible. También puedes indicar que aún no la conoces.',
   choices: options.choices ?? [],
   purpose:
-    options.purpose ?? `Completar el contexto de ${topic.toLowerCase()} de la evaluación SST.`,
+    options.purpose ??
+    QUESTION_PURPOSES[factKey] ??
+    'Esta respuesta aporta contexto para orientar la evaluación y decidir qué conviene revisar después.',
   order,
   sensitivity: options.sensitivity ?? 'MEDIUM',
   unknownAllowed: options.unknownAllowed ?? true,

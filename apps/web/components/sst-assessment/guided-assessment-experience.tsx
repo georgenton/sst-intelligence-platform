@@ -4,6 +4,7 @@ import type { SstAssessmentQuestion } from '@sst/contracts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   assessmentErrorMessage,
+  assessmentJurisdictionContext,
   assessmentQuestionScopeContext,
   assessmentTopicLabel,
   orderAssessmentQuestions,
@@ -81,6 +82,13 @@ export function GuidedSstAssessmentExperience({
   const scopeContext = displayedQuestion
     ? assessmentQuestionScopeContext(displayedQuestion, session.snapshot.facts, presentationScopes)
     : null;
+  const jurisdictionContext = assessmentJurisdictionContext(session.snapshot.facts);
+  const jurisdiction = (
+    <p className="assessment-jurisdiction">
+      {jurisdictionContext.label}
+      {jurisdictionContext.fromOrganization ? ' · Definido por la organización' : ''}
+    </p>
+  );
 
   useEffect(() => {
     if (!changes.length) return;
@@ -105,7 +113,12 @@ export function GuidedSstAssessmentExperience({
   function edit(question: SstAssessmentQuestion) {
     setCheckpointTopic(null);
     setRelay(null);
-    setEditing(question);
+    setEditing(
+      session.questions.find(
+        (candidate) =>
+          candidate.scopeKey === question.scopeKey && candidate.factKey === question.factKey,
+      ) ?? question,
+    );
   }
   const status = <AssessmentSaveStatus status={saveStatus} message={savedMessage} />;
   const processing = (
@@ -213,6 +226,7 @@ export function GuidedSstAssessmentExperience({
         title="Tu diagnóstico SST"
         description="Una lectura ejecutiva, trazable y orientativa de la información que confirmaste."
         aside={aside}
+        jurisdiction={jurisdiction}
       >
         <AssessmentResults
           finalized
@@ -233,6 +247,7 @@ export function GuidedSstAssessmentExperience({
         title="Revisa antes de finalizar"
         description="Puedes corregir cualquier respuesta. El diagnóstico se genera solo cuando confirmas."
         aside={aside}
+        jurisdiction={jurisdiction}
         progress={
           <AssessmentProgress
             progress={session.progress}
@@ -269,6 +284,7 @@ export function GuidedSstAssessmentExperience({
       title="Conozcamos cómo funciona tu empresa"
       description="Te mostraremos una sola pregunta relevante por vez. Tus respuestas se guardan antes de continuar."
       aside={aside}
+      jurisdiction={jurisdiction}
       scope={
         !relay && !checkpointTopic && scopeContext ? (
           <div className="assessment-mobile-scope">

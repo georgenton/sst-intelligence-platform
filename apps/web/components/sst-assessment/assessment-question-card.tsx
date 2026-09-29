@@ -1,6 +1,11 @@
 'use client';
 
-import type { SstAssessmentFact, SstAssessmentQuestion, SstAssessmentScope } from '@sst/contracts';
+import type {
+  SstAssessmentFact,
+  SstAssessmentQuestion,
+  SstAssessmentQuestionLegalBasis,
+  SstAssessmentScope,
+} from '@sst/contracts';
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { AssessmentAnswer } from '@/lib/sst-assessment-types';
 import {
@@ -10,6 +15,62 @@ import {
   canSkipAssessmentQuestion,
 } from '@/lib/sst-assessment-presentation';
 import { AssessmentQuestionControl } from './assessment-question-control';
+
+function AssessmentQuestionLegalBasis({
+  legalBasis,
+}: {
+  legalBasis: SstAssessmentQuestionLegalBasis;
+}) {
+  if (legalBasis.status === 'VERIFIED') {
+    return (
+      <div className="assessment-legal-basis">
+        <p className="assessment-legal-basis__label">
+          <strong>Fundamento legal · Ecuador</strong>
+        </p>
+        <details>
+          <summary>Ver fundamento</summary>
+          {legalBasis.sources.map((source) => (
+            <div key={source.sourceKey} className="assessment-legal-basis__content">
+              <p>
+                <strong>{source.title}</strong>
+                <br />
+                {source.issuer} · {source.referenceNumber}
+              </p>
+              <p>{source.unitLocators.join(' · ')}</p>
+              <p>{legalBasis.explanation}</p>
+              <p>La interpretación y aplicabilidad requieren revisión profesional.</p>
+              <a href={source.officialUrl} target="_blank" rel="noreferrer">
+                Ver fuente oficial
+              </a>
+            </div>
+          ))}
+        </details>
+      </div>
+    );
+  }
+  if (legalBasis.status === 'CONTEXT_REQUIRED') {
+    return (
+      <div className="assessment-legal-basis assessment-legal-basis--context">
+        <strong>Fundamento legal</strong>
+        <p>{legalBasis.explanation}</p>
+      </div>
+    );
+  }
+  if (legalBasis.status === 'JURISDICTION_NOT_SUPPORTED') {
+    return (
+      <div className="assessment-legal-basis assessment-legal-basis--unsupported">
+        <strong>Cobertura normativa</strong>
+        <p>{legalBasis.explanation}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="assessment-legal-basis assessment-legal-basis--context">
+      <strong>Contexto de evaluación</strong>
+      <p>{legalBasis.explanation}</p>
+    </div>
+  );
+}
 
 export function AssessmentQuestionCard({
   question,
@@ -84,6 +145,9 @@ export function AssessmentQuestionCard({
             {purpose}
           </p>
         </div>
+        {question.legalBasis ? (
+          <AssessmentQuestionLegalBasis legalBasis={question.legalBasis} />
+        ) : null}
         {sensitiveHelp && question.helpText !== purpose ? (
           <p className="assessment-safety-note">{question.helpText}</p>
         ) : null}
