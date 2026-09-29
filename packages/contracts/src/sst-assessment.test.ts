@@ -331,6 +331,37 @@ describe('canonical SST assessment contract', () => {
     expect(resolveSstAssessmentReadiness(snapshot(blockingAnswers))).toBe('DIAGNOSIS_READY');
   });
 
+  it('asks for confirmed high-energy source types only after high-energy operations are known', () => {
+    const highEnergy = sstAssessmentFactSchema.parse({
+      factKey: 'workCenter.hasHighEnergyOperations',
+      scopeKey: 'center:1',
+      answerState: 'KNOWN',
+      value: true,
+      provenance,
+    });
+    const questions = planSstAssessmentQuestions(snapshot([highEnergy]));
+    expect(questions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          factKey: 'workCenter.highEnergySourceTypes',
+          scopeKey: 'center:1',
+          collectionPolicy: 'CONTEXT_RECOMMENDED',
+          blocking: false,
+        }),
+      ]),
+    );
+    const disabled = sstAssessmentFactSchema.parse({
+      ...highEnergy,
+      value: false,
+    });
+    expect(
+      planSstAssessmentQuestions(snapshot([disabled])).some(
+        ({ factKey, scopeKey }) =>
+          factKey === 'workCenter.highEnergySourceTypes' && scopeKey === 'center:1',
+      ),
+    ).toBe(false);
+  });
+
   it('makes conditional context relevant without turning it into a readiness blocker', () => {
     const blockingAnswers = planSstAssessmentQuestions(snapshot())
       .filter(({ blocking }) => blocking)

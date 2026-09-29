@@ -122,7 +122,9 @@ function inspectRuntimeCorpus() {
   const sourceFiles = filesBelow(`${repositoryRoot}/regulatory`).sort();
   assert.equal(inspected.root, '/app/regulatory');
   assert.deepEqual(inspected.files, sourceFiles);
-  assert.equal(inspected.files.length, 35);
+  // The R1 Annex 3 domain locator is shipped with the canonical regulatory
+  // resources alongside the structured electrical evidence.
+  assert.equal(inspected.files.length, 37);
   assert.equal(
     inspected.files.some((file) => /\.pdf$/i.test(file)),
     false,
@@ -198,8 +200,8 @@ async function referenceSnapshot(prisma) {
 function assertExpectedReferences(snapshot) {
   assert.equal(snapshot.sources.length, 15);
   assert.equal(snapshot.sourceVersions.length, 25);
-  assert.equal(snapshot.units.length, 1112);
-  assert.equal(snapshot.units.filter(({ unitType }) => unitType === 'ARTICLE').length, 893);
+  assert.equal(snapshot.units.length, 1122);
+  assert.equal(snapshot.units.filter(({ unitType }) => unitType === 'ARTICLE').length, 902);
   assert.equal(snapshot.requirements.length, 5);
   assert.equal(snapshot.ruleDrafts.length, 5);
   assert.equal(snapshot.regulatoryRuleVersions.length, 0);

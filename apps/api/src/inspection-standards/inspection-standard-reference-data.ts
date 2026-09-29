@@ -199,6 +199,171 @@ const DEMO_INSPECTION_STANDARD_MANIFESTS: StandardManifest[] = [
   },
 ];
 
+const ECUADOR_ELECTRICAL_FOUNDATION_MANIFESTS: StandardManifest[] = [
+  {
+    source: {
+      id: '57400000-0000-4000-8000-000000000010',
+      code: 'EC_MDT_2024_196_ANNEX_3_ELECTRICAL',
+      name: 'MDT-2024-196 · Anexo 3 · Riesgos eléctricos',
+      publisher: 'Ministerio del Trabajo del Ecuador',
+      originCountry: 'Ecuador (EC)',
+      referenceUrl:
+        'https://www.trabajo.gob.ec/wp-content/uploads/2024/11/Anexo-3_Norma-Tecnica-de-Seguridad-e-Higiene-del-Trabajo-signed-signed-signed-signed.pdf',
+      rightsType: 'PUBLIC_OFFICIAL',
+    },
+    version: {
+      id: '57500000-0000-4000-8000-000000000010',
+      versionCode: 'MDT-2024-196-ANEXO-3-CAP-III-1.0.0',
+      editionLabel: 'Anexo 3 · Capítulo III · extracción oficial fijada',
+      domain: 'ELECTRICAL',
+      metadata: {
+        regulatoryFoundation: true,
+        sourceKey: 'EC_MDT_2024_196_ANNEX_3',
+        sourceVersionId: 'a2000000-0000-4000-8000-000000000015',
+        officialDocumentSha256:
+          'sha256:d588c7b8e0dadf68dc5b06763a6dbf80e445ee5b55c7972ae063e56228e27ddc',
+        jurisdictionCode: 'EC',
+        currentness: 'PENDING_REVIEW',
+        foundationStatus: 'OFFICIAL_ARTIFACT_VERIFIED',
+        interpretationStatus: 'PROFESSIONAL_REVIEW_REQUIRED',
+      },
+    },
+    section: {
+      id: '57600000-0000-4000-8000-000000000010',
+      code: 'ANEXO-3-CAP-III',
+      title: 'Capítulo III · De los riesgos eléctricos',
+      displayOrder: 1,
+    },
+    criteria: [
+      {
+        id: '57700000-0000-4000-8000-000000000101',
+        code: 'EC-ANNEX3-ART82-EVALUATION-CONTROLS',
+        title:
+          'La organización mantiene evaluación, controles, formación y mantenimiento frente al riesgo eléctrico.',
+        guidance:
+          'Registre la evidencia disponible de evaluación periódica, controles, formación y mantenimiento. La inspección no certifica cumplimiento legal.',
+        evidenceExpectation:
+          'Registro de evaluación, mantenimiento, formación o control observado.',
+        sourceLocator: 'EC_MDT_2024_196_ANNEX_3 · ARTICLE_82 · página 63',
+        displayOrder: 1,
+        notApplicableAllowed: false,
+        required: true,
+      },
+      {
+        id: '57700000-0000-4000-8000-000000000102',
+        code: 'EC-ANNEX3-ART83-DIRECT-CONTACT',
+        title:
+          'Los trabajos con fuentes eléctricas disponen de desconexión, verificación de ausencia de tensión y protección frente al contacto directo.',
+        guidance:
+          'Observe bloqueo, verificación, aislamiento, señalización, inspección y EPP aplicables al trabajo observado.',
+        evidenceExpectation:
+          'Procedimiento, registro de verificación, observación de campo o evidencia fotográfica interna.',
+        sourceLocator: 'EC_MDT_2024_196_ANNEX_3 · ARTICLE_83 · página 63',
+        displayOrder: 2,
+        notApplicableAllowed: true,
+        required: true,
+      },
+      {
+        id: '57700000-0000-4000-8000-000000000103',
+        code: 'EC-ANNEX3-ART84-INDIRECT-CONTACT',
+        title:
+          'Las instalaciones y equipos observados tienen controles frente al contacto eléctrico indirecto.',
+        guidance:
+          'Registre indicios verificables sobre dimensionamiento, protecciones, puesta a tierra, aislamiento, señalización, capacitación y EPP.',
+        evidenceExpectation:
+          'Registro de inspección de instalación, evidencia de puesta a tierra o control documentado.',
+        sourceLocator: 'EC_MDT_2024_196_ANNEX_3 · ARTICLE_84 · páginas 63–64',
+        displayOrder: 3,
+        notApplicableAllowed: true,
+        required: true,
+      },
+      {
+        id: '57700000-0000-4000-8000-000000000104',
+        code: 'EC-ANNEX3-ART85-ARC-FLASH',
+        title:
+          'Las tareas con posibilidad de arco eléctrico tienen controles, desenergización, soporte y EPP adecuados.',
+        guidance:
+          'Verifique únicamente la evidencia de campo y documental disponible para la tarea; derive la conclusión a revisión profesional.',
+        evidenceExpectation:
+          'Procedimiento, mantenimiento, plan de respuesta, señalización o EPP observado.',
+        sourceLocator: 'EC_MDT_2024_196_ANNEX_3 · ARTICLE_85 · página 64',
+        displayOrder: 4,
+        notApplicableAllowed: true,
+        required: true,
+      },
+      {
+        id: '57700000-0000-4000-8000-000000000105',
+        code: 'EC-ANNEX3-ART86-SAFETY-DISTANCE',
+        title:
+          'Las líneas aéreas observadas mantienen la distancia mínima correspondiente a su tensión.',
+        guidance:
+          'Capture tensión declarada, condición observada y medición o evidencia disponible. No estime la distancia.',
+        evidenceExpectation:
+          'Medición, plano, ficha técnica o evidencia de campo con contexto de tensión.',
+        sourceLocator: 'EC_MDT_2024_196_ANNEX_3 · ARTICLE_86 · página 64',
+        displayOrder: 5,
+        notApplicableAllowed: true,
+        required: true,
+      },
+      {
+        id: '57700000-0000-4000-8000-000000000106',
+        code: 'EC-ANNEX3-ART87-STATIC-ELECTRICITY',
+        title:
+          'Las operaciones con cargas electrostáticas tienen puesta a tierra y controles adecuados al contexto.',
+        guidance:
+          'Aplique este criterio solo si el proceso puede generar o acumular carga electrostática y el contexto fue confirmado.',
+        evidenceExpectation:
+          'Descripción del proceso, puesta a tierra, control ambiental o procedimiento observado.',
+        sourceLocator: 'EC_MDT_2024_196_ANNEX_3 · ARTICLE_87 · páginas 64–65',
+        displayOrder: 6,
+        notApplicableAllowed: true,
+        required: true,
+      },
+      {
+        id: '57700000-0000-4000-8000-000000000107',
+        code: 'EC-ANNEX3-ART88-WORK-WITHOUT-TENSION',
+        title:
+          'Los trabajos sin tensión tienen delimitación, desconexión, bloqueo, verificación y puesta a tierra documentadas.',
+        guidance:
+          'Observe la secuencia de seguridad aplicable y registre las excepciones o datos que requieran revisión.',
+        evidenceExpectation:
+          'Procedimiento de trabajo, registro LOTO, verificación de ausencia de tensión o evidencia de campo.',
+        sourceLocator: 'EC_MDT_2024_196_ANNEX_3 · ARTICLE_88 · páginas 65–66',
+        displayOrder: 7,
+        notApplicableAllowed: true,
+        required: true,
+      },
+      {
+        id: '57700000-0000-4000-8000-000000000108',
+        code: 'EC-ANNEX3-ART89-WORK-WITH-TENSION',
+        title:
+          'Los trabajos con tensión están limitados a casos justificados y personal formado, entrenado y habilitado.',
+        guidance:
+          'No infiera habilitación o certificación: solicite el registro correspondiente y marque revisión profesional cuando falte.',
+        evidenceExpectation: 'Procedimiento TCT, habilitación, formación o certificación vigente.',
+        sourceLocator: 'EC_MDT_2024_196_ANNEX_3 · ARTICLE_89 · páginas 66–67',
+        displayOrder: 8,
+        notApplicableAllowed: true,
+        required: true,
+      },
+      {
+        id: '57700000-0000-4000-8000-000000000109',
+        code: 'EC-ANNEX3-ART90-TCT-PREVENTION',
+        title:
+          'Los trabajos con tensión tienen habilitación, evaluación de viabilidad, selección de equipos y controles documentados.',
+        guidance:
+          'Registre evidencia de habilitación, evaluación, verificación y mantenimiento; los valores técnicos requieren profesional competente.',
+        evidenceExpectation:
+          'Procedimiento, cronograma de pruebas, hojas de vida de equipos o registro de condiciones climáticas.',
+        sourceLocator: 'EC_MDT_2024_196_ANNEX_3 · ARTICLE_90 · páginas 67–68',
+        displayOrder: 9,
+        notApplicableAllowed: true,
+        required: true,
+      },
+    ],
+  },
+];
+
 const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
   {
     source: {
@@ -507,6 +672,7 @@ const OFFICIAL_INSPECTION_SOURCE_PILOTS: StandardManifest[] = [
 
 export const INSPECTION_STANDARD_MANIFESTS: StandardManifest[] = [
   ...DEMO_INSPECTION_STANDARD_MANIFESTS,
+  ...ECUADOR_ELECTRICAL_FOUNDATION_MANIFESTS,
   ...OFFICIAL_INSPECTION_SOURCE_PILOTS,
 ];
 

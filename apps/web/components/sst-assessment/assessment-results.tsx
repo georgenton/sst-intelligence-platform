@@ -104,6 +104,31 @@ export function AssessmentResults({
                         <dt>Autoridad</dt>
                         <dd>{foundation.authority}</dd>
                       </div>
+                      {foundation.regulatoryFoundation ? (
+                        <div>
+                          <dt>Fundamento normativo</dt>
+                          <dd>
+                            <p>{foundation.regulatoryFoundation.status}</p>
+                            {foundation.regulatoryFoundation.sourceKey ? (
+                              <p>Fuente: {foundation.regulatoryFoundation.sourceLabel}</p>
+                            ) : null}
+                            {foundation.regulatoryFoundation.unitLocators.length ? (
+                              <p>
+                                Unidades: {foundation.regulatoryFoundation.unitLocators.join(', ')}
+                              </p>
+                            ) : null}
+                            {foundation.regulatoryFoundation.officialUrl ? (
+                              <a
+                                href={foundation.regulatoryFoundation.officialUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Abrir fuente oficial
+                              </a>
+                            ) : null}
+                          </dd>
+                        </div>
+                      ) : null}
                       <div>
                         <dt>Revisión profesional</dt>
                         <dd>{foundation.review}</dd>

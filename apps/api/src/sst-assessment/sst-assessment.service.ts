@@ -44,6 +44,7 @@ import {
 } from '../common/public-session-token';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssessmentSpecialists, type AssessmentSpecialistPins } from './assessment-specialists';
+import { resolveAssessmentFoundation } from './regulatory-foundation';
 import type {
   ClaimNewOrganizationPublicAssessmentDto,
   ClaimPublicAssessmentDto,
@@ -1425,6 +1426,7 @@ export class SstAssessmentService {
         missingFactKeys: item.missingFactKeys,
         professionalReviewRequired: item.professionalReview,
         traces: item.traces,
+        regulatoryFoundation: resolveAssessmentFoundation(snapshot, item.scopeKey, item.ruleKeys),
       })),
       ...specialist.regulatory.items.map((item) => ({
         scopeKey: item.scopeKey,
@@ -1437,6 +1439,7 @@ export class SstAssessmentService {
         missingFactKeys: item.missingFactKeys,
         professionalReviewRequired: true,
         traces: item.traces,
+        regulatoryFoundation: resolveAssessmentFoundation(snapshot, item.scopeKey, item.ruleKeys),
       })),
     ].sort(
       (left, right) =>

@@ -479,7 +479,10 @@ export function syncGlobalReferenceData(prisma: PrismaClient) {
     {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       maxWait: 10_000,
-      timeout: 30_000,
+      // The canonical release sync provisions the full regulatory and inspection
+      // reference graph in one serializable transaction. Keep it atomic while
+      // allowing a cold production-like database enough time to complete.
+      timeout: 120_000,
     },
   );
 }

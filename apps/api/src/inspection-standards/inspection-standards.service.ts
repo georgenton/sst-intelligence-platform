@@ -38,12 +38,19 @@ export class InspectionStandardsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async catalog(organizationId: string) {
+    const organization = await this.prisma.organization.findUniqueOrThrow({
+      where: { id: organizationId },
+      select: { navigationProfile: true },
+    });
     const versions = await this.prisma.inspectionStandardVersion.findMany({
       where: {
         status: { in: ['AVAILABLE', 'RETIRED'] },
         source: {
           OR: [{ organizationId: null }, { organizationId }],
           status: { in: ['ACTIVE', 'RETIRED'] },
+          ...(organization.navigationProfile === 'PILOT'
+            ? { rightsType: { not: 'DEMO_SYNTHETIC' } }
+            : {}),
         },
       },
       include: standardInclude,
@@ -61,15 +68,27 @@ export class InspectionStandardsService {
   }
 
   async source(organizationId: string, sourceId: string) {
+    const organization = await this.prisma.organization.findUniqueOrThrow({
+      where: { id: organizationId },
+      select: { navigationProfile: true },
+    });
     const source = await this.prisma.inspectionStandardSource.findFirst({
       where: { id: sourceId, OR: [{ organizationId: null }, { organizationId }] },
       include: { versions: { include: standardInclude, orderBy: { createdAt: 'desc' } } },
     });
-    if (!source) throw new NotFoundException('Estándar de inspección no encontrado.');
+    if (
+      !source ||
+      (organization.navigationProfile === 'PILOT' && source.rightsType === 'DEMO_SYNTHETIC')
+    )
+      throw new NotFoundException('Estándar de inspección no encontrado.');
     return source;
   }
 
   async policy(organizationId: string) {
+    const organization = await this.prisma.organization.findUniqueOrThrow({
+      where: { id: organizationId },
+      select: { navigationProfile: true },
+    });
     const versions = await this.prisma.organizationInspectionStandardPolicyVersion.findMany({
       where: { organizationId },
       orderBy: { version: 'desc' },
@@ -81,7 +100,16 @@ export class InspectionStandardsService {
         },
       },
     });
-    return { current: versions[0] ?? null, history: versions };
+    const visible =
+      organization.navigationProfile === 'PILOT'
+        ? versions.map((version) => ({
+            ...version,
+            bindings: version.bindings.filter(
+              ({ standardVersion }) => standardVersion.source.rightsType !== 'DEMO_SYNTHETIC',
+            ),
+          }))
+        : versions;
+    return { current: visible[0] ?? null, history: visible };
   }
 
   async savePolicy(
@@ -105,12 +133,25 @@ export class InspectionStandardsService {
             status: 'AVAILABLE',
             source: { OR: [{ organizationId: null }, { organizationId }], status: 'ACTIVE' },
           },
-          select: { id: true, metadata: true },
+          select: { id: true, metadata: true, source: { select: { rightsType: true } } },
         });
         if (versions.length !== input.data.bindings.length) {
           throw new BadRequestException({
             code: 'INSPECTION_STANDARD_NOT_AVAILABLE',
             message: 'Uno de los estándares no está disponible para la organización activa.',
+          });
+        }
+        const organization = await tx.organization.findUniqueOrThrow({
+          where: { id: organizationId },
+          select: { navigationProfile: true },
+        });
+        if (
+          organization.navigationProfile === 'PILOT' &&
+          versions.some(({ source }) => source.rightsType === 'DEMO_SYNTHETIC')
+        ) {
+          throw new BadRequestException({
+            code: 'INSPECTION_STANDARD_DEMO_FORBIDDEN_IN_PILOT',
+            message: 'Las organizaciones PILOT solo pueden usar referencias no sintéticas.',
           });
         }
         const byId = new Map(versions.map((version) => [version.id, version]));
@@ -245,6 +286,10 @@ export class InspectionStandardsService {
   }
 
   async resolveRequired(organizationId: string, inspectionDomain: InspectionDomain) {
+    const organization = await this.prisma.organization.findUniqueOrThrow({
+      where: { id: organizationId },
+      select: { navigationProfile: true },
+    });
     const policy = await this.prisma.organizationInspectionStandardPolicyVersion.findFirst({
       where: { organizationId },
       orderBy: { version: 'desc' },
@@ -256,7 +301,13 @@ export class InspectionStandardsService {
       },
     });
     const binding = policy?.bindings[0];
-    if (!policy || !binding || binding.standardVersion.status !== 'AVAILABLE') {
+    if (
+      !policy ||
+      !binding ||
+      binding.standardVersion.status !== 'AVAILABLE' ||
+      (organization.navigationProfile === 'PILOT' &&
+        binding.standardVersion.source.rightsType === 'DEMO_SYNTHETIC')
+    ) {
       throw new BadRequestException({
         code: 'INSPECTION_STANDARD_CONFIGURATION_REQUIRED',
         message:

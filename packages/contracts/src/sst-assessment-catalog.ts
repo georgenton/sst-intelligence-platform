@@ -609,6 +609,29 @@ export const SST_ASSESSMENT_FACT_CATALOG: SstAssessmentFactDefinition[] = [
     1070,
   ),
   definition(
+    'workCenter.highEnergySourceTypes',
+    'Exposiciones operativas',
+    'WORK_CENTER',
+    'MULTI_CHOICE',
+    '¿Qué tipos de fuente de alta energía están confirmados en este centro?',
+    1071,
+    {
+      choices: choices(
+        ['ELECTRICAL', 'Eléctrica'],
+        ['PRESSURIZED', 'Presurizada'],
+        ['THERMAL', 'Térmica'],
+        ['MECHANICAL', 'Mecánica'],
+        ['HYDRAULIC_PNEUMATIC', 'Hidráulica o neumática'],
+        ['OTHER', 'Otra'],
+        ['UNKNOWN', 'Aún no confirmado'],
+      ),
+      helpText:
+        'La pregunta de alta energía es amplia. Selecciona solo fuentes confirmadas; si no puedes clasificarlas, usa “Aún no confirmado”.',
+      collectionPolicy: 'CONTEXT_RECOMMENDED',
+      blocksReadiness: false,
+    },
+  ),
+  definition(
     'workCenter.hasWorkAtHeight',
     'Trabajos críticos',
     'WORK_CENTER',

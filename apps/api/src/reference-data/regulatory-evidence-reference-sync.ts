@@ -266,6 +266,7 @@ type EvidenceFile = {
   officialDocumentSha256: string;
   officialUrl: string;
   pageCount: number;
+  textExtractionStatus: 'COMPLETE' | 'PARTIAL';
   expectedIdentifiers: string[];
   units: RegulatoryUnitRecord[];
 };
@@ -312,7 +313,7 @@ async function syncUnits(database: DatabaseClient, files: EvidenceFile[]) {
       version.source.sourceKey !== file.sourceKey ||
       version.officialDocumentSha256 !== file.officialDocumentSha256 ||
       version.officialUrl !== file.officialUrl ||
-      version.textExtractionStatus !== 'COMPLETE'
+      version.textExtractionStatus !== file.textExtractionStatus
     )
       throw new Error(`REGULATORY_UNIT_SOURCE_VERSION_DRIFT:${file.sourceKey}`);
     for (const unit of file.units) {

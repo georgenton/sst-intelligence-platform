@@ -85,7 +85,7 @@ describe('capability access bridge', () => {
 
   afterAll(async () => app.close());
 
-  async function fixture() {
+  async function fixture(navigationProfile: 'PILOT' | 'FULL' = 'FULL') {
     const user = await prisma.user.create({
       data: {
         email: `capability-${randomUUID()}@example.test`,
@@ -102,6 +102,12 @@ describe('capability access bridge', () => {
       .set('Idempotency-Key', randomUUID())
       .send({ name: `Bridge ${randomUUID()}`, country: 'Ecuador', sector: 'Manufactura' })
       .expect(201);
+    if (navigationProfile === 'PILOT') {
+      await prisma.organization.update({
+        where: { id: organization.body.id as string },
+        data: { navigationProfile },
+      });
+    }
     const assessment = await prisma.sstAssessmentSession.create({
       data: {
         organizationId: organization.body.id,
@@ -209,6 +215,31 @@ describe('capability access bridge', () => {
     const single = await app.get(EntitlementService).effective(f.organizationId);
     const many = await app.get(EntitlementService).effectiveMany([f.organizationId]);
     expect(many.get(f.organizationId)).toEqual(single);
+  });
+
+  it('does not provision synthetic inspection topology for a PILOT demo activation', async () => {
+    const f = await fixture('PILOT');
+    const activated = await api(f)
+      .post('/capability-access/demo')
+      .set('Idempotency-Key', randomUUID())
+      .send({ assessmentId: f.assessment.id, capabilityKeys: ['INSPECTIONS'] })
+      .expect(201);
+    expect(activated.body.access.demo.active).toBe(true);
+    const policy = await api(f).get('/inspection-standards/organization/policy').expect(200);
+    expect(policy.body.current).toBeNull();
+    const catalog = await api(f).get('/inspection-standards/catalog').expect(200);
+    expect(catalog.body).toEqual(
+      expect.not.arrayContaining([
+        expect.objectContaining({
+          source: expect.objectContaining({ rightsType: 'DEMO_SYNTHETIC' }),
+        }),
+      ]),
+    );
+    const centers = await prisma.workCenter.findMany({
+      where: { organizationId: f.organizationId },
+      select: { name: true, isDemo: true },
+    });
+    expect(centers).toEqual([{ name: 'Centro principal', isDemo: false }]);
   });
 
   it('keeps partial bridge access exact and records explicit provenance', async () => {

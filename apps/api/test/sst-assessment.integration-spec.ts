@@ -494,6 +494,17 @@ describe('canonical SST assessment integration', () => {
         }),
       ]),
     );
+    expect(authEvaluated.body.result.items.length).toBeGreaterThan(0);
+    for (const item of authEvaluated.body.result.items) {
+      expect(item.regulatoryFoundation).toEqual(
+        expect.objectContaining({
+          status: expect.stringMatching(
+            /^(OFFICIAL_ARTIFACT_VERIFIED|SOURCE_CONTEXT_REQUIRED|NO_EXACT_SOURCE_MAPPING)$/,
+          ),
+          interpretationStatus: 'PROFESSIONAL_REVIEW_REQUIRED',
+        }),
+      );
+    }
     expect(authEvaluated.body.result.summary.disclaimer).toContain(
       'No acredita cumplimiento legal',
     );

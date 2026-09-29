@@ -207,7 +207,13 @@ export class SolutionFinderService {
       throw new ForbiddenException('Vincula primero el diagnóstico con la organización activa.');
     const existing = await this.prisma.organization.findUniqueOrThrow({
       where: { id: organizationId },
-      select: { id: true, status: true, demoStartedAt: true, demoExpiresAt: true },
+      select: {
+        id: true,
+        status: true,
+        demoStartedAt: true,
+        demoExpiresAt: true,
+        navigationProfile: true,
+      },
     });
     if (session.status === 'DEMO_ACTIVATED') return { idempotent: true, organization: existing };
 
@@ -240,7 +246,13 @@ export class SolutionFinderService {
         }
         const organization = await tx.organization.findUniqueOrThrow({
           where: { id: organizationId },
-          select: { id: true, status: true, demoStartedAt: true, demoExpiresAt: true },
+          select: {
+            id: true,
+            status: true,
+            demoStartedAt: true,
+            demoExpiresAt: true,
+            navigationProfile: true,
+          },
         });
         return { idempotent: true, organization };
       }
@@ -252,6 +264,7 @@ export class SolutionFinderService {
         tx,
         organizationId,
         userId,
+        navigationProfile: existing.navigationProfile === 'PILOT' ? 'PILOT' : 'FULL',
         moduleKeys: moduleKeys as ModuleKey[],
         capabilityMetadata: new Map(
           moduleKeys.map((moduleKey) => [
@@ -262,16 +275,21 @@ export class SolutionFinderService {
         startsAt,
         expiresAt,
       });
-      const { guayaquil, electricalArea } = await this.provisioning.ensureDemoTopology({
-        tx,
-        organizationId,
-        userId,
-        moduleKeys: moduleKeys as ModuleKey[],
-        capabilityMetadata: new Map(),
-        startsAt,
-        expiresAt,
-      });
-      if (moduleKeys.includes('TECHNICAL_RISK')) {
+      const demoTopology =
+        existing.navigationProfile === 'PILOT'
+          ? null
+          : await this.provisioning.ensureDemoTopology({
+              tx,
+              organizationId,
+              userId,
+              navigationProfile: 'FULL',
+              moduleKeys: moduleKeys as ModuleKey[],
+              capabilityMetadata: new Map(),
+              startsAt,
+              expiresAt,
+            });
+      if (demoTopology && moduleKeys.includes('TECHNICAL_RISK')) {
+        const { guayaquil, electricalArea } = demoTopology;
         const methodVersion = await tx.technicalMethodVersion.findFirst({
           where: {
             organizationId: null,
