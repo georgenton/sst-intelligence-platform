@@ -44,6 +44,7 @@ import {
 } from '../common/public-session-token';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssessmentSpecialists, type AssessmentSpecialistPins } from './assessment-specialists';
+import { enrichAssessmentQuestions } from './jurisdiction-legal-context';
 import { resolveAssessmentFoundation } from './regulatory-foundation';
 import type {
   ClaimNewOrganizationPublicAssessmentDto,
@@ -254,9 +255,11 @@ function assessmentResponse(row: {
     sessionRevision: row.sessionRevision,
     snapshot,
     claimScopeMappings: persistedClaimScopeMappings(row.claimScopeMappings),
-    questions:
-      storedQuestions ??
-      planSstAssessmentQuestions(snapshot, { channel, includeCommercial: false }),
+    questions: enrichAssessmentQuestions(
+      snapshot,
+      (storedQuestions as SstAssessmentResult['questions'] | undefined) ??
+        planSstAssessmentQuestions(snapshot, { channel, includeCommercial: false }),
+    ),
     progress:
       storedProgress ??
       calculateSstAssessmentProgress(snapshot, { channel, includeCommercial: false }),
@@ -1401,7 +1404,10 @@ export class SstAssessmentService {
       specialistQuestions: specialistsQuestions,
       includeCommercial: false,
     } as const;
-    const questions = planSstAssessmentQuestions(snapshot, planningOptions);
+    const questions = enrichAssessmentQuestions(
+      snapshot,
+      planSstAssessmentQuestions(snapshot, planningOptions),
+    );
     const progress = calculateSstAssessmentProgress(snapshot, planningOptions);
     const applicableCapabilityQuestions = planSstAssessmentQuestions(
       {

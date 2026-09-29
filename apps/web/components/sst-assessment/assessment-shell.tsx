@@ -7,6 +7,7 @@ export function AssessmentShell({
   aside,
   progress,
   scope,
+  jurisdiction,
   children,
 }: PropsWithChildren<{
   eyebrow?: string;
@@ -15,6 +16,7 @@ export function AssessmentShell({
   aside?: ReactNode;
   progress?: ReactNode;
   scope?: ReactNode;
+  jurisdiction?: ReactNode;
 }>) {
   return (
     <section className="assessment-shell" aria-labelledby="assessment-title">
@@ -23,6 +25,7 @@ export function AssessmentShell({
         <h1 id="assessment-title">{title}</h1>
         <p>{description}</p>
       </header>
+      {jurisdiction}
       {scope}
       {progress}
       <div className="assessment-shell__layout" data-has-aside={Boolean(aside)}>

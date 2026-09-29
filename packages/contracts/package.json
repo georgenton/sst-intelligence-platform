@@ -20,6 +20,11 @@
       "types": "./dist/sst-headcount.d.ts",
       "require": "./dist/sst-headcount.js",
       "default": "./dist/sst-headcount.js"
+    },
+    "./jurisdiction": {
+      "types": "./dist/jurisdiction.d.ts",
+      "require": "./dist/jurisdiction.js",
+      "default": "./dist/jurisdiction.js"
     }
   },
   "scripts": {

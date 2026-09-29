@@ -151,6 +151,34 @@ export type SstAssessmentFactDefinition = {
 };
 export { SST_ASSESSMENT_FACT_CATALOG } from './sst-assessment-catalog.js';
 import { SST_ASSESSMENT_FACT_CATALOG } from './sst-assessment-catalog.js';
+
+export const SST_ASSESSMENT_LEGAL_BASIS_STATUSES = [
+  'VERIFIED',
+  'CONTEXT_REQUIRED',
+  'NO_DIRECT_LEGAL_BASIS',
+  'JURISDICTION_NOT_SUPPORTED',
+] as const;
+export type SstAssessmentLegalBasisStatus = (typeof SST_ASSESSMENT_LEGAL_BASIS_STATUSES)[number];
+
+export type SstAssessmentLegalSource = {
+  sourceKey: string;
+  sourceVersionId: string;
+  title: string;
+  issuer: string;
+  referenceNumber: string;
+  officialUrl: string;
+  officialDocumentSha256: string;
+  unitIds: string[];
+  unitLocators: string[];
+};
+
+export type SstAssessmentQuestionLegalBasis = {
+  jurisdictionCode: string;
+  status: SstAssessmentLegalBasisStatus;
+  explanation: string;
+  sources: SstAssessmentLegalSource[];
+};
+
 export const sstAssessmentQuestionSchema = z
   .object({
     questionId: z.string().min(1),
@@ -170,6 +198,29 @@ export const sstAssessmentQuestionSchema = z
     collectionPolicy: z.enum(SST_ASSESSMENT_COLLECTION_POLICIES),
     relevancePolicy: z.enum(SST_ASSESSMENT_RELEVANCE_POLICIES),
     blocking: z.boolean(),
+    legalBasis: z
+      .object({
+        jurisdictionCode: z.string().min(1).max(80),
+        status: z.enum(SST_ASSESSMENT_LEGAL_BASIS_STATUSES),
+        explanation: z.string().min(1).max(1_000),
+        sources: z.array(
+          z
+            .object({
+              sourceKey: z.string().min(1),
+              sourceVersionId: z.string().uuid(),
+              title: z.string().min(1),
+              issuer: z.string().min(1),
+              referenceNumber: z.string().min(1),
+              officialUrl: z.string().url(),
+              officialDocumentSha256: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+              unitIds: z.array(z.string().uuid()),
+              unitLocators: z.array(z.string().min(1)),
+            })
+            .strict(),
+        ),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type SstAssessmentQuestion = z.infer<typeof sstAssessmentQuestionSchema>;
@@ -267,7 +318,11 @@ export type SstAssessmentResult = {
     professionalReviewRequired: boolean;
     traces: AdaptiveRuleTrace[];
     regulatoryFoundation?: {
-      status: 'OFFICIAL_ARTIFACT_VERIFIED' | 'SOURCE_CONTEXT_REQUIRED' | 'NO_EXACT_SOURCE_MAPPING';
+      status:
+        | 'OFFICIAL_ARTIFACT_VERIFIED'
+        | 'SOURCE_CONTEXT_REQUIRED'
+        | 'NO_EXACT_SOURCE_MAPPING'
+        | 'JURISDICTION_NOT_SUPPORTED';
       sourceKey?: string;
       sourceVersionId?: string;
       officialUrl?: string;

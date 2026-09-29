@@ -277,6 +277,41 @@ test('allows public declarations for country and sector to be corrected without 
   assert.equal(editableQuestionForFact(organizationFact, scope), null);
 });
 
+test('preserves the backend legal context when a confirmed fact is edited', () => {
+  const scope = {
+    scopeKey: 'organization',
+    kind: 'ORGANIZATION',
+    order: 0,
+    displayName: 'Organización',
+  };
+  const legalBasis = {
+    jurisdictionCode: 'EC',
+    status: 'VERIFIED',
+    explanation: 'La respuesta orienta la revisión.',
+    sources: [],
+  };
+  const editable = editableQuestionForFact(
+    {
+      factKey: 'organization.totalWorkerCount',
+      scopeKey: 'organization',
+      answerState: 'KNOWN',
+      value: 24,
+      provenance: { source: 'PUBLIC_DECLARATION' },
+    },
+    scope,
+    [
+      {
+        ...question(),
+        questionId: 'organization:organization.totalWorkerCount',
+        factKey: 'organization.totalWorkerCount',
+        scopeKey: 'organization',
+        legalBasis,
+      },
+    ],
+  );
+  assert.deepEqual(editable?.legalBasis, legalBasis);
+});
+
 test('does not compare worker counts until every magnitude is semantically aligned', () => {
   const scopes = [
     { scopeKey: 'organization', kind: 'ORGANIZATION', order: 0, displayName: 'Organización' },

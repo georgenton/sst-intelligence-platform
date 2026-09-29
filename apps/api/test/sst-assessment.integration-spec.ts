@@ -512,6 +512,83 @@ describe('canonical SST assessment integration', () => {
     expect(authEvaluated.body.result).not.toHaveProperty('authority');
   });
 
+  it('exposes jurisdiction-safe question context for public, authenticated and Colombia sessions', async () => {
+    const publicCreated = await request(app.getHttpServer())
+      .post('/api/v1/sst-assessment/public/sessions')
+      .send({ workCenterCount: 1 })
+      .expect(201);
+    const publicId = publicCreated.body.id as string;
+    const publicToken = publicCreated.body.publicToken as string;
+    const ecuador = await publicSession('post', `${publicId}/answers`, publicToken)
+      .send({
+        expectedSessionRevision: 0,
+        answers: [
+          {
+            factKey: 'organization.country',
+            scopeKey: 'organization',
+            answerState: 'KNOWN',
+            value: 'Ecuador',
+          },
+        ],
+      })
+      .expect(201);
+    const publicHeadcount = ecuador.body.questions.find(
+      (item: { factKey: string }) => item.factKey === 'organization.totalWorkerCount',
+    );
+    expect(publicHeadcount.legalBasis).toEqual(
+      expect.objectContaining({ status: 'VERIFIED', jurisdictionCode: 'EC' }),
+    );
+    expect(publicHeadcount.legalBasis.sources[0].unitLocators).toEqual(
+      expect.arrayContaining(['Artículo 18 · página 16', 'Artículo 19 · páginas 16–17']),
+    );
+
+    const owner = await user('jurisdiction-context-owner');
+    const organizationId = await organization(owner.token, 'Jurisdiction context');
+    const authenticatedCreated = await authenticated(owner.token, organizationId)
+      .post('/sessions')
+      .send({})
+      .expect(201);
+    const authenticatedHeadcount = authenticatedCreated.body.questions.find(
+      (item: { factKey: string }) => item.factKey === 'organization.totalWorkerCount',
+    );
+    expect(authenticatedHeadcount.legalBasis).toEqual(
+      expect.objectContaining({ status: 'VERIFIED', jurisdictionCode: 'EC' }),
+    );
+
+    const colombiaCreated = await request(app.getHttpServer())
+      .post('/api/v1/sst-assessment/public/sessions')
+      .send({ workCenterCount: 1 })
+      .expect(201);
+    const colombia = await publicSession(
+      'post',
+      `${colombiaCreated.body.id as string}/answers`,
+      colombiaCreated.body.publicToken as string,
+    )
+      .send({
+        expectedSessionRevision: 0,
+        answers: [
+          {
+            factKey: 'organization.country',
+            scopeKey: 'organization',
+            answerState: 'KNOWN',
+            value: 'Colombia',
+          },
+        ],
+      })
+      .expect(201);
+    expect(colombia.body.questions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          legalBasis: expect.objectContaining({
+            status: 'JURISDICTION_NOT_SUPPORTED',
+            jurisdictionCode: 'CO',
+            sources: [],
+          }),
+        }),
+      ]),
+    );
+  });
+
   it('persists versioned capability recommendations without changing access or prior history', async () => {
     const owner = await user('capability-engine-owner');
     const otherOwner = await user('capability-engine-other-owner');

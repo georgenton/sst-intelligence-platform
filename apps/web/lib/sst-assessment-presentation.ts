@@ -7,6 +7,7 @@ import {
   type SstAssessmentScope,
   type SstCapabilityPendingInformation,
 } from '@sst/contracts';
+import { normalizeJurisdictionCode } from '@sst/contracts/jurisdiction';
 import { SST_ASSESSMENT_FACT_CATALOG } from '@sst/contracts/sst-assessment-catalog';
 import { compareHeadcountMeasures, type HeadcountComparison } from '@sst/contracts/sst-headcount';
 import { ApiClientError } from '@sst/api-client';
@@ -113,6 +114,27 @@ export function orderAssessmentQuestions(questions: readonly SstAssessmentQuesti
 
 export function assessmentTopicLabel(topic: string) {
   return topicLabels[topic] ?? 'Información';
+}
+
+export function assessmentJurisdictionContext(facts: readonly SstAssessmentFact[]) {
+  const country = facts.find(
+    (fact) => fact.scopeKey === 'organization' && fact.factKey === 'organization.country',
+  );
+  if (country?.answerState !== 'KNOWN') {
+    return {
+      label: 'Confirma el país para mostrar el fundamento legal correspondiente.',
+      code: null,
+      fromOrganization: false,
+    };
+  }
+  const code = normalizeJurisdictionCode(country.value);
+  const labels: Record<string, string> = { EC: 'Ecuador', CO: 'Colombia' };
+  const countryLabel = labels[code ?? ''] ?? String(country.value);
+  return {
+    label: `Marco de evaluación · ${countryLabel}`,
+    code,
+    fromOrganization: country.provenance.source === 'ORGANIZATION_RECORD',
+  };
 }
 
 export function aggregateAssessmentProgress(progress: SstAssessmentProgress, activeTopic?: string) {
@@ -416,6 +438,7 @@ export function assessmentWorkerCountComparison(
 export function editableQuestionForFact(
   fact: SstAssessmentFact,
   scope: SstAssessmentScope,
+  sourceQuestions: readonly SstAssessmentQuestion[] = [],
 ): SstAssessmentQuestion | null {
   const definition = definitions.get(fact.factKey);
   if (
@@ -424,6 +447,9 @@ export function editableQuestionForFact(
     fact.factKey === 'organization.workCenterCount'
   )
     return null;
+  const sourceQuestion = sourceQuestions.find(
+    (question) => question.scopeKey === scope.scopeKey && question.factKey === fact.factKey,
+  );
   return {
     questionId: `${scope.scopeKey}:${definition.factKey}`,
     factKey: definition.factKey,
@@ -442,6 +468,7 @@ export function editableQuestionForFact(
     collectionPolicy: definition.collectionPolicy,
     relevancePolicy: definition.relevancePolicy,
     blocking: definition.blocksReadiness,
+    ...(sourceQuestion?.legalBasis ? { legalBasis: sourceQuestion.legalBasis } : {}),
   };
 }
 
@@ -560,7 +587,9 @@ export function professionalFoundation(
               ? 'Fuente oficial verificada · interpretación en revisión'
               : item.regulatoryFoundation.status === 'SOURCE_CONTEXT_REQUIRED'
                 ? 'Falta confirmar el tipo de fuente de energía'
-                : 'No existe un mapeo normativo exacto para la fuente confirmada',
+                : item.regulatoryFoundation.status === 'JURISDICTION_NOT_SUPPORTED'
+                  ? 'Cobertura normativa no disponible para esta jurisdicción'
+                  : 'No existe un mapeo normativo exacto para la fuente confirmada',
           sourceLabel:
             item.regulatoryFoundation.sourceKey === 'EC_MDT_2024_196_ANNEX_3'
               ? 'MDT-2024-196 · Anexo 3 · Capítulo III'
@@ -649,6 +678,7 @@ export function assessmentQuestionPurpose(question: SstAssessmentQuestion) {
   const internal =
     /\bDEMO(?:\b|_)|\b(?:DSL|pack|ruleKey|ruleId|factKey|targetKey)\b|(?:organization|workCenter)\.|[<>]=|&&|\|\||\b[0-9a-f]{8}-[0-9a-f-]{27,}\b/i;
   return internal.test(purpose)
-    ? (definitions.get(question.factKey)?.purpose ?? 'Completar el contexto de la evaluación SST.')
+    ? (definitions.get(question.factKey)?.purpose ??
+        'Esta respuesta aporta contexto para orientar la evaluación.')
     : purpose;
 }

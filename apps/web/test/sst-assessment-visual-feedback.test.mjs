@@ -165,6 +165,98 @@ test('question purpose is visible and scope uses real centers without a disclosu
   assert.equal((html.match(/type="radio"/g) ?? []).length, 3);
   assert.doesNotMatch(html, /checked=""/);
 });
+
+test('verified legal basis is a collapsed accessible disclosure with human copy', async () => {
+  const { assessmentJurisdictionContext } = await import('../lib/sst-assessment-presentation.ts');
+  const html = render(AssessmentQuestionCard, {
+    question: {
+      questionId: 'headcount',
+      factKey: 'organization.totalWorkerCount',
+      scopeKey: 'organization',
+      topic: 'Personas y operación',
+      questionText: '¿Cuántas personas trabajan en total?',
+      valueType: 'INTEGER',
+      unknownAllowed: true,
+      purpose: 'La cantidad total cambia las obligaciones que debemos revisar.',
+      helpText: 'Ayuda',
+      choices: [],
+      relatedRuleKeys: [],
+      relatedTargetKeys: [],
+      collectionPolicy: 'FOUNDATION_REQUIRED',
+      relevancePolicy: 'ALWAYS',
+      blocking: true,
+      legalBasis: {
+        jurisdictionCode: 'EC',
+        status: 'VERIFIED',
+        explanation: 'La norma diferencia las obligaciones por cantidad de trabajadores.',
+        sources: [
+          {
+            sourceKey: 'EC_MDT_2024_196',
+            sourceVersionId: 'a2000000-0000-4000-8000-000000000012',
+            title: 'Acuerdo Ministerial Nro. MDT-2024-196',
+            issuer: 'Ministerio del Trabajo',
+            referenceNumber: 'MDT-2024-196',
+            officialUrl: 'https://www.trabajo.gob.ec/source.pdf',
+            officialDocumentSha256: 'sha256:' + 'a'.repeat(64),
+            unitIds: [],
+            unitLocators: ['Artículo 18 · página 16', 'Artículo 19 · páginas 16–17'],
+          },
+        ],
+      },
+    },
+    disabled: false,
+    onAnswer: noop,
+    onSkip: noop,
+    facts: [],
+    scopes,
+  });
+  assert.match(html, /Fundamento legal · Ecuador/);
+  assert.match(html, /Ver fundamento/);
+  assert.match(html, /Acuerdo Ministerial Nro\. MDT-2024-196/);
+  assert.match(html, /Artículo 18/);
+  assert.match(html, /Ver fuente oficial/);
+  assert.equal((html.match(/<details/g) ?? []).length, 1);
+  const colombiaHtml = render(AssessmentQuestionCard, {
+    question: {
+      questionId: 'headcount-colombia',
+      factKey: 'organization.totalWorkerCount',
+      scopeKey: 'organization',
+      topic: 'Personas y operación',
+      questionText: '¿Cuántas personas trabajan en total?',
+      valueType: 'INTEGER',
+      unknownAllowed: true,
+      purpose: 'La cantidad total cambia las obligaciones que debemos revisar.',
+      helpText: 'Ayuda',
+      choices: [],
+      relatedRuleKeys: [],
+      relatedTargetKeys: [],
+      collectionPolicy: 'FOUNDATION_REQUIRED',
+      relevancePolicy: 'ALWAYS',
+      blocking: true,
+      legalBasis: {
+        jurisdictionCode: 'CO',
+        status: 'VERIFIED',
+        explanation: 'Cobertura futura.',
+        sources: [],
+      },
+    },
+    disabled: false,
+    onAnswer: noop,
+    onSkip: noop,
+    facts: [],
+    scopes,
+  });
+  assert.match(colombiaHtml, /Fundamento legal · Colombia/);
+  assert.doesNotMatch(colombiaHtml, /Fundamento legal · Ecuador/);
+  assert.equal(
+    assessmentJurisdictionContext([fact('organization', 'organization.country', 'Colombia')]).label,
+    'Marco de evaluación · Colombia',
+  );
+  assert.equal(
+    assessmentJurisdictionContext([]).label,
+    'Confirma el país para mostrar el fundamento legal correspondiente.',
+  );
+});
 test('review excludes commercial optional context and communicates the optional boundary', () => {
   const html = render(AssessmentReview, {
     facts: [],

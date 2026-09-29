@@ -1,4 +1,8 @@
-import type { SstAssessmentResult, SstAssessmentSnapshot } from '@sst/contracts';
+import {
+  normalizeJurisdictionCode,
+  type SstAssessmentResult,
+  type SstAssessmentSnapshot,
+} from '@sst/contracts';
 
 type Foundation = NonNullable<SstAssessmentResult['items'][number]['regulatoryFoundation']>;
 
@@ -55,6 +59,20 @@ export function resolveAssessmentFoundation(
   scopeKey: string,
   ruleKeys: readonly string[],
 ): Foundation {
+  const country = snapshot.facts.find(
+    (fact) =>
+      fact.scopeKey === 'organization' &&
+      fact.factKey === 'organization.country' &&
+      fact.answerState === 'KNOWN',
+  );
+  const jurisdiction =
+    country?.answerState === 'KNOWN' ? normalizeJurisdictionCode(country.value) : null;
+  if (!jurisdiction) {
+    return statusFoundation('SOURCE_CONTEXT_REQUIRED');
+  }
+  if (jurisdiction !== 'EC') {
+    return statusFoundation('JURISDICTION_NOT_SUPPORTED');
+  }
   if (ruleKeys.length !== 1 || ruleKeys[0] !== 'HIGH_ENERGY_RULE') return EMPTY_FOUNDATION;
   const highEnergy = snapshot.facts.find(
     (fact) =>
