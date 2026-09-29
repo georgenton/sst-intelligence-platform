@@ -85,6 +85,40 @@ describe('inspection standards integration', () => {
     };
   }
 
+  it('keeps synthetic standards out of PILOT catalogs and policies even during an active demo', async () => {
+    const owner = await register('Pilot Standard Owner');
+    const pilot = await createOrganization(owner.token, 'Pilot Standard Organization');
+    await prisma.organization.update({
+      where: { id: pilot.organizationId },
+      data: {
+        navigationProfile: 'PILOT',
+        status: 'DEMO',
+        demoExpiresAt: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const api = authorized(owner.token, pilot.organizationId);
+    const catalog = await api.get('/inspection-standards/catalog').expect(200);
+    expect(catalog.body).toEqual(
+      expect.not.arrayContaining([
+        expect.objectContaining({
+          source: expect.objectContaining({ rightsType: 'DEMO_SYNTHETIC' }),
+        }),
+      ]),
+    );
+    const synthetic = await prisma.inspectionStandardVersion.findFirstOrThrow({
+      where: { source: { rightsType: 'DEMO_SYNTHETIC' } },
+      select: { id: true, sourceId: true },
+    });
+    await api.get(`/inspection-standards/sources/${synthetic.sourceId}`).expect(404);
+    await api
+      .put('/inspection-standards/organization/policy')
+      .send({
+        bindings: [{ inspectionDomain: 'ELECTRICAL', standardVersionId: synthetic.id }],
+      })
+      .expect(400)
+      .expect(({ body }) => expect(body.code).toBe('INSPECTION_STANDARD_DEMO_FORBIDDEN_IN_PILOT'));
+  });
+
   it('resolves versioned standards by tenant and preserves criterion and finding provenance', async () => {
     const ownerA = await register('Standard Owner A');
     const ownerB = await register('Standard Owner B');

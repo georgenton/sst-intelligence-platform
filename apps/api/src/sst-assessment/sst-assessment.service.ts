@@ -44,6 +44,7 @@ import {
 } from '../common/public-session-token';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssessmentSpecialists, type AssessmentSpecialistPins } from './assessment-specialists';
+import { resolveAssessmentFoundation } from './regulatory-foundation';
 import type {
   ClaimNewOrganizationPublicAssessmentDto,
   ClaimPublicAssessmentDto,
@@ -1413,65 +1414,6 @@ export class SstAssessmentService {
       snapshot,
       applicableCapabilityQuestions,
     );
-    const assessmentFoundation = (scopeKey: string, ruleKeys: string[]) => {
-      if (!ruleKeys.includes('HIGH_ENERGY_RULE')) return undefined;
-      const highEnergy = snapshot.facts.find(
-        (fact) =>
-          fact.scopeKey === scopeKey &&
-          fact.factKey === 'workCenter.hasHighEnergyOperations' &&
-          fact.answerState === 'KNOWN' &&
-          fact.value === true,
-      );
-      if (!highEnergy) return undefined;
-      const sourceTypes = snapshot.facts.find(
-        (fact) => fact.scopeKey === scopeKey && fact.factKey === 'workCenter.highEnergySourceTypes',
-      );
-      const types =
-        sourceTypes?.answerState === 'KNOWN' && Array.isArray(sourceTypes.value)
-          ? sourceTypes.value
-          : [];
-      if (!types.includes('ELECTRICAL')) {
-        return {
-          status:
-            sourceTypes?.answerState === 'KNOWN'
-              ? ('NO_EXACT_SOURCE_MAPPING' as const)
-              : ('SOURCE_CONTEXT_REQUIRED' as const),
-          interpretationStatus: 'PROFESSIONAL_REVIEW_REQUIRED' as const,
-        };
-      }
-      return {
-        status: 'OFFICIAL_ARTIFACT_VERIFIED' as const,
-        sourceKey: 'EC_MDT_2024_196_ANNEX_3',
-        sourceVersionId: 'a2000000-0000-4000-8000-000000000015',
-        officialUrl:
-          'https://www.trabajo.gob.ec/wp-content/uploads/2024/11/Anexo-3_Norma-Tecnica-de-Seguridad-e-Higiene-del-Trabajo-signed-signed-signed-signed.pdf',
-        officialDocumentSha256:
-          'sha256:d588c7b8e0dadf68dc5b06763a6dbf80e445ee5b55c7972ae063e56228e27ddc',
-        unitIds: [
-          'c3000000-0000-4000-8000-000000000101',
-          'c3000000-0000-4000-8000-000000000102',
-          'c3000000-0000-4000-8000-000000000103',
-          'c3000000-0000-4000-8000-000000000104',
-          'c3000000-0000-4000-8000-000000000105',
-          'c3000000-0000-4000-8000-000000000106',
-          'c3000000-0000-4000-8000-000000000107',
-          'c3000000-0000-4000-8000-000000000108',
-          'c3000000-0000-4000-8000-000000000109',
-        ],
-        unitLocators: [
-          'Art. 82',
-          'Art. 83',
-          'Art. 84',
-          'Art. 85',
-          'Art. 86',
-          'Art. 87',
-          'Art. 88',
-          'Art. 89',
-          'Art. 90',
-        ],
-        interpretationStatus: 'PROFESSIONAL_REVIEW_REQUIRED' as const,
-      };
-    };
     const items: SstAssessmentResult['items'] = [
       ...specialist.adaptive.items.map((item) => ({
         scopeKey: item.scopeKey,
@@ -1484,9 +1426,7 @@ export class SstAssessmentService {
         missingFactKeys: item.missingFactKeys,
         professionalReviewRequired: item.professionalReview,
         traces: item.traces,
-        ...(assessmentFoundation(item.scopeKey, item.ruleKeys)
-          ? { regulatoryFoundation: assessmentFoundation(item.scopeKey, item.ruleKeys) }
-          : {}),
+        regulatoryFoundation: resolveAssessmentFoundation(snapshot, item.scopeKey, item.ruleKeys),
       })),
       ...specialist.regulatory.items.map((item) => ({
         scopeKey: item.scopeKey,
@@ -1499,6 +1439,7 @@ export class SstAssessmentService {
         missingFactKeys: item.missingFactKeys,
         professionalReviewRequired: true,
         traces: item.traces,
+        regulatoryFoundation: resolveAssessmentFoundation(snapshot, item.scopeKey, item.ruleKeys),
       })),
     ].sort(
       (left, right) =>

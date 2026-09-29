@@ -258,7 +258,12 @@ export class CapabilityAccessService {
       }
       const organization = await tx.organization.findUniqueOrThrow({
         where: { id: organizationId },
-        select: { status: true, demoStartedAt: true, demoExpiresAt: true },
+        select: {
+          status: true,
+          demoStartedAt: true,
+          demoExpiresAt: true,
+          navigationProfile: true,
+        },
       });
       const now = new Date();
       if (
@@ -320,6 +325,7 @@ export class CapabilityAccessService {
         tx,
         organizationId,
         userId,
+        navigationProfile: organization.navigationProfile === 'PILOT' ? 'PILOT' : 'FULL',
         moduleKeys: definitions.map((definition) => definition!.moduleKey!),
         capabilityMetadata: metadataByModule,
         startsAt: now,

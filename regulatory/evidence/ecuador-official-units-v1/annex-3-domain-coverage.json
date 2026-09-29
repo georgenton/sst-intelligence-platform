@@ -1,0 +1,69 @@
+{
+  "sourceKey": "EC_MDT_2024_196_ANNEX_3",
+  "sourceVersionId": "a2000000-0000-4000-8000-000000000015",
+  "officialDocumentSha256": "sha256:d588c7b8e0dadf68dc5b06763a6dbf80e445ee5b55c7972ae063e56228e27ddc",
+  "officialUrl": "https://www.trabajo.gob.ec/wp-content/uploads/2024/11/Anexo-3_Norma-Tecnica-de-Seguridad-e-Higiene-del-Trabajo-signed-signed-signed-signed.pdf",
+  "coveragePurpose": "Official locator index for current inspection domains. It is not a RegulatoryUnit manifest and does not create executable mappings.",
+  "textExtractionStatus": "PARTIAL",
+  "domains": [
+    {
+      "domain": "INFRASTRUCTURE",
+      "officialLocator": "Título III, Capítulo I, riesgos locativos, Arts. 30–64, páginas 30–51",
+      "mappingStatus": "NO_EXACT_SOURCE_MAPPING",
+      "structuredUnitIds": [],
+      "executableMapping": false
+    },
+    {
+      "domain": "MACHINERY",
+      "officialLocator": "Título III, Capítulo II, riesgos mecánicos, Arts. 65–81, páginas 51–62",
+      "mappingStatus": "NO_EXACT_SOURCE_MAPPING",
+      "structuredUnitIds": [],
+      "executableMapping": false
+    },
+    {
+      "domain": "ELECTRICAL",
+      "officialLocator": "Título III, Capítulo III, riesgos eléctricos, Arts. 82–90, páginas 63–68",
+      "mappingStatus": "OFFICIAL_ARTIFACT_VERIFIED",
+      "structuredUnitIds": [
+        "c3000000-0000-4000-8000-000000000001",
+        "c3000000-0000-4000-8000-000000000101",
+        "c3000000-0000-4000-8000-000000000102",
+        "c3000000-0000-4000-8000-000000000103",
+        "c3000000-0000-4000-8000-000000000104",
+        "c3000000-0000-4000-8000-000000000105",
+        "c3000000-0000-4000-8000-000000000106",
+        "c3000000-0000-4000-8000-000000000107",
+        "c3000000-0000-4000-8000-000000000108",
+        "c3000000-0000-4000-8000-000000000109"
+      ],
+      "executableMapping": true
+    },
+    {
+      "domain": "FIRE_PROTECTION",
+      "officialLocator": "Título III, Capítulo IV, incendios y explosiones, Arts. 91–109, páginas 68–80",
+      "mappingStatus": "NO_EXACT_SOURCE_MAPPING",
+      "structuredUnitIds": [],
+      "executableMapping": false
+    },
+    {
+      "domain": "CHEMICAL_STORAGE",
+      "officialLocator": "Título I, Capítulo II, riesgos químicos, Arts. 11–14, páginas 17–22",
+      "mappingStatus": "NO_EXACT_SOURCE_MAPPING",
+      "structuredUnitIds": [],
+      "executableMapping": false
+    },
+    {
+      "domain": "EMERGENCY",
+      "officialLocator": "Título III, Capítulo IV, medidas frente a incendios y emergencias, Arts. 91–109, páginas 68–80",
+      "mappingStatus": "NO_EXACT_SOURCE_MAPPING",
+      "structuredUnitIds": [],
+      "executableMapping": false
+    }
+  ],
+  "reviewNotes": [
+    "Los localizadores se conservan como navegación del artefacto oficial; no son transcripción ni interpretación jurídica.",
+    "Solo ELECTRICAL tiene unidades estructuradas verificadas en el manifiesto de evidencia actual.",
+    "Los demás dominios requieren extracción, revisión de vigencia y una correspondencia profesional exacta antes de crear criterios o RuleVersions.",
+    "Las referencias de Título IV (trabajos especiales) y Título V (EPP) quedan fuera del catálogo ejecutable R1 y no se convierten en obligaciones automáticas."
+  ]
+}

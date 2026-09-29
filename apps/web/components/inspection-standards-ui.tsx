@@ -155,6 +155,7 @@ export function InspectionStandardsSettings() {
   const queryClient = useQueryClient();
   const organizationId = organization.activeId;
   const activeOrganization = organization.organizations.find(({ id }) => id === organizationId);
+  const pilotOrganization = activeOrganization?.navigationProfile === 'PILOT';
   const demoActive = Boolean(
     activeOrganization?.demoExpiresAt &&
     new Date(activeOrganization.demoExpiresAt).getTime() > Date.now(),
@@ -289,7 +290,8 @@ export function InspectionStandardsSettings() {
                   (standard) =>
                     standard.inspectionDomain === domain &&
                     standard.status === 'AVAILABLE' &&
-                    (demoActive || standard.source.rightsType !== 'DEMO_SYNTHETIC'),
+                    ((!pilotOrganization && demoActive) ||
+                      standard.source.rightsType !== 'DEMO_SYNTHETIC'),
                 ) ?? [];
               const selected = catalog.data?.find(({ id }) => id === selections[domain]);
               return (

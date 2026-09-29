@@ -122,7 +122,9 @@ function inspectRuntimeCorpus() {
   const sourceFiles = filesBelow(`${repositoryRoot}/regulatory`).sort();
   assert.equal(inspected.root, '/app/regulatory');
   assert.deepEqual(inspected.files, sourceFiles);
-  assert.equal(inspected.files.length, 36);
+  // The R1 Annex 3 domain locator is shipped with the canonical regulatory
+  // resources alongside the structured electrical evidence.
+  assert.equal(inspected.files.length, 37);
   assert.equal(
     inspected.files.some((file) => /\.pdf$/i.test(file)),
     false,

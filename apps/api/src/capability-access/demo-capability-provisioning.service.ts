@@ -6,6 +6,7 @@ type ProvisioningInput = {
   tx: Prisma.TransactionClient;
   organizationId: string;
   userId: string;
+  navigationProfile: 'PILOT' | 'FULL';
   moduleKeys: readonly ModuleKey[];
   capabilityMetadata: ReadonlyMap<ModuleKey, Prisma.InputJsonObject>;
   startsAt: Date;
@@ -84,7 +85,13 @@ export class DemoCapabilityProvisioningService {
       });
     }
 
-    if (moduleKeys.includes(ModuleKey.INSPECTIONS_INTELLIGENCE)) {
+    // A PILOT organization may use an explicitly selected capability, but its
+    // inspection catalog must remain grounded in the canonical reference data.
+    // Synthetic topology/policies are reserved for the explicit FULL demo flow.
+    if (
+      moduleKeys.includes(ModuleKey.INSPECTIONS_INTELLIGENCE) &&
+      input.navigationProfile !== 'PILOT'
+    ) {
       await this.provisionInspectionDemo(input);
     }
     return definitions;
