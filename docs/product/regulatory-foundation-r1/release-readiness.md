@@ -1,5 +1,30 @@
 # Preparación de release R1
 
-No se crea migración: el schema existente soporta source, version, unit, requirement, review y links. Los históricos mantienen snapshots DEMO. Las organizaciones PILOT filtran DEMO_SYNTHETIC en catálogo, fuentes, política y resolución de inspecciones aunque conserven un demoExpiresAt activo. Una activación explícita de demostración solo puede crear la política sintética acotada en una organización FULL; el onboarding normal no la crea implícitamente.
+R1 queda acotado a una base normativa ecuatoriana trazable y a la separación
+estricta entre PILOT y DEMO. El schema existente soporta source, version, unit,
+requirement, review y links; no se crea migration nueva. Los históricos conservan
+sus snapshots DEMO.
 
-La evidencia del Anexo 3 declara extracción PARTIAL y el sincronizador exige que el estado del archivo coincida con el source version. El índice de dominios amplía los localizadores oficiales, pero solo el Capítulo III eléctrico tiene unidades estructuradas verificadas; el resto permanece `NO_EXACT_SOURCE_MAPPING`. Las cinco RuleDrafts siguen candidatas y no se publican sin actor de revisión representable. El sync en base fresca y repetida, la imagen runtime, los validadores y el Quality Gate local pasan; todavía faltan preview staging exact-SHA y auditoría externa.
+Las organizaciones `navigationProfile = PILOT` no reciben ni pueden usar
+`DEMO_SYNTHETIC` en catálogo, acceso directo a source, política, guardado,
+resolución de inspecciones o provisioning. Un `demoExpiresAt` futuro no cambia
+esa regla. El provisioning sintético queda reservado al flujo DEMO explícito de
+una organización FULL; el onboarding normal no lo activa implícitamente.
+
+La evidencia del Anexo 3 mantiene `textExtractionStatus = PARTIAL`. El índice
+de dominios amplía los localizadores oficiales, pero solo `ELECTRICAL` tiene
+unidades estructuradas y mapping ejecutable verificado para Arts. 82–90. Los
+demás dominios permanecen `NO_EXACT_SOURCE_MAPPING` y no generan obligaciones
+ejecutables. Los cinco RuleDrafts siguen siendo candidatos individuales; no
+existen RuleVersions regulatorias publicadas sin provenance verdadera.
+
+El release/reference sync canónico se verificó en una base fresca y repetida,
+con protección contra drift y sin depender de seed comercial para el corpus.
+La imagen runtime, validadores, suites focales, `pnpm check`, E2E completo y el
+Quality Gate remoto fueron verificados. Los tres previews Vercel del HEAD exacto
+quedaron `READY` (Demo, Platform y Staging). La inspección HTML autenticada de
+staging no se completó porque el deployment está protegido por Vercel SSO; ese
+estado no se presenta como PASS.
+
+Producción no ha sido desplegada ni escrita. R1 no implementa B3, SISAT ni
+Psicosocial.
