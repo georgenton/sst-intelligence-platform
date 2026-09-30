@@ -1,15 +1,22 @@
-# Gates de fuentes B3
+# Gates de fuentes B3A / B3.1
+
+La implementación operativa B3A está terminada y separada de la base regulatoria B3.1. Este
+documento conserva el bloqueo de provenance de SISAT; no lo convierte en una capacidad de B3A.
 
 ## SISAT
 
-`EC_MSP_00004_2026_SISAT` permanece `OFFICIAL_REFERENCE_ONLY`. La página oficial
+`EC_MSP_00004_2026_SISAT` permanece `OFFICIAL_REFERENCE_ONLY` para B3.1. La página oficial
 del [Segundo Suplemento No. 304](https://www.registroficial.gob.ec/segundo-suplemento-no-304/)
 confirma la publicación, la fecha (12 de junio de 2026) y el Acuerdo MSP 00004-2026. En
 esta última comprobación se inspeccionó el HTML de la página, sus enlaces e imágenes y se
 consultaron los endpoints públicos de medios del mismo dominio; la página no expone una
 descarga de la edición completa y los endpoints responden con acceso no autorizado. No se
 aceptó ningún mirror ni URL de terceros como artefacto. El PDF local de B0 tampoco es
-autoridad. Por eso no se extrajeron artículos, categorías, horas ni obligaciones SISAT.
+autoridad. Por eso no se extrajeron artículos, categorías, horas ni obligaciones SISAT. Para
+desbloquear B3.1 hace falta uno de estos artefactos oficiales: (A) el PDF completo del Segundo
+Suplemento No. 304 servido desde el dominio/repositorio oficial, o (B) el artefacto específico
+MSP 00004-2026 servido desde `salud.gob.ec` u otro repositorio oficial. Después deben fijarse
+hash, bytes, páginas, unidades y revisión.
 
 ## Psicosocial
 

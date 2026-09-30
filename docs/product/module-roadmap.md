@@ -3,11 +3,12 @@
 > Historical module-level roadmap. Cross-product priority and current delivery state are canonical
 > in [SST Intelligence — master roadmap](../project/sst-intelligence-roadmap.md).
 
-El incremento actual entrega CORE y presentaciones conceptuales de INSPECTIONS_INTELLIGENCE,
-TECHNICAL_RISK, WORK_PERMITS, PSYCHOSOCIAL y COMPLIANCE. Los siguientes slices deben desarrollar un
-módulo por vez, incluyendo modelo aislado por `organizationId`, permisos, entitlements, auditoría,
-pruebas y experiencia completa. Salud ocupacional, pagos, archivos, OCR, RAG y aplicación móvil no
-están autorizados en esta etapa.
+El incremento histórico entrega CORE y presentaciones conceptuales de INSPECTIONS_INTELLIGENCE,
+TECHNICAL_RISK, WORK_PERMITS, PSYCHOSOCIAL y COMPLIANCE. El slice B3A añade ahora coordinación
+organizacional de salud en el trabajo no clínica y prevención psicosocial agregada, con modelo
+aislado por `organizationId`, permisos, entitlements, auditoría, pruebas y experiencia completa.
+La base regulatoria SISAT permanece separada como B3.1 y bloqueada hasta fijar el artefacto oficial.
+Pagos, archivos, OCR, RAG y aplicación móvil siguen fuera de alcance.
 
 ## Risk Methodology Engine
 

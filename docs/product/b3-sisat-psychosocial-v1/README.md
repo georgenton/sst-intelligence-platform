@@ -1,8 +1,18 @@
-# B3 — Salud en el trabajo y prevención psicosocial
+# B3A — Salud en el trabajo y prevención psicosocial
 
-B3 añade coordinación organizacional para Ecuador. Registra programas, períodos,
+B3A añade coordinación organizacional para Ecuador. Registra programas, períodos,
 actividades preventivas, instrumentos y resultados agregados. No es historia clínica,
 diagnóstico psicológico ni un motor automático de cumplimiento.
+
+## Separación de alcance
+
+- **B3A — Organizational Health + Psychosocial Operational V1: IMPLEMENTED, pendiente de merge.**
+  Incluye coordinación ocupacional no clínica, programas y ciclos psicosociales agregados,
+  procedencia de instrumentos, contexto de jurisdicción y cantidad de trabajadores, integración
+  humana con Plan Operativo, entitlements, auditoría, tenancy y límites de privacidad.
+- **B3.1 — SISAT Regulatory Foundation: BLOCKED_ON_OFFICIAL_ARTIFACT.** SISAT no está
+  implementado en esta entrega. Su fuente permanece como referencia oficial pendiente y no se han
+  estructurado artículos, categorías, horas, dotación ni obligaciones ejecutables.
 
 ## Estado de evidencia
 
@@ -18,9 +28,9 @@ diagnóstico psicológico ni un motor automático de cumplimiento.
 - **PROFESSIONAL REVIEW REQUIRED**: cualquier interpretación de una guía, instrumento
   o programa; la elección de instrumento externo; y cualquier decisión profesional sobre
   acciones o suficiencia de evidencia.
-- **DEFERRED**: categorías, horas, dotación o cualquier obligación SISAT ejecutable. El
-  artefacto exacto del Registro Oficial/MSP no se pudo fijar en este bloque; el PDF local
-  continúa siendo solo referencia.
+- **DEFERRED a B3.1**: categorías, horas, dotación o cualquier obligación SISAT ejecutable. El
+  artefacto exacto del Registro Oficial/MSP no se pudo fijar en este bloque; el PDF local continúa
+  siendo solo referencia.
 
 ## Superficies
 

@@ -134,8 +134,20 @@ shown separately. V1 infers no mandatory committee, composition, frequency or le
 
 ### I — Psychosocial
 
-Retained on the roadmap but deferred until methodology, licensing, privacy, sensitive-data handling
-and professional interpretation are explicit.
+#### B3A — Organizational Health + Psychosocial Operational V1 — implemented pending merge
+
+Generic non-clinical occupational-health coordination and aggregate-only psychosocial programs and
+cycles are implemented with official instrument provenance, jurisdiction-safe Art. 19/20 context,
+human-confirmed Plan Operativo links, entitlements, tenancy, audit and privacy boundaries. Program
+creation does not determine legal applicability and no individual questionnaire data is stored.
+
+#### B3.1 — SISAT Regulatory Foundation — blocked on official artifact
+
+`EC_MSP_00004_2026_SISAT` remains `OFFICIAL_REFERENCE_ONLY`. The exact official artifact is still
+missing, so SISAT articles, categories, staffing/hours, obligations and executable legal logic are
+not implemented. This blocker applies to B3.1 and does not retract the bounded B3A operational
+slice. The required next input is the official full Segundo Suplemento No. 304 or the official
+MSP 00004-2026 artifact, followed by hash, byte count, page, unit and review evidence.
 
 ### J — Cross-module intelligence — bounded deterministic foundation production closed
 
