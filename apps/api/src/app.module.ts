@@ -43,6 +43,7 @@ import { UnifiedSstEvaluationModule } from './unified-sst-evaluation/unified-sst
 import { WorkQueueModule } from './work-queue/work-queue.module';
 import { WorkPermitsModule } from './work-permits/work-permits.module';
 import { WorkersModule } from './workers/workers.module';
+import { OrganizationalHealthModule } from './organizational-health/organizational-health.module';
 
 @Module({
   imports: [
@@ -140,6 +141,7 @@ import { WorkersModule } from './workers/workers.module';
     WorkQueueModule,
     WorkPermitsModule,
     WorkersModule,
+    OrganizationalHealthModule,
   ],
   controllers: [HealthController],
   providers: [HealthService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

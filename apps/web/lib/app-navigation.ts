@@ -12,7 +12,8 @@ export type AppNavigationItem = {
     | 'module.work_permits'
     | 'module.incidents'
     | 'module.ppe'
-    | 'module.training';
+    | 'module.training'
+    | 'module.psychosocial';
 };
 
 export const PILOT_NAVIGATION_PROFILE = 'PILOT' as const;
@@ -39,6 +40,8 @@ export const pilotNavigationItemIds = new Set([
   'organization-settings',
   'members',
   'evidence-packages',
+  'occupational-health',
+  'psychosocial',
   'modules',
 ]);
 
@@ -126,6 +129,21 @@ export const appNavigationGroups: readonly AppNavigationGroup[] = [
         group: 'operation',
         match: 'segment',
         requiredFeature: 'module.ppe',
+      },
+      {
+        id: 'occupational-health',
+        label: 'Salud en el trabajo',
+        href: '/app/health-at-work',
+        group: 'operation',
+        match: 'segment',
+      },
+      {
+        id: 'psychosocial',
+        label: 'Prevención psicosocial',
+        href: '/app/psychosocial',
+        group: 'operation',
+        match: 'segment',
+        requiredFeature: 'module.psychosocial',
       },
       {
         id: 'training',

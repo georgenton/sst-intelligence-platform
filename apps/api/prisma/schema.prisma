@@ -1095,6 +1095,11 @@ model User {
   organizationGapAnalyses      OrganizationGapAnalysis[]                     @relation("OrganizationGapAnalysisCreator")
   sstAssessmentsCreated        SstAssessmentSession[]                        @relation("SstAssessmentCreator")
   sstAssessmentsClaimed        SstAssessmentSession[]                        @relation("SstAssessmentClaimant")
+  occupationalHealthProgramsCreated OccupationalHealthProgram[]              @relation("OccupationalHealthProgramCreator")
+  occupationalHealthActivitiesCreated OccupationalHealthActivity[]            @relation("OccupationalHealthActivityCreator")
+  psychosocialProgramsCreated  PsychosocialProgram[]                          @relation("PsychosocialProgramCreator")
+  psychosocialProgramsResponsible PsychosocialProgram[]                        @relation("PsychosocialProgramResponsible")
+  psychosocialCyclesCreated    PsychosocialAssessmentCycle[]                   @relation("PsychosocialCycleCreator")
 }
 
 model RefreshSession {
@@ -1213,6 +1218,10 @@ model Organization {
   operationalPlans              OperationalPlan[]
   operationalPlanVersions       OperationalPlanVersion[]
   operationalPlanItems          OperationalPlanItem[]
+  occupationalHealthPrograms    OccupationalHealthProgram[]
+  occupationalHealthActivities  OccupationalHealthActivity[]
+  psychosocialPrograms           PsychosocialProgram[]
+  psychosocialAssessmentCycles  PsychosocialAssessmentCycle[]
   operationalPlanExecutions     OperationalPlanItemExecution[]
   inspectionResourceTaxonomies  InspectionResourceTaxonomy[]
   inspectionResourceMappings    InspectionResourceCriterionMappingVersion[]
@@ -3247,10 +3256,144 @@ model RegulatorySourceVersion {
   source                       RegulatorySource                     @relation(fields: [sourceId], references: [id], onDelete: Restrict)
   provisions                   RegulatoryProvision[]
   units                        RegulatoryUnit[]
+  psychosocialPrograms         PsychosocialProgram[]
 
   @@unique([sourceId, catalogVersion])
   @@index([candidateStatus, recordedAt])
   @@index([sourceId, recordedAt])
+}
+
+enum OccupationalHealthProgramStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum OccupationalHealthActivityStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+enum PsychosocialProgramStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum PsychosocialAssessmentCycleStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum PsychosocialInstrumentSourceType {
+  MINISTRY_QUESTIONNAIRE
+  EXTERNAL_VALIDATED
+  OTHER_DECLARED
+}
+
+model OccupationalHealthProgram {
+  id              String                         @id @default(uuid()) @db.Uuid
+  organizationId  String                         @db.Uuid
+  periodStart     DateTime                       @db.Date
+  periodEnd       DateTime                       @db.Date
+  status          OccupationalHealthProgramStatus @default(DRAFT)
+  title           String                         @db.VarChar(240)
+  scopeSummary    String?                        @db.VarChar(2000)
+  coordinatorName String?                        @db.VarChar(240)
+  notes           String?                        @db.VarChar(2000)
+  createdById     String                         @db.Uuid
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+  organization    Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy       User                           @relation("OccupationalHealthProgramCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  activities      OccupationalHealthActivity[]
+
+  @@index([organizationId, status, periodStart])
+}
+
+model OccupationalHealthActivity {
+  id              String                         @id @default(uuid()) @db.Uuid
+  organizationId  String                         @db.Uuid
+  programId       String                         @db.Uuid
+  workCenterId    String?                        @db.Uuid
+  componentKey    String                         @db.VarChar(120)
+  title           String                         @db.VarChar(240)
+  description     String?                        @db.VarChar(2000)
+  plannedAt       DateTime?
+  completedAt     DateTime?
+  status          OccupationalHealthActivityStatus @default(PLANNED)
+  responsibleUserId String?                      @db.Uuid
+  evidenceType    ActionEvidenceType?
+  evidenceNote    String?                        @db.VarChar(2000)
+  evidenceUrl     String?                        @db.VarChar(1000)
+  linkedOperationalPlanItemId String?            @db.Uuid
+  createdById     String                         @db.Uuid
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+  organization    Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  program         OccupationalHealthProgram      @relation(fields: [programId], references: [id], onDelete: Cascade)
+  createdBy       User                           @relation("OccupationalHealthActivityCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, programId, status])
+  @@index([organizationId, workCenterId])
+  @@index([organizationId, linkedOperationalPlanItemId])
+}
+
+model PsychosocialProgram {
+  id                 String                         @id @default(uuid()) @db.Uuid
+  organizationId     String                         @db.Uuid
+  periodStart        DateTime                       @db.Date
+  periodEnd          DateTime                       @db.Date
+  status             PsychosocialProgramStatus      @default(DRAFT)
+  title              String                         @db.VarChar(240)
+  responsibleUserId  String?                        @db.Uuid
+  legalSourceVersionId String?                      @db.Uuid
+  notes              String?                        @db.VarChar(2000)
+  createdById        String                         @db.Uuid
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+  organization       Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  responsible        User?                          @relation("PsychosocialProgramResponsible", fields: [responsibleUserId], references: [id], onDelete: Restrict)
+  createdBy          User                            @relation("PsychosocialProgramCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  legalSourceVersion RegulatorySourceVersion?       @relation(fields: [legalSourceVersionId], references: [id], onDelete: Restrict)
+  assessmentCycles   PsychosocialAssessmentCycle[]
+
+  @@index([organizationId, status, periodStart])
+}
+
+model PsychosocialAssessmentCycle {
+  id                    String                          @id @default(uuid()) @db.Uuid
+  organizationId        String                          @db.Uuid
+  programId             String                          @db.Uuid
+  status                PsychosocialAssessmentCycleStatus @default(PLANNED)
+  instrumentName        String                          @db.VarChar(240)
+  instrumentVersion     String?                         @db.VarChar(120)
+  instrumentProvider    String?                         @db.VarChar(240)
+  instrumentSourceType  PsychosocialInstrumentSourceType
+  validationReference   String?                         @db.VarChar(1000)
+  plannedAt             DateTime?
+  completedAt           DateTime?
+  targetPopulationCount Int?
+  participantCount      Int?
+  aggregateReportAvailable Boolean                     @default(false)
+  aggregateReportUrl    String?                         @db.VarChar(1000)
+  evidenceNote          String?                         @db.VarChar(2000)
+  notes                 String?                         @db.VarChar(2000)
+  linkedOperationalPlanItemId String?                   @db.Uuid
+  createdById           String                          @db.Uuid
+  createdAt             DateTime                        @default(now())
+  updatedAt             DateTime                        @updatedAt
+  organization          Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  program               PsychosocialProgram             @relation(fields: [programId], references: [id], onDelete: Cascade)
+  createdBy             User                            @relation("PsychosocialCycleCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, programId, status])
+  @@index([organizationId, linkedOperationalPlanItemId])
 }
 
 model RegulatoryProvision {
