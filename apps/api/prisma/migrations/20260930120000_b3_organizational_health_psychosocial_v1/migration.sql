@@ -51,7 +51,6 @@ CREATE TABLE "PsychosocialProgram" (
   "status" "PsychosocialProgramStatus" NOT NULL DEFAULT 'DRAFT',
   "title" VARCHAR(240) NOT NULL,
   "responsibleUserId" UUID,
-  "legalSourceVersionId" UUID,
   "notes" VARCHAR(2000),
   "createdById" UUID NOT NULL,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -68,6 +67,7 @@ CREATE TABLE "PsychosocialAssessmentCycle" (
   "instrumentVersion" VARCHAR(120),
   "instrumentProvider" VARCHAR(240),
   "instrumentSourceType" "PsychosocialInstrumentSourceType" NOT NULL,
+  "instrumentSourceVersionId" UUID,
   "validationReference" VARCHAR(1000),
   "plannedAt" TIMESTAMP(3),
   "completedAt" TIMESTAMP(3),
@@ -91,6 +91,7 @@ CREATE INDEX "OccupationalHealthActivity_organizationId_linkedOperationalPlanIte
 CREATE INDEX "PsychosocialProgram_organizationId_status_periodStart_idx" ON "PsychosocialProgram"("organizationId", "status", "periodStart");
 CREATE INDEX "PsychosocialAssessmentCycle_organizationId_programId_status_idx" ON "PsychosocialAssessmentCycle"("organizationId", "programId", "status");
 CREATE INDEX "PsychosocialAssessmentCycle_organizationId_linkedOperationalPlanItemId_idx" ON "PsychosocialAssessmentCycle"("organizationId", "linkedOperationalPlanItemId");
+CREATE INDEX "PsychosocialAssessmentCycle_instrumentSourceVersionId_idx" ON "PsychosocialAssessmentCycle"("instrumentSourceVersionId");
 
 ALTER TABLE "OccupationalHealthProgram" ADD CONSTRAINT "OccupationalHealthProgram_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "OccupationalHealthProgram" ADD CONSTRAINT "OccupationalHealthProgram_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -99,8 +100,8 @@ ALTER TABLE "OccupationalHealthActivity" ADD CONSTRAINT "OccupationalHealthActiv
 ALTER TABLE "OccupationalHealthActivity" ADD CONSTRAINT "OccupationalHealthActivity_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "PsychosocialProgram" ADD CONSTRAINT "PsychosocialProgram_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "PsychosocialProgram" ADD CONSTRAINT "PsychosocialProgram_responsibleUserId_fkey" FOREIGN KEY ("responsibleUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "PsychosocialProgram" ADD CONSTRAINT "PsychosocialProgram_legalSourceVersionId_fkey" FOREIGN KEY ("legalSourceVersionId") REFERENCES "RegulatorySourceVersion"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "PsychosocialProgram" ADD CONSTRAINT "PsychosocialProgram_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "PsychosocialAssessmentCycle" ADD CONSTRAINT "PsychosocialAssessmentCycle_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "PsychosocialAssessmentCycle" ADD CONSTRAINT "PsychosocialAssessmentCycle_programId_fkey" FOREIGN KEY ("programId") REFERENCES "PsychosocialProgram"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "PsychosocialAssessmentCycle" ADD CONSTRAINT "PsychosocialAssessmentCycle_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "PsychosocialAssessmentCycle" ADD CONSTRAINT "PsychosocialAssessmentCycle_instrumentSourceVersionId_fkey" FOREIGN KEY ("instrumentSourceVersionId") REFERENCES "RegulatorySourceVersion"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

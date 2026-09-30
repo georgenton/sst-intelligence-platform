@@ -44,6 +44,11 @@ export class PsychosocialController {
     return this.health.listPsychosocialPrograms(organization.id);
   }
 
+  @Get('legal-context')
+  legalContext(@OrganizationContext() organization: { id: string }) {
+    return this.health.getPsychosocialLegalContext(organization.id);
+  }
+
   @Get('programs/:programId')
   get(
     @OrganizationContext() organization: { id: string },

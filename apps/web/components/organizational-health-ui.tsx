@@ -16,6 +16,7 @@ type OccupationalActivity = {
   evidenceType?: string | null;
   evidenceNote?: string | null;
   evidenceUrl?: string | null;
+  linkedOperationalPlanItemId?: string | null;
 };
 type OccupationalProgram = {
   id: string;
@@ -39,6 +40,12 @@ type PsychosocialCycle = {
   aggregateReportAvailable: boolean;
   aggregateReportUrl?: string | null;
   linkedOperationalPlanItemId?: string | null;
+  instrumentSourceVersion?: {
+    id: string;
+    catalogVersion: number;
+    officialUrl?: string | null;
+    source: { sourceKey: string; canonicalTitle: string; issuer: string };
+  } | null;
 };
 type PsychosocialProgram = {
   id: string;
@@ -46,17 +53,34 @@ type PsychosocialProgram = {
   periodStart: string;
   periodEnd: string;
   status: string;
-  legalSourceVersion?: {
-    catalogVersion: number;
-    officialUrl: string | null;
-    source: {
-      sourceKey: string;
-      canonicalTitle: string;
-      issuer: string;
-    };
-  } | null;
   assessmentCycles: PsychosocialCycle[];
 };
+
+type PlanContext = {
+  activePlan: { planId: string; name: string; version: number } | null;
+};
+type OperationalPlan = {
+  versions: Array<{
+    status: string;
+    items: Array<{
+      id: string;
+      title: string;
+      displayOrder: number;
+      responsible?: { displayName: string } | null;
+      execution?: { status: string } | null;
+    }>;
+  }>;
+};
+type PsychosocialLegalContext = {
+  status: 'VERIFIED_CONTEXT' | 'NO_DIRECT_LEGAL_BASIS' | 'CONTEXT_REQUIRED' | 'JURISDICTION_NOT_SUPPORTED';
+  jurisdictionCode: string;
+  totalWorkerCount: number | null;
+  explanation: string;
+  source?: { title: string; officialUrl: string | null; unitLocators: string[] };
+};
+
+const FREE_TEXT_PRIVACY_WARNING =
+  'No incluyas nombres de trabajadores, diagnósticos, resultados individuales ni información médica o psicológica personal.';
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -85,6 +109,7 @@ export function HealthAtWorkDashboard() {
   const [coordinatorName, setCoordinatorName] = useState('');
   const [activityEvidenceNote, setActivityEvidenceNote] = useState('');
   const [activityEvidenceUrl, setActivityEvidenceUrl] = useState('');
+  const [activityPlanItemId, setActivityPlanItemId] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const request = <T,>(path: string, init?: RequestInit) =>
     auth.request<T>(path, init, organizationId ?? undefined);
@@ -93,6 +118,18 @@ export function HealthAtWorkDashboard() {
     queryFn: () => request<OccupationalProgram[]>('/occupational-health/programs'),
     enabled: Boolean(organizationId),
   });
+  const planContext = useQuery({
+    queryKey: ['operational-plan-context', organizationId],
+    queryFn: () => request<PlanContext>('/operational-plans/context'),
+    enabled: Boolean(organizationId),
+  });
+  const activePlan = useQuery({
+    queryKey: ['operational-plan-active', organizationId, planContext.data?.activePlan?.planId],
+    queryFn: () => request<OperationalPlan>(`/operational-plans/${planContext.data!.activePlan!.planId}`),
+    enabled: Boolean(organizationId && planContext.data?.activePlan?.planId),
+  });
+  const activePlanItems =
+    activePlan.data?.versions.find((version) => version.status === 'ACTIVE')?.items ?? [];
   const current = programs.data?.[0];
   const create = useMutation({
     mutationFn: () =>
@@ -116,21 +153,27 @@ export function HealthAtWorkDashboard() {
   });
   const activity = useMutation({
     mutationFn: () =>
-      request<OccupationalProgram>(`/occupational-health/programs/${current?.id}/activities`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          componentKey: 'PREVENTIVE_COORDINATION',
-          title: 'Revisión preventiva y seguimiento',
-          ...(activityEvidenceUrl.trim()
-            ? { evidenceType: 'EXTERNAL_LINK', evidenceUrl: activityEvidenceUrl.trim() }
-            : activityEvidenceNote.trim()
-              ? { evidenceType: 'NOTE', evidenceNote: activityEvidenceNote.trim() }
-              : {}),
-        }),
-      }),
-    onSuccess: () =>
-      void cache.invalidateQueries({ queryKey: ['occupational-health', organizationId] }),
+      request<OccupationalProgram>(
+        `/occupational-health/programs/${current?.id}/activities`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            componentKey: 'PREVENTIVE_COORDINATION',
+            title: 'Revisión preventiva y seguimiento',
+            ...(activityEvidenceUrl.trim()
+              ? { evidenceType: 'EXTERNAL_LINK', evidenceUrl: activityEvidenceUrl.trim() }
+              : activityEvidenceNote.trim()
+                ? { evidenceType: 'NOTE', evidenceNote: activityEvidenceNote.trim() }
+                : {}),
+            ...(activityPlanItemId ? { linkedOperationalPlanItemId: activityPlanItemId } : {}),
+          }),
+        },
+      ),
+    onSuccess: () => {
+      setActivityPlanItemId('');
+      void cache.invalidateQueries({ queryKey: ['occupational-health', organizationId] });
+    },
     onError: () => setErrorMessage('No se pudo registrar la actividad.'),
   });
   const complete = useMutation({
@@ -179,6 +222,7 @@ export function HealthAtWorkDashboard() {
                 onChange={(event) => setCoordinatorName(event.target.value)}
               />
             </label>
+            <p className="field-hint">{FREE_TEXT_PRIVACY_WARNING}</p>
             <button
               className="button"
               type="button"
@@ -227,6 +271,7 @@ export function HealthAtWorkDashboard() {
                 }}
               />
             </label>
+            <p className="field-hint">{FREE_TEXT_PRIVACY_WARNING}</p>
             <label>
               Enlace HTTPS de evidencia (opcional)
               <input
@@ -238,6 +283,22 @@ export function HealthAtWorkDashboard() {
                 }}
                 placeholder="https://..."
               />
+            </label>
+            <label>
+              Ítem activo del Plan Operativo (opcional)
+              <select
+                aria-label="Ítem del Plan Operativo"
+                value={activityPlanItemId}
+                onChange={(event) => setActivityPlanItemId(event.target.value)}
+              >
+                <option value="">Sin enlazar todavía</option>
+                {activePlanItems.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.title} · {item.execution?.status ?? 'PLANNED'}
+                    {item.responsible?.displayName ? ` · ${item.responsible.displayName}` : ''}
+                  </option>
+                ))}
+              </select>
             </label>
             {current.activities.length === 0 ? (
               <p>Aún no hay actividades registradas.</p>
@@ -294,6 +355,23 @@ export function PsychosocialDashboard() {
     queryFn: () => request<PsychosocialProgram[]>('/psychosocial/programs'),
     enabled: Boolean(organizationId),
   });
+  const legalContext = useQuery({
+    queryKey: ['psychosocial-legal-context', organizationId],
+    queryFn: () => request<PsychosocialLegalContext>('/psychosocial/legal-context'),
+    enabled: Boolean(organizationId),
+  });
+  const planContext = useQuery({
+    queryKey: ['psychosocial-operational-plan-context', organizationId],
+    queryFn: () => request<PlanContext>('/operational-plans/context'),
+    enabled: Boolean(organizationId),
+  });
+  const activePlan = useQuery({
+    queryKey: ['psychosocial-operational-plan-active', organizationId, planContext.data?.activePlan?.planId],
+    queryFn: () => request<OperationalPlan>(`/operational-plans/${planContext.data!.activePlan!.planId}`),
+    enabled: Boolean(organizationId && planContext.data?.activePlan?.planId),
+  });
+  const activePlanItems =
+    activePlan.data?.versions.find((version) => version.status === 'ACTIVE')?.items ?? [];
   const current = programs.data?.[0];
   const create = useMutation({
     mutationFn: () =>
@@ -398,14 +476,14 @@ export function PsychosocialDashboard() {
               Período: {current.periodStart.slice(0, 10)} — {current.periodEnd.slice(0, 10)} ·
               Estado: {current.status}
             </p>
-            {current.legalSourceVersion ? (
+            {legalContext.data?.status === 'VERIFIED_CONTEXT' && legalContext.data.source ? (
               <details>
                 <summary>Fundamento legal relacionado</summary>
                 <p>
-                  {current.legalSourceVersion.source.canonicalTitle} · Artículo 19 de MDT-2024-196.
+                  {legalContext.data.source.title} · Artículos 19 y 20 de MDT-2024-196.
                   Consulta el{' '}
                   <a
-                    href={current.legalSourceVersion.officialUrl ?? undefined}
+                    href={legalContext.data.source.officialUrl ?? undefined}
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -414,6 +492,12 @@ export function PsychosocialDashboard() {
                   . El fundamento se muestra como contexto y no como una regla automática.
                 </p>
               </details>
+            ) : legalContext.data?.status === 'CONTEXT_REQUIRED' ? (
+              <p role="status">{legalContext.data.explanation}</p>
+            ) : legalContext.data?.status === 'JURISDICTION_NOT_SUPPORTED' ? (
+              <p role="status">{legalContext.data.explanation}</p>
+            ) : legalContext.data?.status === 'NO_DIRECT_LEGAL_BASIS' ? (
+              <p role="status">{legalContext.data.explanation}</p>
             ) : null}
           </div>
           <div className="card">
@@ -422,6 +506,7 @@ export function PsychosocialDashboard() {
               Elige un instrumento declarado por la organización. El cuestionario del Ministerio es
               opcional; otros instrumentos quedan sujetos a revisión profesional.
             </p>
+            <p className="field-hint">{FREE_TEXT_PRIVACY_WARNING}</p>
             <label>
               Instrumento
               <input
@@ -490,6 +575,9 @@ export function PsychosocialDashboard() {
                     <strong>{item.instrumentName}</strong> · {item.status} ·{' '}
                     {item.participantCount ?? 0}/{item.targetPopulationCount ?? '—'} participación
                     agregada
+                    {item.instrumentSourceVersion
+                      ? ` · fuente oficial: ${item.instrumentSourceVersion.source.canonicalTitle}`
+                      : ''}
                     {item.linkedOperationalPlanItemId ? ' · enlazado al Plan Operativo' : ''}
                     {item.aggregateReportAvailable ? ' · informe agregado disponible' : ''}
                     {item.status !== 'COMPLETED' ? (
@@ -503,17 +591,26 @@ export function PsychosocialDashboard() {
                     ) : null}
                     {!item.linkedOperationalPlanItemId ? (
                       <>
-                        <input
-                          aria-label="ID del ítem del Plan Operativo"
+                        <select
+                          aria-label="Ítem del Plan Operativo"
                           value={planItemId}
                           onChange={(event) => setPlanItemId(event.target.value)}
-                          placeholder="UUID del ítem"
-                        />
+                        >
+                          <option value="">Selecciona una intervención existente</option>
+                          {activePlanItems.map((planItem) => (
+                            <option key={planItem.id} value={planItem.id}>
+                              {planItem.title} · {planItem.execution?.status ?? 'PLANNED'}
+                              {planItem.responsible?.displayName
+                                ? ` · ${planItem.responsible.displayName}`
+                                : ''}
+                            </option>
+                          ))}
+                        </select>
                         <button
                           className="button link"
                           type="button"
                           onClick={() => linkPlanItem.mutate(item.id)}
-                          disabled={!planItemId.trim() || linkPlanItem.isPending}
+                          disabled={!planItemId || linkPlanItem.isPending}
                         >
                           Confirmar intervención
                         </button>

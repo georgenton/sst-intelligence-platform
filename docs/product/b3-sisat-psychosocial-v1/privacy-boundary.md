@@ -16,3 +16,8 @@ clínico. No hay segmentaciones de grupos pequeños ni acciones automáticas des
 El cuestionario del Ministerio es una opción declarada, no el único instrumento exigido.
 Un instrumento externo queda sujeto a revisión profesional; la aplicación conserva su
 metadato, no sus respuestas.
+
+Los campos libres se mantienen por continuidad operativa y pueden recibir texto arbitrario; la
+UI muestra cerca de ellos: “No incluyas nombres de trabajadores, diagnósticos, resultados
+individuales ni información médica o psicológica personal.” Esta advertencia no sustituye los
+controles organizacionales de privacidad.

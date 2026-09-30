@@ -142,7 +142,21 @@ describe('B3 organizational health and psychosocial foundation', () => {
       .expect(201);
     const savedCycle = cycle.body.assessmentCycles[0];
     expect(savedCycle).toMatchObject({ targetPopulationCount: 25, participantCount: 20 });
+    expect(savedCycle.instrumentSourceVersion).toMatchObject({
+      id: 'a2000000-0000-4000-8000-000000000031',
+      source: { sourceKey: 'EC_MDT_PSYCHOSOCIAL_QUESTIONNAIRE_2026' },
+    });
     expect(JSON.stringify(savedCycle)).not.toMatch(/workerId|answers|individualScore|diagnosis/i);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/psychosocial/programs/${program.body.id}/cycles`)
+      .set(auth())
+      .send({
+        instrumentName: 'Cuestionario con fuente incorrecta',
+        instrumentSourceType: 'MINISTRY_QUESTIONNAIRE',
+        instrumentSourceVersionId: 'a2000000-0000-4000-8000-000000000012',
+      })
+      .expect(503);
 
     const secondUser = await request(app.getHttpServer())
       .post('/api/v1/auth/register')
@@ -222,5 +236,32 @@ describe('B3 organizational health and psychosocial foundation', () => {
         where: { organizationId, entityId: cycle.id, action: 'PSYCHOSOCIAL_CYCLE_PLAN_ITEM_LINKED' },
       }),
     ).toBe(1);
+  });
+
+  it('resolves legal context only from the versioned SST profile, never Worker rows', async () => {
+    await prisma.organizationSstProfileVersion.create({
+      data: {
+        organizationId,
+        version: 1,
+        snapshot: {
+          schemaVersion: '1.0.0',
+          organization: { country: 'Ecuador', workerCount: 25 },
+          operations: {},
+        },
+        createdById: owner.id,
+      },
+    });
+    await request(app.getHttpServer())
+      .get('/api/v1/psychosocial/legal-context')
+      .set(auth())
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          status: 'VERIFIED_CONTEXT',
+          jurisdictionCode: 'EC',
+          totalWorkerCount: 25,
+          source: { sourceVersionId: 'a2000000-0000-4000-8000-000000000012' },
+        });
+      });
   });
 });

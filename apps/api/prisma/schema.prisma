@@ -3256,7 +3256,7 @@ model RegulatorySourceVersion {
   source                       RegulatorySource                     @relation(fields: [sourceId], references: [id], onDelete: Restrict)
   provisions                   RegulatoryProvision[]
   units                        RegulatoryUnit[]
-  psychosocialPrograms         PsychosocialProgram[]
+  psychosocialInstrumentCycles PsychosocialAssessmentCycle[] @relation("PsychosocialInstrumentSourceVersion")
 
   @@unique([sourceId, catalogVersion])
   @@index([candidateStatus, recordedAt])
@@ -3352,7 +3352,6 @@ model PsychosocialProgram {
   status             PsychosocialProgramStatus      @default(DRAFT)
   title              String                         @db.VarChar(240)
   responsibleUserId  String?                        @db.Uuid
-  legalSourceVersionId String?                      @db.Uuid
   notes              String?                        @db.VarChar(2000)
   createdById        String                         @db.Uuid
   createdAt          DateTime                       @default(now())
@@ -3360,7 +3359,6 @@ model PsychosocialProgram {
   organization       Organization                   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   responsible        User?                          @relation("PsychosocialProgramResponsible", fields: [responsibleUserId], references: [id], onDelete: Restrict)
   createdBy          User                            @relation("PsychosocialProgramCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  legalSourceVersion RegulatorySourceVersion?       @relation(fields: [legalSourceVersionId], references: [id], onDelete: Restrict)
   assessmentCycles   PsychosocialAssessmentCycle[]
 
   @@index([organizationId, status, periodStart])
@@ -3375,6 +3373,7 @@ model PsychosocialAssessmentCycle {
   instrumentVersion     String?                         @db.VarChar(120)
   instrumentProvider    String?                         @db.VarChar(240)
   instrumentSourceType  PsychosocialInstrumentSourceType
+  instrumentSourceVersionId String?                     @db.Uuid
   validationReference   String?                         @db.VarChar(1000)
   plannedAt             DateTime?
   completedAt           DateTime?
@@ -3390,10 +3389,12 @@ model PsychosocialAssessmentCycle {
   updatedAt             DateTime                        @updatedAt
   organization          Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   program               PsychosocialProgram             @relation(fields: [programId], references: [id], onDelete: Cascade)
+  instrumentSourceVersion RegulatorySourceVersion?     @relation("PsychosocialInstrumentSourceVersion", fields: [instrumentSourceVersionId], references: [id], onDelete: Restrict)
   createdBy             User                            @relation("PsychosocialCycleCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([organizationId, programId, status])
   @@index([organizationId, linkedOperationalPlanItemId])
+  @@index([instrumentSourceVersionId])
 }
 
 model RegulatoryProvision {

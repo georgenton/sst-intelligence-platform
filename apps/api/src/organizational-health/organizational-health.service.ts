@@ -12,6 +12,7 @@ import { isUUID } from 'class-validator';
 import { AuditService } from '../audit/audit.service';
 import type { AuditEvent } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { resolvePsychosocialLegalContext } from './psychosocial-legal-context';
 import {
   CreateOccupationalHealthActivityDto,
   CreateOccupationalHealthProgramDto,
@@ -30,16 +31,20 @@ const occupationalProgramInclude = {
 } as const;
 
 const psychosocialProgramInclude = {
-  legalSourceVersion: {
-    select: {
-      catalogVersion: true,
-      officialUrl: true,
-      source: {
-        select: { sourceKey: true, canonicalTitle: true, issuer: true },
+  assessmentCycles: {
+    orderBy: { plannedAt: 'asc' as const },
+    include: {
+      instrumentSourceVersion: {
+        select: {
+          id: true,
+          catalogVersion: true,
+          officialUrl: true,
+          artifactVerificationStatus: true,
+          source: { select: { sourceKey: true, canonicalTitle: true, issuer: true } },
+        },
       },
     },
   },
-  assessmentCycles: { orderBy: { plannedAt: 'asc' as const } },
 } as const;
 
 type IdempotencyReceipt = { hash: string; fingerprint: string };
@@ -177,6 +182,13 @@ export class OrganizationalHealthService {
       input.responsibleUserId,
     );
     this.assertEvidence(input.evidenceType, input.evidenceNote, input.evidenceUrl);
+    if (input.linkedOperationalPlanItemId) {
+      const item = await this.prisma.operationalPlanItem.findFirst({
+        where: { id: input.linkedOperationalPlanItemId, organizationId },
+        select: { id: true },
+      });
+      if (!item) throw new NotFoundException('Ítem del Plan Operativo no encontrado.');
+    }
     const activity = await this.prisma.$transaction(async (tx) => {
       const created = await tx.occupationalHealthActivity.create({
         data: {
@@ -191,6 +203,7 @@ export class OrganizationalHealthService {
           evidenceType: input.evidenceType,
           evidenceNote: input.evidenceNote,
           evidenceUrl: input.evidenceUrl,
+          linkedOperationalPlanItemId: input.linkedOperationalPlanItemId,
           createdById: userId,
         },
       });
@@ -201,7 +214,13 @@ export class OrganizationalHealthService {
           action: 'OCCUPATIONAL_HEALTH_ACTIVITY_CREATED',
           entityType: 'OccupationalHealthActivity',
           entityId: created.id,
-          metadata: { programId, componentKey: input.componentKey },
+          metadata: {
+            programId,
+            componentKey: input.componentKey,
+            ...(input.linkedOperationalPlanItemId
+              ? { operationalPlanItemId: input.linkedOperationalPlanItemId, humanConfirmed: true }
+              : {}),
+          },
           ...context,
         },
         tx,
@@ -342,6 +361,37 @@ export class OrganizationalHealthService {
     return program;
   }
 
+  async getPsychosocialLegalContext(organizationId: string) {
+    const [organization, profile] = await Promise.all([
+      this.prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { country: true },
+      }),
+      this.prisma.organizationSstProfileVersion.findFirst({
+        where: { organizationId },
+        orderBy: [{ version: 'desc' }, { createdAt: 'desc' }],
+        select: { snapshot: true },
+      }),
+    ]);
+    if (!organization) throw new NotFoundException('Organización no encontrada.');
+    const snapshot = profile?.snapshot as { organization?: { workerCount?: unknown } } | undefined;
+    const source = await this.prisma.regulatorySourceVersion.findFirst({
+      where: {
+        catalogVersion: 2,
+        source: { sourceKey: 'EC_MDT_2024_196' },
+        officialDocumentLocated: true,
+      },
+      select: { id: true },
+    });
+    const context = resolvePsychosocialLegalContext({
+      country: organization.country,
+      totalWorkerCount: snapshot?.organization?.workerCount,
+      sourceAvailable: source?.id === 'a2000000-0000-4000-8000-000000000012',
+    });
+    if (context.source && source) context.source.sourceVersionId = source.id;
+    return context;
+  }
+
   async createPsychosocialProgram(
     organizationId: string,
     userId: string,
@@ -350,11 +400,8 @@ export class OrganizationalHealthService {
     idempotencyKey?: string,
   ) {
     this.assertDateRange(input.periodStart, input.periodEnd);
-    const legalSourceVersionId = await this.requirePsychosocialLegalSource(
-      input.legalSourceVersionId,
-    );
     await this.requireOptionalMember(organizationId, input.responsibleUserId);
-    const fingerprint = adaptiveContentHash({ ...input, legalSourceVersionId });
+    const fingerprint = adaptiveContentHash(input);
     return this.prisma.$transaction(async (tx) => {
       const receipt = await this.findReceipt(
         tx,
@@ -372,7 +419,6 @@ export class OrganizationalHealthService {
           periodEnd: new Date(input.periodEnd),
           title: input.title,
           responsibleUserId: input.responsibleUserId,
-          legalSourceVersionId,
           notes: input.notes,
           createdById: userId,
         },
@@ -387,7 +433,6 @@ export class OrganizationalHealthService {
           entityId: program.id,
           metadata: {
             ...this.idempotencyMetadata(idempotencyKey, fingerprint),
-            legalSourceVersionId,
           },
           ...context,
         },
@@ -454,7 +499,11 @@ export class OrganizationalHealthService {
   ) {
     await this.requirePsychosocialProgram(organizationId, programId);
     this.assertAggregateCounts(input.targetPopulationCount, input.participantCount);
-    const fingerprint = adaptiveContentHash(input);
+    const instrumentSourceVersionId = await this.resolveInstrumentSourceVersion(
+      input.instrumentSourceType,
+      input.instrumentSourceVersionId,
+    );
+    const fingerprint = adaptiveContentHash({ ...input, instrumentSourceVersionId });
     return this.prisma.$transaction(async (tx) => {
       const receipt = await this.findReceipt(
         tx,
@@ -473,6 +522,7 @@ export class OrganizationalHealthService {
           instrumentVersion: input.instrumentVersion,
           instrumentProvider: input.instrumentProvider,
           instrumentSourceType: input.instrumentSourceType,
+          instrumentSourceVersionId,
           validationReference: input.validationReference,
           plannedAt: input.plannedAt ? new Date(input.plannedAt) : undefined,
           completedAt: input.completedAt ? new Date(input.completedAt) : undefined,
@@ -497,6 +547,7 @@ export class OrganizationalHealthService {
             ...this.idempotencyMetadata(idempotencyKey, fingerprint),
             programId,
             aggregateOnly: true,
+            instrumentSourceVersionId,
           },
           ...context,
         },
@@ -530,6 +581,14 @@ export class OrganizationalHealthService {
       input.targetPopulationCount ?? current.targetPopulationCount ?? undefined,
       input.participantCount ?? current.participantCount ?? undefined,
     );
+    const instrumentSourceType = input.instrumentSourceType ?? current.instrumentSourceType;
+    const instrumentSourceVersionId =
+      input.instrumentSourceType || input.instrumentSourceVersionId
+        ? await this.resolveInstrumentSourceVersion(
+            instrumentSourceType,
+            input.instrumentSourceVersionId,
+          )
+        : current.instrumentSourceVersionId;
     const updated = await this.prisma.$transaction(async (tx) => {
       const cycle = await tx.psychosocialAssessmentCycle.update({
         where: { id },
@@ -544,6 +603,9 @@ export class OrganizationalHealthService {
             : {}),
           ...(input.instrumentSourceType
             ? { instrumentSourceType: input.instrumentSourceType }
+            : {}),
+          ...(input.instrumentSourceType || input.instrumentSourceVersionId !== undefined
+            ? { instrumentSourceVersionId }
             : {}),
           ...(input.validationReference !== undefined
             ? { validationReference: input.validationReference }
@@ -682,23 +744,40 @@ export class OrganizationalHealthService {
       );
   }
 
-  private async requirePsychosocialLegalSource(sourceVersionId?: string) {
+  private async resolveInstrumentSourceVersion(
+    sourceType: CreatePsychosocialAssessmentCycleDto['instrumentSourceType'],
+    sourceVersionId?: string,
+  ) {
+    if (sourceType !== 'MINISTRY_QUESTIONNAIRE') {
+      if (sourceVersionId)
+        throw new BadRequestException(
+          'Los instrumentos declarados no pueden presentarse como cuestionario oficial del Ministerio.',
+        );
+      return null;
+    }
     const sourceVersion = sourceVersionId
       ? await this.prisma.regulatorySourceVersion.findFirst({
-          where: { id: sourceVersionId },
-          include: { source: true },
+          where: {
+            id: sourceVersionId,
+            source: { sourceKey: 'EC_MDT_PSYCHOSOCIAL_QUESTIONNAIRE_2026' },
+            catalogVersion: 1,
+            officialDocumentLocated: true,
+            artifactVerificationStatus: 'OFFICIAL_ARTIFACT_VERIFIED',
+          },
+          select: { id: true },
         })
       : await this.prisma.regulatorySourceVersion.findFirst({
-          where: { source: { sourceKey: 'EC_MDT_2024_196' }, catalogVersion: 2 },
-          include: { source: true },
+          where: {
+            source: { sourceKey: 'EC_MDT_PSYCHOSOCIAL_QUESTIONNAIRE_2026' },
+            catalogVersion: 1,
+            officialDocumentLocated: true,
+            artifactVerificationStatus: 'OFFICIAL_ARTIFACT_VERIFIED',
+          },
+          select: { id: true },
         });
-    if (
-      !sourceVersion ||
-      sourceVersion.source.sourceKey !== 'EC_MDT_2024_196' ||
-      sourceVersion.catalogVersion !== 2
-    )
+    if (!sourceVersion)
       throw new ServiceUnavailableException(
-        'El fundamento oficial del programa psicosocial no está disponible.',
+        'El cuestionario oficial del Ministerio no está disponible para vincularlo.',
       );
     return sourceVersion.id;
   }

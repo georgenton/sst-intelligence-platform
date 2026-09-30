@@ -48,6 +48,7 @@ export class CreateOccupationalHealthActivityDto {
   @IsOptional() @IsEnum(ActionEvidenceType) evidenceType?: ActionEvidenceType;
   @IsOptional() @IsString() @Length(1, 2000) evidenceNote?: string;
   @IsOptional() @IsUrl({ protocols: ['https'], require_protocol: true }) evidenceUrl?: string;
+  @IsOptional() @IsUUID() linkedOperationalPlanItemId?: string;
 }
 
 export class UpdateOccupationalHealthActivityDto {
@@ -73,7 +74,6 @@ export class CreatePsychosocialProgramDto {
   @IsDateString() periodEnd!: string;
   @IsString() @Length(2, 240) title!: string;
   @IsOptional() @IsUUID() responsibleUserId?: string;
-  @IsOptional() @IsUUID() legalSourceVersionId?: string;
   @IsOptional() @IsString() @Length(1, 2000) notes?: string;
 }
 
@@ -91,6 +91,7 @@ export class CreatePsychosocialAssessmentCycleDto {
   @IsOptional() @IsString() @Length(1, 120) instrumentVersion?: string;
   @IsOptional() @IsString() @Length(2, 240) instrumentProvider?: string;
   @IsEnum(PsychosocialInstrumentSourceType) instrumentSourceType!: PsychosocialInstrumentSourceType;
+  @IsOptional() @IsUUID() instrumentSourceVersionId?: string;
   @IsOptional() @IsString() @Length(1, 1000) validationReference?: string;
   @IsOptional() @IsDateString() plannedAt?: string;
   @IsOptional() @IsDateString() completedAt?: string;
@@ -114,6 +115,7 @@ export class UpdatePsychosocialAssessmentCycleDto {
   @IsOptional()
   @IsEnum(PsychosocialInstrumentSourceType)
   instrumentSourceType?: PsychosocialInstrumentSourceType;
+  @IsOptional() @IsUUID() instrumentSourceVersionId?: string;
   @IsOptional() @IsString() @Length(1, 1000) validationReference?: string;
   @IsOptional() @IsDateString() plannedAt?: string;
   @IsOptional() @IsDateString() completedAt?: string;
