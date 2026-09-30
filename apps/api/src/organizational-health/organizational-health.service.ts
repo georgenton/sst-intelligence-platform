@@ -33,8 +33,9 @@ const psychosocialProgramInclude = {
   legalSourceVersion: {
     select: {
       catalogVersion: true,
+      officialUrl: true,
       source: {
-        select: { sourceKey: true, canonicalTitle: true, issuer: true, officialUrl: true },
+        select: { sourceKey: true, canonicalTitle: true, issuer: true },
       },
     },
   },

@@ -48,11 +48,11 @@ type PsychosocialProgram = {
   status: string;
   legalSourceVersion?: {
     catalogVersion: number;
+    officialUrl: string | null;
     source: {
       sourceKey: string;
       canonicalTitle: string;
       issuer: string;
-      officialUrl: string | null;
     };
   } | null;
   assessmentCycles: PsychosocialCycle[];
@@ -405,7 +405,7 @@ export function PsychosocialDashboard() {
                   {current.legalSourceVersion.source.canonicalTitle} · Artículo 19 de MDT-2024-196.
                   Consulta el{' '}
                   <a
-                    href={current.legalSourceVersion.source.officialUrl ?? undefined}
+                    href={current.legalSourceVersion.officialUrl ?? undefined}
                     target="_blank"
                     rel="noreferrer"
                   >
