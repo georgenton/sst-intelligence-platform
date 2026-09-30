@@ -17,8 +17,14 @@
     "sources/ec-mdt-2024-196-annex-3.json",
     "sources/ec-mdt-2024-196.json",
     "sources/ec-mdt-2025-122-construction.json",
+    "sources/ec-mdt-psychosocial-questionnaire.json",
+    "sources/ec-mdt-psychosocial-questionnaire-guide.json",
+    "sources/ec-mdt-psychosocial-program-guide.json",
+    "sources/ec-mdt-psychosocial-tabulation-tool.json",
+    "sources/ec-mdt-psychosocial-program-template.json",
+    "sources/ec-mdt-psychosocial-registration-manual.json",
     "sources/ec-msp-00004-2026-sisat.json"
   ],
   "materialFiles": ["relationships.json", "scenario-review-map.json"],
-  "corpusSha256": "sha256:83e976f3762469b68ac5594d7df1aba746ca1d7e3427b4da3941ed98c9989c41"
+  "corpusSha256": "sha256:082d4cc48a1228d005866a34fdebb1b75342eeb929c975abfc3fc5afbe387c3d"
 }

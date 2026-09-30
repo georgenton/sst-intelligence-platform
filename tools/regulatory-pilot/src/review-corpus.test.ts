@@ -30,9 +30,9 @@ describe('Ecuador SST multi-source review corpus', () => {
     const report = validateRegulatoryReviewCorpusCampaign(corpus);
     expect(report).toMatchObject({
       corpusVersion: '1.0.0',
-      corpusSourceCount: 15,
-      officialReferencesVerified: 14,
-      officialArtifactsVerified: 13,
+      corpusSourceCount: 21,
+      officialReferencesVerified: 20,
+      officialArtifactsVerified: 19,
       readyForExtraction: 11,
       structuredSources: 1,
       publishedRealRules: 0,
@@ -40,7 +40,7 @@ describe('Ecuador SST multi-source review corpus', () => {
       sourceReviewRouterCreatesApplicability: false,
       sourceReviewRouterChangesDepth: false,
     });
-    expect(new Set(corpus.sources.map(({ sourceKey }) => sourceKey)).size).toBe(15);
+    expect(new Set(corpus.sources.map(({ sourceKey }) => sourceKey)).size).toBe(21);
     expect(corpus.sources.every(({ readyForRules }) => !readyForRules)).toBe(true);
     expect(
       corpus.sources
@@ -49,7 +49,7 @@ describe('Ecuador SST multi-source review corpus', () => {
           ({ officialDocumentSha256, officialDocumentBytes, officialDocumentMediaType }) =>
             /^sha256:[0-9a-f]{64}$/.test(officialDocumentSha256 ?? '') &&
             (officialDocumentBytes ?? 0) > 0 &&
-            officialDocumentMediaType === 'application/pdf',
+            typeof officialDocumentMediaType === 'string' && officialDocumentMediaType.length > 0,
         ),
     ).toBe(true);
   });

@@ -336,8 +336,8 @@ function assertExpectedReferences(snapshot) {
   assert.equal(snapshot.links.length, 1);
   assert.equal(snapshot.guidance.length, 1);
   assert.equal(snapshot.contexts.length, 2);
-  assert.equal(snapshot.regulatorySources.length, 15);
-  assert.equal(snapshot.regulatorySourceVersions.length, 25);
+  assert.equal(snapshot.regulatorySources.length, 21);
+  assert.equal(snapshot.regulatorySourceVersions.length, 31);
   assert.equal(snapshot.regulatoryUnits.length, 1122);
   assert.equal(
     snapshot.regulatoryUnits.filter(({ unitType }) => unitType === 'ARTICLE').length,
@@ -524,7 +524,7 @@ function assertExpectedReferences(snapshot) {
       ({ artifactVerificationStatus }) =>
         artifactVerificationStatus === 'OFFICIAL_ARTIFACT_VERIFIED',
     ).length,
-    13,
+    19,
   );
   assert.equal(
     currentVersions.filter(

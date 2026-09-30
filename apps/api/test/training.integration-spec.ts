@@ -11,8 +11,12 @@ describe('training and competency integration', () => {
   let prisma: PrismaService;
   let jwt: JwtService;
   const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  // Keep renewal-status assertions independent of the calendar date used by CI.
+  const testNow = new Date('2026-09-01T00:00:00.000Z');
 
   beforeAll(async () => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+    jest.setSystemTime(testNow);
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = module.createNestApplication();
     app.setGlobalPrefix('api/v1');
@@ -24,7 +28,10 @@ describe('training and competency integration', () => {
     jwt = app.get(JwtService);
   });
 
-  afterAll(async () => app.close());
+  afterAll(async () => {
+    await app.close();
+    jest.useRealTimers();
+  });
 
   async function register(label: string) {
     const email = `${label.toLowerCase().replaceAll(' ', '-')}-${suffix}@example.test`;

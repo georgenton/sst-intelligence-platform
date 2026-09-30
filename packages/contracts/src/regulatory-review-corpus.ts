@@ -47,7 +47,7 @@ export const regulatoryCorpusSourceSchema = z
     officialDocumentSha256: sha256Schema.nullable(),
     officialDocumentBytes: z.number().int().positive().max(25_000_000).nullable(),
     officialDocumentRetrievedAt: z.string().datetime().nullable(),
-    officialDocumentMediaType: z.literal('application/pdf').nullable(),
+    officialDocumentMediaType: z.string().trim().min(1).max(100).nullable(),
     officialPublicationReference: z.string().trim().min(1).max(500).nullable(),
     publicationDate: dateOnlySchema.nullable(),
     supersessionStatus: regulatorySupersessionStatusSchema,
@@ -71,7 +71,7 @@ export const regulatoryCorpusSourceSchema = z
       source.officialDocumentSha256 !== null &&
       source.officialDocumentBytes !== null &&
       source.officialDocumentRetrievedAt !== null &&
-      source.officialDocumentMediaType === 'application/pdf';
+      source.officialDocumentMediaType !== null;
     if (artifactVerified !== artifactFieldsPresent)
       context.addIssue({
         code: 'custom',

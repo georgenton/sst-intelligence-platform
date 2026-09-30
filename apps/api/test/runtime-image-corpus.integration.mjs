@@ -124,7 +124,7 @@ function inspectRuntimeCorpus() {
   assert.deepEqual(inspected.files, sourceFiles);
   // The R1 Annex 3 domain locator is shipped with the canonical regulatory
   // resources alongside the structured electrical evidence.
-  assert.equal(inspected.files.length, 37);
+  assert.equal(inspected.files.length, 43);
   assert.equal(
     inspected.files.some((file) => /\.pdf$/i.test(file)),
     false,
@@ -198,8 +198,8 @@ async function referenceSnapshot(prisma) {
 }
 
 function assertExpectedReferences(snapshot) {
-  assert.equal(snapshot.sources.length, 15);
-  assert.equal(snapshot.sourceVersions.length, 25);
+  assert.equal(snapshot.sources.length, 21);
+  assert.equal(snapshot.sourceVersions.length, 31);
   assert.equal(snapshot.units.length, 1122);
   assert.equal(snapshot.units.filter(({ unitType }) => unitType === 'ARTICLE').length, 902);
   assert.equal(snapshot.requirements.length, 5);
@@ -226,7 +226,7 @@ function assertExpectedReferences(snapshot) {
       ({ artifactVerificationStatus }) =>
         artifactVerificationStatus === 'OFFICIAL_ARTIFACT_VERIFIED',
     ).length,
-    13,
+    19,
   );
   assert.equal(
     currentVersions.filter(
