@@ -93,7 +93,7 @@ Auditoría de IDs de navegación (33/33): `home`, `consultant-portfolio`, `conve
 ## Límites y hallazgos abiertos
 
 - La cuenta sintética activa la demostración conceptual hasta la fecha que muestra la interfaz. No se debe presentar como producción.
-- El backend de staging quedó alineado al SHA final y el verificador read-only confirma salud ocupacional y psicosocial con datos agregados sintéticos. PA-09 queda como decisión humana sobre instrumento, alcance y lenguaje; no es una aprobación normativa.
+- El backend de staging quedó alineado al runtime funcional de `5a69f6c0ef982a0cca2f0affd040ca112716a9ba`; los commits posteriores del PR solo ajustaron documentación, capturas y accesibilidad. El verificador read-only confirma salud ocupacional y psicosocial con datos agregados sintéticos. PA-09 queda como decisión humana sobre instrumento, alcance y lenguaje; no es una aprobación normativa.
 - El endpoint `POST /solution-finder/sessions/:id/complete` pasó 201 con el contrato vigente después de alinear staging. La clasificación es `STALE_STAGING_RUNTIME`; no se cambió la lógica de solution-finder.
 - La creación idempotente de salud ocupacional fue corregida dentro del lock advisory; el reintento devuelve el mismo programa y no duplica filas.
 - Regulatorio conserva `RuleDrafts=5`, `RuleVersions=0`. SISAT sigue `BLOCKED_EXTERNAL_SOURCE` con unidades cero. No se inventaron fuentes ni aprobaciones.

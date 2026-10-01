@@ -2,17 +2,21 @@
 
 Estado técnico: **READY FOR VISUAL REVIEW**.
 
-La revisión se ejecuta contra el preview Vercel del SHA final de PR60 y el
-backend Railway de staging del mismo SHA. La cuenta y la organización son
-sintéticas; no se escribieron organizaciones reales ni producción.
+La revisión se ejecuta contra el preview Vercel del HEAD final de PR60 y el
+backend Railway de staging que contiene el runtime funcional. La cuenta y la
+organización son sintéticas; no se escribieron organizaciones reales ni
+producción.
 
-- Preview exacto: `sst-intelligence-staging-r9wi9e4k1-georgentons-projects.vercel.app`
-- Frontend SHA: `5a69f6c0ef982a0cca2f0affd040ca112716a9ba`
+- HEAD final PR60: `ed53f53b34ac96fc46ae6623cd14428a1ae130be`
+- Preview exacto HEAD final: `sst-intelligence-staging-jq1xzbzbb-georgentons-projects.vercel.app` (`READY`)
+- Captura visual: `sst-intelligence-staging-jncor0ujx-georgentons-projects.vercel.app`; corresponde al SHA `04543340a2c506e84023c2efb1345fe26ee0cccc`. Los commits posteriores solo ajustaron documentación, manifiesto y nombre accesible; no cambiaron píxeles ni runtime de la aplicación.
+- Frontend runtime funcional: `5a69f6c0ef982a0cca2f0affd040ca112716a9ba`
 - Backend staging: `sst-api-staging-staging.up.railway.app/api/v1`
 - Backend deployment: `bf799c22-fd25-487c-afe5-b053e92310a1` (`SUCCESS`)
 - Release: 37 migraciones encontradas, 0 pendientes, `reference:sync` ejecutado
 - Verificador: `demo:anita:verify` → `FINAL=PASS`, solo lectura
 - Capturas: 26 desktop + 4 mobile, 30/30 HTTP 200 y assertions de contenido
+- Quality Gate: `36937549903` (`SUCCESS`) sobre `ed53f53b34ac96fc46ae6623cd14428a1ae130be`
 
 Correcciones focales:
 
@@ -30,4 +34,3 @@ cambio en la lógica de solution-finder.
 Aceptaciones humanas pendientes: PA-09 (instrumento, alcance e interpretación
 aggregate-only), junto con las decisiones profesionales indicadas en la
 checklist. `RuleDrafts=5`, `RuleVersions=0` y SISAT permanecen sin publicación.
-
