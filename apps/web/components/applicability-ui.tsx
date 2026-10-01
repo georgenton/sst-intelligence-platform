@@ -36,6 +36,7 @@ import {
   RulePackCard,
 } from './applicability-experience-ui';
 import { useAuth } from './auth-provider';
+import { TechnicalDetails } from './technical-details';
 
 const PROFILE_FORM_DEFAULTS: SstProfileFormValues = {
   workerCount: '',
@@ -810,16 +811,12 @@ export function ApplicabilityAssessmentDetail({ assessmentId }: { assessmentId: 
               <div>
                 <dt>Clave / versión</dt>
                 <dd>
-                  <code>
-                    {historical.rulePack.key} · {historical.rulePack.version}
-                  </code>
+                  {historical.rulePack.name} · versión {historical.rulePack.version}
                 </dd>
               </div>
               <div>
                 <dt>Motor determinístico</dt>
-                <dd>
-                  <code>{assessment.data.engineVersion}</code>
-                </dd>
+                <dd>Evaluación determinística registrada</dd>
               </div>
               <div>
                 <dt>Fuente</dt>
@@ -833,13 +830,29 @@ export function ApplicabilityAssessmentDetail({ assessmentId }: { assessmentId: 
                 <dt>Creada por</dt>
                 <dd>{assessment.data.createdBy.displayName}</dd>
               </div>
-              <div>
-                <dt>ID histórico</dt>
-                <dd>
-                  <code>{assessment.data.id}</code>
-                </dd>
-              </div>
             </dl>
+            <TechnicalDetails summary="Ver identificadores técnicos">
+              <dl className="applicability-trace-meta">
+                <div>
+                  <dt>Clave del motor</dt>
+                  <dd>
+                    <code>{historical.rulePack.key}</code>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Versión del motor determinístico</dt>
+                  <dd>
+                    <code>{assessment.data.engineVersion}</code>
+                  </dd>
+                </div>
+                <div>
+                  <dt>ID histórico</dt>
+                  <dd>
+                    <code>{assessment.data.id}</code>
+                  </dd>
+                </div>
+              </dl>
+            </TechnicalDetails>
           </section>
           <ProfileSnapshotSummary
             snapshot={historical.profile}

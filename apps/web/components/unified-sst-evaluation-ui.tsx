@@ -10,6 +10,7 @@ import type { ApplicabilityProfileVersion } from '@/lib/applicability-types';
 import {
   applicabilityStateLabels,
   humanOrganizationImplementationStatusLabel,
+  humanProfessionalReviewDecisionLabel,
 } from '@/lib/human-lexicon';
 import { useOrganization } from './app-shell';
 import {
@@ -580,7 +581,7 @@ export function UnifiedExpertReviewWorkspace() {
           drafts.data?.map((draft) => (
             <article className="regulatory-source-identity" key={draft.id}>
               <p className="applicability-kicker">{draft.candidateLabel}</p>
-              <h2>{draft.requirements[0]?.title ?? draft.ruleKey}</h2>
+              <h2>{draft.requirements[0]?.title ?? 'Requisito pendiente de nombrar'}</h2>
               <p>{draft.requirements[0]?.description}</p>
               <p>
                 <strong>Qué debe decidir el profesional:</strong> {draft.professionalDecision}
@@ -609,7 +610,7 @@ export function UnifiedExpertReviewWorkspace() {
                 ) : (
                   draft.reviews.map((review) => (
                     <p key={review.id}>
-                      <strong>{review.decision.replaceAll('_', ' ')}</strong> ·{' '}
+                      <strong>{humanProfessionalReviewDecisionLabel(review.decision)}</strong> ·{' '}
                       {review.reviewer.displayName} ·{' '}
                       {new Date(review.createdAt).toLocaleDateString('es-EC')}
                       {review.comment ? ` — ${review.comment}` : ''}
@@ -617,6 +618,10 @@ export function UnifiedExpertReviewWorkspace() {
                   ))
                 )}
               </section>
+              <details className="technical-details">
+                <summary>Ver clave técnica</summary>
+                <code>{draft.ruleKey}</code>
+              </details>
             </article>
           ))
         )}

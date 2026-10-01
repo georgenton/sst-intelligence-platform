@@ -4,6 +4,7 @@ import {
   humanModuleAccessStatusLabel,
   humanOperationalPriorityLabel,
   humanOrganizationImplementationStatusLabel,
+  humanProfessionalReviewDecisionLabel,
   humanRiskLevelLabel,
 } from '../lib/human-lexicon.ts';
 
@@ -38,4 +39,10 @@ test('humanizes organization implementation states used in regulatory context', 
     'Parcialmente implementado',
   );
   assert.equal(humanOrganizationImplementationStatusLabel(null), 'No declarado todavía');
+});
+
+test('humanizes professional review decisions in customer-facing history', () => {
+  assert.equal(humanProfessionalReviewDecisionLabel('APPROVED'), 'Interpretación aprobada');
+  assert.equal(humanProfessionalReviewDecisionLabel('CHANGES_REQUESTED'), 'Cambios solicitados');
+  assert.equal(humanProfessionalReviewDecisionLabel('UNKNOWN'), 'Decisión profesional registrada');
 });
