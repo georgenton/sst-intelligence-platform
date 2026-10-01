@@ -24,7 +24,12 @@ export class DashboardService {
           status: true,
           demoStartedAt: true,
           demoExpiresAt: true,
-          _count: { select: { workCenters: true, memberships: true } },
+          _count: {
+            select: {
+              workCenters: { where: { isActive: true } },
+              memberships: true,
+            },
+          },
           modules: {
             select: {
               status: true,

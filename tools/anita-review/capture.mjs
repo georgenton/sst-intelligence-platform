@@ -21,6 +21,9 @@ if (!process.env.ANITA_REVIEW_EMAIL || !process.env.ANITA_REVIEW_PASSWORD) {
   );
 }
 
+const verifier = await import('./verify-staging.mjs');
+void verifier;
+
 const output = path.resolve('design-handoff/anita-visual-review-v1');
 fs.mkdirSync(output, { recursive: true });
 const routes = [
@@ -47,6 +50,9 @@ const routes = [
   ['21-evidence-packages', '/app/evidence-packages'],
   ['22-modules', '/app/modules'],
   ['23-billing', '/app/billing'],
+  ['28-health-at-work', '/app/health-at-work'],
+  ['29-psychosocial', '/app/psychosocial'],
+  ['30-regulatory-library', '/app/applicability/sources'],
 ];
 const mobileRoutes = [
   ['24-mobile-home', '/app'],
@@ -73,12 +79,32 @@ await Promise.all([
   page.getByRole('button', { name: 'Entrar' }).click(),
 ]);
 const captures = [];
+const expectedContent = new Map([
+  ['/app', ['Centro de comando']],
+  ['/app/evaluation', ['Evaluación SST']],
+  ['/app/plans', ['Plan vigente', 'Plan operativo']],
+  ['/app/inspections', ['Inspecciones']],
+  ['/app/ppe', ['Protección personal', 'EPP']],
+  ['/app/health-at-work', ['Salud en el trabajo']],
+  ['/app/psychosocial', ['Prevención de riesgos psicosociales']],
+  ['/app/settings/members', ['Equipo y miembros']],
+  ['/app/applicability/sources', ['Biblioteca normativa']],
+]);
+async function assertContent(route) {
+  const expected = expectedContent.get(route);
+  if (!expected) return;
+  const body = await page.locator('body').innerText();
+  if (!expected.some((text) => body.includes(text))) {
+    throw new Error(`Expected review content missing for ${route}: ${expected.join(' / ')}`);
+  }
+}
 for (const [name, route] of routes) {
   const response = await page.goto(`${base.replace(/\/$/, '')}${route}`, {
     waitUntil: 'domcontentloaded',
     timeout: 60_000,
   });
   await page.waitForTimeout(5000);
+  await assertContent(route);
   await page.screenshot({ path: path.join(output, `${name}.png`), fullPage: true });
   captures.push({ name, route, status: response?.status() ?? null, screenshot: `${name}.png` });
 }

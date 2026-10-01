@@ -7,6 +7,7 @@ export type CapabilityAccessKey =
   | 'INCIDENTS'
   | 'PPE'
   | 'TRAINING'
+  | 'PSYCHOSOCIAL'
   | 'GOVERNANCE'
   | 'WORK_PERMITS';
 
@@ -73,6 +74,15 @@ export const CAPABILITY_ACCESS_MAP: readonly CapabilityAccessDefinition[] = [
     moduleKey: ModuleKey.TRAINING,
     featureKey: 'module.training',
     href: '/app/training',
+    demoEligible: true,
+  },
+  {
+    capabilityKey: 'PSYCHOSOCIAL',
+    title: 'Prevención de riesgos psicosociales',
+    description: 'Coordinar programas e instrumentos psicosociales con resultados agregados.',
+    moduleKey: ModuleKey.PSYCHOSOCIAL,
+    featureKey: 'module.psychosocial',
+    href: '/app/psychosocial',
     demoEligible: true,
   },
   {

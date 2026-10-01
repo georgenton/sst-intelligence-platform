@@ -36,6 +36,7 @@
     "test:reference-sync": "dotenv -- pnpm --filter @sst/api test:reference-sync",
     "test:runtime-image": "dotenv -- pnpm --filter @sst/api test:runtime-image",
     "demo:anita:provision": "node tools/anita-review/provision-staging.mjs",
+    "demo:anita:verify": "node tools/anita-review/verify-staging.mjs",
     "demo:anita:capture": "node tools/anita-review/capture.mjs",
     "prepare": "husky"
   },
