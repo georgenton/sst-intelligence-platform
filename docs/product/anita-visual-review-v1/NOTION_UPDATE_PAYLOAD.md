@@ -7,8 +7,8 @@ backend Railway de staging que contiene el runtime funcional. La cuenta y la
 organización son sintéticas; no se escribieron organizaciones reales ni
 producción.
 
-- HEAD final PR60: `ed53f53b34ac96fc46ae6623cd14428a1ae130be`
-- Preview exacto HEAD final: `sst-intelligence-staging-jq1xzbzbb-georgentons-projects.vercel.app` (`READY`)
+- HEAD final PR60: `34643a186006b26cbbca0e776f734a804709a8bf`
+- Preview exacto HEAD final: `sst-intelligence-staging-adty7ck9a-georgentons-projects.vercel.app` (`READY`)
 - Captura visual: `sst-intelligence-staging-jncor0ujx-georgentons-projects.vercel.app`; corresponde al SHA `04543340a2c506e84023c2efb1345fe26ee0cccc`. Los commits posteriores solo ajustaron documentación, manifiesto y nombre accesible; no cambiaron píxeles ni runtime de la aplicación.
 - Frontend runtime funcional: `5a69f6c0ef982a0cca2f0affd040ca112716a9ba`
 - Backend staging: `sst-api-staging-staging.up.railway.app/api/v1`
@@ -16,7 +16,7 @@ producción.
 - Release: 37 migraciones encontradas, 0 pendientes, `reference:sync` ejecutado
 - Verificador: `demo:anita:verify` → `FINAL=PASS`, solo lectura
 - Capturas: 26 desktop + 4 mobile, 30/30 HTTP 200 y assertions de contenido
-- Quality Gate: `36937549903` (`SUCCESS`) sobre `ed53f53b34ac96fc46ae6623cd14428a1ae130be`
+- Quality Gate: `36939206164` (`SUCCESS`) sobre `34643a186006b26cbbca0e776f734a804709a8bf`
 
 Correcciones focales:
 
