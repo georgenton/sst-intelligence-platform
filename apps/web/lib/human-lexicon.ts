@@ -115,6 +115,19 @@ export function humanOrganizationImplementationStatusLabel(status?: string | nul
     : 'No declarado todavía';
 }
 
+const professionalReviewDecisionLabels: Record<string, string> = {
+  APPROVED: 'Interpretación aprobada',
+  CHANGES_REQUESTED: 'Cambios solicitados',
+  LEGAL_REVIEW_REQUIRED: 'Revisión legal requerida',
+  REJECTED: 'Interpretación rechazada',
+};
+
+export function humanProfessionalReviewDecisionLabel(decision?: string | null): string {
+  return decision
+    ? (professionalReviewDecisionLabels[decision] ?? 'Decisión profesional registrada')
+    : 'Sin decisión';
+}
+
 const featureLabels: Record<string, string> = {
   'module.inspections': 'Inspecciones inteligentes',
   'module.technical_risk': 'Evaluación de riesgo técnico',

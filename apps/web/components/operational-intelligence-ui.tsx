@@ -57,6 +57,20 @@ const typeLabels = {
   REPEATED_FINDING: 'Hallazgos recurrentes',
   OVERDUE_ACTION_CLUSTER: 'Acciones vencidas',
 };
+const sourceTypeLabels: Record<string, string> = {
+  INSPECTION: 'Inspección',
+  INCIDENT: 'Incidente',
+  PPE: 'EPP',
+  TRAINING: 'Capacitación',
+  ACTION: 'Acción',
+  PERMIT: 'Permiso de trabajo',
+};
+
+function signalRuleLabel(signal: Pick<Signal, 'type'>): string {
+  return signal.type === 'REPEATED_FINDING'
+    ? 'Repetición de hallazgos'
+    : 'Concentración de acciones vencidas';
+}
 
 function errorMessage(error: unknown) {
   if (error instanceof ApiClientError) return error.payload.message;
@@ -216,9 +230,7 @@ export function OperationalIntelligenceWorkspace() {
               <dl className="metric-list">
                 <div>
                   <dt>Regla</dt>
-                  <dd>
-                    {selectedSignal.ruleKey} v{selectedSignal.ruleVersion}
-                  </dd>
+                  <dd>{signalRuleLabel(selectedSignal)}</dd>
                 </div>
                 <div>
                   <dt>Conteo observado</dt>
@@ -236,9 +248,9 @@ export function OperationalIntelligenceWorkspace() {
               </dl>
               <h3>Registros fuente</h3>
               <ul>
-                {selectedSignal.sourceRecords.map((source) => (
+                {selectedSignal.sourceRecords.map((source, index) => (
                   <li key={`${source.type}:${source.id}`}>
-                    {source.type} · <code>{source.id}</code>
+                    {sourceTypeLabels[source.type] ?? 'Registro operativo'} {index + 1}
                   </li>
                 ))}
               </ul>
@@ -260,6 +272,17 @@ export function OperationalIntelligenceWorkspace() {
                 </Button>
               ) : null}
               <TechnicalDetailsDisclosure>
+                <p>
+                  Regla técnica: <code>{selectedSignal.ruleKey}</code> v{selectedSignal.ruleVersion}
+                </p>
+                <p>Identificadores de registros fuente:</p>
+                <ul>
+                  {selectedSignal.sourceRecords.map((source) => (
+                    <li key={`${source.type}:${source.id}`}>
+                      {sourceTypeLabels[source.type] ?? source.type} · <code>{source.id}</code>
+                    </li>
+                  ))}
+                </ul>
                 <p>
                   Digest de fuentes: <code>{selectedSignal.sourceDigest}</code>
                 </p>

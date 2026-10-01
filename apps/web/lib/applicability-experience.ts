@@ -142,7 +142,7 @@ const TARGET_LABELS: Record<string, string> = {
 };
 
 export function applicabilityTargetLabel(targetKey: string): string {
-  return TARGET_LABELS[targetKey] ?? targetKey;
+  return TARGET_LABELS[targetKey] ?? 'Resultado de configuración';
 }
 
 export function profileFieldLabel(field: string): string {
