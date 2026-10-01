@@ -9,7 +9,7 @@ Esta checklist separa hechos técnicos comprobados de decisiones humanas pendien
 | Rama parte de `81e6daa9fb803f4691703cbc1eed76042cbc4402` | PASS                          | `git rev-parse HEAD` antes de cambios                                                                                             |
 | Fixture staging-only                                     | PASS                          | `tools/anita-review/provision-staging.mjs`; guarda explícita y bloqueo de señales productivas                                     |
 | Organización sintética                                   | PASS                          | Nombre, Ecuador, sector, perfil FULL; lectura autenticada de staging                                                              |
-| Topología                                                | PASS con observación          | 453 total; 267 Quito; 85 Guayaquil; 101 sin centro. La tarjeta de inicio cuenta históricos demo desactivados como cuatro centros. |
+| Topología                                                | PASS                           | 453 total; 267 Quito; 85 Guayaquil; 101 sin centro. El contador del inicio filtra los dos centros activos; los históricos permanecen recuperables. |
 | Evaluación SST                                           | PASS                          | Sesión pública finalizada por el flujo canónico; hechos preservados; no respuestas clínicas                                       |
 | Plan                                                     | PASS                          | Seis ítems, versión activa, provenance manual y ejecuciones de dominio                                                            |
 | Inspecciones                                             | PASS parcial                  | Tres inspecciones eléctricas demo, findings y recurrencia; la topología auxiliar queda inactiva                                   |
@@ -17,9 +17,9 @@ Esta checklist separa hechos técnicos comprobados de decisiones humanas pendien
 | Capacitación                                             | PASS                          | Necesidad → sesión → asistencia PRESENT → completitud                                                                             |
 | Incidente                                                | PASS                          | NEAR_MISS → involucrado → investigación → factor → acción → evidencia                                                             |
 | Observación                                              | PASS                          | Registro independiente de incidente y finding                                                                                     |
-| B3A                                                      | BLOCKED_ENVIRONMENT_UNCERTAIN | Las rutas API de salud ocupacional y psicosocial devolvieron 404 en staging                                                       |
-| `solution-finder` legado                                 | BUG_CONFIRMED                 | `POST /solution-finder/sessions/:id/complete` devolvió 500; fuera del alcance funcional de esta entrega                           |
-| Capturas                                                 | PASS                          | 23 desktop + 4 mobile en `design-handoff/anita-visual-review-v1/`                                                                 |
+| B3A                                                      | PASS TÉCNICO / VALIDAR CON ANITA | Backend staging alineado; programas de salud y psicosocial, ciclo agregado y vínculos al plan verificados read-only. PA-09 sigue aceptación humana. |
+| `solution-finder` legado                                 | STALE_STAGING_RUNTIME         | Con backend alineado, la entrada pública y `complete` responden 201 con el contrato vigente; no se cambió la lógica de producción. |
+| Capturas                                                 | PASS                          | 26 desktop + 4 mobile en `design-handoff/anita-visual-review-v1/`; 30/30 HTTP 200 y assertions de contenido.                     |
 | Producción                                               | NO TOCADA                     | No hubo escrituras, deploy ni credenciales productivas                                                                            |
 
 ## PA-01…PA-11
@@ -34,7 +34,7 @@ Esta checklist separa hechos técnicos comprobados de decisiones humanas pendien
 | PA-06 | Incidentes                    | Confirmar factores, ubicación y orden de revisión; no convertir factor en causa raíz.                             | VALIDAR CON ANITA               | Casi incidente con factor EQUIPMENT y acción abierta.                       |
 | PA-07 | Capacitación                  | Confirmar prioridad entre necesidad interna, regulación candidata, plan, incidente y observación.                 | VALIDAR CON ANITA               | Need por POSITION, sesión y completitud; no es LMS.                         |
 | PA-08 | Observaciones                 | Confirmar umbrales, términos, evidencia y escalamiento.                                                           | VALIDAR CON ANITA               | Buena práctica separada de incidente y finding.                             |
-| PA-09 | Psicosocial                   | Confirmar instrumento, alcance e interpretación aggregate-only.                                                   | BLOQUEADO_ENVIRONMENT_UNCERTAIN | Código preparado, pero ruta API no expuesta en el backend de staging usado. |
+| PA-09 | Psicosocial                   | Confirmar instrumento, alcance e interpretación aggregate-only.                                                   | VALIDAR CON ANITA               | Programa y ciclo sintético con fuente identificada; respuestas, scores y vínculos de worker no se almacenan. |
 | PA-10 | Cinco RuleDrafts              | Resolver PA-R01, PA-R02, PA-R03, PA-R04 y PA-R05 uno por uno con fuente, condición y evidencia faltante.          | BLOQUEADO POR FUENTE            | `RuleVersions=0`; ninguna aprobación inventada.                             |
 | PA-11 | SISAT                         | Entregar el artefacto oficial completo y verificable con hash, bytes, páginas y unidades.                         | BLOQUEADO POR FUENTE            | `BLOCKED_EXTERNAL_SOURCE`, unidades 0.                                      |
 
@@ -47,4 +47,4 @@ Esta checklist separa hechos técnicos comprobados de decisiones humanas pendien
 
 ## Resultado de la revisión
 
-Estado recomendado: **PARTIAL — STAGING FIXTURE BLOCKED**. El fixture y el paquete visual están listos para una primera revisión, pero la ejecución remota no puede declararse completa mientras el backend de staging no exponga las rutas B3A y el bug legado de `solution-finder` siga sin corrección focal. Esto no bloquea la lectura de las superficies que sí tienen datos sintéticos.
+Estado de la entrega: **READY FOR VISUAL REVIEW**. Las aceptaciones humanas permanecen separadas de la evidencia técnica; PA-10 y PA-11 siguen bloqueados por fuente y no se presentan como cumplimiento.
