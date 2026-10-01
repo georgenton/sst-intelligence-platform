@@ -54,6 +54,40 @@ const routes = [
   ['29-psychosocial', '/app/psychosocial'],
   ['30-regulatory-library', '/app/applicability/sources'],
 ];
+const reviewOrganization = 'SST Intelligence — Revisión Anita';
+const routeConcepts = new Map([
+  ['/app', 'Centro de comando'],
+  ['/app/evaluation', 'Evaluación SST'],
+  ['/app/plans', 'Plan operativo'],
+  ['/app/work', 'Cola de trabajo'],
+  ['/app/field', 'Contexto de campo'],
+  ['/app/search', 'Búsqueda operativa'],
+  ['/app/workers', 'Equipo de trabajadores'],
+  ['/app/inspections', 'Inspecciones'],
+  ['/app/inspections/alerts', 'Alertas de inspección'],
+  ['/app/technical-risk', 'Riesgo técnico'],
+  ['/app/risk-methods', 'Métodos de riesgo'],
+  ['/app/management-intelligence', 'Inteligencia de gestión'],
+  ['/app/intelligence', 'Señales operativas'],
+  ['/app/inspections/analytics', 'Analítica de inspecciones'],
+  ['/app/settings/organization', 'Organización y centros'],
+  ['/app/settings/members', 'Equipo y miembros'],
+  ['/app/evidence-packages', 'Paquetes de evidencia'],
+  ['/app/modules', 'Módulos y capacidades'],
+  ['/app/billing', 'Facturación'],
+  ['/app/incidents', 'Incidentes'],
+  ['/app/safety-observations', 'Observaciones de seguridad'],
+  ['/app/ppe', 'Protección personal'],
+  ['/app/training', 'Capacitación'],
+  ['/app/health-at-work', 'Salud en el trabajo'],
+  ['/app/psychosocial', 'Prevención de riesgos psicosociales'],
+  ['/app/applicability/sources', 'Biblioteca normativa'],
+]);
+const decisionPaByRoute = new Map([
+  ['/app/health-at-work', 'PA-09'],
+  ['/app/psychosocial', 'PA-09'],
+  ['/app/applicability/sources', 'PA-10/PA-11'],
+]);
 const mobileRoutes = [
   ['24-mobile-home', '/app'],
   ['25-mobile-evaluation', '/app/evaluation'],
@@ -106,7 +140,17 @@ for (const [name, route] of routes) {
   await page.waitForTimeout(5000);
   await assertContent(route);
   await page.screenshot({ path: path.join(output, `${name}.png`), fullPage: true });
-  captures.push({ name, route, status: response?.status() ?? null, screenshot: `${name}.png` });
+  captures.push({
+    name,
+    route,
+    status: response?.status() ?? null,
+    title: await page.title(),
+    viewport: { width: 1440, height: 1000 },
+    syntheticOrganization: reviewOrganization,
+    concept: routeConcepts.get(route) ?? route,
+    decisionPa: decisionPaByRoute.get(route) ?? null,
+    screenshot: `${name}.png`,
+  });
 }
 await desktop.close();
 const mobile = await context.newContext({
@@ -136,7 +180,11 @@ for (const [name, route] of mobileRoutes) {
     name,
     route,
     status: response?.status() ?? null,
-    viewport: 390,
+    title: await mobilePage.title(),
+    viewport: { width: 390, height: 844 },
+    syntheticOrganization: reviewOrganization,
+    concept: routeConcepts.get(route) ?? route,
+    decisionPa: decisionPaByRoute.get(route) ?? null,
     screenshot: `${name}.png`,
   });
 }
