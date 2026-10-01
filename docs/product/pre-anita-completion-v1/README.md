@@ -27,7 +27,8 @@ Los cambios de este incremento son acotados a copy y presentación: la interfaz 
 ## Evidencia técnica disponible
 
 - Evidencia histórica del baseline: Quality Gate de `main`, run `36781126288`, `push`, intento 1, `SUCCESS`, SHA exacto del baseline.
-- **AUTHORITATIVE_EXACT_SHA_CI:** Quality Gate de PR59, run `36809323737`, intento 1, `SUCCESS`, SHA exacto `fa889f5df8a08cbbdbeb092a0bf1cedf2e89bec8`. Pasó lint, typecheck, unit/API/contracts/web tests, integración, build, reference sync, runtime image y E2E.
+- **HISTORICAL_FUNCTIONAL_BASELINE_CI:** Quality Gate de la implementación funcional inicial de PR59, run `36809323737`, intento 1, `SUCCESS`, SHA exacto `fa889f5df8a08cbbdbeb092a0bf1cedf2e89bec8`. Pasó lint, typecheck, unit/API/contracts/web tests, integración, build, reference sync, runtime image y E2E. Se conserva como referencia histórica y no como evidencia final del release.
+- La evidencia final de CI sobre el SHA exacto de este incremento está registrada en la PR #59 y en el cierre del release de producción. Este documento versionado no fija deliberadamente el HEAD mutable de la PR; el estado final debe leerse junto con esas evidencias de cierre.
 - Railway B3A: release exacto `f02d431b-b06e-4b1f-92dd-8c13d4b26ff6`, SHA del baseline, migración 37 aplicada, `reference:sync` canónico, health 200 y sin P2025/P2xxx/500 en la revisión de logs.
 - Vercel Platform, Demo y Staging tienen deployments exact-SHA exitosos en el baseline. Las rutas protegidas responden 401 sin sesión; no se interpreta un shell estático como recorrido autenticado.
 - Sin reglas regulatorias reales publicadas: `RuleDrafts=5`, `published RuleVersions=0`. Las fuentes sintéticas siguen marcadas como demostrativas y las referencias extranjeras no se presentan como ley ecuatoriana.
@@ -54,7 +55,7 @@ La checklist distingue aceptación técnica de decisiones humanas: `PASS` no equ
 - `pnpm check`: **PASS** en este HEAD (lint, typecheck, tests de API/contratos/web, escenarios, revisión de corpus y build).
 - E2E completo: **41/41 PASS**, 22 lotes seriales, `workers=1`, `retries=0`; incluye el recorrido de claim, continuidad de Inspecciones, EPP, Work Queue, evaluación y regresiones jurisdiccionales.
 - `reference:sync` repetido e imagen runtime: **PASS** sobre bases locales desechables sin seed de desarrollo.
-- **LOCAL_DIAGNOSTIC:** la integración release-only local registró 39/41 suites PASS por dos limitaciones del harness existente: una expectativa de planes comerciales no creados por el sync canónico de producción y dos pruebas de riesgo técnico que agotaron su timeout bajo la carga local. No es el estado final del incremento; el resultado autoritativo es `AUTHORITATIVE_EXACT_SHA_CI`.
+- **LOCAL_DIAGNOSTIC:** la integración release-only local registró 39/41 suites PASS por dos limitaciones del harness existente: una expectativa de planes comerciales no creados por el sync canónico de producción y dos pruebas de riesgo técnico que agotaron su timeout bajo la carga local. No sustituye la evidencia exacta de CI ni la verificación del release.
 
 ## Validación de seguridad del paquete
 
