@@ -7,7 +7,7 @@ Estado de producto, evidencia técnica y paquete de decisiones para la siguiente
 - **Baseline de aplicación:** `b1c44c7879ccdc6e3f7867ebf933c50edc421f88` (`main`).
 - **Release:** B3A producción cerrado; 37 migraciones aplicadas.
 - **Rama de este incremento:** `codex/pre-anita-completion-v1`.
-- **Límite:** una PR Draft; no incluye merge, despliegue ni escrituras de producción.
+- **Límite:** PR #59 en revisión; no incluye merge, despliegue ni escrituras de producción.
 
 Este documento actualiza el estado sin reescribir el historial B0. Los documentos de [Anita Baseline B0](../anita-baseline-b0/) siguen siendo la fuente histórica. La auditoría se contrastó con [la validación hands-on](../hands-on-product-validation-anita-demo-v1.md), [el roadmap](../../project/sst-intelligence-roadmap.md) y [el roadmap adaptativo](../adaptive-sst-roadmap.md).
 
@@ -26,7 +26,8 @@ Los cambios de este incremento son acotados a copy y presentación: la interfaz 
 
 ## Evidencia técnica disponible
 
-- Quality Gate de `main`: run `36781126288`, `push`, intento 1, `SUCCESS`, SHA exacto del baseline. Incluye lint, typecheck, contratos/API/web, integración, build, sincronización de referencias, imagen runtime y E2E con workers=1/retries=0.
+- Evidencia histórica del baseline: Quality Gate de `main`, run `36781126288`, `push`, intento 1, `SUCCESS`, SHA exacto del baseline.
+- **AUTHORITATIVE_EXACT_SHA_CI:** Quality Gate de PR59, run `36809323737`, intento 1, `SUCCESS`, SHA exacto `fa889f5df8a08cbbdbeb092a0bf1cedf2e89bec8`. Pasó lint, typecheck, unit/API/contracts/web tests, integración, build, reference sync, runtime image y E2E.
 - Railway B3A: release exacto `f02d431b-b06e-4b1f-92dd-8c13d4b26ff6`, SHA del baseline, migración 37 aplicada, `reference:sync` canónico, health 200 y sin P2025/P2xxx/500 en la revisión de logs.
 - Vercel Platform, Demo y Staging tienen deployments exact-SHA exitosos en el baseline. Las rutas protegidas responden 401 sin sesión; no se interpreta un shell estático como recorrido autenticado.
 - Sin reglas regulatorias reales publicadas: `RuleDrafts=5`, `published RuleVersions=0`. Las fuentes sintéticas siguen marcadas como demostrativas y las referencias extranjeras no se presentan como ley ecuatoriana.
@@ -53,7 +54,7 @@ La checklist distingue aceptación técnica de decisiones humanas: `PASS` no equ
 - `pnpm check`: **PASS** en este HEAD (lint, typecheck, tests de API/contratos/web, escenarios, revisión de corpus y build).
 - E2E completo: **41/41 PASS**, 22 lotes seriales, `workers=1`, `retries=0`; incluye el recorrido de claim, continuidad de Inspecciones, EPP, Work Queue, evaluación y regresiones jurisdiccionales.
 - `reference:sync` repetido e imagen runtime: **PASS** sobre bases locales desechables sin seed de desarrollo.
-- Integración sobre release-only fresco: **39/41 suites PASS**. Quedaron dos limitaciones del harness existente, separadas del delta de esta PR: una expectativa de planes comerciales no creados por el sync canónico de producción y dos pruebas de riesgo técnico que agotaron su timeout bajo la carga local. Las suites focales de evaluación, Inspecciones, EPP, continuidad y regulación sí pasan.
+- **LOCAL_DIAGNOSTIC:** la integración release-only local registró 39/41 suites PASS por dos limitaciones del harness existente: una expectativa de planes comerciales no creados por el sync canónico de producción y dos pruebas de riesgo técnico que agotaron su timeout bajo la carga local. No es el estado final del incremento; el resultado autoritativo es `AUTHORITATIVE_EXACT_SHA_CI`.
 
 ## Validación de seguridad del paquete
 

@@ -87,17 +87,69 @@ El sistema ya registra hechos, conserva históricos y muestra la fuente disponib
 
 ## RuleDrafts sin publicar
 
-Los cinco borradores siguen en revisión técnica/profesional. Para cada ficha, la pregunta es si el criterio propuesto representa fielmente la unidad oficial y su contexto; ninguna opción publica automáticamente.
+Estas cinco fichas corresponden exactamente a los RuleDrafts de `regulatory/pilots/ec-mdt-2024-196-v1/rule-drafts.json` y a `docs/product/regulatory-foundation-r1/five-rule-decisions.md`. Todas conservan `TECHNICAL_REVIEW_PENDING`; ninguna opción publica una `RuleVersion`.
 
-| ID     | Tema y fuente                                     | Condition propuesta / inputs                                     | Produce hoy                               | No produce                              | Pregunta exacta                                                | Impacto                   |
-| ------ | ------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------- | --------------------------------------- | -------------------------------------------------------------- | ------------------------- |
-| PA-R01 | Organización y centro · Anexo 3 MDT-2024-196      | Hechos declarados de organización/centro y contexto de actividad | Candidato explicable y artículo vinculado | No afirma obligación legal              | ¿El alcance y la población son suficientes para este criterio? | Publicar o mantener draft |
-| PA-R02 | Gestión de riesgos · unidad oficial verificada    | Existencia de riesgo y evidencia de organización                 | Requisito candidato con revisión          | No calcula cumplimiento                 | ¿Qué evidencia mínima hace defendible la interpretación?       | Criterio y evidencia      |
-| PA-R03 | Inspección · unidad oficial/mapping técnico       | Dominio, recurso y profundidad seleccionados                     | Criterio de inspección trazable           | No convierte estándar extranjero en ley | ¿El mapping aplica al dominio y jurisdicción?                  | Mapping operativo         |
-| PA-R04 | Capacitación · unidad oficial verificada          | Necesidad/rol/actividad registrada                               | Necesidad de capacitación candidata       | No decide competencia profesional       | ¿Qué orden y alcance debe tener la capacitación?               | Prioridad y copy          |
-| PA-R05 | Seguimiento/evidencia · unidad oficial verificada | Estado declarado, evidencia y acción                             | Requisito candidato y deep link           | No certifica cierre                     | ¿Qué evidencia permite considerar el seguimiento suficiente?   | Workflow y evidencia      |
+### PA-R01 · `MDT_2024_196_SST_RESPONSIBLE_REGISTRATION_RULE`
 
-En cada ficha se debe registrar: artículo/unidad exacta, texto oficial permitido, ambigüedad, decisión, fecha y profesional que la tomó. Hasta entonces `RuleVersions publicadas=0`.
+- **Source / unidad:** MDT-2024-196, Arts. 18–19.
+- **Condition draft:** `totalWorkerCount >= 1`.
+- **Estado:** `TECHNICAL_REVIEW_PENDING`; no existe `RuleVersion` publicada.
+- **Qué produce actualmente:** un candidato explicable de `SST_RESPONSIBLE_REGISTRATION`, con el artículo localizado y revisión profesional requerida.
+- **Qué no produce:** no afirma que la obligación esté publicada, no decide quién es el responsable ni certifica su registro.
+- **Evidencia faltante:** Decreto 255 vigente y definición verificable del alcance, perfil y evidencia del responsable.
+- **Pregunta exacta para Anita:** ¿El alcance, perfil y evidencia propuestos representan correctamente al responsable SST para organizaciones con al menos una persona trabajadora?
+- **Opciones:** (A) mantener el alcance actual; (B) restringirlo por actividad o tamaño; (C) exigir evidencia adicional antes de mostrar el candidato; (D) conservar `NO_EXACT_SOURCE_MAPPING` hasta disponer de la fuente faltante.
+- **Impacto:** cambia el alcance del candidato y la evidencia solicitada; no activa una obligación por sí solo.
+
+### PA-R02 · `MDT_2024_196_PREVENTION_PLAN_1_TO_10_RULE`
+
+- **Source / unidad:** MDT-2024-196, Art. 18.
+- **Condition draft:** `1 <= totalWorkerCount <= 10`.
+- **Estado:** `TECHNICAL_REVIEW_PENDING`; no existe `RuleVersion` publicada.
+- **Qué produce actualmente:** un candidato explicable de `PREVENTION_PLAN_REGISTRATION` para la banda de 1 a 10 personas.
+- **Qué no produce:** no calcula cumplimiento, no genera el procedimiento ni afirma que el contenido haya sido aprobado.
+- **Evidencia faltante:** Decreto 255 y fuente/procedimiento SUT que permitan representar contenido, responsable y evidencia de registro.
+- **Pregunta exacta para Anita:** ¿Qué procedimiento, contenido y evidencia hacen defendible este candidato para la banda de 1 a 10?
+- **Opciones:** (A) mantener la condición y pedir evidencia documental; (B) ajustar el alcance del plan; (C) dejarlo como candidato informativo; (D) conservar `NO_EXACT_SOURCE_MAPPING` hasta verificar Decreto 255/SUT.
+- **Impacto:** define la evidencia y el texto operativo del candidato; no publica una obligación automáticamente.
+
+### PA-R03 · `MDT_2024_196_HYGIENE_SAFETY_REGULATION_GT_10_RULE`
+
+- **Source / unidad:** MDT-2024-196, Art. 19.
+- **Condition draft:** `totalWorkerCount >= 11`.
+- **Estado:** `TECHNICAL_REVIEW_PENDING`; no existe `RuleVersion` publicada.
+- **Qué produce actualmente:** un candidato explicable de `HYGIENE_SAFETY_REGULATION_REGISTRATION` para organizaciones de más de 10 personas.
+- **Qué no produce:** no declara que exista una relación normativa completa ni convierte una referencia técnica en ley.
+- **Evidencia faltante:** relación exacta Decreto 255 / Anexo 3 / SUT, incluida la unidad aplicable y su evidencia.
+- **Pregunta exacta para Anita:** ¿La relación entre Decreto 255, Anexo 3 y SUT sustenta este alcance y qué evidencia debe solicitarse?
+- **Opciones:** (A) aceptar la relación propuesta; (B) corregir la unidad o el alcance; (C) mostrar solo la fuente localizada; (D) conservar `NO_EXACT_SOURCE_MAPPING` hasta verificar la relación completa.
+- **Impacto:** cambia el vínculo documental y el checklist asociado; no publica la regla.
+
+### PA-R04 · `MDT_2024_196_PSYCHOSOCIAL_PROGRAM_GT_10_RULE`
+
+- **Source / unidad:** MDT-2024-196, Art. 19.
+- **Condition draft:** `totalWorkerCount >= 11`.
+- **Estado:** `TECHNICAL_REVIEW_PENDING`; no existe `RuleVersion` publicada.
+- **Qué produce actualmente:** un candidato explicable de `PSYCHOSOCIAL_PROGRAM_REGISTRATION` para organizaciones de más de 10 personas.
+- **Qué no produce:** no interpreta resultados psicosociales, no crea datos individuales y no publica la regla automáticamente.
+- **Evidencia faltante:** confirmación del alcance técnico/profesional del programa y la evidencia requerida; las fuentes B3A pueden informarlo, pero no sustituyen la revisión del RuleDraft.
+- **Pregunta exacta para Anita:** ¿Qué alcance técnico, evidencia y límites profesionales debe tener este programa agregado para este umbral?
+- **Opciones:** (A) mantener el alcance agregado; (B) restringir dominios o ciclo; (C) exigir evidencia profesional antes del plan; (D) conservar `NO_EXACT_SOURCE_MAPPING` hasta cerrar la interpretación.
+- **Impacto:** afecta alcance, evidencia y explicación del programa; mantiene la frontera aggregate-only.
+
+### PA-R05 · `MDT_2024_196_ANNUAL_TRAINING_PLAN_GT_10_RULE`
+
+- **Source / unidad:** MDT-2024-196, Art. 19, más contexto CAN cuando corresponda.
+- **Condition draft:** `totalWorkerCount >= 11`.
+- **Estado:** `TECHNICAL_REVIEW_PENDING`; no existe `RuleVersion` publicada.
+- **Qué produce actualmente:** un candidato explicable de `ANNUAL_TRAINING_PLAN_REGISTRATION` para organizaciones de más de 10 personas.
+- **Qué no produce:** no decide competencia profesional, frecuencia válida ni cumplimiento del plan.
+- **Evidencia faltante:** fuente oficial que sustente contenido, frecuencia y evidencia del plan.
+- **Pregunta exacta para Anita:** ¿Qué contenido, frecuencia y evidencia deben respaldar el plan anual de capacitación en este contexto?
+- **Opciones:** (A) aceptar el alcance actual y pedir evidencia; (B) ajustar contenido o frecuencia; (C) mantenerlo como necesidad candidata; (D) conservar `NO_EXACT_SOURCE_MAPPING` hasta verificar la fuente oficial.
+- **Impacto:** cambia la prioridad y evidencia de capacitación; no publica una obligación.
+
+En cada ficha se registrará después la unidad exacta, texto permitido, ambigüedad, decisión, fecha y profesional que la tomó. Hasta entonces `RuleVersions publicadas=0`.
 
 ## SISAT: bloqueo externo, no decisión inventada
 
