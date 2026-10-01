@@ -218,7 +218,7 @@ export function DashboardView() {
         <span>Plan {data.entitlements.plan.name}</span>
         <Link
           href="/app/settings/organization#work-centers"
-          aria-label={`${data.organization._count.workCenters} centros activos. Abrir centros de trabajo`}
+          aria-label={`${data.organization._count.workCenters} centros de trabajo. Abrir centros de trabajo`}
         >
           {data.organization._count.workCenters} centros activos
         </Link>
