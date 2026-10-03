@@ -1,64 +1,61 @@
-# Guía de acceso para la revisión de Anita
+# Acceso a la revisión de Anita
 
-## Destino seguro
+## Para Anita
 
-Usar únicamente el preview de staging indicado por Jorge y el backend Railway de staging aislado. El preview puede pedir una autorización temporal de Vercel; la URL temporal se entrega fuera del repositorio y caduca. No usar el dominio productivo ni copiar el parámetro temporal a un documento o captura.
+Jorge te enviará un enlace personal de acceso al entorno de revisión. Usa el mismo correo al que llegó o para el que se generó la invitación.
 
-La cuenta del recorrido es el owner sintético del entorno. No se incluye contraseña en el repositorio, en este archivo, en la PR ni en el paquete visual.
+1. Abre el enlace que te envió Jorge.
+2. Si todavía no tienes una cuenta, elige **Crear cuenta**.
+3. Elige tu propia contraseña. No uses una contraseña compartida.
+4. Inicia sesión con ese mismo correo.
+5. Acepta el acceso a **SST Intelligence — Revisión Anita**.
+6. Comprueba que la organización activa sea la sintética y que el banner indique que los datos son sintéticos.
 
-## Preparación reproducible
+El enlace de invitación es personal, de un solo uso y caduca en siete días. Si no funciona, avisa a Jorge; no copies el enlace a GitHub, Notion, capturas o chats públicos.
 
-El fixture se prepara con el servicio demo existente y con llamadas canónicas al API. El script solo acepta la confirmación explícita `ANITA_REVIEW_FIXTURE=STAGING_ONLY` y se niega ante señales de producción.
+La revisión se realiza en staging y no en producción. No cargues datos reales de personas, trabajadores o pacientes. El entorno tiene una organización sintética con dos centros activos y datos preparados para la conversación profesional.
 
-```bash
-export ANITA_REVIEW_FIXTURE=STAGING_ONLY
-export ANITA_REVIEW_API_ORIGIN='https://<api-staging-autorizado>/api/v1'
-export ANITA_REVIEW_EMAIL='pilot.owner@synthetic.invalid' # o el owner sintético entregado por secrets
-export ANITA_REVIEW_PASSWORD='<solo en el entorno de ejecución>'
-pnpm demo:anita:provision
-```
+### Qué rol usar
 
-La ejecución es convergente: busca la organización por nombre exacto, reutiliza el owner, reutiliza centros y solo crea los centros que falten. No borra centros, workers, planes ni históricos y no escribe filas directamente en la cola. Las capacidades y los datos de inspección se preparan mediante las primitivas demo canónicas ya existentes.
+- **VIEWER / Solo lectura:** recomendado para una primera lectura y comentarios.
+- **SST_MANAGER:** recomendado para un taller interactivo en el que necesites registrar una decisión acotada en staging.
 
-Para capturas, proporcionar temporalmente el enlace de acceso de Vercel mediante `ANITA_REVIEW_VERCEL_SHARE` y ejecutar:
+No necesitas un rol de propietaria o administradora para revisar el producto.
 
-```bash
-export ANITA_REVIEW_BASE_URL='https://<preview-staging-autorizado>'
-pnpm demo:anita:capture
-```
+## Para Jorge — preparar el acceso de Anita
 
-El comando genera el manifiesto y las imágenes en `design-handoff/anita-visual-review-v1/`. No genera `storageState` ni conserva cookies.
+Esta sección es operativa y no se entrega como instrucciones técnicas a Anita.
 
-## Acceso de Anita mediante invitación
+1. Trabaja únicamente en el **preview de staging** autorizado. No uses el dominio productivo.
+2. Inicia sesión con el propietario sintético del entorno y confirma que la organización activa sea **SST Intelligence — Revisión Anita**.
+3. Abre **Equipo** → **Invitar a una persona**.
+4. Escribe el correo exacto de Anita cuando esté confirmado. No lo guardes en el repositorio.
+5. Elige `VIEWER` para observación o `SST_MANAGER` para una validación profesional interactiva. No concedas `ORG_OWNER` ni `ORG_ADMIN` por defecto.
+6. Crea la invitación, copia el enlace una sola vez y compártelo por un canal privado.
+7. Confirma que la invitación tenga una vigencia de siete días y que sea de un solo uso.
+8. No pegues la URL de invitación, el correo real de Anita ni un token en GitHub, Notion, la PR, una captura o un log.
 
-No se envió una invitación real en esta tarea porque falta confirmar el correo final de Anita. El proceso que debe usarse después es:
+La invitación real no forma parte de esta entrega. Se genera cerca de la sesión para que el correo y la vigencia sean correctos.
 
-1. Jorge entra en **Equipo** con el owner sintético.
-2. Selecciona **Invitar**, escribe el correo de Anita y elige `VIEWER` para observación o `SST_MANAGER` para validación activa.
-3. Crea la invitación y copia el enlace manual.
-4. Comparte el enlace por un canal seguro; no lo pega en la PR, screenshots, logs ni este repositorio.
-5. Anita crea o usa una cuenta con ese mismo correo, abre el enlace y acepta.
+## Acceso temporal de Vercel para Jorge
 
-El enlace no usa un proveedor de email automático. Expira en siete días, es de un solo uso y el correo autenticado debe coincidir exactamente. Después de procesarlo, el token no debe permanecer en la URL.
+El preview de staging puede estar protegido por Vercel. Si una persona externa recibe un 401/403, Jorge crea un enlace temporal de acceso para el despliegue exacto, lo prueba en una ventana sin sesión y lo comparte de forma privada.
 
-## Primer recorrido recomendado
+- El enlace temporal no se guarda en el repositorio ni en Notion.
+- El enlace se entrega junto con la invitación personal, no como una contraseña compartida.
+- El enlace temporal caduca; si expira, Jorge genera uno nuevo para el mismo despliegue.
+- Anita solo debe leer “Usa el enlace de revisión que Jorge te envió”. No necesita conocer Vercel, Railway, tokens ni URLs internas.
 
-1. **Inicio**: comprobar que el banner identifica la demostración conceptual y que la organización activa es la sintética.
-2. **Evaluación SST**: revisar 453, 267, 85 y 101 sin convertir la diferencia en una distribución inventada.
-3. **Plan operativo**: abrir los seis ítems y seguir el origen de cada uno.
-4. **Cola de trabajo**: abrir capacitación, acciones de inspección, observación e EPP y comprobar cada deep link.
-5. **Inspecciones**: separar base técnica, criterio, resultado, finding, riesgo, acción, evidencia y verificación.
-6. **EPP**: revisar selección humana, entrega, acuse, condición `UNSERVICEABLE`, reemplazo histórico y nueva entrega pendiente.
-7. **Capacitación**: leer la necesidad por cargo, la sesión, asistencia y completitud sin llamarla certificación.
-8. **Incidentes y observaciones**: distinguir el casi incidente investigado de la buena práctica independiente.
-9. **Módulos y biblioteca**: confirmar qué está en demo, qué requiere entitlement y que no hay `RuleVersions` publicadas.
+## Comprobar que se está en el entorno correcto
 
-## Roles
+Antes de iniciar la sesión, verifica:
 
-- `VIEWER`: recorrido amplio y lectura sin mutaciones.
-- `SST_MANAGER`: validación profesional interactiva y acciones acotadas en staging.
-- No usar `ORG_ADMIN` u `ORG_OWNER` para Anita salvo decisión posterior explícita.
+- el encabezado dice **SST Inteligente — Staging**;
+- la organización dice **SST Intelligence — Revisión Anita**;
+- aparece el aviso **Los datos son sintéticos**;
+- no se ve una URL de producción;
+- el menú permite abrir Evaluación, Plan, Cola, Inspecciones, EPP, Salud, Psicosocial y Biblioteca.
 
-## Qué no debe hacerse
+## Límites de esta entrega
 
-No cargar datos de clientes o trabajadores reales, no completar respuestas clínicas, no crear invitaciones reales sin el correo confirmado, no usar producción, no presentar estándares extranjeros como ley ecuatoriana y no marcar una superficie como aprobada solo porque la captura carga.
+No se crean invitaciones reales en esta tarea. No se escriben organizaciones reales, no se despliega producción y no se comparten contraseñas, cookies o tokens. La revisión profesional se registra aparte de cualquier publicación normativa.

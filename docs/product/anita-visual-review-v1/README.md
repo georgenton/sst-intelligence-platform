@@ -98,7 +98,9 @@ Auditoría de IDs de navegación (33/33): `home`, `consultant-portfolio`, `conve
 - La creación idempotente de salud ocupacional fue corregida dentro del lock advisory; el reintento devuelve el mismo programa y no duplica filas.
 - Regulatorio conserva `RuleDrafts=5`, `RuleVersions=0`. SISAT sigue `BLOCKED_EXTERNAL_SOURCE` con unidades cero. No se inventaron fuentes ni aprobaciones.
 
-Estado de entrega: **READY FOR VISUAL REVIEW**. La aceptación profesional sigue separada: PA-09 y PA-03…PA-08 requieren revisión de Anita; PA-10 y PA-11 continúan bloqueados por fuente y no se presentan como cumplimiento.
+Estado de entrega: **READY_TO_SEND_TO_ANITA**.
+
+Frontend exacto de revisión: `https://sst-intelligence-staging-go10gcb5n-georgentons-projects.vercel.app`; 30 capturas recapturadas contra este staging (26 desktop, 4 mobile). La aceptación profesional sigue separada: PA-09 y PA-03…PA-08 requieren revisión de Anita; PA-10 y PA-11 continúan bloqueados por fuente y no se presentan como cumplimiento.
 
 ## Qué debe revisar Anita
 

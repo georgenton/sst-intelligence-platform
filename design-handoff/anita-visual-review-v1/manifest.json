@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-01T22:50:38.203Z",
-  "baseUrl": "https://sst-intelligence-staging-jncor0ujx-georgentons-projects.vercel.app",
+  "generatedAt": "2026-10-03T17:59:12.397Z",
+  "baseUrl": "https://sst-intelligence-staging-go10gcb5n-georgentons-projects.vercel.app",
   "captures": [
     {
       "name": "01-home",
@@ -14,7 +14,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Centro de comando",
       "decisionPa": null,
-      "screenshot": "01-home.png"
+      "screenshot": "01-home.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "02-evaluation",
@@ -28,7 +29,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Evaluación SST",
       "decisionPa": null,
-      "screenshot": "02-evaluation.png"
+      "screenshot": "02-evaluation.png",
+      "reviewStatus": "READY_WITH_NOTE"
     },
     {
       "name": "03-plans",
@@ -42,7 +44,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Plan operativo",
       "decisionPa": null,
-      "screenshot": "03-plans.png"
+      "screenshot": "03-plans.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "04-work-queue",
@@ -56,7 +59,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Cola de trabajo",
       "decisionPa": null,
-      "screenshot": "04-work-queue.png"
+      "screenshot": "04-work-queue.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "05-field",
@@ -70,7 +74,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Contexto de campo",
       "decisionPa": null,
-      "screenshot": "05-field.png"
+      "screenshot": "05-field.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "06-search",
@@ -84,7 +89,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Búsqueda operativa",
       "decisionPa": null,
-      "screenshot": "06-search.png"
+      "screenshot": "06-search.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "07-workers",
@@ -98,7 +104,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Equipo de trabajadores",
       "decisionPa": null,
-      "screenshot": "07-workers.png"
+      "screenshot": "07-workers.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "08-incidents",
@@ -112,7 +119,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Incidentes",
       "decisionPa": null,
-      "screenshot": "08-incidents.png"
+      "screenshot": "08-incidents.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "09-safety-observations",
@@ -126,7 +134,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Observaciones de seguridad",
       "decisionPa": null,
-      "screenshot": "09-safety-observations.png"
+      "screenshot": "09-safety-observations.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "10-ppe",
@@ -140,7 +149,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Protección personal",
       "decisionPa": null,
-      "screenshot": "10-ppe.png"
+      "screenshot": "10-ppe.png",
+      "reviewStatus": "READY_WITH_NOTE"
     },
     {
       "name": "11-training",
@@ -154,7 +164,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Capacitación",
       "decisionPa": null,
-      "screenshot": "11-training.png"
+      "screenshot": "11-training.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "12-inspections",
@@ -168,7 +179,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Inspecciones",
       "decisionPa": null,
-      "screenshot": "12-inspections.png"
+      "screenshot": "12-inspections.png",
+      "reviewStatus": "READY_WITH_NOTE"
     },
     {
       "name": "13-inspection-alerts",
@@ -182,7 +194,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Alertas de inspección",
       "decisionPa": null,
-      "screenshot": "13-inspection-alerts.png"
+      "screenshot": "13-inspection-alerts.png",
+      "reviewStatus": "READY_WITH_NOTE"
     },
     {
       "name": "14-technical-risk",
@@ -196,7 +209,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Riesgo técnico",
       "decisionPa": null,
-      "screenshot": "14-technical-risk.png"
+      "screenshot": "14-technical-risk.png",
+      "reviewStatus": "READY_WITH_NOTE"
     },
     {
       "name": "15-risk-methods",
@@ -210,7 +224,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Métodos de riesgo",
       "decisionPa": null,
-      "screenshot": "15-risk-methods.png"
+      "screenshot": "15-risk-methods.png",
+      "reviewStatus": "PROFESSIONAL_REVIEW_REQUIRED"
     },
     {
       "name": "16-management-intelligence",
@@ -224,7 +239,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Inteligencia de gestión",
       "decisionPa": null,
-      "screenshot": "16-management-intelligence.png"
+      "screenshot": "16-management-intelligence.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "17-operational-signals",
@@ -238,7 +254,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Señales operativas",
       "decisionPa": null,
-      "screenshot": "17-operational-signals.png"
+      "screenshot": "17-operational-signals.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "18-inspection-analytics",
@@ -252,7 +269,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Analítica de inspecciones",
       "decisionPa": null,
-      "screenshot": "18-inspection-analytics.png"
+      "screenshot": "18-inspection-analytics.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "19-organization",
@@ -266,7 +284,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Organización y centros",
       "decisionPa": null,
-      "screenshot": "19-organization.png"
+      "screenshot": "19-organization.png",
+      "reviewStatus": "READY_WITH_NOTE"
     },
     {
       "name": "20-members",
@@ -280,7 +299,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Equipo y miembros",
       "decisionPa": null,
-      "screenshot": "20-members.png"
+      "screenshot": "20-members.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "21-evidence-packages",
@@ -294,7 +314,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Paquetes de evidencia",
       "decisionPa": null,
-      "screenshot": "21-evidence-packages.png"
+      "screenshot": "21-evidence-packages.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "22-modules",
@@ -308,7 +329,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Módulos y capacidades",
       "decisionPa": null,
-      "screenshot": "22-modules.png"
+      "screenshot": "22-modules.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "23-billing",
@@ -322,7 +344,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Facturación",
       "decisionPa": null,
-      "screenshot": "23-billing.png"
+      "screenshot": "23-billing.png",
+      "reviewStatus": "OUT_OF_REVIEW_SCOPE"
     },
     {
       "name": "28-health-at-work",
@@ -336,7 +359,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Salud en el trabajo",
       "decisionPa": "PA-09",
-      "screenshot": "28-health-at-work.png"
+      "screenshot": "28-health-at-work.png",
+      "reviewStatus": "PROFESSIONAL_REVIEW_REQUIRED"
     },
     {
       "name": "29-psychosocial",
@@ -350,7 +374,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Prevención de riesgos psicosociales",
       "decisionPa": "PA-09",
-      "screenshot": "29-psychosocial.png"
+      "screenshot": "29-psychosocial.png",
+      "reviewStatus": "PROFESSIONAL_REVIEW_REQUIRED"
     },
     {
       "name": "30-regulatory-library",
@@ -364,7 +389,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Biblioteca normativa",
       "decisionPa": "PA-10/PA-11",
-      "screenshot": "30-regulatory-library.png"
+      "screenshot": "30-regulatory-library.png",
+      "reviewStatus": "BLOCKED_EXTERNAL_SOURCE"
     },
     {
       "name": "24-mobile-home",
@@ -378,7 +404,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Centro de comando",
       "decisionPa": null,
-      "screenshot": "24-mobile-home.png"
+      "screenshot": "24-mobile-home.png",
+      "reviewStatus": "READY"
     },
     {
       "name": "25-mobile-evaluation",
@@ -392,7 +419,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Evaluación SST",
       "decisionPa": null,
-      "screenshot": "25-mobile-evaluation.png"
+      "screenshot": "25-mobile-evaluation.png",
+      "reviewStatus": "READY_WITH_NOTE"
     },
     {
       "name": "26-mobile-ppe",
@@ -406,7 +434,8 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Protección personal",
       "decisionPa": null,
-      "screenshot": "26-mobile-ppe.png"
+      "screenshot": "26-mobile-ppe.png",
+      "reviewStatus": "READY_WITH_NOTE"
     },
     {
       "name": "27-mobile-work-queue",
@@ -420,8 +449,16 @@
       "syntheticOrganization": "SST Intelligence — Revisión Anita",
       "concept": "Cola de trabajo",
       "decisionPa": null,
-      "screenshot": "27-mobile-work-queue.png"
+      "screenshot": "27-mobile-work-queue.png",
+      "reviewStatus": "READY"
     }
   ],
-  "session": "synthetic owner; no storageState persisted"
+  "session": "synthetic owner; no storageState persisted",
+  "reviewStatusLegend": {
+    "READY": "Operativamente observable y listo para revisar",
+    "READY_WITH_NOTE": "Observable con una nota de contexto",
+    "PROFESSIONAL_REVIEW_REQUIRED": "Requiere criterio profesional de Anita",
+    "BLOCKED_EXTERNAL_SOURCE": "Depende de una fuente externa aún no estructurada",
+    "OUT_OF_REVIEW_SCOPE": "Fuera de la revisión profesional"
+  }
 }

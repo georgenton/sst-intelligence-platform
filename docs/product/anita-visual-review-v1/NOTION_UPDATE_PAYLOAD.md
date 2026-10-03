@@ -1,36 +1,52 @@
 # Actualización de revisión visual de Anita
 
-Estado técnico: **READY FOR VISUAL REVIEW**.
+Estado de entrega: **READY_TO_SEND_TO_ANITA**.
 
-La revisión se ejecuta contra el preview Vercel del HEAD final de PR60 y el
-backend Railway de staging que contiene el runtime funcional. La cuenta y la
-organización son sintéticas; no se escribieron organizaciones reales ni
-producción.
+## Hechos finales
 
-- HEAD final PR60: consultar el HEAD actual y el último check exitoso de PR #60; el informe de cierre conserva el SHA exacto.
-- Preview exacto HEAD final: consultar el check `Vercel – sst-intelligence-staging` del HEAD actual de PR #60 (`READY`).
-- Captura visual: `sst-intelligence-staging-jncor0ujx-georgentons-projects.vercel.app`; corresponde al SHA `04543340a2c506e84023c2efb1345fe26ee0cccc`. Los commits posteriores solo ajustaron documentación, manifiesto y nombre accesible; no cambiaron píxeles ni runtime de la aplicación.
-- Frontend runtime funcional: `5a69f6c0ef982a0cca2f0affd040ca112716a9ba`
-- Backend staging: `sst-api-staging-staging.up.railway.app/api/v1`
-- Backend deployment: `bf799c22-fd25-487c-afe5-b053e92310a1` (`SUCCESS`)
-- Release: 37 migraciones encontradas, 0 pendientes, `reference:sync` ejecutado
-- Verificador: `demo:anita:verify` → `FINAL=PASS`, solo lectura
-- Capturas: 26 desktop + 4 mobile, 30/30 HTTP 200 y assertions de contenido
-- Quality Gate: último check `Quality gate` exitoso del HEAD actual de PR #60 (`SUCCESS`).
+- PR: #60, rama `codex/anita-visual-review-environment-v1`.
+- HEAD de revisión: consultar el HEAD actual de la PR y el último Quality Gate exitoso antes de copiar el dato en Notion.
+- Frontend de revisión exacto: `https://sst-intelligence-staging-go10gcb5n-georgentons-projects.vercel.app`.
+- Protección externa: `VERCEL_SHARE_REQUIRED`; Jorge entrega un enlace temporal privado para el despliegue exacto. El parámetro temporal no se guarda aquí.
+- Backend de staging: `https://sst-api-staging-staging.up.railway.app/api/v1`.
+- Organización: **SST Intelligence — Revisión Anita**; datos sintéticos; 453 total, 267 Quito, 85 Guayaquil y 101 sin centro.
+- Smoke autenticado: `demo:anita:verify` → `FINAL=PASS`; las rutas principales se abrieron visualmente en el staging exacto y no presentaron 5xx, stack trace ni datos reales.
+- Capturas: 30 en `design-handoff/anita-visual-review-v1/` (26 desktop, 4 mobile de 390 px), 30/30 HTTP 200 y assertions de contenido.
+- Manifest: `design-handoff/anita-visual-review-v1/manifest.json`; cada captura incluye ruta, viewport, concepto, estado de revisión, PA cuando corresponde y organización sintética.
 
-Correcciones focales:
+## Material para Anita
 
-1. El contador del centro de comando cuenta únicamente centros activos; los
-   históricos siguen almacenados y recuperables.
-2. El lock advisory de creación de salud ocupacional conserva la idempotencia
-   sin construir SQL inválido. La prueba de reintento devuelve el mismo ID.
-3. El módulo psicosocial B3A se puede seleccionar mediante el endpoint demo
-   canónico existente; `EntitlementGuard` sigue siendo la autoridad.
+- Manual: `docs/product/anita-visual-review-v1/MANUAL-ANITA.md`.
+- Guía rápida: `docs/product/anita-visual-review-v1/GUIA-RAPIDA-ANITA.md`.
+- Acceso: `docs/product/anita-visual-review-v1/access-guide.md`.
+- Hoja PA: `docs/product/anita-visual-review-v1/validation-checklist.md`.
+- Mensaje listo para copiar: `docs/product/anita-visual-review-v1/MENSAJE-PARA-ANITA.md`.
 
-La entrada pública `solution-finder` y `complete` respondieron 201 después de
-alinear staging. La causa se clasifica como `STALE_STAGING_RUNTIME`; no hubo
-cambio en la lógica de solution-finder.
+## Estado profesional y normativo
 
-Aceptaciones humanas pendientes: PA-09 (instrumento, alcance e interpretación
-aggregate-only), junto con las decisiones profesionales indicadas en la
-checklist. `RuleDrafts=5`, `RuleVersions=0` y SISAT permanecen sin publicación.
+- PA-01 y PA-02: evidencia visible; requieren confirmación de lenguaje y denominador.
+- PA-03 y PA-04: método, profundidad y mappings requieren criterio profesional.
+- PA-05 a PA-08: EPP, capacitación, incidentes y observaciones requieren criterio profesional.
+- PA-09: Salud y Psicosocial siguen alcance preventivo/agregado y requieren validación humana.
+- PA-10: resolver cinco decisiones por separado; `RuleDrafts=5`, `RuleVersions=0`.
+- PA-11: `SISAT=BLOCKED_EXTERNAL_SOURCE`; la referencia oficial fue identificada, pero el artefacto exacto aún no está fijado y estructurado.
+
+## Acceso y seguridad
+
+- `ANITA_REAL_INVITATION=NO`: la invitación se genera cerca de la sesión con el correo exacto.
+- Rol recomendado: `VIEWER` para lectura; `SST_MANAGER` para taller interactivo. No usar owner/admin por defecto.
+- Vigencia de invitación: 7 días, un solo uso.
+- Cuenta propia obligatoria; contraseña compartida: NO.
+- No se guardan correo real, token de invitación, share secret, cookies, datos clínicos ni datos de clientes.
+
+## Nota de entorno
+
+La ficha de Organización puede mostrar el límite comercial de un centro mientras la
+fixture mantiene dos centros activos para la revisión. Se documenta como nota de
+interpretación del entorno sintético; no se cambió el producto en este bloque.
+
+## Límites
+
+No hubo cambios de aplicación en esta entrega, nuevas migraciones, despliegue
+productivo ni escrituras sobre organizaciones reales. El paquete no publica reglas,
+no cierra la aceptación de Anita y no constituye una campaña de cumplimiento.
