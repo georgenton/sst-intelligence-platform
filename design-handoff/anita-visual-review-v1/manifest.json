@@ -1,0 +1,464 @@
+{
+  "generatedAt": "2026-10-03T17:59:12.397Z",
+  "baseUrl": "https://sst-intelligence-staging-go10gcb5n-georgentons-projects.vercel.app",
+  "captures": [
+    {
+      "name": "01-home",
+      "route": "/app",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Centro de comando",
+      "decisionPa": null,
+      "screenshot": "01-home.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "02-evaluation",
+      "route": "/app/evaluation",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Evaluación SST",
+      "decisionPa": null,
+      "screenshot": "02-evaluation.png",
+      "reviewStatus": "READY_WITH_NOTE"
+    },
+    {
+      "name": "03-plans",
+      "route": "/app/plans",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Plan operativo",
+      "decisionPa": null,
+      "screenshot": "03-plans.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "04-work-queue",
+      "route": "/app/work",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Cola de trabajo",
+      "decisionPa": null,
+      "screenshot": "04-work-queue.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "05-field",
+      "route": "/app/field",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Contexto de campo",
+      "decisionPa": null,
+      "screenshot": "05-field.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "06-search",
+      "route": "/app/search",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Búsqueda operativa",
+      "decisionPa": null,
+      "screenshot": "06-search.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "07-workers",
+      "route": "/app/workers",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Equipo de trabajadores",
+      "decisionPa": null,
+      "screenshot": "07-workers.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "08-incidents",
+      "route": "/app/incidents",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Incidentes",
+      "decisionPa": null,
+      "screenshot": "08-incidents.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "09-safety-observations",
+      "route": "/app/safety-observations",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Observaciones de seguridad",
+      "decisionPa": null,
+      "screenshot": "09-safety-observations.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "10-ppe",
+      "route": "/app/ppe",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Protección personal",
+      "decisionPa": null,
+      "screenshot": "10-ppe.png",
+      "reviewStatus": "READY_WITH_NOTE"
+    },
+    {
+      "name": "11-training",
+      "route": "/app/training",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Capacitación",
+      "decisionPa": null,
+      "screenshot": "11-training.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "12-inspections",
+      "route": "/app/inspections",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Inspecciones",
+      "decisionPa": null,
+      "screenshot": "12-inspections.png",
+      "reviewStatus": "READY_WITH_NOTE"
+    },
+    {
+      "name": "13-inspection-alerts",
+      "route": "/app/inspections/alerts",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Alertas de inspección",
+      "decisionPa": null,
+      "screenshot": "13-inspection-alerts.png",
+      "reviewStatus": "READY_WITH_NOTE"
+    },
+    {
+      "name": "14-technical-risk",
+      "route": "/app/technical-risk",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Riesgo técnico",
+      "decisionPa": null,
+      "screenshot": "14-technical-risk.png",
+      "reviewStatus": "READY_WITH_NOTE"
+    },
+    {
+      "name": "15-risk-methods",
+      "route": "/app/risk-methods",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Métodos de riesgo",
+      "decisionPa": null,
+      "screenshot": "15-risk-methods.png",
+      "reviewStatus": "PROFESSIONAL_REVIEW_REQUIRED"
+    },
+    {
+      "name": "16-management-intelligence",
+      "route": "/app/management-intelligence",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Inteligencia de gestión",
+      "decisionPa": null,
+      "screenshot": "16-management-intelligence.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "17-operational-signals",
+      "route": "/app/intelligence",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Señales operativas",
+      "decisionPa": null,
+      "screenshot": "17-operational-signals.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "18-inspection-analytics",
+      "route": "/app/inspections/analytics",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Analítica de inspecciones",
+      "decisionPa": null,
+      "screenshot": "18-inspection-analytics.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "19-organization",
+      "route": "/app/settings/organization",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Organización y centros",
+      "decisionPa": null,
+      "screenshot": "19-organization.png",
+      "reviewStatus": "READY_WITH_NOTE"
+    },
+    {
+      "name": "20-members",
+      "route": "/app/settings/members",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Equipo y miembros",
+      "decisionPa": null,
+      "screenshot": "20-members.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "21-evidence-packages",
+      "route": "/app/evidence-packages",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Paquetes de evidencia",
+      "decisionPa": null,
+      "screenshot": "21-evidence-packages.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "22-modules",
+      "route": "/app/modules",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Módulos y capacidades",
+      "decisionPa": null,
+      "screenshot": "22-modules.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "23-billing",
+      "route": "/app/billing",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Facturación",
+      "decisionPa": null,
+      "screenshot": "23-billing.png",
+      "reviewStatus": "OUT_OF_REVIEW_SCOPE"
+    },
+    {
+      "name": "28-health-at-work",
+      "route": "/app/health-at-work",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Salud en el trabajo",
+      "decisionPa": "PA-09",
+      "screenshot": "28-health-at-work.png",
+      "reviewStatus": "PROFESSIONAL_REVIEW_REQUIRED"
+    },
+    {
+      "name": "29-psychosocial",
+      "route": "/app/psychosocial",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Prevención de riesgos psicosociales",
+      "decisionPa": "PA-09",
+      "screenshot": "29-psychosocial.png",
+      "reviewStatus": "PROFESSIONAL_REVIEW_REQUIRED"
+    },
+    {
+      "name": "30-regulatory-library",
+      "route": "/app/applicability/sources",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Biblioteca normativa",
+      "decisionPa": "PA-10/PA-11",
+      "screenshot": "30-regulatory-library.png",
+      "reviewStatus": "BLOCKED_EXTERNAL_SOURCE"
+    },
+    {
+      "name": "24-mobile-home",
+      "route": "/app",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Centro de comando",
+      "decisionPa": null,
+      "screenshot": "24-mobile-home.png",
+      "reviewStatus": "READY"
+    },
+    {
+      "name": "25-mobile-evaluation",
+      "route": "/app/evaluation",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Evaluación SST",
+      "decisionPa": null,
+      "screenshot": "25-mobile-evaluation.png",
+      "reviewStatus": "READY_WITH_NOTE"
+    },
+    {
+      "name": "26-mobile-ppe",
+      "route": "/app/ppe",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Protección personal",
+      "decisionPa": null,
+      "screenshot": "26-mobile-ppe.png",
+      "reviewStatus": "READY_WITH_NOTE"
+    },
+    {
+      "name": "27-mobile-work-queue",
+      "route": "/app/work",
+      "status": 200,
+      "title": "SST Inteligente — Staging",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "syntheticOrganization": "SST Intelligence — Revisión Anita",
+      "concept": "Cola de trabajo",
+      "decisionPa": null,
+      "screenshot": "27-mobile-work-queue.png",
+      "reviewStatus": "READY"
+    }
+  ],
+  "session": "synthetic owner; no storageState persisted",
+  "reviewStatusLegend": {
+    "READY": "Operativamente observable y listo para revisar",
+    "READY_WITH_NOTE": "Observable con una nota de contexto",
+    "PROFESSIONAL_REVIEW_REQUIRED": "Requiere criterio profesional de Anita",
+    "BLOCKED_EXTERNAL_SOURCE": "Depende de una fuente externa aún no estructurada",
+    "OUT_OF_REVIEW_SCOPE": "Fuera de la revisión profesional"
+  }
+}

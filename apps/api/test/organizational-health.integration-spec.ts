@@ -84,9 +84,10 @@ describe('B3 organizational health and psychosocial foundation', () => {
   });
 
   it('creates a tenant-scoped occupational program, activity evidence and audit trail', async () => {
+    const idempotencyKey = randomUUID();
     const program = await request(app.getHttpServer())
       .post('/api/v1/occupational-health/programs')
-      .set(auth())
+      .set({ ...auth(), 'idempotency-key': idempotencyKey })
       .send({
         periodStart: '2026-01-01',
         periodEnd: '2026-12-31',
@@ -94,6 +95,17 @@ describe('B3 organizational health and psychosocial foundation', () => {
         scopeSummary: 'Coordinación preventiva organizacional.',
       })
       .expect(201);
+    const retry = await request(app.getHttpServer())
+      .post('/api/v1/occupational-health/programs')
+      .set({ ...auth(), 'idempotency-key': idempotencyKey })
+      .send({
+        periodStart: '2026-01-01',
+        periodEnd: '2026-12-31',
+        title: 'Programa preventivo B3',
+        scopeSummary: 'Coordinación preventiva organizacional.',
+      })
+      .expect(201);
+    expect(retry.body.id).toBe(program.body.id);
     const activity = await request(app.getHttpServer())
       .post(`/api/v1/occupational-health/programs/${program.body.id}/activities`)
       .set(auth())
@@ -199,7 +211,9 @@ describe('B3 organizational health and psychosocial foundation', () => {
         createdById: owner.id,
       },
     });
-    const plan = await prisma.operationalPlan.create({ data: { organizationId, createdById: owner.id } });
+    const plan = await prisma.operationalPlan.create({
+      data: { organizationId, createdById: owner.id },
+    });
     const version = await prisma.operationalPlanVersion.create({
       data: {
         planId: plan.id,
@@ -233,7 +247,11 @@ describe('B3 organizational health and psychosocial foundation', () => {
     expect(linked.linkedOperationalPlanItemId).toBe(item.id);
     expect(
       await prisma.auditLog.count({
-        where: { organizationId, entityId: cycle.id, action: 'PSYCHOSOCIAL_CYCLE_PLAN_ITEM_LINKED' },
+        where: {
+          organizationId,
+          entityId: cycle.id,
+          action: 'PSYCHOSOCIAL_CYCLE_PLAN_ITEM_LINKED',
+        },
       }),
     ).toBe(1);
   });

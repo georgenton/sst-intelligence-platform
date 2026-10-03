@@ -220,7 +220,7 @@ export function DashboardView() {
           href="/app/settings/organization#work-centers"
           aria-label={`${data.organization._count.workCenters} centros de trabajo. Abrir centros de trabajo`}
         >
-          {data.organization._count.workCenters} centros de trabajo
+          {data.organization._count.workCenters} centros activos
         </Link>
         <span>{data.organization._count.memberships} personas con acceso</span>
       </ContextSummary>

@@ -848,9 +848,11 @@ export class OrganizationalHealthService {
     if (!key) return null;
     if (!isUUID(key, '4')) throw new BadRequestException('La clave de reintento no es válida.');
     const keyHash = createHash('sha256').update(key.toLowerCase()).digest('hex');
-    await tx.$executeRaw(
-      Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${organizationId}:${keyHash}, 0))`,
-    );
+    // Keep the lock key as one bound text value. Interpolating the colon between
+    // two Prisma.sql parameters produces invalid SQL (`$1:$2`) and turned every
+    // idempotent occupational-health create into an opaque HTTP 500.
+    const lockKey = `${organizationId}:${keyHash}`;
+    await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
     const receipt = await tx.auditLog.findFirst({
       where: {
         organizationId,
